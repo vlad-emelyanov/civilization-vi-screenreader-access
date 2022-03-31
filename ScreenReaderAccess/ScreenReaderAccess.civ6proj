@@ -18,8 +18,8 @@
     <CompatibleVersions>1.2,2.0</CompatibleVersions>
     <AssemblyName>ScreenReaderAccess</AssemblyName>
     <RootNamespace>ScreenReaderAccess</RootNamespace>
-    <FrontEndActionData><![CDATA[<FrontEndActions><UpdateDatabase id="SRAccess_FE_CreateMessagesTable"><File priority="11111">create_messages_table.sql</File></UpdateDatabase><ImportFiles id="SRAccess_FE_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File></ImportFiles></FrontEndActions>]]></FrontEndActionData>
-    <InGameActionData><![CDATA[<InGameActions><UpdateDatabase id="SRAccess_IG_CreateMessagesTable"><File priority="11111">create_messages_table.sql</File></UpdateDatabase><ImportFiles id="SRAccess_IG_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File></ImportFiles></InGameActions>]]></InGameActionData>
+    <FrontEndActionData><![CDATA[<FrontEndActions><ImportFiles id="SRAccess_FE_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File></ImportFiles></FrontEndActions>]]></FrontEndActionData>
+    <InGameActionData><![CDATA[<InGameActions><ImportFiles id="SRAccess_IG_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File></ImportFiles></InGameActions>]]></InGameActionData>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Default' ">
     <OutputPath>.</OutputPath>
@@ -29,9 +29,6 @@
       <SubType>Content</SubType>
     </Content>
     <Content Include="Assets\UI\ToolTips\PlotToolTip.lua">
-      <SubType>Content</SubType>
-    </Content>
-    <Content Include="create_messages_table.sql">
       <SubType>Content</SubType>
     </Content>
   </ItemGroup>
