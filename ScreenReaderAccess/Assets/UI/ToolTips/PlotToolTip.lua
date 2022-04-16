@@ -554,10 +554,6 @@ function View( data:table )
 	-- Build a string that contains all plot details.
 	local details = GetDetails(data);
 	
-	-- CB: Test
-	table.insert(details, "Running from mod");
-	-- end test
-
 	-- Add debug information in here:
 	local debugInfo = {};
 	if m_isShowDebug or m_isWorldBuilder then
@@ -635,9 +631,7 @@ function View( data:table )
 
 	-- Begin ScreenReaderAccess mod change
 	local description = table.concat(details, "[NEWLINE]");
-	print("Attempting to add SRAccess message to screenreader module: " .. description);
 	OutputMessageToScreenReader(description);
-	print("Updated SRAccess messages table");
 	-- End ScreenReaderAccess mod change
 end
 
