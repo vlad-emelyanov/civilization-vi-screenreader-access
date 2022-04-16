@@ -1,4 +1,5 @@
-﻿using AccessibleOutput;
+﻿using System.Text.RegularExpressions;
+using AccessibleOutput;
 
 namespace ScreenreaderAccess.Console
 {
@@ -6,7 +7,19 @@ namespace ScreenreaderAccess.Console
     {
         private IAccessibleOutput screenReader;
 
-        private static readonly string screenReaderrPrefix = "PlotToolTip: #SCREENREADER - ";
+        private static readonly string screenReaderMarker = "#SCREENREADER - ";
+
+        // precompiles a regex of sanitization, using | to separate
+        private static readonly Dictionary<string, string> sanitizationRegexMap = new Dictionary<string, string>
+        {
+            { $@"^\w+\: {screenReaderMarker}", string.Empty },
+            { @"\[ICON_\w+\]", " " },
+            { @"[-]{2,}\[NEWLINE\]", string.Empty },
+            { @"\[NEWLINE\]", ", " },
+            { @"\[COLOR:\w+\]", string.Empty },
+            { @"\[ENDCOLOR\]", string.Empty }
+        };
+        private static readonly Regex sanitizationRegex = new Regex(string.Join("|", sanitizationRegexMap.Keys.Select(k => $"({k})")), RegexOptions.Compiled);
 
         public AccessibleOutputHandler()
         {
@@ -19,7 +32,7 @@ namespace ScreenreaderAccess.Console
 
             foreach (var line in lines)
             {
-                if (line.StartsWith(screenReaderrPrefix))
+                if (line.Contains(screenReaderMarker))
                 {
                     this.screenReader.Speak(SanitizeLine(line));
                 }
@@ -28,8 +41,24 @@ namespace ScreenreaderAccess.Console
 
         private static string SanitizeLine(string line)
         {
-            return line.Substring(screenReaderrPrefix.Length - 1)
-                .Replace("[NEWLINE]", ", ");
+            return sanitizationRegex.Replace(line, match => RegexEvaluate(match));
         }
+
+        private static string RegexEvaluate(Match match)
+        {
+            // match group 0 is the entire match, whilst later match groups match to which one of the regexes got matched.
+            // so by starting at index 1 in groups, we can work out which element to replace it with by using the index of the replacements
+            for (int i = 1; i < match.Groups.Count; i++)
+            {
+                var group = match.Groups[i];
+                if (group.Success)
+                {
+                    return sanitizationRegexMap.ElementAt(i - 1).Value;
+                }
+            }
+
+            throw new ArgumentException("Match found that doesn't have any successful groups");
+        }
+
     }
 }
