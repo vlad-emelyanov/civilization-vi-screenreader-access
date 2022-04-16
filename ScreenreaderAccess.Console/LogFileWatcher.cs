@@ -65,6 +65,9 @@ namespace ScreenreaderAccess.Console
                     this.mediator.OutputText("File no longer found: Waiting for file to exist again...");
                     await this.WaitForLogFileToExist(filePath);
                     this.mediator.OutputText("Log file found. Watching...");
+                    initialFileSize = new FileInfo(filePath).Length;
+                    lastReadLength = initialFileSize - 1024;
+                    if (lastReadLength < 0) lastReadLength = 0;
                 }
                 catch (Exception e)
                 {
