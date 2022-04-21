@@ -18,14 +18,17 @@
     <CompatibleVersions>1.2,2.0</CompatibleVersions>
     <AssemblyName>ScreenReaderAccess</AssemblyName>
     <RootNamespace>ScreenReaderAccess</RootNamespace>
-    <FrontEndActionData><![CDATA[<FrontEndActions><ImportFiles id="SRAccess_FE_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File><File priority="10001">Assets/UI/Panels/StatusMessagePanel.lua</File></ImportFiles></FrontEndActions>]]></FrontEndActionData>
-    <InGameActionData><![CDATA[<InGameActions><ImportFiles id="SRAccess_IG_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File><File priority="10001">Assets/UI/Panels/StatusMessagePanel.lua</File></ImportFiles></InGameActions>]]></InGameActionData>
+    <FrontEndActionData><![CDATA[<FrontEndActions><ImportFiles id="SRAccess_FE_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File><File priority="10001">Assets/UI/Panels/StatusMessagePanel.lua</File><File priority="10001">Assets/UI/Panels/NotificationPanel.lua</File></ImportFiles></FrontEndActions>]]></FrontEndActionData>
+    <InGameActionData><![CDATA[<InGameActions><ImportFiles id="SRAccess_IG_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File><File priority="10001">Assets/UI/Panels/StatusMessagePanel.lua</File><File priority="10001">Assets/UI/Panels/NotificationPanel.lua</File></ImportFiles></InGameActions>]]></InGameActionData>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Default' ">
     <OutputPath>.</OutputPath>
   </PropertyGroup>
   <ItemGroup>
     <Content Include="Assets\UI\Accessibility\ScreenReader.lua">
+      <SubType>Content</SubType>
+    </Content>
+    <Content Include="Assets\UI\Panels\NotificationPanel.lua">
       <SubType>Content</SubType>
     </Content>
     <Content Include="Assets\UI\Panels\StatusMessagePanel.lua">
