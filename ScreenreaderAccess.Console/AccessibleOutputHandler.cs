@@ -20,6 +20,12 @@ namespace ScreenreaderAccess.Console
             { @"\[ENDCOLOR\]", string.Empty }
         };
         private static readonly Regex sanitizationRegex = new Regex(string.Join("|", sanitizationRegexMap.Keys.Select(k => $"({k})")), RegexOptions.Compiled);
+        private static readonly Regex moduleRegex = new Regex(@"^(\w+):", RegexOptions.Compiled);
+
+        private HashSet<string> modulesNotToInterrupt = new HashSet<string>
+        {
+            "StatusMessagePanel"
+        };
 
         public AccessibleOutputHandler()
         {
@@ -34,9 +40,23 @@ namespace ScreenreaderAccess.Console
             {
                 if (line.Contains(screenReaderMarker))
                 {
-                    this.screenReader.Speak(SanitizeLine(line));
+                    bool interrupt = DetermineWhetherToInterrupt(line);
+                    this.screenReader.Speak(SanitizeLine(line), interrupt);
                 }
             }
+        }
+
+        private bool DetermineWhetherToInterrupt(string line)
+        {
+            bool interrupt = true;
+            var moduleMatch = moduleRegex.Match(line);
+            if (moduleMatch.Success)
+            {
+                var module = moduleMatch.Groups[1].Value;
+                interrupt = !modulesNotToInterrupt.Contains(module);
+            }
+
+            return interrupt;
         }
 
         private static string SanitizeLine(string line)
