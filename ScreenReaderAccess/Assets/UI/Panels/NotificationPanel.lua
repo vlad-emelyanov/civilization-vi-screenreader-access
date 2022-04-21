@@ -784,7 +784,7 @@ function OnDefaultAddNotification( pNotification:table )
 				function()
 					OnMouseEnterNotification( notificationEntry.m_Instance );
 					-- Begin ScreenReaderAccess mod change
-					local message:string = Locale.Lookup(pNotification:GetMessage());
+					local message:string = Locale.Lookup(pNotification:GetMessage()) .. "[NEWLINE]" .. Locale.Lookup(pNotification:GetSummary());
 					OutputMessageToScreenReader(message);
 					-- End ScreenReaderAccess mod change
 				end
