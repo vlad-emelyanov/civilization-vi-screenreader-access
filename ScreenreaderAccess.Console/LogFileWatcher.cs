@@ -1,82 +1,81 @@
 ﻿using System.Text;
 
-namespace ScreenreaderAccess.Console
+namespace ScreenreaderAccess.Console;
+
+public sealed class LogFileWatcher
 {
-    public sealed class LogFileWatcher
+    private Mediator mediator;
+
+    public LogFileWatcher(Mediator mediator)
     {
-        private Mediator mediator;
+        this.mediator = mediator;
+    }
 
-        public LogFileWatcher(Mediator mediator)
+    public Task WaitForLogFileToExist(string luaLogFilePath, CancellationToken? cancellationToken = null)
+    {
+        while (cancellationToken?.IsCancellationRequested != true)
         {
-            this.mediator = mediator;
-        }
-
-        public Task WaitForLogFileToExist(string luaLogFilePath, CancellationToken? cancellationToken = null)
-        {
-            while (cancellationToken?.IsCancellationRequested != true)
+            if (File.Exists(luaLogFilePath))
             {
-                if (File.Exists(luaLogFilePath))
-                {
-                    return Task.CompletedTask;
-                }
-
-                Thread.Sleep(10000);
+                return Task.CompletedTask;
             }
 
-            // this is a catch all for anything that isn't covered by the cancellation token throwing
-            return Task.FromException(new ApplicationException($"Unable to load log file {luaLogFilePath}"));
+            Thread.Sleep(10000);
         }
 
-        public async void WatchLogFile(string filePath)
+        // this is a catch all for anything that isn't covered by the cancellation token throwing
+        return Task.FromException(new ApplicationException($"Unable to load log file {luaLogFilePath}"));
+    }
+
+    public async void WatchLogFile(string filePath)
+    {
+        var initialFileSize = new FileInfo(filePath).Length;
+        var lastReadLength = initialFileSize - 1024;
+        if (lastReadLength < 0) lastReadLength = 0;
+
+        while (true)
         {
-            var initialFileSize = new FileInfo(filePath).Length;
-            var lastReadLength = initialFileSize - 1024;
-            if (lastReadLength < 0) lastReadLength = 0;
-
-            while (true)
+            try
             {
-                try
+                var fileSize = new FileInfo(filePath).Length;
+                if (fileSize > lastReadLength)
                 {
-                    var fileSize = new FileInfo(filePath).Length;
-                    if (fileSize > lastReadLength)
+                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
                     {
-                        using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                        fs.Seek(lastReadLength, SeekOrigin.Begin);
+                        var buffer = new byte[1024];
+
+                        while (true)
                         {
-                            fs.Seek(lastReadLength, SeekOrigin.Begin);
-                            var buffer = new byte[1024];
+                            var bytesRead = fs.Read(buffer, 0, buffer.Length);
+                            lastReadLength += bytesRead;
 
-                            while (true)
-                            {
-                                var bytesRead = fs.Read(buffer, 0, buffer.Length);
-                                lastReadLength += bytesRead;
+                            if (bytesRead == 0)
+                                break;
 
-                                if (bytesRead == 0)
-                                    break;
+                            var text = ASCIIEncoding.ASCII.GetString(buffer, 0, bytesRead);
 
-                                var text = ASCIIEncoding.ASCII.GetString(buffer, 0, bytesRead);
-
-                                this.mediator.Output(text);
-                            }
+                            this.mediator.Output(text);
                         }
                     }
                 }
-                catch (FileNotFoundException)
-                {
-                    this.mediator.OutputText("File no longer found: Waiting for file to exist again...");
-                    await this.WaitForLogFileToExist(filePath);
-                    this.mediator.OutputText("Log file found. Watching...");
-                    initialFileSize = new FileInfo(filePath).Length;
-                    lastReadLength = initialFileSize - 1024;
-                    if (lastReadLength < 0) lastReadLength = 0;
-                }
-                catch (Exception e)
-                {
-                    this.mediator.OutputTextError("Error: " + e.Message);
-                }
-
-                Thread.Sleep(200);
             }
-        }
+            catch (FileNotFoundException)
+            {
+                this.mediator.OutputText("File no longer found: Waiting for file to exist again...");
+                await this.WaitForLogFileToExist(filePath);
+                this.mediator.OutputText("Log file found. Watching...");
+                initialFileSize = new FileInfo(filePath).Length;
+                lastReadLength = initialFileSize - 1024;
+                if (lastReadLength < 0) lastReadLength = 0;
+            }
+            catch (Exception e)
+            {
+                this.mediator.OutputTextError("Error: " + e.Message);
+            }
 
+            Thread.Sleep(200);
+        }
     }
+
 }
