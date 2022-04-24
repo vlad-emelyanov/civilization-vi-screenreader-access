@@ -22,10 +22,13 @@ public sealed class AccessibleOutputHandler
     private static readonly Regex sanitizationRegex = new Regex(string.Join("|", sanitizationRegexMap.Keys.Select(k => $"({k})")), RegexOptions.Compiled);
     private static readonly Regex moduleRegex = new Regex(@"^(\w+):", RegexOptions.Compiled);
 
+    private DateTime lastNonInterruptableMessage = DateTime.MinValue;
+    private static readonly TimeSpan nonInterruptTime = TimeSpan.FromSeconds(3);
+
     private HashSet<string> modulesNotToInterrupt = new HashSet<string>
-        {
-            "StatusMessagePanel"
-        };
+    {
+        "StatusMessagePanel"
+    };
 
     public AccessibleOutputHandler()
     {
@@ -41,6 +44,16 @@ public sealed class AccessibleOutputHandler
             if (line.Contains(screenReaderMarker))
             {
                 bool interrupt = DetermineWhetherToInterrupt(line);
+                if (!interrupt)
+                {
+                    this.lastNonInterruptableMessage = DateTime.UtcNow;
+                }
+                else
+                {
+                    // check to see if we're not interrupting a notification
+                    interrupt = DateTime.UtcNow >= this.lastNonInterruptableMessage.Add(nonInterruptTime);
+                }
+
                 this.screenReader.Speak(SanitizeLine(line), interrupt);
             }
         }
