@@ -120,7 +120,7 @@ function toint(n)
 end
 
 function onMouseOverProductionItem(message: string, disabled: boolean)
-	if disabled then
+	if (disabled) then
 		local disabledText = Locale.Lookup("LOC_MODS_DISABLED");
 		message = disabledText .. "[NEWLINE]" .. message;
 	else
@@ -770,6 +770,10 @@ function PopulateGenericItemData( kInstance:table, kItem:table )
 		kInstance.Button:SetColor(UI.GetColorValue("COLOR_WHITE"));
 	end
 	kInstance.Button:SetDisabled(kItem.Disabled);
+
+	-- Begin ScreenReaderAccess change
+	kInstance.Button:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(kItem.ToolTip, kItem.Disabled); end);
+	-- End ScreenReaderAccess change
 end
 
 -- ===========================================================================
@@ -835,8 +839,6 @@ function PopulateWonders(data:table, listMode:number, listIM:table)
 			wonderListing.CostText:SetText(turnsStr);
 			wonderListing.CostText:SetToolTipString(turnsStrTT);
 
-            wonderListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(wonderListing.Button:GetToolTipString(), false); end);
-			wonderListing.Disabled:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(wonderListing.Button:GetToolTipString(), true); end);
 			wonderListing.Button:RegisterCallback( Mouse.eLClick, function()
 				BuildBuilding(data.City, item);
 			end);
@@ -1009,8 +1011,6 @@ function PopulateDistrictsWithNestedBuildings(data:table, listMode:number, listI
 			end
 		end
 
-		districtListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(districtListing.Button:GetToolTipString(), false); end);
-		districtListing.Disabled:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(districtListing.Button:GetToolTipString(), true); end);
 		districtListing.Button:RegisterCallback( Mouse.eLClick, function()
 			ZoneDistrict(data.City, item);
 		end);
@@ -1068,8 +1068,6 @@ function PopulateDistrictsWithNestedBuildings(data:table, listMode:number, listI
 				buildingListing.CostText:SetToolTipString(turnsStrTT);
 				buildingListing.CostText:SetText(turnsStr);
 
-                buildingListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(buildingListing.Button:GetToolTipString(), false); end);
-				buildingListing.Disabled:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(buildingListing.Button:GetToolTipString(), true); end);
 				buildingListing.Button:RegisterCallback( Mouse.eLClick, function()
 					BuildBuilding(data.City, buildingItem);
 				end);
@@ -1122,9 +1120,6 @@ function PopulateDistrictsWithoutNestedBuildings(data:table, listMode:number, li
 			end
 
 			districtListing.CostText:SetText(costStr);
-
-			districtListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(districtListing.Button:GetToolTipString(), false); end);
-			districtListing.Disabled:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(districtListing.Button:GetToolTipString(), true); end);
 
 			districtListing.Button:RegisterCallback( Mouse.eLClick, function()
 					PurchaseDistrict(data.City, item);
@@ -1186,9 +1181,6 @@ function PopulateDistrictsWithoutNestedBuildings(data:table, listMode:number, li
 					RightClickProductionItem(item.Type);
 				end);
 			end
-
-            buildingListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(buildingListing.Button:GetToolTipString(), false); end);
-			buildingListing.Disabled:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(buildingListing.Button:GetToolTipString(), true); end);
 
 			buildingListing.Button:RegisterCallback( Mouse.eLClick, function()
 					PurchaseBuilding(data.City, item);
@@ -1346,8 +1338,6 @@ function PopulateUnits(data:table, listMode:number, listIM:table)
 			unitListing.FlagBase:SetColor( primaryColor );
 			unitListing.Icon:SetColor( secondaryColor );
 		
-            unitListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(unitListing.Button:GetToolTipString(), false); end);
-			unitListing.Disabled:RegisterCallback( Mouse.eMouseEnter,	function() onMouseOverProductionItem(unitListing.Button:GetToolTipString(), true); end);
 			if (listMode == LISTMODE.PRODUCTION or listMode == LISTMODE.PROD_QUEUE) then
 				unitListing.Button:RegisterCallback( Mouse.eLClick, function()
 					BuildUnit(data.City, item);
