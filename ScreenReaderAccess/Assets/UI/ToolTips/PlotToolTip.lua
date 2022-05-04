@@ -630,9 +630,11 @@ function View( data:table )
 	Controls.TooltipMain:SetHide(false);
 
 	-- Begin ScreenReaderAccess mod change
-	table.insert(details, 1, Controls.PlotName:GetText());
-	local description = table.concat(details, "[NEWLINE]");
-	OutputMessageToScreenReader(description);
+	if m_isActive and not m_isOff then
+		table.insert(details, 1, Controls.PlotName:GetText());
+		local description = table.concat(details, "[NEWLINE]");
+		OutputMessageToScreenReader(description);
+	end
 	-- End ScreenReaderAccess mod change
 end
 
