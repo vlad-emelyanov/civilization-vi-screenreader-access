@@ -19,7 +19,7 @@
     <AssemblyName>ScreenReaderAccess</AssemblyName>
     <RootNamespace>ScreenReaderAccess</RootNamespace>
     <FrontEndActionData><![CDATA[<FrontEndActions><ImportFiles id="SRAccess_FE_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File><File priority="10001">Assets/UI/Panels/StatusMessagePanel.lua</File><File priority="10001">Assets/UI/Panels/NotificationPanel.lua</File></ImportFiles></FrontEndActions>]]></FrontEndActionData>
-    <InGameActionData><![CDATA[<InGameActions><ImportFiles id="SRAccess_IG_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File><File priority="10001">Assets/UI/Panels/StatusMessagePanel.lua</File><File priority="10001">Assets/UI/Panels/NotificationPanel.lua</File><File priority="10001">Assets/UI/Panels/ProductionPanel.lua</File></ImportFiles><AddGameplayScripts id="SRAccess_IG_GameplayScripts"><File priority="10001">Assets/UI/Accessibility/ScreenReaderEventHandlers.lua</File></AddGameplayScripts></InGameActions>]]></InGameActionData>
+    <InGameActionData><![CDATA[<InGameActions><ImportFiles id="SRAccess_IG_UpdateFiles"><File priority="10001">Assets/UI/ToolTips/PlotToolTip.lua</File><File priority="10001">Assets/UI/Accessibility/ScreenReader.lua</File><File priority="10001">Assets/UI/Panels/StatusMessagePanel.lua</File><File priority="10001">Assets/UI/Panels/NotificationPanel.lua</File><File priority="10001">Assets/UI/Panels/ProductionPanel.lua</File><File priority="10001">Assets/UI/Popups/TechCivicCompletedPopup.lua</File></ImportFiles><AddGameplayScripts id="SRAccess_IG_GameplayScripts"><File priority="10001">Assets/UI/Accessibility/ScreenReaderEventHandlers.lua</File></AddGameplayScripts></InGameActions>]]></InGameActionData>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Default' ">
     <OutputPath>.</OutputPath>
@@ -40,6 +40,9 @@
     <Content Include="Assets\UI\Panels\StatusMessagePanel.lua">
       <SubType>Content</SubType>
     </Content>
+    <Content Include="Assets\UI\Popups\TechCivicCompletedPopup.lua">
+      <SubType>Content</SubType>
+    </Content>
     <Content Include="Assets\UI\ToolTips\PlotToolTip.lua">
       <SubType>Content</SubType>
     </Content>
@@ -48,6 +51,7 @@
     <Folder Include="Assets" />
     <Folder Include="Assets\UI" />
     <Folder Include="Assets\UI\Accessibility" />
+    <Folder Include="Assets\UI\Popups" />
     <Folder Include="Assets\UI\Panels" />
     <Folder Include="Assets\UI\ToolTips" />
   </ItemGroup>
