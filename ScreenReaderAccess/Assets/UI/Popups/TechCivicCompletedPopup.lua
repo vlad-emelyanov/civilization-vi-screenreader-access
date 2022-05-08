@@ -113,7 +113,7 @@ function ShowCivicCompletedPopup( player:number, civic:number, quote:string, aud
 	Controls.ChangeGovernmentButton:SetHide(false);		-- Show Change Government Button	
 
 	-- begin ScreenReader access mod change
-	OutputMessageToScreenReader(Controls.CivicMsgLabel:GetText())
+	OutputMessageToScreenReader(Controls.ResearchName:GetText())
 	-- End ScreenReader access mod change
 end
 
