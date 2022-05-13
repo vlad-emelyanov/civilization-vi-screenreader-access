@@ -31,7 +31,7 @@ function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:number, he
 	local iPois = GetAdjacentPointsOfInterestFrom(hexI, hexJ);
 	local poisString = TurnPointsOfInterestIntoString(iPois);
 	if poisString ~= nil then
-		OutputMessageToScreenReader(poisString);
+		OutputMessageToScreenReader(poisString, true);
 	end
 end
 
