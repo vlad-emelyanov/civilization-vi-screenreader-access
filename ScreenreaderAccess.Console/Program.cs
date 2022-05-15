@@ -1,6 +1,7 @@
 ﻿using ScreenreaderAccess.Console;
 
-var accessibleOutput = new AccessibleOutputHandler();
+var accessibleOutputOptionReader = new AccessibleOutputOptionReader();
+var accessibleOutput = new AccessibleOutputHandler(accessibleOutputOptionReader);
 var textOutput = new TextOutputHandler();
 var mediator = new Mediator(accessibleOutput, textOutput);
 var logFileWatcher = new LogFileWatcher(mediator);

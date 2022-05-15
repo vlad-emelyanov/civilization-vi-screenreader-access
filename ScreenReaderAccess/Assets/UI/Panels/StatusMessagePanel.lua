@@ -43,7 +43,7 @@ function OnStatusMessage( message:string, displayTime:number, type:number, subTy
 	end
 
 	-- Begin ScreenReaderAccess mod change
-	OutputMessageToScreenReader(message);
+	OutputMessageToScreenReader(message, true);
 	-- End ScreenReaderAccess mod change
 
 	RealizeMainAreaPosition();

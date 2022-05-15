@@ -5,14 +5,17 @@ namespace ScreenreaderAccess.Console;
 
 public sealed class AccessibleOutputHandler
 {
+    private readonly AccessibleOutputOptionReader optionReader;
+    
     private IAccessibleOutput screenReader;
 
-    private static readonly string screenReaderMarker = "#SCREENREADER - ";
+    private static readonly string screenReaderMarker = "#SCREENREADER";
 
     // precompiles a regex of sanitization, using | to separate
     private static readonly Dictionary<string, string> sanitizationRegexMap = new Dictionary<string, string>
     {
-        { $@"^\w+\: {screenReaderMarker}", string.Empty },
+        { $@"^\w+\: {screenReaderMarker}\[.+?\] - ", string.Empty },
+        { $@"^\w+\: {screenReaderMarker} - ", string.Empty },
         { @"\[ICON_\w+\]", " " },
         { @"[-]{2,}\[NEWLINE\]", string.Empty },
         { @"\[NEWLINE\]", ", " },
@@ -20,19 +23,14 @@ public sealed class AccessibleOutputHandler
         { @"\[ENDCOLOR\]", string.Empty }
     };
     private static readonly Regex sanitizationRegex = new Regex(string.Join("|", sanitizationRegexMap.Keys.Select(k => $"({k})")), RegexOptions.Compiled);
-    private static readonly Regex moduleRegex = new Regex(@"^(\w+):", RegexOptions.Compiled);
-
+    
     private DateTime lastNonInterruptableMessage = DateTime.MinValue;
     private static readonly TimeSpan nonInterruptTime = TimeSpan.FromSeconds(3);
 
-    private HashSet<string> modulesNotToInterrupt = new HashSet<string>
-    {
-        "StatusMessagePanel"
-    };
-
-    public AccessibleOutputHandler()
+    public AccessibleOutputHandler(AccessibleOutputOptionReader optionReader)
     {
         this.screenReader = new NvdaOutput();
+        this.optionReader = optionReader;
     }
 
     public void OutputMessage(string message)
@@ -43,7 +41,9 @@ public sealed class AccessibleOutputHandler
         {
             if (line.Contains(screenReaderMarker))
             {
-                bool interrupt = DetermineWhetherToInterrupt(line);
+                var options = this.optionReader.GetOptionsFrom(line);
+                bool interrupt = !options.NoInterrupt;
+                
                 if (!interrupt)
                 {
                     this.lastNonInterruptableMessage = DateTime.UtcNow;
@@ -54,22 +54,10 @@ public sealed class AccessibleOutputHandler
                     interrupt = DateTime.UtcNow >= this.lastNonInterruptableMessage.Add(nonInterruptTime);
                 }
 
-                this.screenReader.Speak(SanitizeLine(line), interrupt);
+                var sanitized = SanitizeLine(line);
+                this.screenReader.Speak(sanitized, interrupt);
             }
         }
-    }
-
-    private bool DetermineWhetherToInterrupt(string line)
-    {
-        bool interrupt = true;
-        var moduleMatch = moduleRegex.Match(line);
-        if (moduleMatch.Success)
-        {
-            var module = moduleMatch.Groups[1].Value;
-            interrupt = !modulesNotToInterrupt.Contains(module);
-        }
-
-        return interrupt;
     }
 
     private static string SanitizeLine(string line)
