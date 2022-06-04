@@ -10,6 +10,7 @@
 
 
 include("ScreenReader");
+include("ScreenReaderPlotUtils");
 
 
 -- ===========================================================================
@@ -635,6 +636,17 @@ function View( data:table )
 							" (" .. data.X ..
 							" " .. data.Y .. ")";
 		table.insert(details, 1, plotHeadline);
+		
+		-- read out units in plot
+		for i, unit in ipairs(Units.GetUnitsInPlot(data.X, data.Y)) do
+			table.insert(details, 2, StringifyUnit(unit));
+		end
+
+		-- read out city center on plot
+		if Cities.GetCityInPlot(data.X, data.Y) ~= nil then
+			table.insert(details, 2, StringifyCity(Cities.GetCityInPlot(data.X, data.Y)));
+		end
+
 		local description = table.concat(details, "[NEWLINE]");
 		OutputMessageToScreenReader(description);
 	end

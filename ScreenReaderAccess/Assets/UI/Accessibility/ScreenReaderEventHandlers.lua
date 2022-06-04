@@ -2,18 +2,7 @@
 --------------------------------------------------------------
 
 include("ScreenReader");
-
--- locals
-
--- used to get the suffix for a direction for getting the localized string version from a direction
-local DIRECTION_MAP = {
-	[DirectionTypes.DIRECTION_NORTHEAST] = "NORTH_EAST",
-	[DirectionTypes.DIRECTION_EAST] = "EAST",
-	[DirectionTypes.DIRECTION_SOUTHEAST] = "SOUTH_EAST",
-	[DirectionTypes.DIRECTION_NORTHWEST] = "NORTH_WEST",
-	[DirectionTypes.DIRECTION_WEST] = "WEST",
-	[DirectionTypes.DIRECTION_SOUTHWEST] = "SOUTH_WEST"
-}
+include("ScreenReaderPlotUtils");
 
 -- ===========================================================================
 --	Game Engine Event
@@ -77,20 +66,13 @@ function TurnPointsOfInterestIntoString(iPois: table)
 	local output = {}
 
 	for i, item in ipairs(iPois.units) do
-		local owner = item.unit:GetOwner();
-		local adjective = PlayerConfigurations[owner]:GetCivilizationDescription();
-		local stringified = Locale.Lookup(adjective) ..
-			" " .. Locale.Lookup(item.unit:GetName()) ..
+		local stringified = StringifyUnit(item.unit) ..
 			" " .. GetLocalizedDirectionString(item.direction);
 		table.insert(output, stringified);
 	end
 
 	for i, item in ipairs(iPois.cities) do
-		local owner = item.city:GetOwner();
-		local adjective = PlayerConfigurations[owner]:GetCivilizationDescription();
-		local stringified = Locale.Lookup(adjective) ..
-			" " .. Locale.Lookup("LOC_CITY_NAME_BLANK") ..
-			" " .. Locale.Lookup(item.city:GetName()) ..
+		local stringified = StringifyCity(item.city) ..
 			" " .. GetLocalizedDirectionString(item.direction);
 		table.insert(output, stringified);
 	end
@@ -100,18 +82,6 @@ function TurnPointsOfInterestIntoString(iPois: table)
 	else
 		return nil;
 	end
-end
-
-function GetLocalizedDirectionString(direction)
-	local directionTextPrefix = "LOC_DIRECTION_";
-
-	local directionTextSuffix = DIRECTION_MAP[direction];
-	if directionTextSuffix == nil then
-		return "";
-	end
-
-	local localizedDirectionText = Locale.Lookup(directionTextPrefix .. directionTextSuffix);
-	return localizedDirectionText;
 end
 
 function Initialize()
