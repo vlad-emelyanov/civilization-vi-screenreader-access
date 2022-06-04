@@ -631,7 +631,10 @@ function View( data:table )
 
 	-- Begin ScreenReaderAccess mod change
 	if m_isActive and not m_isOff then
-		table.insert(details, 1, Controls.PlotName:GetText());
+		local plotHeadline = Controls.PlotName:GetText() ..
+							" (" .. data.X ..
+							" " .. data.Y .. ")";
+		table.insert(details, 1, plotHeadline);
 		local description = table.concat(details, "[NEWLINE]");
 		OutputMessageToScreenReader(description);
 	end
