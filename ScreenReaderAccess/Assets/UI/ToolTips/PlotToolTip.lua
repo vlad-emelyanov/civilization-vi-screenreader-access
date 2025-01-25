@@ -554,7 +554,7 @@ end
 function View( data:table )
 	-- Build a string that contains all plot details.
 	local details = GetDetails(data);
-	
+
 	-- Add debug information in here:
 	local debugInfo = {};
 	if m_isShowDebug or m_isWorldBuilder then

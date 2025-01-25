@@ -1,7 +1,9 @@
-﻿include("InstanceManager");
+include("InstanceManager");
 include("LobbyTypes"); --MPLobbyMode
 
 include("PlayerSetupLogic"); -- For PlayNow
+
+include("PopupDialog");
 
 include("ScreenReader")
 
@@ -10,6 +12,14 @@ include("ScreenReader")
 -- ===========================================================================
 local m_mainOptionIM :	table = InstanceManager:new( "MenuOption", "Top", Controls.MainMenuOptionStack );
 local m_subOptionIM :	table = InstanceManager:new( "MenuOption", "Top", Controls.SubMenuOptionStack );
+local m_carouselEntryIM : table = InstanceManager:new( "CarouselEntry", "Top", Controls.ChallengeStack );
+local m_carouselIndicatorIM : table = InstanceManager:new( "CarouselEntryIndicator", "Top", Controls.ChallengeIndicatorStack );
+local m_currentCarouselEntry = 1;
+local m_carouselDisplayDurationMS = 8000;
+local m_carouselCurrentSlideDurationMS = 0;
+local m_carouselSlideAnimationDurationMS = 500;
+local m_carouselAnimation = {active = false, time = 0, startValue = 0, destinationValue = 0, destinationIndex = 0, scrollType = ""};
+local m_carouselAutoscrollEnabled = true;
 local m_preSaveMainMenuOptions:	table = {};
 local m_defaultMainMenuOptions:	table = {};
 local m_singlePlayerListOptions:table = {};
@@ -34,6 +44,8 @@ local m_isQuitting :boolean = false;	-- Is the application shutting down (after 
 g_LogoTexture = nil;	-- Custom Logo texture override.
 g_LogoMovie = nil;		-- Custom Logo movie override.
 
+g_PopupDialog = PopupDialog:new("MainMenuPopupDialog");
+
 -- ===========================================================================
 --	Constants
 -- ===========================================================================
@@ -49,6 +61,7 @@ local MOD_PIRATES_GUID				:string = "A55FAFB4-9070-4597-9453-B28A99910CDA";
 -- ===========================================================================
 g_LastFileQueryRequestID = nil;			-- The file list ID used to determine whether the call-back is for us or not.
 g_MostRecentSave = nil;					-- The most recent single player save a user has (locally)
+
 
 -- ===========================================================================
 -- Button Handlers
@@ -142,17 +155,28 @@ function OnStateTransition( who:string )
 		-- default.
 		GameConfiguration.SetValue("RULESET", nil);
 
-		-- Many game setup values are driven by Lua-implemented parameter logic.
+		if (_StartChallengeEntry == nil) then
+			if (_ClickedPlayNow) then
+				Events.SetGameEntryMethod("Play Now");
+			else
+				Events.SetGameEntryMethod("Unknown");
+			end
+			-- Many game setup values are driven by Lua-implemented parameter logic.
+			BuildHeadlessGameSetup();
+			RebuildPlayerParameters(true);
+			GameSetup_RefreshParameters();
 
-		BuildHeadlessGameSetup();
-		RebuildPlayerParameters(true);
-		GameSetup_RefreshParameters();
+			-- Cleanup
+			ReleasePlayerParameters();
+			HideGameSetup();
 
-		-- Cleanup
-		ReleasePlayerParameters();
-		HideGameSetup();
+			Network.HostGame(ServerType.SERVER_TYPE_NONE);
+		else
+			Events.SetGameEntryMethod("GoTM");
 
-		Network.HostGame(ServerType.SERVER_TYPE_NONE);
+			Challenges.LoadCarouselEntry(_StartChallengeEntry);
+			_StartChallengeEntry = nil;
+		end
 	end
 end
 
@@ -306,6 +330,9 @@ end
 
 -- ===========================================================================
 function GetCivRoyaleOfflineTT()
+	if (Network.IsAgeRestricted()) then
+		return Locale.Lookup("LOC_MULTIPLAYER_INTERNET_GAME_OFFLINE_AGE_TT");
+	end
 
 	if( Network.GetNetworkPlatform() == NetworkPlatform.NETWORK_PLATFORM_EOS ) then
 		return Locale.Lookup("LOC_EPIC_MULTIPLAYER_MATCHMAKE_CIVROYALE_OFFLINE_TT");
@@ -316,6 +343,9 @@ end
 
 -- ===========================================================================
 function GetPiratesOfflineTT()
+	if (Network.IsAgeRestricted()) then
+		return Locale.Lookup("LOC_MULTIPLAYER_INTERNET_GAME_OFFLINE_AGE_TT");
+	end
 
 	if( Network.GetNetworkPlatform() == NetworkPlatform.NETWORK_PLATFORM_EOS ) then
 		return Locale.Lookup("LOC_EPIC_MULTIPLAYER_MATCHMAKE_PIRATES_OFFLINE_TT");
@@ -326,6 +356,10 @@ end
 
 -- ===========================================================================
 function GetInternetGameOfflineTT()
+	if (Network.IsAgeRestricted()) then
+		return Locale.Lookup("LOC_MULTIPLAYER_INTERNET_GAME_OFFLINE_AGE_TT");
+	end
+
 	if( Network.GetNetworkPlatform() == NetworkPlatform.NETWORK_PLATFORM_EOS ) then
 		return Locale.Lookup("LOC_EPIC_MULTIPLAYER_INTERNET_GAME_OFFLINE_TT");
 	end
@@ -340,6 +374,7 @@ local InternetButtonOnlineStr : string = Locale.Lookup("LOC_MULTIPLAYER_INTERNET
 local InternetButtonOfflineStr : string = GetInternetGameOfflineTT();
 local CloudButtonTTStr : string = Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME_TT");
 local CloudNotLoggedInTTStr : string = Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME_NO_LOGIN_TT");
+local CloudNotAgeRestrictedTTStr : string = Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME_NO_LOGIN_AGE_TT");
 local CloudButtonUnseenCompleteGameTTStr : string = Locale.Lookup("LOC_MULTIPLAYER_CLOUD_UNSEEN_COMPLETE_GAME_TT");
 local CloudButtonHaveTurnTTStr : string = Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME_HAVE_TURN_TT");
 local CloudButtonGameReadyTTStr: string = Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME_GAME_READY_TT");
@@ -599,10 +634,18 @@ function UpdateCrossPlayButton(buttonControl: table)
 			else
 				m_crossPlayButton.OptionButton:SetDisabled(true);
 				if (seenXPM == nil or seenXPM == 0) then
-					m_crossPlayButton.Top:SetToolTipString(Locale.Lookup("LOC_MULTIPLAYER_CROSSPLAY_NEW_GAME_OFFLINE_TT"));
+					if (Network.IsAgeRestricted()) then
+						m_crossPlayButton.Top:SetToolTipString(Locale.Lookup("LOC_MULTIPLAYER_INTERNET_GAME_OFFLINE_AGE_TT"));
+					else
+						m_crossPlayButton.Top:SetToolTipString(Locale.Lookup("LOC_MULTIPLAYER_CROSSPLAY_NEW_GAME_OFFLINE_TT"));
+					end
 					m_crossPlayButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CROSSPLAY_NEW_GAME_OFFLINE"));
 				else
-					m_crossPlayButton.Top:SetToolTipString(Locale.Lookup("LOC_MULTIPLAYER_CROSSPLAY_GAME_OFFLINE_TT"));
+					if (Network.IsAgeRestricted()) then
+						m_crossPlayButton.Top:SetToolTipString(Locale.Lookup("LOC_MULTIPLAYER_INTERNET_GAME_OFFLINE_AGE_TT"));
+					else
+						m_crossPlayButton.Top:SetToolTipString(Locale.Lookup("LOC_MULTIPLAYER_CROSSPLAY_GAME_OFFLINE_TT"));
+					end
 					m_crossPlayButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CROSSPLAY_GAME_OFFLINE"));
 				end
 				m_crossPlayButton.ButtonLabel:SetColorByName( "ButtonDisabledCS" );
@@ -644,16 +687,33 @@ function GetMatchMakeButtonUpdateFunction(cacheButtonControl :table, modGUIDStr 
 end
 
 function GetHowToButtonUpdateFunction(cacheButtonControl :table, modGUIDStr :string)
+-- This updates the state of the entire menu selection, the help button is just a sub-part of the control that is input
 	function CustomHowToUpdateFunction(buttonControl: table)
 		if (buttonControl ~=nil) then
 			cacheButtonControl = buttonControl;
 		end
 	
 		if(cacheButtonControl ~= nil) then
-			-- Is CivRoyale enabled?
+			-- Is the custom scenario (CivRoyale or Pirates) enabled?
 			local enabled = Modding.IsModEnabled( modGUIDStr );
 			cacheButtonControl.Top:SetHide(not enabled);
 			cacheButtonControl.HelpButton:SetHide(not enabled);
+
+			-- Might want to pass through the tooltip strings so we change change them based on the state of the internet service
+			-- like we do for the other menu options
+			if (enabled) then
+				if (Network.IsAgeRestricted()) then
+					-- We are going to set the text here, because we never change from age restricted to not
+					cacheButtonControl.Top:SetToolTipString(Locale.Lookup("LOC_MULTIPLAYER_INTERNET_GAME_OFFLINE_AGE_TT"));
+				end
+
+				if (Network.IsInternetLobbyServiceAvailable()) then
+					-- Should we also disable the help button?
+					cacheButtonControl.OptionButton:SetDisabled(false);
+				else
+					cacheButtonControl.OptionButton:SetDisabled(true);
+				end
+			end
 		end
 	end
 	return CustomHowToUpdateFunction;
@@ -666,27 +726,33 @@ function UpdateCloudGamesButton(buttonControl: table)
 	
 	-- Your turn in a cloud game?
 	if(m_cloudGamesButton ~= nil) then
-		local isFullyLoggedIn = FiraxisLive.IsFullyLoggedIn() and FiraxisLive.IsPlatformOrFullAccount();
-		if(not isFullyLoggedIn) then
+		if (Network.IsAgeRestricted()) then
 			m_cloudGamesButton.OptionButton:SetDisabled(true);
-			m_cloudGamesButton.Top:SetToolTipString(CloudNotLoggedInTTStr);
+			m_cloudGamesButton.Top:SetToolTipString(CloudNotAgeRestrictedTTStr);
 			m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonDisabledCS" );
-		elseif (m_cloudNotify ~= CloudNotifyTypes.CLOUDNOTIFY_NONE and m_cloudNotify ~= CloudNotifyTypes.CLOUDNOTIFY_ERROR) then
-			m_cloudGamesButton.OptionButton:SetDisabled(false);
-			local CloudTTStr = GetCloudButtonTTForNotify(m_cloudNotify);
-			m_cloudGamesButton.Top:SetToolTipString(CloudTTStr);
-			m_cloudGamesButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME_HAVE_CLOUD_NOTIFY"));
-			m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonCS" );
-		elseif (m_hasCloudUnseenComplete) then
-			m_cloudGamesButton.OptionButton:SetDisabled(false);
-			m_cloudGamesButton.Top:SetToolTipString(CloudButtonUnseenCompleteGameTTStr .. "[NEWLINE][NEWLINE]" .. CloudButtonTTStr);
-			m_cloudGamesButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CLOUD_UNSEEN_COMPLETE_GAME"));
-			m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonCS" );
 		else
-			m_cloudGamesButton.OptionButton:SetDisabled(false);
-			m_cloudGamesButton.Top:SetToolTipString(CloudButtonTTStr);
-			m_cloudGamesButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME"));
-			m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonCS" );
+			local isFullyLoggedIn = FiraxisLive.IsFullyLoggedIn() and FiraxisLive.IsPlatformOrFullAccount();
+			if(not isFullyLoggedIn) then
+				m_cloudGamesButton.OptionButton:SetDisabled(true);
+				m_cloudGamesButton.Top:SetToolTipString(CloudNotLoggedInTTStr);
+				m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonDisabledCS" );
+			elseif (m_cloudNotify ~= CloudNotifyTypes.CLOUDNOTIFY_NONE and m_cloudNotify ~= CloudNotifyTypes.CLOUDNOTIFY_ERROR) then
+				m_cloudGamesButton.OptionButton:SetDisabled(false);
+				local CloudTTStr = GetCloudButtonTTForNotify(m_cloudNotify);
+				m_cloudGamesButton.Top:SetToolTipString(CloudTTStr);
+				m_cloudGamesButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME_HAVE_CLOUD_NOTIFY"));
+				m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonCS" );
+			elseif (m_hasCloudUnseenComplete) then
+				m_cloudGamesButton.OptionButton:SetDisabled(false);
+				m_cloudGamesButton.Top:SetToolTipString(CloudButtonUnseenCompleteGameTTStr .. "[NEWLINE][NEWLINE]" .. CloudButtonTTStr);
+				m_cloudGamesButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CLOUD_UNSEEN_COMPLETE_GAME"));
+				m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonCS" );
+			else
+				m_cloudGamesButton.OptionButton:SetDisabled(false);
+				m_cloudGamesButton.Top:SetToolTipString(CloudButtonTTStr);
+				m_cloudGamesButton.ButtonLabel:SetText(Locale.Lookup("LOC_MULTIPLAYER_CLOUD_GAME"));
+				m_cloudGamesButton.ButtonLabel:SetColorByName( "ButtonCS" );
+			end
 		end
 	end
 end
@@ -823,6 +889,7 @@ function ToggleOption(optionIndex, submenu)
 		Controls.SubMenuContainer:SetHide(true);
 		Controls.SubMenuAlpha:Reverse();
 		Controls.SubMenuSlide:Reverse();
+		SetCarouselEnabled(true);
 		DeselectOption(optionIndex);
 	else
 		-- OTHERWISE - I am selecting a new thing
@@ -845,6 +912,7 @@ function ToggleOption(optionIndex, submenu)
 			Controls.SubMenuSlide:SetToBeginning();
 			Controls.SubMenuSlide:Play();
 			Controls.SubMenuContainer:SetHide(false);
+			SetCarouselEnabled(false);
 		end
 		-- Now show the selector around the new thing 
 		optionControl.SelectionAnimAlpha:SetToBeginning();
@@ -946,9 +1014,9 @@ end
 local m_SinglePlayerSubMenu :table = {
 								{label = "LOC_MAIN_MENU_RESUME_GAME",		callback = OnResumeGame,	tooltip = "LOC_MAINMENU_RESUME_GAME_TT", buttonState = UpdateResumeGame},
 								{label = "LOC_LOAD_GAME",					callback = OnLoadSinglePlayer,	tooltip = "LOC_MAINMENU_LOAD_GAME_TT",},
-								{label = "LOC_PLAY_CIVILIZATION_6",			callback = OnPlayCiv6,	tooltip = "LOC_MAINMENU_PLAY_NOW_TT"},
-								{label = "LOC_SETUP_SCENARIOS",				callback = OnScenarioSetup,	tooltip = "LOC_MAINMENU_SCENARIOS_TT", buttonState = UpdateScenariosButton},
 								{label = "LOC_SETUP_CREATE_GAME",			callback = OnAdvancedSetup,	tooltip = "LOC_MAINMENU_CREATE_GAME_TT"},
+								{label = "LOC_SETUP_SCENARIOS",				callback = OnScenarioSetup,	tooltip = "LOC_MAINMENU_SCENARIOS_TT", buttonState = UpdateScenariosButton},
+								{label = "LOC_PLAY_CIVILIZATION_6",			callback = OnPlayCiv6,	tooltip = "LOC_MAINMENU_PLAY_NOW_TT"},
 							
 
 							};
@@ -1045,7 +1113,7 @@ end
 
 
 function MenuOptionMouseEnterCallback()
-	UI.PlaySound("Main_Menu_Mouse_Over");
+	UI.PlaySound("Main_Menu_Mouse_Over"); 
 end
 
 -- ===========================================================================
@@ -1277,6 +1345,188 @@ function BuildAllMenus()
 	end
 end
 
+function SetCarouselEnabled(enabled)
+	Controls.ChallengeLButton:SetEnabled(enabled);
+	Controls.ChallengeRButton:SetEnabled(enabled);
+	local children = Controls.ChallengeStack:GetChildren();
+	for i=1, #children do
+		children[i]:GetChildren()[1]:SetEnabled(enabled);
+	end
+
+	m_carouselAutoscrollEnabled = enabled;
+end
+
+function CarouselSetSelectedEntry(index, scrollType)
+	m_currentCarouselEntry = index;
+
+	Challenges.PublishCarouselEntryImpression(m_currentCarouselEntry - 1, scrollType);
+
+	m_carouselIndicatorIM:ResetInstances();
+	local entryCount = Challenges.GetCarouselEntryCount();
+	for i=1, entryCount do
+		local instance = m_carouselIndicatorIM:GetInstance();
+
+		if i == m_currentCarouselEntry then
+			instance.CarouselIndicatorImage:SetTextureOffsetVal(0,14);
+		else
+			instance.CarouselIndicatorImage:SetTextureOffsetVal(0,0);
+		end
+	end
+end
+
+function CarouselGetOffsetValue(index)
+	local svWidth = Controls.ChallengeStack:GetSizeX();
+
+	local dummyInstance = Controls.ChallengeStack:GetChildren()[1];
+	local entryWidth = dummyInstance:GetSizeX();
+
+	local offset = (entryWidth * index) / (Controls.ChallengeStack:GetSizeX() - entryWidth);
+
+	return offset;
+end
+
+function UpdateChallengeCarousel()
+	if not FiraxisLive.IsCOPPALocked() then
+		local entryCount = Challenges.GetCarouselEntryCount();
+		m_carouselDisplayDurationMS = Challenges.GetCarouselDisplayDurationMS();
+		if m_carouselDisplayDurationMS < 1000 then
+			m_carouselDisplayDurationMS = 1000
+		end
+		m_carouselAnimationDurationMS = Challenges.GetCarouselAnimationDurationMS();
+		if m_carouselAnimationDurationMS <= 100 then
+			m_carouselAnimationDurationMS = 100
+		end
+
+		m_carouselEntryIM:ResetInstances();
+
+		if entryCount == 0 then
+			Controls.ChallengeContainer:SetShow(false);
+			m_currentCarouselEntry = 0;
+			return;
+		end
+
+		-- To make scrolling past the ends look nice, add an extra entry to either end.
+		for i=0,(entryCount + 1) do
+			local entryIndex = i - 1;
+			if entryIndex == -1 then
+				entryIndex = entryCount - 1;
+			elseif entryIndex == entryCount then
+				entryIndex = 0;
+			end
+
+			local instance = m_carouselEntryIM:GetInstance();
+			
+			instance.CarouselEntryButton:RegisterCallback( Mouse.eLClick, 
+				function(selected)
+					Challenges.PublishCarouselEntryClick(selected);
+
+					local carouselEntryType = Challenges.GetCarouselEntryType(selected);
+					if carouselEntryType == "Clickout" then
+						Challenges.LoadCarouselEntry(selected);
+					else -- Challenge entry
+						-- Let Lua do transition and load challenge once that is done.
+						_StartChallengeEntry = selected;
+						LuaEvents.Raise_State_Transition("MainMenu");
+					end
+				end
+			);
+
+			Challenges.BindCarouselEntryImageToButtonControl(entryIndex, instance.CarouselEntryButton);
+			instance.CarouselEntryButton:SetVoid1(entryIndex);
+		end
+
+		if entryCount <= 1 then
+			-- Don't bother showing arrows and page indicator if there is only one entry.
+			Controls.ChallengeLButton:SetHide(true);
+			Controls.ChallengeRButton:SetHide(true);
+			Controls.ChallengeIndicatorStack:SetHide(true);
+		else
+			Controls.ChallengeLButton:SetHide(false);
+			Controls.ChallengeRButton:SetHide(false);
+			Controls.ChallengeIndicatorStack:SetHide(false);
+		end
+
+		Controls.ChallengeStack:CalculateSize();
+		Controls.ChallengeScroll:CalculateSize();
+
+		CarouselSetSelectedEntry(1, "initial");
+		Controls.ChallengeContainer:SetShow(true);
+		Controls.ChallengeScroll:SetScrollValue(CarouselGetOffsetValue(1));
+	else
+		Controls.ChallengeLButton:SetHide(true);
+		Controls.ChallengeRButton:SetHide(true);
+		Controls.ChallengeIndicatorStack:SetHide(true);
+
+		Controls.ChallengeContainer:SetShow(false);
+	end
+end
+
+function CarouselScrollToEntry(index, scrollType)
+	if index == m_currentCarouselEntry then return end;
+
+	m_carouselAnimation.active = true;
+	m_carouselAnimation.time = 0;
+	m_carouselAnimation.startValue = Controls.ChallengeScroll:GetScrollValue();
+	m_carouselAnimation.destinationValue = CarouselGetOffsetValue(index);
+	m_carouselAnimation.destinationIndex = index;
+	m_carouselAnimation.scrollType = scrollType;
+
+	Controls.ChallengeLButton:SetEnabled(false);
+	Controls.ChallengeRButton:SetEnabled(false);
+end
+
+function CarouselFinishedScrollingToEntry(index, scrollType)
+	local entryCount = Challenges.GetCarouselEntryCount();
+	if index == (entryCount + 1) then
+		index = 1;
+	elseif index == 0 then
+		local oldIndex = index;
+		index = entryCount;
+		local newValue = CarouselGetOffsetValue(index);
+	end
+
+	Controls.ChallengeScroll:SetScrollValue(CarouselGetOffsetValue(index));
+
+	CarouselSetSelectedEntry(index, scrollType);
+	m_carouselCurrentSlideDurationMS = 0;
+
+	m_carouselAnimation.active = false;
+	m_carouselAnimation.time = 0;
+	m_carouselAnimation.startValue = 0;
+	m_carouselAnimation.destinationValue = 0;
+	m_carouselAnimation.destinationIndex = 0;
+	m_carouselAnimation.scrollType = "";
+
+	Controls.ChallengeLButton:SetEnabled(true);
+	Controls.ChallengeRButton:SetEnabled(true);
+end
+
+function OnCarouselButtonLClicked()
+	local newEntry = m_currentCarouselEntry - 1;
+	CarouselScrollToEntry(newEntry, "manual scroll");
+end
+
+function CarouselScrollRight(scrollType)
+	local newEntry = m_currentCarouselEntry + 1;
+	CarouselScrollToEntry(newEntry, scrollType);
+end
+
+function OnCarouselButtonRClicked(scrollType)
+	CarouselScrollRight("manual scroll")
+end
+
+function OnChallengePackageUpdated()
+	print("OnChallengePackageUpdated");
+	UpdateChallengeCarousel()
+end
+
+function ShowNewChallengeAvailablePopup()
+	if (Challenges.ShouldShowNewPackageAvailablePopup()) then
+		local popupText = Challenges.GetLocalizedNewChallengePackagePopupText();
+		g_PopupDialog:ShowOkDialog(popupText, function() end); 
+	end
+end
+
 -- ===========================================================================
 --	UI Callback
 --	Restart animation on show
@@ -1314,29 +1564,39 @@ function OnShow()
 	if (not m_bHasShownError and error ~= nil) then
 		m_bHasShownError = true;
 
-		local reasonString;
-		if error == DB.MakeHash("UNKNOWN_VERSION") then
-			reasonString = "LOC_GAME_START_ERROR_UNKNOWN_VERSION";
-		elseif error == DB.MakeHash("MOD_CONTENT") then
-			reasonString = "LOC_GAME_START_ERROR_MOD_CONTENT";
-		elseif error == DB.MakeHash("MOD_CONFIG") then
-			reasonString = "LOC_GAME_START_ERROR_MOD_CONFIG";
-		elseif error == DB.MakeHash("MOD_OWNERSHIP") then
-			reasonString = "LOC_GAME_START_ERROR_MOD_OWNERSHIP";
-		elseif error == DB.MakeHash("SCRIPT_PROCESSING") then
-			reasonString = "LOC_GAME_START_ERROR_SCRIPT_PROCESSING";
+		if error == DB.MakeHash("CHALLENGE_FAILURE") then
+			-- The "multiplayer" popup actually shows a generic frontend popup, so that's why
+			-- we use it here.
+			LuaEvents.MultiplayerPopup(Locale.Lookup("LOC_CHALLENGE_GAME_START_ERROR"), "LOC_GAME_START_ERROR_TITLE");
 		else
-			reasonString = string.format("%X", error);
+			local reasonString;
+			if error == DB.MakeHash("UNKNOWN_VERSION") then
+				reasonString = "LOC_GAME_START_ERROR_UNKNOWN_VERSION";
+			elseif error == DB.MakeHash("MOD_CONTENT") then
+				reasonString = "LOC_GAME_START_ERROR_MOD_CONTENT";
+			elseif error == DB.MakeHash("MOD_CONFIG") then
+				reasonString = "LOC_GAME_START_ERROR_MOD_CONFIG";
+			elseif error == DB.MakeHash("MOD_OWNERSHIP") then
+				reasonString = "LOC_GAME_START_ERROR_MOD_OWNERSHIP";
+			elseif error == DB.MakeHash("SCRIPT_PROCESSING") then
+				reasonString = "LOC_GAME_START_ERROR_SCRIPT_PROCESSING";
+			else
+				reasonString = string.format("%X", error);
+			end
+
+			local error_string = Locale.Lookup("LOC_GAME_START_ERROR_DESC") .. "[NEWLINE][NEWLINE]" .. Locale.Lookup("LOC_GAME_START_ERROR_CODE", reasonString);
+			LuaEvents.MainMenu_LaunchError(error_string);
 		end
-
-		local error_string = Locale.Lookup("LOC_GAME_START_ERROR_DESC") .. "[NEWLINE][NEWLINE]" .. Locale.Lookup("LOC_GAME_START_ERROR_CODE", reasonString);
-
-		LuaEvents.MainMenu_LaunchError(error_string);
 	end
 
 	m_checkedCloudNotify = false;
 	UpdateCheckCloudNotify();
 	RealizeTooltipBehavior();
+	UpdateChallengeCarousel();
+
+	ShowNewChallengeAvailablePopup();
+
+	ContextPtr:SetUpdate( OnUpdate );
 end
 
 function OnHide()
@@ -1344,6 +1604,8 @@ function OnHide()
 	-- away when we return from any screen.
 	m_bHasShownError = nil;
 	m_initialPause = 0;
+
+	ContextPtr:ClearUpdate();
 end
 
 -- Call-back for when the list of files have been updated.
@@ -1450,6 +1712,51 @@ function OnShutdown()
 end
 
 -- ===========================================================================
+function CarouselTween(a, b, t)
+	return a + (b - a) * t;
+end
+
+-- ===========================================================================
+function OnUpdate( fDeltaTime )
+	if not FiraxisLive.IsCOPPALocked() then
+		if (Challenges.ShouldShowRestartToGetNewPackagePopup(g_PopupDialog:IsOpen())) then
+			g_PopupDialog:ShowOkDialog(Locale.Lookup("LOC_NEW_PACKAGE_ON_SERVER"));
+		end
+
+		if m_carouselAnimation.active then
+			local newTime = m_carouselAnimation.time + fDeltaTime * 1000;
+
+			if newTime >= m_carouselSlideAnimationDurationMS then
+				Controls.ChallengeScroll:SetScrollValue(m_carouselAnimation.destinationValue);
+				CarouselFinishedScrollingToEntry(m_carouselAnimation.destinationIndex, m_carouselAnimation.scrollType);
+			else
+				local newValue = CarouselTween(m_carouselAnimation.startValue, m_carouselAnimation.destinationValue, newTime / m_carouselSlideAnimationDurationMS);
+				Controls.ChallengeScroll:SetScrollValue(newValue);
+				m_carouselAnimation.time = newTime;
+			end
+		else
+			if m_carouselAutoscrollEnabled then
+				m_carouselCurrentSlideDurationMS = m_carouselCurrentSlideDurationMS + fDeltaTime * 1000;
+			else
+				m_carouselCurrentSlideDurationMS = 0 -- always reset when disabled
+			end
+			if m_carouselCurrentSlideDurationMS >= m_carouselDisplayDurationMS then
+				-- Note that we do not reset the current slide displayed duration here because it 
+				-- is reset every time the carousel is scrolled, whether automatically or not, and
+				-- we don't want it to autoscroll right after the user has manually scrolled it.
+				CarouselScrollRight("auto scroll");
+			end
+		end
+	else
+		Controls.ChallengeLButton:SetHide(true);
+		Controls.ChallengeRButton:SetHide(true);
+		Controls.ChallengeIndicatorStack:SetHide(true);
+
+		Controls.ChallengeContainer:SetShow(false);
+	end
+end
+
+-- ===========================================================================
 function Initialize()
 
 	UI.CheckUserSetup();
@@ -1476,6 +1783,11 @@ function Initialize()
 		Controls.MotDLogo:RegisterCallback( Mouse.eLClick, OnCycleMotD );
 	end
 
+	if not FiraxisLive.IsCOPPALocked() then
+		Controls.ChallengeLButton:RegisterCallback( Mouse.eLClick, OnCarouselButtonLClicked );
+		Controls.ChallengeRButton:RegisterCallback( Mouse.eLClick, OnCarouselButtonRClicked );
+	end
+
 	-- Game Events
 	Events.SteamServersConnected.Add( UpdateInternetControls );
 	Events.SteamServersDisconnected.Add( UpdateInternetControls );
@@ -1498,6 +1810,7 @@ function Initialize()
 	LuaEvents.CivRoyaleIntro_StartMatchMaking.Add(StartRoyaleMatchMaking);
 	LuaEvents.PiratesIntro_StartMatchMaking.Add(StartPiratesMatchMaking);
 	LuaEvents.StateTransition_SignalRaised.Add( OnStateTransition );
+	LuaEvents.ChallengePackageUpdated.Add( OnChallengePackageUpdated );
 
 	BuildAllMenus();
 	UpdateMotD();

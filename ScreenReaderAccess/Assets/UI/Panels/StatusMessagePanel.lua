@@ -2,6 +2,7 @@
 -- Non-interactive messages (e.g., Gossip and combat results) that appear in the upper-center of the screen.
 
 include( "InstanceManager" );
+
 include("ScreenReader");
 
 -- =========================================================================== 

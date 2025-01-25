@@ -10,6 +10,7 @@ include( "Colors") ;
 include( "SupportFunctions" );
 include( "AdjacencyBonusSupport");
 include( "ProductionHelper" );
+
 include("ScreenReader");
 
 -- ===========================================================================
@@ -839,6 +840,7 @@ function PopulateWonders(data:table, listMode:number, listIM:table)
 			wonderListing.CostText:SetText(turnsStr);
 			wonderListing.CostText:SetToolTipString(turnsStrTT);
 
+            wonderListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 			wonderListing.Button:RegisterCallback( Mouse.eLClick, function()
 				BuildBuilding(data.City, item);
 			end);
@@ -1011,6 +1013,7 @@ function PopulateDistrictsWithNestedBuildings(data:table, listMode:number, listI
 			end
 		end
 
+		districtListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 		districtListing.Button:RegisterCallback( Mouse.eLClick, function()
 			ZoneDistrict(data.City, item);
 		end);
@@ -1068,6 +1071,7 @@ function PopulateDistrictsWithNestedBuildings(data:table, listMode:number, listI
 				buildingListing.CostText:SetToolTipString(turnsStrTT);
 				buildingListing.CostText:SetText(turnsStr);
 
+                buildingListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 				buildingListing.Button:RegisterCallback( Mouse.eLClick, function()
 					BuildBuilding(data.City, buildingItem);
 				end);
@@ -1120,6 +1124,8 @@ function PopulateDistrictsWithoutNestedBuildings(data:table, listMode:number, li
 			end
 
 			districtListing.CostText:SetText(costStr);
+
+			districtListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 
 			districtListing.Button:RegisterCallback( Mouse.eLClick, function()
 					PurchaseDistrict(data.City, item);
@@ -1181,6 +1187,8 @@ function PopulateDistrictsWithoutNestedBuildings(data:table, listMode:number, li
 					RightClickProductionItem(item.Type);
 				end);
 			end
+
+            buildingListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 
 			buildingListing.Button:RegisterCallback( Mouse.eLClick, function()
 					PurchaseBuilding(data.City, item);
@@ -1338,6 +1346,7 @@ function PopulateUnits(data:table, listMode:number, listIM:table)
 			unitListing.FlagBase:SetColor( primaryColor );
 			unitListing.Icon:SetColor( secondaryColor );
 		
+            unitListing.Button:RegisterCallback( Mouse.eMouseEnter,	function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 			if (listMode == LISTMODE.PRODUCTION or listMode == LISTMODE.PROD_QUEUE) then
 				unitListing.Button:RegisterCallback( Mouse.eLClick, function()
 					BuildUnit(data.City, item);
