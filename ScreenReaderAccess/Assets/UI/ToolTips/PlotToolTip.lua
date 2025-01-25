@@ -9,9 +9,6 @@
 --		m_isOff			- Off for a moment; such as another tooltip is up
 
 
-include("ScreenReader");
-
-
 -- ===========================================================================
 --	Debug constants
 -- ===========================================================================
@@ -553,10 +550,6 @@ end
 function View( data:table )
 	-- Build a string that contains all plot details.
 	local details = GetDetails(data);
-	
-	-- CB: Test
-	table.insert(details, "Running from mod");
-	-- end test
 
 	-- Add debug information in here:
 	local debugInfo = {};
@@ -632,13 +625,6 @@ function View( data:table )
 	m_ttWidth, m_ttHeight = Controls.InfoStack:GetSizeVal();
 	Controls.TooltipMain:SetSizeVal(m_ttWidth, m_ttHeight);
 	Controls.TooltipMain:SetHide(false);
-
-	-- Begin ScreenReaderAccess mod change
-	local description = table.concat(details, "[NEWLINE]");
-	print("Attempting to add SRAccess message to screenreader module: " .. description);
-	OutputMessageToScreenReader(description);
-	print("Updated SRAccess messages table");
-	-- End ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
