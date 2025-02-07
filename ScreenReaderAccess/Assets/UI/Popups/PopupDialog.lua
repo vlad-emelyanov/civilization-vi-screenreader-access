@@ -1,5 +1,8 @@
 include("InstanceManager");
 
+include("ScreenReader")
+
+
 -- ===========================================================================
 --	PopupDialog
 --
@@ -210,7 +213,10 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 	pButtonControl:SetToolTipString( optionalToolTip );
 
 	-- Set the same mouseover button sound for all popup buttons
-	pButtonControl:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
+	pButtonControl:RegisterCallback( Mouse.eMouseEnter, function()
+		UI.PlaySound("Main_Menu_Mouse_Over");
+		OutputMessageToScreenReader(label);
+	end);
 
 	-- Wrap callback in local function so we can close the popup before trigerring the callback
 	local closeAndCallback:ifunction = function() self:Close(); if callback then callback(); end end
@@ -343,6 +349,15 @@ function PopupDialog:Open( optionalID:string )
 	
 	self.Controls.PopupRoot:SetHide(false);
 
+	local screenReaderText = self.Controls.PopupTitle:GetText();
+	for _, control in ipairs(self.PopupControls) do
+		if control.Type == "Text" then
+			screenReaderText = screenReaderText..control.Control:GetText();
+		end
+	end
+
+	OutputMessageToScreenReader("Popup: "..screenReaderText);
+
 	-- If animation controls are set to play on open, now is the time...
 	for _,pAnimationControl in ipairs( self.AnimsOnOpen ) do
 		pAnimationControl:SetToBeginning();
@@ -356,6 +371,8 @@ end
 function PopupDialog:Close()
 	self.Controls.PopupRoot:SetHide(true);
 	self:Reset();
+
+	OutputMessageToScreenReader("Popup closed");
 end
 
 -- ===========================================================================
@@ -524,6 +541,23 @@ end
 -- ===========================================================================
 function PopupDialogInGame:Open()
 	LuaEvents.OnRaisePopupInGame(self.ID, self.m_options);
+
+	local screenReaderTitle = "";
+	for _, control in ipairs(self.m_options) do
+		if control.Type == "Title" then
+			screenReaderTitle = screenReaderTitle..control.Content;
+		end
+	end
+
+	local screenReaderText = "";
+	for _, control in ipairs(self.m_options) do
+		if control.Type == "Text" then
+			screenReaderText = screenReaderText..control.Content;
+		end
+	end
+
+	OutputMessageToScreenReader("Popup: "..screenReaderTitle..screenReaderText);
+
 	self.m_options = {};
 end
 

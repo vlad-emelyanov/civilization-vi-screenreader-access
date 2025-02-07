@@ -6,6 +6,8 @@ include("InstanceManager");
 include("PopupDialog");
 include("PlayerSetupLogic");
 
+include("ScreenReader")
+
 
 -- Quick utility function to determine if Rise and Fall is installed.
 function HasExpansion1()
@@ -1826,11 +1828,19 @@ function InitializeKeyBinding()
 				StartActiveKeyBinding(actionId, 0);
 			end);
 		
+			binding:RegisterCallback( Mouse.eMouseEnter, function ()
+				OutputMessageToScreenReader(action[ActionNameIndex]..(action[Gesture1Index] or "No binding set")..(Locale.Lookup(Input.GetActionDescription(action[ActionIdIndex])) or ""));
+			end);
+
 			local altBinding = entry.AltBinding;
 			altBinding:SetText(action[Gesture2Index] or "");
 			altBinding:SetToolTipString(Locale.Lookup(Input.GetActionDescription(action[ActionIdIndex])) or "");
 			altBinding:RegisterCallback(Mouse.eLClick, function()
 				StartActiveKeyBinding(actionId, 1);
+			end);
+
+			altBinding:RegisterCallback( Mouse.eMouseEnter, function ()
+				OutputMessageToScreenReader("Alt Binding"..action[ActionNameIndex]..(action[Gesture2Index] or "No binding set")..(Locale.Lookup(Input.GetActionDescription(action[ActionIdIndex])) or ""));
 			end);
 
 		end
@@ -2090,6 +2100,7 @@ function Initialize()
 	for i, tab in ipairs(m_tabs) do
 		local button = tab[1];
 		button:RegisterCallback(Mouse.eMouseEnter, function()
+			OutputMessageToScreenReader(Locale.Lookup(tabs[3]));
             UI.PlaySound("Main_Menu_Mouse_Over");
 		end);
 		button:RegisterCallback(Mouse.eLClick, function() OnSelectTab(tab); end );
