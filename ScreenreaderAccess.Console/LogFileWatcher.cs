@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.IO;
+using System.Text;
 
 namespace ScreenreaderAccess.Console;
 
@@ -40,24 +41,22 @@ public sealed class LogFileWatcher
                 var fileSize = new FileInfo(filePath).Length;
                 if (fileSize > lastReadLength)
                 {
-                    using (var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    using FileStream fs = new(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                    using StreamReader reader = new(fs);
+                    fs.Seek(lastReadLength, SeekOrigin.Begin);
+                    
+                    while (!reader.EndOfStream)
                     {
-                        fs.Seek(lastReadLength, SeekOrigin.Begin);
-                        var buffer = new byte[1024];
-
-                        while (true)
+                        string? line = reader.ReadLine();
+                        if (line is null)
                         {
-                            var bytesRead = fs.Read(buffer, 0, buffer.Length);
-                            lastReadLength += bytesRead;
-
-                            if (bytesRead == 0)
-                                break;
-
-                            var text = ASCIIEncoding.ASCII.GetString(buffer, 0, bytesRead);
-
-                            this.mediator.Output(text);
+                            break;
                         }
+
+                        this.mediator.ProcessLine(line);
                     }
+
+                    lastReadLength = fs.Position;
                 }
             }
             catch (FileNotFoundException)

@@ -11,9 +11,12 @@ public  sealed class Mediator
         this.textOutput = textOutput;
     }
 
-    public void Output(string message)
+    public void ProcessLine(string line)
     {
-        this.accessibleOOutput.OutputMessage(message);
+        if (line.Contains(AccessibleOutputHandler.screenReaderMarker))
+        {
+            this.accessibleOOutput.OutputMessage(line);
+        }
     }
 
     public void OutputText(string message)

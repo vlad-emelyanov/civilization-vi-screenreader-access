@@ -9,7 +9,7 @@ public sealed class AccessibleOutputHandler
     
     private IAccessibleOutput screenReader;
 
-    private static readonly string screenReaderMarker = "#SCREENREADER";
+    public const string screenReaderMarker = "#SCREENREADER";
 
     // precompiles a regex of sanitization, using | to separate
     private static readonly Dictionary<string, string> sanitizationRegexMap = new Dictionary<string, string>
@@ -33,31 +33,23 @@ public sealed class AccessibleOutputHandler
         this.optionReader = optionReader;
     }
 
-    public void OutputMessage(string message)
+    public void OutputMessage(string line)
     {
-        var lines = message.Split('\n');
+        var options = this.optionReader.GetOptionsFrom(line);
+        bool interrupt = !options.NoInterrupt;
 
-        foreach (var line in lines)
+        if (!interrupt)
         {
-            if (line.Contains(screenReaderMarker))
-            {
-                var options = this.optionReader.GetOptionsFrom(line);
-                bool interrupt = !options.NoInterrupt;
-                
-                if (!interrupt)
-                {
-                    this.lastNonInterruptableMessage = DateTime.UtcNow;
-                }
-                else
-                {
-                    // check to see if we're not interrupting a notification
-                    interrupt = DateTime.UtcNow >= this.lastNonInterruptableMessage.Add(nonInterruptTime);
-                }
-
-                var sanitized = SanitizeLine(line);
-                this.screenReader.Speak(sanitized, interrupt);
-            }
+            this.lastNonInterruptableMessage = DateTime.UtcNow;
         }
+        else
+        {
+            // check to see if we're not interrupting a notification
+            interrupt = DateTime.UtcNow >= this.lastNonInterruptableMessage.Add(nonInterruptTime);
+        }
+
+        var sanitized = SanitizeLine(line);
+        this.screenReader.Speak(sanitized, interrupt);
     }
 
     private static string SanitizeLine(string line)
