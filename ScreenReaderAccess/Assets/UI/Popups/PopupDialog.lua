@@ -1,5 +1,6 @@
 include("InstanceManager");
 
+include("KeyboardNavigation")
 include("ScreenReader")
 
 
@@ -365,6 +366,14 @@ function PopupDialog:Open( optionalID:string )
 	end
 
 	self.Controls.PopupStack:CalculateSize();
+
+	local keyNavElements: table = {}
+	for _,value in ipairs(self.PopupControls) do
+		if value.Type == "Button" then
+			table.insert(keyNavElements , value);
+		end
+	end
+	PrintKeyboardNavigationElements(keyNavElements, function(item) return item.Control; end, function(item) return item.Control:GetText(); end, true)
 end
 
 -- ===========================================================================

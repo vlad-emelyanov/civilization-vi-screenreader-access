@@ -5,6 +5,7 @@ include("PlayerSetupLogic"); -- For PlayNow
 
 include("PopupDialog");
 
+include("KeyboardNavigation")
 include("ScreenReader")
 
 -- ===========================================================================
@@ -1178,6 +1179,8 @@ function BuildMenu(menuOptions:table)
 	Controls.MainButtonTrackAnim:SetBeginVal(0,-trackHeight);
 	Controls.MainButtonTrackAnim:Play();
 	Controls.MainMenuClip:SetSizeY(trackHeight);
+
+	PrintKeyboardNavigationElements(m_currentOptions, function(item) return item.control.OptionButton; end, function(item) return item.control.ButtonLabel:GetText(); end, true, 60)
 end
 
 -- ===========================================================================
@@ -1754,6 +1757,8 @@ function OnUpdate( fDeltaTime )
 
 		Controls.ChallengeContainer:SetShow(false);
 	end
+
+	KeyNav_Tick(fDeltaTime)
 end
 
 -- ===========================================================================
@@ -1761,6 +1766,8 @@ function Initialize()
 
 	UI.CheckUserSetup();
 	UIManager:DisablePopupQueue( false );	-- If coming back from a (PBC) game, it is possible this may have been left on; ensure popups work or the main menu won't show.	
+	local sx, sy = UIManager:GetScreenSizeVal()
+	print("Screen size: "..sx..","..sy)
 
 	-- Remove the Play By Cloud option if it is not available
 	if(not Network.HasCapability("CloudGame")) then

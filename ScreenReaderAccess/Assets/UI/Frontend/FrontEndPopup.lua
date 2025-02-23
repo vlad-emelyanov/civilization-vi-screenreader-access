@@ -1,5 +1,7 @@
 include("PopupDialog");
 
+include("KeyboardNavigation")
+
 m_kPopupDialog = PopupDialog:new("FrontEndPopup");
 
 -------------------------------------------------
@@ -81,6 +83,8 @@ end
 -- ===========================================================================
 function Initialize()
 	ContextPtr:SetInputHandler( InputHandler );
+
+	ContextPtr:SetUpdate( KeyNav_Tick );
 
 	-- Events.FrontEndPopup has 256 character limit for popupText and popupTitle.
 	-- LuaEvents.MultiplayerPopup should have unlimited character size.

@@ -29,7 +29,7 @@ public sealed class AccessibleOutputHandler
 
     public AccessibleOutputHandler(AccessibleOutputOptionReader optionReader)
     {
-        this.screenReader = new NvdaOutput();
+        this.screenReader = new JawsOutput();
         this.optionReader = optionReader;
     }
 

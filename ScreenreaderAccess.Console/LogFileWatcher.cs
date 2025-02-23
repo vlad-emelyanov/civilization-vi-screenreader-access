@@ -12,29 +12,26 @@ public sealed class LogFileWatcher
         this.mediator = mediator;
     }
 
-    public Task WaitForLogFileToExist(string luaLogFilePath, CancellationToken? cancellationToken = null)
+    public async Task WaitForLogFileToExist(string luaLogFilePath, CancellationToken cancellationToken)
     {
-        while (cancellationToken?.IsCancellationRequested != true)
+        while (!cancellationToken.IsCancellationRequested)
         {
             if (File.Exists(luaLogFilePath))
             {
-                return Task.CompletedTask;
+                return;
             }
 
-            Thread.Sleep(10000);
+            await Task.Delay(10000, cancellationToken);
         }
-
-        // this is a catch all for anything that isn't covered by the cancellation token throwing
-        return Task.FromException(new ApplicationException($"Unable to load log file {luaLogFilePath}"));
     }
 
-    public async void WatchLogFile(string filePath)
+    public async Task WatchLogFile(string filePath, CancellationToken cancellationToken)
     {
         var initialFileSize = new FileInfo(filePath).Length;
         var lastReadLength = initialFileSize - 1024;
         if (lastReadLength < 0) lastReadLength = 0;
 
-        while (true)
+        while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
@@ -62,7 +59,7 @@ public sealed class LogFileWatcher
             catch (FileNotFoundException)
             {
                 this.mediator.OutputText("File no longer found: Waiting for file to exist again...");
-                await this.WaitForLogFileToExist(filePath);
+                await this.WaitForLogFileToExist(filePath, cancellationToken);
                 this.mediator.OutputText("Log file found. Watching...");
                 initialFileSize = new FileInfo(filePath).Length;
                 lastReadLength = initialFileSize - 1024;
@@ -73,7 +70,7 @@ public sealed class LogFileWatcher
                 this.mediator.OutputTextError("Error: " + e.Message);
             }
 
-            Thread.Sleep(200);
+            await Task.Delay(200, cancellationToken);
         }
     }
 
