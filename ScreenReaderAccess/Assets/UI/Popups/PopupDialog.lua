@@ -373,7 +373,7 @@ function PopupDialog:Open( optionalID:string )
 			table.insert(keyNavElements , value);
 		end
 	end
-	PrintKeyboardNavigationElements(keyNavElements, function(item) return item.Control; end, function(item) return item.Control:GetText(); end, true)
+	PrintKeyboardNavigationElements(keyNavElements, function(item) return item.Control; end, function(item) return item.Control:GetText(); end)
 end
 
 -- ===========================================================================

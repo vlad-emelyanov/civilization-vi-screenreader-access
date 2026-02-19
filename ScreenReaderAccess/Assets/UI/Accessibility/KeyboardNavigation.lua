@@ -19,38 +19,19 @@ local function _DebugCall(f)
 	end
 end
 
-local function _TakeSnapshot(elementList, accessor, labelAccessor)
-	local snap = {}
-	_DebugCall(function()
-		for i, elem in ipairs(elementList) do
+local function _PrintKeyNavSet(id, elementList, accessor, labelAccessor)
+	local prefix = KEYNAV_LOG_PREFIX..id.." "
+	print(prefix.."START")
+	for i, elem in ipairs(elementList) do
+		_DebugCall(function()
 			local keyNavElem = accessor(elem)
 			local xOffset, yOffset = keyNavElem:GetScreenOffset()
 			local width, height = keyNavElem:GetSizeVal()
-			-- store as numbers (integers) for stable comparison
-			table.insert(snap, { x = math.floor(tonumber(xOffset) or 0), y = math.floor(tonumber(yOffset) or 0), w = math.floor(tonumber(width) or 0), h = math.floor(tonumber(height) or 0), label = tostring(labelAccessor(elem) or "") })
-		end
-	end)
-	return snap
-end
 
-local function _SnapshotsEqual(a, b)
-	if #a ~= #b then return false end
-	for i = 1, #a do
-		if a[i].x ~= b[i].x or a[i].y ~= b[i].y or a[i].w ~= b[i].w or a[i].h ~= b[i].h or a[i].label ~= b[i].label then
-			return false
-		end
-	end
-	return true
-end
-
-local function _EmitSnapshotWithId(id, snap)
-	local prefix = KEYNAV_LOG_PREFIX..id.." "
-	print(prefix.."START")
-	for i = 1, #snap do
-		local s = snap[i]
-		local xAnchor = s.x + s.w / 2
-		local yAnchor = s.y + s.h / 2
-		print(prefix..i.." "..xAnchor..","..yAnchor.." "..s.label)
+			local xAnchor = xOffset + width / 2
+			local yAnchor = yOffset + height / 2
+			print(prefix..i.." "..xAnchor..","..yAnchor.." "..labelAccessor(elem))
+		end)
 	end
 	print(prefix.."END")
 end
@@ -64,31 +45,17 @@ local function _KeyNavUpdater(deltaTime)
 	local remaining = {}
 	for tIndex, task in ipairs(_KeyNavTasks) do
 		task.framesElapsed = task.framesElapsed + 1
-		local current = _TakeSnapshot(task.elementList, task.accessor, task.labelAccessor)
-
-		if task.prevSnapshot == nil then
-			task.prevSnapshot = current
-			task.stableCount = 0
-			task.maxFalseStableCount= 0
-		else
-			if _SnapshotsEqual(current, task.prevSnapshot) then
-				task.stableCount = task.stableCount + 1
-			else
-				task.prevSnapshot = current
-				if task.maxFalseStableCount< task.stableCount then
-					task.maxFalseStableCount= task.stableCount
-				end 
-				task.stableCount = 0
-			end
-		end
-
-		local reachedStable = task.stableCount >= task.stableTarget
 		local timedOut = task.framesElapsed >= task.maxFrames
-		if reachedStable or timedOut then
-			-- emit using the task id and the most recent snapshot
-			print("Set: "..task.id.." Frames elapsed: "..task.framesElapsed.." Stable frames: "..task.stableCount.." Max false stable: "..task.maxFalseStableCount)
-			_EmitSnapshotWithId(task.id, task.prevSnapshot)
+		if task.stableReached or timedOut then
+			if timedOut then
+				print("Set: "..task.id.." timed out.")
+			end
+			_PrintKeyNavSet(task.id, task.elementList, task.accessor, task.labelAccessor)
 		else
+			-- Wait 1 tick after animations done to let the UI finalize
+			if task.checkStable() then
+				task.stableReached = true
+			end
 			table.insert(remaining, task)
 		end
 	end
@@ -97,14 +64,12 @@ local function _KeyNavUpdater(deltaTime)
 	_KeyNavTasks = remaining
 end
 
--- waitForStable (optional): if true, poll until coordinates stabilize (default: false)
--- maxFrames / stableTarget are optional tuning parameters
-function PrintKeyboardNavigationElements(elementList: table, accessor, labelAccessor, waitForStable, stableTarget, maxFrames)
+-- checkStable (optional): function to check if element positions have stabilized
+function PrintKeyboardNavigationElements(elementList: table, accessor, labelAccessor, checkStable)
 	local id = math.random(0, 99999)
 	print("Processing keyboard navigation set "..id)
-	waitForStable = waitForStable or false
-	if not waitForStable then
-		_EmitSnapshotWithId(id, _TakeSnapshot(elementList, accessor, labelAccessor))
+	if checkStable == nil then
+		_PrintKeyNavSet(id, elementList, accessor, labelAccessor)
 		return
 	end
 
@@ -114,12 +79,10 @@ function PrintKeyboardNavigationElements(elementList: table, accessor, labelAcce
 		elementList = elementList,
 		accessor = accessor,
 		labelAccessor = labelAccessor,
-		maxFrames = tonumber(maxFrames) or 600,    -- default timeout (frames)
+		checkStable = checkStable,
+		stableReached = false,
+		maxFrames = 600,    -- default timeout (frames)
 		framesElapsed = 0,
-		stableTarget = tonumber(stableTarget) or 30, -- require this many identical frames
-		stableCount = 0,
-		maxFalseStableCount= 0,
-		prevSnapshot = nil,
 	}
 
 	table.insert(_KeyNavTasks, task)

@@ -1179,8 +1179,6 @@ function BuildMenu(menuOptions:table)
 	Controls.MainButtonTrackAnim:SetBeginVal(0,-trackHeight);
 	Controls.MainButtonTrackAnim:Play();
 	Controls.MainMenuClip:SetSizeY(trackHeight);
-
-	PrintKeyboardNavigationElements(m_currentOptions, function(item) return item.control.OptionButton; end, function(item) return item.control.ButtonLabel:GetText(); end, true, 60)
 end
 
 -- ===========================================================================
@@ -1194,6 +1192,7 @@ end
 -- ===========================================================================
 function BuildSubMenu(menuOptions:table)
 	m_subOptionIM:ResetInstances();
+	local subMenuOptions: table = {}
 	for i, kMenuOption in ipairs(menuOptions) do
 
 		local uiOption = m_subOptionIM:GetInstance();
@@ -1247,6 +1246,7 @@ function BuildSubMenu(menuOptions:table)
 				uiOption.HelpButton:RegisterCallback( Mouse.eLClick, kMenuOption.helpCallback);
 			end
 
+			table.insert(subMenuOptions, uiOption)
 		end		
 	end
 
@@ -1262,6 +1262,26 @@ function BuildSubMenu(menuOptions:table)
 	Controls.SubMenuAlpha:SetSizeY(trackHeight);
 	Controls.SubButtonClip:SetSizeY(trackHeight);
 	Controls.SubMenuContainer:SetSizeY(Controls.MainMenuClip:GetSizeY());
+
+	  PrintKeyboardNavigationElements(
+		subMenuOptions,
+		function(item) return item.OptionButton; end,
+		function(item) return item.ButtonLabel:GetText(); end,
+		function()
+			if Controls.SubMenuSlide ~= nil and not Controls.SubMenuSlide:IsStopped() then
+				return false
+			end
+			if Controls.SubMenuAlpha ~= nil and not Controls.SubMenuAlpha:IsStopped() then
+				return false
+			end
+			for i = 1, #subMenuOptions do
+				local anim = subMenuOptions[i].FlagAnim
+				if anim ~= nil and not anim:IsStopped() then
+					return false
+				end
+			end
+			return true
+		end);
 end
 
 
@@ -1546,6 +1566,31 @@ function OnShow()
 	else
 		BuildAllMenus();
 	end
+
+	local selectedIndex = -1;
+	for i=1, table.count(m_currentOptions) do
+		if m_currentOptions[i].isSelected then
+			selectedIndex = i;
+			break;
+		end
+	end
+
+	if selectedIndex == -1 or m_defaultMainMenuOptions[selectedIndex].submenu == nil then
+		PrintKeyboardNavigationElements(
+			m_currentOptions,
+			function(item) return item.control.OptionButton; end,
+			function(item) return item.control.ButtonLabel:GetText(); end,
+			function()
+				for i = 1, table.count(m_currentOptions) do
+					local anim = m_currentOptions[i].control.FlagAnim
+					if anim ~= nil and not anim:IsStopped() then
+						return false
+					end
+				end
+				return true
+			end);
+	end
+
 	GameConfiguration.SetToDefaults();
 	UI.SetSoundStateValue("Game_Views", "Main_Menu");
 	LuaEvents.UpdateFiraxisLiveState();
