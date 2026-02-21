@@ -28,7 +28,7 @@ public static class Program
         KeyboardNavigationHandler keyboardNavigation = new(textOutput);
 
         using HotKeyManager hotKeyManager = new();
-        hotKeyManager.HotKeyPressed += (object? sender, HotKeyEventArgs e) =>
+        /* hotKeyManager.HotKeyPressed += (object? sender, HotKeyEventArgs e) =>
         {
             try
             {
@@ -38,9 +38,9 @@ public static class Program
             {
                 Console.WriteLine(ex.ToString());
             }
-        };
+        }; */
 
-        hotKeyManager.RegisterHotKeys(keys);
+        // hotKeyManager.RegisterHotKeys(keys);
 
         Mediator mediator = new(accessibleOutput, keyboardNavigation, textOutput);
         LogFileWatcher logFileWatcher = new(mediator);

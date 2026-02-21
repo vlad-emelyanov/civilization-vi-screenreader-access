@@ -1,10 +1,13 @@
 -- Keyboard Navigation module
 --------------------------------------------------------------
 
-local KEYNAV_LOG_PREFIX: string = "#KEYBOARDNAV - ";
+local KEYNAV_LOG_PREFIX: string = "#KEYNAV - ";
+local KEYNAV_MOVE_LOG_PREFIX: string = "#KEYNAV_MOVE - ";
+local KEYNAV_CLICK_LOG_PREFIX: string = "#KEYNAV_CLICK - ";
 
 -- Internal task queue for stable sampling
 local _KeyNavTasks = {}            -- queued sampling tasks
+local _KeyNavMoveTasks = {}
 
 local function _DebugCall(f)
 	local ok, trace = xpcall(f, function(e)
@@ -38,10 +41,6 @@ end
 
 -- Per-frame updater: polls tasks and emits when stable or timed out
 local function _KeyNavUpdater(deltaTime)
-	if #_KeyNavTasks == 0 then
-		return
-	end
-
 	local remaining = {}
 	for tIndex, task in ipairs(_KeyNavTasks) do
 		task.framesElapsed = task.framesElapsed + 1
@@ -88,6 +87,54 @@ function PrintKeyboardNavigationElements(elementList: table, accessor, labelAcce
 	table.insert(_KeyNavTasks, task)
 end
 
+function KeyNavMoveMouse(element, checkStable)
+	if checkStable ~= nil then
+		table.insert(_KeyNavMoveTasks, { element = element, checkStable = checkStable, stableReached = false })
+		return
+	end
+
+	local xOffset, yOffset = element:GetScreenOffset()
+	local width, height = element:GetSizeVal()
+
+	local xAnchor = xOffset + width / 2
+	local yAnchor = yOffset + height / 2
+	print(KEYNAV_MOVE_LOG_PREFIX..xAnchor..","..yAnchor)
+end
+
+local function _KeyNavMoveUpdater(deltaTime)
+	local remaining = {}
+	for tIndex, task in ipairs(_KeyNavMoveTasks) do
+		if task.stableReached then
+			KeyNavMoveMouse(task.element)
+		else
+			-- Wait 1 tick after animations done to let the UI finalize
+			if task.checkStable() then
+				task.stableReached = true
+			end
+			table.insert(remaining, task)
+		end
+	end
+
+	-- replace queue
+	_KeyNavMoveTasks = remaining
+end
+
 function KeyNav_Tick(deltaTime)
-	_KeyNavUpdater(deltaTime)
+	if #_KeyNavTasks ~= 0 then
+		_KeyNavUpdater(deltaTime)
+	end
+	if #_KeyNavMoveTasks ~= 0 then
+		_KeyNavMoveUpdater(deltaTime)
+	end
+end
+
+function KeyNavLeftClick()
+	print(KEYNAV_CLICK_LOG_PREFIX.."L")
+end
+
+function PrintKeyMap()
+	print("Key map:")
+	for k,v in pairs(Keys) do
+		print(k, v)
+	end
 end

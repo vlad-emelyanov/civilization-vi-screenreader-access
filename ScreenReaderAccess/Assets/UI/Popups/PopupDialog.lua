@@ -37,7 +37,9 @@ PopupDialog = {
 	ID				= "",
 	Controls		= nil,
 	AnimsOnOpen		= {},
-	PopupControls	= {}
+	PopupControls	= {},
+	KeyNavElements = {},
+	ActiveKeyNavElement = -1
 }
 
 -- Helper class to interface with InGamePopup context
@@ -357,7 +359,7 @@ function PopupDialog:Open( optionalID:string )
 		end
 	end
 
-	OutputMessageToScreenReader("Popup: "..screenReaderText);
+	OutputMessageToScreenReader("Popup: "..screenReaderText, true);
 
 	-- If animation controls are set to play on open, now is the time...
 	for _,pAnimationControl in ipairs( self.AnimsOnOpen ) do
@@ -373,7 +375,45 @@ function PopupDialog:Open( optionalID:string )
 			table.insert(keyNavElements , value);
 		end
 	end
-	PrintKeyboardNavigationElements(keyNavElements, function(item) return item.Control; end, function(item) return item.Control:GetText(); end)
+	self.KeyNavElements = keyNavElements
+	self.ActiveKeyNavElement = 0;
+	local checkStable = nil
+	if #self.AnimsOnOpen ~= 0 then
+		checkStable = function()
+			for _,pAnimationControl in ipairs( self.AnimsOnOpen ) do
+				if not pAnimationControl:IsStopped() then
+					return false;
+				end
+			end
+			return true;
+		end
+	end
+
+	KeyNavMoveMouse(self.KeyNavElements[self.ActiveKeyNavElement + 1].Control, checkStable);
+end
+
+function PopupDialog:KeyHandler(key)
+	print("Got key")
+
+	if key == Keys.VK_RETURN then
+		KeyNavLeftClick()
+		return true;
+        end
+
+	local menuSize = #self.KeyNavElements
+	local move = false
+	if key == Keys.VK_UP then
+		self.ActiveKeyNavElement = (self.ActiveKeyNavElement - 1 + menuSize) % menuSize;
+		move = true
+	elseif key == Keys.VK_DOWN then
+		self.ActiveKeyNavElement = (self.ActiveKeyNavElement + 1) % menuSize;
+		move = true;
+	end
+	if move then
+		KeyNavMoveMouse(self.KeyNavElements[self.ActiveKeyNavElement + 1].Control);
+		return true;
+	end	
+	return false;
 end
 
 -- ===========================================================================
@@ -381,6 +421,7 @@ function PopupDialog:Close()
 	self.Controls.PopupRoot:SetHide(true);
 	self:Reset();
 
+	self.KeyNavElements = {}
 	OutputMessageToScreenReader("Popup closed");
 end
 

@@ -64,6 +64,12 @@ g_LastFileQueryRequestID = nil;			-- The file list ID used to determine whether 
 g_MostRecentSave = nil;					-- The most recent single player save a user has (locally)
 
 
+-- Keyboard Navigation helpers
+local m_currentSubOptions:table = {};
+local m_inSubMenu:boolean = false
+local m_highlightedOption:number = 0
+
+
 -- ===========================================================================
 -- Button Handlers
 -- ===========================================================================
@@ -927,6 +933,20 @@ function ToggleOption(optionIndex, submenu)
 			BuildSubMenu(submenu);
 		end
 		m_currentOptions[optionIndex].isSelected = true;
+
+		-- Move into sub menu
+		m_inSubMenu = true;
+		m_highlightedOption = 0;
+		local activeOption = m_currentSubOptions[m_highlightedOption + 1].control;
+		KeyNavMoveMouse(activeOption.OptionButton, function()
+			if Controls.SubMenuSlide ~= nil and not Controls.SubMenuSlide:IsStopped() then
+				return false
+			end
+			if Controls.SubMenuAlpha ~= nil and not Controls.SubMenuAlpha:IsStopped() then
+				return false
+			end
+			return activeOption.FlagAnim == nil or activeOption.FlagAnim:IsStopped()
+		end);
 	end
 end
 
@@ -1192,7 +1212,7 @@ end
 -- ===========================================================================
 function BuildSubMenu(menuOptions:table)
 	m_subOptionIM:ResetInstances();
-	local subMenuOptions: table = {}
+	m_currentSubOptions = {}
 	for i, kMenuOption in ipairs(menuOptions) do
 
 		local uiOption = m_subOptionIM:GetInstance();
@@ -1246,7 +1266,7 @@ function BuildSubMenu(menuOptions:table)
 				uiOption.HelpButton:RegisterCallback( Mouse.eLClick, kMenuOption.helpCallback);
 			end
 
-			table.insert(subMenuOptions, uiOption)
+			table.insert(m_currentSubOptions, { control = uiOption })
 		end		
 	end
 
@@ -1262,26 +1282,6 @@ function BuildSubMenu(menuOptions:table)
 	Controls.SubMenuAlpha:SetSizeY(trackHeight);
 	Controls.SubButtonClip:SetSizeY(trackHeight);
 	Controls.SubMenuContainer:SetSizeY(Controls.MainMenuClip:GetSizeY());
-
-	  PrintKeyboardNavigationElements(
-		subMenuOptions,
-		function(item) return item.OptionButton; end,
-		function(item) return item.ButtonLabel:GetText(); end,
-		function()
-			if Controls.SubMenuSlide ~= nil and not Controls.SubMenuSlide:IsStopped() then
-				return false
-			end
-			if Controls.SubMenuAlpha ~= nil and not Controls.SubMenuAlpha:IsStopped() then
-				return false
-			end
-			for i = 1, #subMenuOptions do
-				local anim = subMenuOptions[i].FlagAnim
-				if anim ~= nil and not anim:IsStopped() then
-					return false
-				end
-			end
-			return true
-		end);
 end
 
 
@@ -1559,6 +1559,8 @@ function OnShow()
 	-- Re-enable the play now button.
 	_ClickedPlayNow = nil;
 
+	OutputMessageToScreenReader("Main menu", true)
+
 	local save = Options.GetAppOption("Debug", "PlayNowSave");
 	if (save ~= nil) then
 		--If we have a save specified in AppOptions, then only display the play button
@@ -1567,28 +1569,22 @@ function OnShow()
 		BuildAllMenus();
 	end
 
-	local selectedIndex = -1;
+	local subMenuOpen = false
 	for i=1, table.count(m_currentOptions) do
 		if m_currentOptions[i].isSelected then
-			selectedIndex = i;
+			subMenuOpen = true;
 			break;
 		end
 	end
 
-	if selectedIndex == -1 or m_defaultMainMenuOptions[selectedIndex].submenu == nil then
-		PrintKeyboardNavigationElements(
-			m_currentOptions,
-			function(item) return item.control.OptionButton; end,
-			function(item) return item.control.ButtonLabel:GetText(); end,
-			function()
-				for i = 1, table.count(m_currentOptions) do
-					local anim = m_currentOptions[i].control.FlagAnim
-					if anim ~= nil and not anim:IsStopped() then
-						return false
-					end
-				end
-				return true
-			end);
+	-- Move to the first menu element
+	if not subMenuOpen then
+		m_highlightedOption = 0
+		m_inSubMenu = false;		
+		local activeOption = m_currentOptions[m_highlightedOption + 1].control;
+		KeyNavMoveMouse(activeOption.OptionButton, function()
+			return activeOption.FlagAnim == nil or activeOption.FlagAnim:IsStopped()
+		end);
 	end
 
 	GameConfiguration.SetToDefaults();
@@ -1806,6 +1802,65 @@ function OnUpdate( fDeltaTime )
 	KeyNav_Tick(fDeltaTime)
 end
 
+function KeyHandler( key:number )
+	print("Got key "..key)
+
+	if key == Keys.VK_RETURN then
+		KeyNavLeftClick()
+		return true;
+        end
+
+	local subMenuOpen = false;
+	for i=1, table.count(m_currentOptions) do
+		if m_currentOptions[i].isSelected and m_defaultMainMenuOptions[i].submenu ~= nil then
+			subMenuOpen = true;
+			break;
+		end
+	end
+
+	local currentMenu = m_currentOptions
+	if subMenuOpen and m_inSubMenu then
+		currentMenu = m_currentSubOptions
+	end
+
+	local menuSize = #currentMenu
+	local move = false
+	if key == Keys.VK_UP then
+		m_highlightedOption = (m_highlightedOption - 1 + menuSize) % menuSize;
+		move = true
+	elseif key == Keys.VK_DOWN then
+		m_highlightedOption = (m_highlightedOption + 1) % menuSize;
+		move = true;
+	elseif key == Keys.VK_LEFT then
+		move = true;
+		if subMenuOpen and m_inSubMenu then
+			currentMenu = m_currentOptions
+			m_highlightedOption = 0;
+			m_inSubMenu = false;
+		end
+	elseif key == Keys.VK_RIGHT then
+		move = true;
+		if subMenuOpen and not m_inSubMenu then
+			currentMenu = m_currentSubOptions
+			m_highlightedOption = 0;
+			m_inSubMenu = true;
+		end
+	end
+	if move then
+		KeyNavMoveMouse(currentMenu[m_highlightedOption + 1].control.OptionButton);
+		return true;
+	end	
+	return false;
+end
+
+function OnInputHandler( pInputStruct:table )
+	local uiMsg = pInputStruct:GetMessageType();
+	if uiMsg == KeyEvents.KeyUp then
+		return KeyHandler( pInputStruct:GetKey() );
+	end;
+	return false;
+end
+
 -- ===========================================================================
 function Initialize()
 
@@ -1824,6 +1879,8 @@ function Initialize()
 		Controls.My2KContents:SetShow(false);
 	end
 
+	PrintKeyMap()
+	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShowHandler( OnShow );
 	ContextPtr:SetShutdown( OnShutdown );
 	

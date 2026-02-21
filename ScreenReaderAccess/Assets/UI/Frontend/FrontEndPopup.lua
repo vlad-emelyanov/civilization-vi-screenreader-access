@@ -76,6 +76,7 @@ function InputHandler( uiMsg, wParam, lParam )
 				OnPopupClose();
 			end
 		end
+		m_kPopupDialog:KeyHandler(wParam)
 		return true;
 	end
 end
