@@ -5,6 +5,9 @@ include( "LoadSaveMenu_Shared" );	-- Shared code between the LoadGameMenu and th
 include( "PopupDialog" );
 include( "LocalPlayerActionSupport" );
 
+include("KeyboardNavigation")
+include("ScreenReader")
+
 
 local RELOAD_CACHE_ID: string = "LoadGameMenu";		-- hotloading
 
@@ -22,6 +25,9 @@ local m_isActionButtonDisabled:boolean = false;	-- Action button state before ye
 g_IsDeletingFile = false;
 
 g_QuickLoadQueryRequestID = nil;
+
+local m_mainKeyNavElements = {}
+local m_selectedKeyNavElement = 0;
 
 ----------------------------------------------------------------        
 ----------------------------------------------------------------        
@@ -379,6 +385,9 @@ function KeyHandler( key:number )
 			OnBack();
 		end		
 		return true;
+	end
+	if(m_kPopupDialog:IsOpen()) then
+		return m_kPopupDialog:KeyHandler(key);
 	end	
 	if key == Keys.VK_RETURN then
         if(not Controls.ActionButton:IsHidden() and not Controls.ActionButton:IsDisabled()) then
@@ -386,6 +395,40 @@ function KeyHandler( key:number )
             return true;
         end
 	end
+
+	if key == Keys.VK_LEFT then
+		if g_inCarousel then
+			g_inCarousel = false;
+			KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+		end
+		return true;
+	end
+	if key == Keys.VK_RIGHT then
+		if not g_inCarousel and g_FileEntryInstanceList ~= nil and #g_FileEntryInstanceList > 0 then
+			g_inCarousel = true;
+			EnsureCarouselSelectionVisible(g_iSelectedKeyNavEntry);
+			KeyNavMoveMouse(g_FileEntryInstanceList[g_iSelectedKeyNavEntry].Button);
+		end
+		return true;
+	end
+
+	if g_inCarousel then
+		return LoadSaveMenu_HandleCarouselKey(key);
+	end
+
+	local menuSize = #m_mainKeyNavElements;
+	if key == Keys.VK_UP then
+		m_selectedKeyNavElement = m_selectedKeyNavElement - 1;
+		if m_selectedKeyNavElement < 1 then m_selectedKeyNavElement = menuSize; end
+		KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+		return true;
+	elseif key == Keys.VK_DOWN then
+		m_selectedKeyNavElement = m_selectedKeyNavElement + 1;
+		if m_selectedKeyNavElement > menuSize then m_selectedKeyNavElement = 1; end
+		KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+		return true;
+	end
+
 	return false;
 end
 function OnInputHandler( pInputStruct:table )
@@ -560,14 +603,33 @@ function Initialize()
 
 	-- UI Callbacks
 	Controls.ActionButton:RegisterCallback( Mouse.eLClick, OnActionButton );
-	Controls.ActionButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
+	Controls.ActionButton:RegisterCallback( Mouse.eMouseEnter, function()
+		UI.PlaySound("Main_Menu_Mouse_Over");
+		OutputMessageToScreenReader(Controls.ActionButton:GetText());
+	end);
 	Controls.AutoCheck:RegisterCallback( Mouse.eLClick, OnAutoCheck );
+	Controls.AutoCheck:RegisterCallback( Mouse.eMouseEnter, function() OutputMessageToScreenReader(Controls.AutoCheck:GetText()); end);
 	Controls.BackButton:RegisterCallback( Mouse.eLClick, OnBack );
-	Controls.BackButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
+	Controls.BackButton:RegisterCallback( Mouse.eMouseEnter, function()
+		UI.PlaySound("Main_Menu_Mouse_Over");
+		OutputMessageToScreenReader(Controls.BackButton:GetText());
+	end);
 	Controls.CloudCheck:RegisterCallback( Mouse.eLClick, OnCloudCheck );
+	Controls.CloudCheck:RegisterCallback( Mouse.eMouseEnter, function() OutputMessageToScreenReader(Controls.CloudCheck:GetText()); end);
 	Controls.Delete:RegisterCallback( Mouse.eLClick, OnDelete );
-	Controls.Delete:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
+	Controls.Delete:RegisterCallback( Mouse.eMouseEnter, function()
+		UI.PlaySound("Main_Menu_Mouse_Over");
+		OutputMessageToScreenReader(Controls.Delete:GetText());
+	end);
 	Controls.SelectedFileStack:RegisterSizeChanged( OnSelectedFileStackSizeChanged );
+
+	m_mainKeyNavElements = {
+		Controls.ActionButton,
+		Controls.BackButton,
+		Controls.Delete,
+		Controls.AutoCheck,
+		Controls.CloudCheck
+	};
 
 	-- LUA Events
 	LuaEvents.HostGame_SetLoadGameServerType.Add( OnSetLoadGameServerType );

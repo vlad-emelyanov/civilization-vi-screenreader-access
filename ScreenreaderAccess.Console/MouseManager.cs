@@ -24,6 +24,11 @@ public static class MouseManager
     /// <param name="y">Target screen Y in pixels.</param>
     public static void MoveMouse(int x, int y)
     {
+        if (x < 0 || y < 0 || x > 1920 || y > 1080)
+        {
+            System.Console.WriteLine($"Not moving mouse off screen: ({x}, {y})");
+            return;
+        }
         System.Console.WriteLine($"Moving mouse to ({x}, {y})");
         if (!GetCursorPos(out POINT start))
             throw new InvalidOperationException("Failed to get cursor position.");

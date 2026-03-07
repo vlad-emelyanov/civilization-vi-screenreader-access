@@ -37,6 +37,55 @@ g_CurrentGameMetaData = nil
 g_FilenameIsValid = false;
 
 g_DontUpdateFileName = false;
+
+g_inCarousel = false;
+g_iSelectedKeyNavEntry = 1;
+
+
+function EnsureCarouselSelectionVisible(index)
+	local numEntries = #g_FileEntryInstanceList;
+	if numEntries == 0 then return end
+
+	local scrollPanel = Controls.ScrollPanel;
+	local stack = Controls.FileListEntryStack;
+	
+	local stackHeight = stack:GetSizeY();
+	local viewHeight = scrollPanel:GetSizeY();
+	
+	if stackHeight <= viewHeight then
+		scrollPanel:SetScrollValue(0);
+		return;
+	end
+
+	local scrollValue = scrollPanel:GetScrollValue();
+	local elementHeight = stackHeight / numEntries;
+	
+	local newScroll = (index - 1) * elementHeight / (stackHeight - viewHeight);
+	scrollPanel:SetScrollValue(newScroll);
+end
+
+function LoadSaveMenu_HandleCarouselKey(key)
+	if key == Keys.VK_SPACE then
+		KeyNavLeftClick()
+		return true;
+	end
+
+	local menuSize = #g_FileEntryInstanceList;
+	if key == Keys.VK_UP then
+		g_iSelectedKeyNavEntry = g_iSelectedKeyNavEntry - 1;
+		if g_iSelectedKeyNavEntry < 1 then g_iSelectedKeyNavEntry = menuSize; end
+	elseif key == Keys.VK_DOWN then
+		g_iSelectedKeyNavEntry = g_iSelectedKeyNavEntry + 1;
+		if g_iSelectedKeyNavEntry > menuSize then g_iSelectedKeyNavEntry = 1; end
+	else
+		return false;
+	end
+	
+	EnsureCarouselSelectionVisible(g_iSelectedKeyNavEntry);
+	KeyNavMoveMouse(g_FileEntryInstanceList[g_iSelectedKeyNavEntry].Button);
+	return true;
+end
+
 ----------------------------------------------------------------        
 -- File Name Handling
 ----------------------------------------------------------------
@@ -919,7 +968,10 @@ function RebuildFileList()
 		g_FileEntryInstanceList[instance_index] = controlTable;
 		TruncateString(controlTable.ButtonText, controlTable.Button:GetSizeX()-60, entry.DisplayName);
 		controlTable.Button:SetVoid1( instance_index );
-		controlTable.Button:RegisterCallback( Mouse.eMouseEnter, OnMouseEnter);
+		controlTable.Button:RegisterCallback( Mouse.eMouseEnter, function()
+			OnMouseEnter();
+			OutputMessageToScreenReader(entry.DisplayName);
+		end);
 		controlTable.Button:RegisterCallback( Mouse.eLClick, SetSelected );
 		controlTable.Button:RegisterCallback( Mouse.eLDblClick, OnDoubleClick); 
 
@@ -939,7 +991,10 @@ function RebuildFileList()
 
 	local iterator = ProcessEntries(g_FileList, 100, per_entry, per_batch, post_process);
 	
-	ContextPtr:SetUpdate(function() iterator(); end);	
+	ContextPtr:SetUpdate(function(deltaTime)
+		iterator();
+		KeyNav_Tick(deltaTime);
+	end);
 	
 	Controls.NoGames:SetHide( #g_FileList > 0 );
 	
