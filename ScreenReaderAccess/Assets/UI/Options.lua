@@ -7,6 +7,7 @@ include("PopupDialog");
 include("PlayerSetupLogic");
 
 include("ScreenReader")
+include("KeyboardNavigation")
 
 
 -- Quick utility function to determine if Rise and Fall is installed.
@@ -45,6 +46,13 @@ local _KeyBindingCategories = InstanceManager:new("KeyBindingCategory", "Categor
 local _KeyBindingActions = InstanceManager:new("KeyBindingAction", "Root", Controls.KeyBindingsStack);
 local m_tabs;
 local m_pendingGameConfigChanges;
+
+local m_mainKeyNavElements = {};
+local m_selectedKeyNavElement = 1;
+local m_inMainKeyNav = true;
+local m_bindingInstances = {};
+local m_selectedBindingIndex = 1;
+local m_selectedBindingColumn = 1;
 
 local BORDERLESS_OPTION = 2;
 local FULLSCREEN_OPTION = 1;
@@ -1744,6 +1752,79 @@ function TemporaryHardCodedGoodness()
 
 end
 
+function EnsureBindingVisible(index)
+	local numEntries = #m_bindingInstances;
+	if numEntries == 0 then return end
+
+	local scrollPanel = Controls.KeyBindingsScrollPanel;
+	local stack = Controls.KeyBindingsStack;
+	
+	local stackHeight = stack:GetSizeY();
+	local viewHeight = scrollPanel:GetSizeY();
+	
+	if stackHeight <= viewHeight then
+		scrollPanel:SetScrollValue(0);
+		return;
+	end
+
+	-- Simple heuristic: assume rows are roughly equal height
+	local scrollValue = (index - 1) / (numEntries - 1);
+	scrollPanel:SetScrollValue(scrollValue);
+end
+
+function HandleOptionsKey(key)
+	if key == Keys.VK_RETURN or key == Keys.VK_SPACE then
+            KeyNavLeftClick();
+            return true;
+        end
+
+    if ~m_inMainKeyNav then
+        if key == Keys.VK_ESCAPE then
+            m_inMainKeyNav = true;
+            KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+            return true;
+        end
+        
+        if key == Keys.VK_UP then
+            m_selectedBindingIndex = m_selectedBindingIndex - 1;
+            if m_selectedBindingIndex < 1 then m_selectedBindingIndex = numBindings; end
+        elseif key == Keys.VK_DOWN then
+            m_selectedBindingIndex = m_selectedBindingIndex + 1;
+            if m_selectedBindingIndex > numBindings then m_selectedBindingIndex = 1; end
+        elseif key == Keys.VK_LEFT then
+            if m_selectedBindingColumn == 2 then
+                m_selectedBindingColumn = 1;
+            end
+        elseif key == Keys.VK_RIGHT then
+            if m_selectedBindingColumn == 1 then
+                m_selectedBindingColumn = 2;
+            end
+        else
+            return false;
+        end
+
+        EnsureBindingVisible(m_selectedBindingIndex);
+        local target = m_selectedBindingColumn == 1 and m_bindingInstances[m_selectedBindingIndex].Binding or m_bindingInstances[m_selectedBindingIndex].AltBinding;
+        KeyNavMoveMouse(target);
+        return true;
+    end
+
+    local numElements = #m_mainKeyNavElements;
+    
+    if key == Keys.VK_UP then
+		m_selectedKeyNavElement = m_selectedKeyNavElement - 1;
+		if m_selectedKeyNavElement < 1 then m_selectedKeyNavElement = numElements; end
+    elseif key == Keys.VK_DOWN then
+		m_selectedKeyNavElement = m_selectedKeyNavElement + 1;
+		if m_selectedKeyNavElement > numElements then m_selectedKeyNavElement = 1; end
+    else
+        return false;
+    end
+
+    KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+    return true;
+end
+
 ----------------------------------------------------------------        
 -- Input handling
 ----------------------------------------------------------------       
@@ -1756,6 +1837,11 @@ function InputHandler( pInputStruct )
 			StopActiveKeyBinding();
 			return true;
 		end
+
+        if HandleOptionsKey(uiKey) then
+            return true;
+        end
+
         -- if we're here, we're not in control bindings mode
 		if(uiKey == Keys.VK_ESCAPE) then
 			OnCancel();
@@ -1807,7 +1893,7 @@ function InitializeKeyBinding()
 
 		_KeyBindingCategories:ResetInstances();
 		_KeyBindingActions:ResetInstances();
-
+		m_bindingInstances = {};
 
 		local currentCategory;
 		for i, action in ipairs(actions) do
@@ -1818,6 +1904,7 @@ function InitializeKeyBinding()
 			end
 
 			local entry = _KeyBindingActions:GetInstance();
+			table.insert(m_bindingInstances, entry);
 
 			local actionId = action[ActionIdIndex];
 			local binding = entry.Binding;
@@ -2100,10 +2187,13 @@ function Initialize()
 	for i, tab in ipairs(m_tabs) do
 		local button = tab[1];
 		button:RegisterCallback(Mouse.eMouseEnter, function()
-			OutputMessageToScreenReader(Locale.Lookup(tabs[3]));
+			OutputMessageToScreenReader(Locale.Lookup(tab[3]));
             UI.PlaySound("Main_Menu_Mouse_Over");
 		end);
-		button:RegisterCallback(Mouse.eLClick, function() OnSelectTab(tab); end );
+		button:RegisterCallback(Mouse.eLClick, function() 
+			m_inMainKeyNav = false;
+			OnSelectTab(tab);
+		end );
 		button:SetHide(false);
 	end
 
@@ -2114,6 +2204,13 @@ function Initialize()
 	m_tabs[1][1]:SetSelected(true);
 	Controls.WindowTitle:SetText(Locale.ToUpper(Locale.Lookup(m_tabs[1][3])));
 	Controls.TabStack:CalculateSize();
+
+	m_mainKeyNavElements = {};
+	for _, tab in ipairs(m_tabs) do
+		table.insert(m_mainKeyNavElements, tab[1]);
+	end
+	table.insert(m_mainKeyNavElements, Controls.ConfirmButton);
+	table.insert(m_mainKeyNavElements, Controls.ResetButton);
 
 	Events.SystemUpdateUI.Add( OnUpdateUI );
     Events.UpdateGraphicsOptions.Add( OnUpdateGraphicsOptions );
