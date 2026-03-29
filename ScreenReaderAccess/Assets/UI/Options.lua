@@ -1768,61 +1768,68 @@ function EnsureBindingVisible(index)
 	end
 
 	-- Simple heuristic: assume rows are roughly equal height
-	local scrollValue = (index - 1) / (numEntries - 1);
+	local scrollValue = 0;
+	if numEntries > 1 then
+		scrollValue = (index - 1) / (numEntries - 1);
+	end
 	scrollPanel:SetScrollValue(scrollValue);
 end
 
 function HandleOptionsKey(key)
 	if key == Keys.VK_RETURN or key == Keys.VK_SPACE then
-            KeyNavLeftClick();
-            return true;
-        end
+		KeyNavLeftClick();
+		return true;
+	end
 
-    if ~m_inMainKeyNav then
-        if key == Keys.VK_ESCAPE then
-            m_inMainKeyNav = true;
-            KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
-            return true;
-        end
-        
-        if key == Keys.VK_UP then
-            m_selectedBindingIndex = m_selectedBindingIndex - 1;
-            if m_selectedBindingIndex < 1 then m_selectedBindingIndex = numBindings; end
-        elseif key == Keys.VK_DOWN then
-            m_selectedBindingIndex = m_selectedBindingIndex + 1;
-            if m_selectedBindingIndex > numBindings then m_selectedBindingIndex = 1; end
-        elseif key == Keys.VK_LEFT then
-            if m_selectedBindingColumn == 2 then
-                m_selectedBindingColumn = 1;
-            end
-        elseif key == Keys.VK_RIGHT then
-            if m_selectedBindingColumn == 1 then
-                m_selectedBindingColumn = 2;
-            end
-        else
-            return false;
-        end
+	if not m_inMainKeyNav then
+		if key == Keys.VK_ESCAPE then
+			m_inMainKeyNav = true;
+			KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+			return true;
+		end
 
-        EnsureBindingVisible(m_selectedBindingIndex);
-        local target = m_selectedBindingColumn == 1 and m_bindingInstances[m_selectedBindingIndex].Binding or m_bindingInstances[m_selectedBindingIndex].AltBinding;
-        KeyNavMoveMouse(target);
-        return true;
-    end
+		local numBindings = #m_bindingInstances;
+		if numBindings == 0 then return false; end
+		
+		if key == Keys.VK_UP then
+			m_selectedBindingIndex = m_selectedBindingIndex - 1;
+			if m_selectedBindingIndex < 1 then m_selectedBindingIndex = numBindings; end
+		elseif key == Keys.VK_DOWN then
+			m_selectedBindingIndex = m_selectedBindingIndex + 1;
+			if m_selectedBindingIndex > numBindings then m_selectedBindingIndex = 1; end
+		elseif key == Keys.VK_LEFT then
+			if m_selectedBindingColumn == 2 then
+				m_selectedBindingColumn = 1;
+			end
+		elseif key == Keys.VK_RIGHT then
+			if m_selectedBindingColumn == 1 then
+				m_selectedBindingColumn = 2;
+			end
+		else
+			return false;
+		end
 
-    local numElements = #m_mainKeyNavElements;
-    
-    if key == Keys.VK_UP then
+		EnsureBindingVisible(m_selectedBindingIndex);
+		local target = m_selectedBindingColumn == 1 and m_bindingInstances[m_selectedBindingIndex].Binding or m_bindingInstances[m_selectedBindingIndex].AltBinding;
+		KeyNavMoveMouse(target);
+		return true;
+	end
+
+	local numElements = #m_mainKeyNavElements;
+	if numElements == 0 then return false; end
+	
+	if key == Keys.VK_UP then
 		m_selectedKeyNavElement = m_selectedKeyNavElement - 1;
 		if m_selectedKeyNavElement < 1 then m_selectedKeyNavElement = numElements; end
-    elseif key == Keys.VK_DOWN then
+	elseif key == Keys.VK_DOWN then
 		m_selectedKeyNavElement = m_selectedKeyNavElement + 1;
 		if m_selectedKeyNavElement > numElements then m_selectedKeyNavElement = 1; end
-    else
-        return false;
-    end
+	else
+		return false;
+	end
 
-    KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
-    return true;
+	KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+	return true;
 end
 
 ----------------------------------------------------------------        
