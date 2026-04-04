@@ -1,4 +1,4 @@
-﻿-- ===========================================================================
+-- ===========================================================================
 --	World Input
 --	Copyright 2015-2018, Firaxis Games
 --
@@ -13,6 +13,10 @@
 -- ===========================================================================
 
 include("PopupDialog.lua");
+
+include("ScreenReader")
+include("KeyboardNavigation")
+
 -- More interface-specific includes before the initialization
 
 
@@ -116,6 +120,12 @@ local m_actionHotkeyCameraPanUp		:number = Input.GetActionId("CameraPanUp");    
 local m_actionHotkeyCameraPanDown	:number = Input.GetActionId("CameraPanDown");     --  Hot Key Handling
 local m_actionHotkeyCameraPanLeft	:number = Input.GetActionId("CameraPanLeft");     --  Hot Key Handling
 local m_actionHotkeyCameraPanRight	:number = Input.GetActionId("CameraPanRight");     --  Hot Key Handling
+
+local m_actionHotkeyKeyNavMoveCellLeft	:number = Input.GetActionId("KeyNavMoveCellLeft");
+local m_actionHotkeyKeyNavMoveCellRight	:number = Input.GetActionId("KeyNavMoveCellRight");
+local m_actionHotkeyKeyNavMoveCellUp	:number = Input.GetActionId("KeyNavMoveCellUp");
+local m_actionHotkeyKeyNavMoveCellDown	:number = Input.GetActionId("KeyNavMoveCellDown");
+
 local m_kTouchesDownInWorld		:table	= {};		-- Tracks "down" touches that occurred in this context.
 local m_isALTDown				:boolean= false;
 local m_isMouseButtonLDown		:boolean= false;
@@ -157,6 +167,7 @@ local m_kTutorialUnitHexRestrictions	:table = nil;		-- Any restrictions on where
 local m_isPlotFlaggedRestricted			:boolean = false;	-- In a previous operation to determine a move path, was a plot flagged restrticted/bad? (likely due to the tutorial system)
 local m_kTutorialUnitMoveRestrictions	:table = nil;		-- Restrictions for moving (anywhere) of a selected unit type.
 
+g_keyNavCurrentSelectedCell = nil;
 
 
 -- ===========================================================================
@@ -1161,6 +1172,7 @@ function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:number, he
 
 	-- Show queued path when unit is selected
 	if isSelected and not UI.IsGameCoreBusy() then
+		KeyNavPlotMoveTo(hexI, hexJ);
 		local pSelectedUnit:table = UI.GetHeadSelectedUnit();
 		if pSelectedUnit and UnitManager.GetQueuedDestination( pSelectedUnit ) then
 			RealizeMovementPath(true);
@@ -4081,7 +4093,51 @@ function OnInputActionTriggered( actionId:number )
 		if (GameConfiguration.IsNetworkMultiplayer() and Network.IsMatchMaking()==false) then
 			TogglePause();
 		end
+	elseif actionId == m_actionHotkeyKeyNavMoveCellLeft or
+		   actionId == m_actionHotkeyKeyNavMoveCellRight or
+		   actionId == m_actionHotkeyKeyNavMoveCellUp or
+		   actionId == m_actionHotkeyKeyNavMoveCellDown then
+
+		if g_keyNavCurrentSelectedCell == nil then
+			local lookAtX, lookAtY = UI.GetMapLookAtPlotCoord();
+			g_keyNavCurrentSelectedCell = { X = lookAtX, Y = lookAtY };
+		end
+
+		if actionId == m_actionHotkeyKeyNavMoveCellLeft then
+			KeyNavPlotMoveTo(g_keyNavCurrentSelectedCell.X - 1, g_keyNavCurrentSelectedCell.Y);
+		elseif actionId == m_actionHotkeyKeyNavMoveCellRight then
+			KeyNavPlotMoveTo(g_keyNavCurrentSelectedCell.X + 1, g_keyNavCurrentSelectedCell.Y);
+		elseif actionId == m_actionHotkeyKeyNavMoveCellUp then
+			KeyNavPlotMoveTo(g_keyNavCurrentSelectedCell.X, g_keyNavCurrentSelectedCell.Y + 1);
+		elseif actionId == m_actionHotkeyKeyNavMoveCellDown then
+			KeyNavPlotMoveTo(g_keyNavCurrentSelectedCell.X, g_keyNavCurrentSelectedCell.Y - 1);
+		end
 	end
+end
+
+function IsPlotRevealed(x, y)
+	local pPlot = Map.GetPlot(x, y);
+	if pPlot == nil then return false; end
+	local eLocalPlayer = Game.GetLocalPlayer();
+	if eLocalPlayer == -1 then return true; end
+	local pPlayerVis = PlayersVisibility[eLocalPlayer];
+	if pPlayerVis == nil then return false; end
+	return pPlayerVis:IsRevealed(pPlot:GetIndex());
+end
+
+function KeyNavPlotMoveTo(x, y )
+	if not IsPlotRevealed(x, y) then
+		return;
+	end
+
+	local pPlot = Map.GetPlot(x, y);
+	if pPlot == nil then return; end
+
+	g_keyNavCurrentSelectedCell = { X = x, Y = y } 
+	UI.LookAtPlot(x, y)
+	
+	local screenX, screenY = UI.GetPlotScreenPos(pPlot:GetIndex());
+	KeyNavMoveMouseToScreen(screenX, screenY);
 end
 
 -- ===========================================================================

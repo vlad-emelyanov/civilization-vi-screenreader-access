@@ -1787,9 +1787,6 @@ function HandleOptionsKey(key)
 			KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
 			return true;
 		end
-
-		local numBindings = #m_bindingInstances;
-		if numBindings == 0 then return false; end
 		
 		if key == Keys.VK_UP then
 			m_selectedBindingIndex = m_selectedBindingIndex - 1;
@@ -1814,9 +1811,6 @@ function HandleOptionsKey(key)
 		KeyNavMoveMouse(target);
 		return true;
 	end
-
-	local numElements = #m_mainKeyNavElements;
-	if numElements == 0 then return false; end
 	
 	if key == Keys.VK_UP then
 		m_selectedKeyNavElement = m_selectedKeyNavElement - 1;

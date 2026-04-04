@@ -101,6 +101,10 @@ function KeyNavMoveMouse(element, checkStable)
 	print(KEYNAV_MOVE_LOG_PREFIX..xAnchor..","..yAnchor)
 end
 
+function KeyNavMoveMouseToScreen(x, y)
+	print(KEYNAV_MOVE_LOG_PREFIX..x..","..y)
+end
+
 local function _KeyNavMoveUpdater(deltaTime)
 	local remaining = {}
 	for tIndex, task in ipairs(_KeyNavMoveTasks) do
