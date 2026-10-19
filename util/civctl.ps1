@@ -3,6 +3,7 @@
   Agent/dev harness for driving Civilization VI with the ScreenReaderAccess mod.
 
 .EXAMPLE
+  .\util\civctl.ps1 build                 # build + deploy the mod with ModBuddy (restart the game to pick up changes)
   .\util\civctl.ps1 start                 # launch game + console app, wait for main menu
   .\util\civctl.ps1 sr                    # print new screen reader lines since last call
   .\util\civctl.ps1 key Down              # press a key (Down, Up, Enter, Escape, Tab, A, F1, ...)
@@ -16,7 +17,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('start', 'stop', 'key', 'sr', 'wait', 'shot', 'status')]
+    [ValidateSet('build', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -220,6 +221,22 @@ function Invoke-Shot {
     Write-Output $path
 }
 
+function Invoke-Build {
+    $modBuddy = (Get-Command modbuddy -ErrorAction SilentlyContinue).Source
+    if (-not $modBuddy) { $modBuddy = "C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization VI SDK\ModBuddy\ModBuddy.exe" }
+    $outFile = Join-Path $StateDir 'build.txt'
+    Remove-Item $outFile -ErrorAction SilentlyContinue
+    $p = Start-Process $modBuddy -ArgumentList 'ScreenReaderAccess.civ6sln', '/out', "`"$outFile`"", '/build' -WorkingDirectory $RepoRoot -PassThru
+    if (-not $p.WaitForExit($Timeout * 1000)) {
+        $p | Stop-Process -Force
+        Write-Output "ModBuddy did not finish within $Timeout s (likely stuck on a dialog). Try: civctl.ps1 shot"
+        exit 1
+    }
+    $result = Get-Content $outFile -ErrorAction SilentlyContinue
+    $result | Where-Object { $_ -match 'error|warning|Build:' }
+    if (-not ($result -match '1 succeeded')) { exit 1 }
+}
+
 function Invoke-Stop {
     Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue | Stop-Process -Force
     Get-ConsoleProcess | Stop-Process -Force
@@ -227,6 +244,7 @@ function Invoke-Stop {
 }
 
 switch ($Command) {
+    'build' { Invoke-Build }
     'start' { Invoke-Start }
     'stop' { Invoke-Stop }
     'key' { Invoke-Key }
