@@ -2575,7 +2575,7 @@ function InputHandler( pInputStruct )
 				CancelOptions();
 				result = true;
 			end
-		end, function(e) return tostring(e); end);
+		end, KeyNavErrorHandler);
 		if not ok then print("Options input error: "..tostring(err)); end
 		return result;
 	end

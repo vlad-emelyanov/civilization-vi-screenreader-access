@@ -54,6 +54,7 @@ local m_kQueuedPopups		: table	 = {};
 local m_kKeyNavButtons		: table	 = {};	-- Screen reader: { Label, Callback } for each button of the current advisor item
 local m_keyNavFocus			: number = 1;
 local m_keyNavHotkeyFired	: boolean = false;	-- The continue hotkey already activated a button for the key press being released
+local m_keyNavEscapePending	: boolean = false;	-- the last key was Escape (re-read); a second one opens the game menu
 local m_keyNavAnnouncement	: string = "";	-- Title and text of the current item, for re-reading
 
 -- ===========================================================================
@@ -157,6 +158,8 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 	 m_kKeyNavButtons = {};
 	 m_keyNavFocus = 1;
 	 m_keyNavAnnouncement = "";
+	 m_keyNavHotkeyFired = false;
+	 m_keyNavEscapePending = false;
 
 	if advisorData == nil then
 		UI.DataError("Attempt to show advisor with NIL advisor data.");
@@ -312,6 +315,8 @@ end
 function OnHideAdvisorDialog()
 	m_kKeyNavButtons = {};
 	m_keyNavFocus = 1;
+	m_keyNavHotkeyFired = false;
+	m_keyNavEscapePending = false;
 	-- If there are any associated <tutorial> triggers... trigger them.
 	for _,trigger in ipairs(m_currentItem.UITriggers) do	
 		UITutorialManager:HideControlsByID( trigger, false );	
@@ -485,8 +490,15 @@ function KeyHandler( key:number )
 			KeyNavMoveFocus( 1 );
 			return true;
 		elseif key == Keys.VK_ESCAPE then
-			-- Nothing to dismiss (the advisor must be answered): read it again instead of opening the game menu.
-			KeyNavAnnouncePopup( false );
+			-- Nothing to dismiss (the advisor must be answered): the first Escape reads it again, a second one in a row opens the game menu.
+			if m_keyNavEscapePending then
+				m_keyNavEscapePending = false;
+				LuaEvents.Tutorial_ToggleInGameOptionsMenu();
+			else
+				m_keyNavEscapePending = true;
+				KeyNavAnnouncePopup( false );
+				OutputMessageToScreenReader( "Press Escape again for the menu", true );
+			end
 			return true;
 		elseif (key == Keys.VK_RETURN or key == Keys.VK_SPACE) and #m_kKeyNavButtons > 0 then
 			-- The continue hotkey may have activated the button already on key down; otherwise do it now.
@@ -499,6 +511,7 @@ function KeyHandler( key:number )
 		end
 	end
 	m_keyNavHotkeyFired = false;
+	m_keyNavEscapePending = false;
 
 	if key == Keys.VK_ESCAPE then
 		if m_isDiplomacyUp then return false; end	-- Currently cannot handle ESC if diplomacy is up.

@@ -13,7 +13,8 @@ local m_isMoviePaused:boolean = false;
 -- Keyboard navigation state.
 local m_keyNavFocus		:string = nil;		-- identity of the focused item: "leader1", "leader2" or "back"
 local m_keyNavAnnounced	:boolean = true;	-- screen title/description announced since the movie ended?
-local m_keyNavFrames	:number = 0;
+local m_keyNavWaited	:number = 0;		-- seconds waited for the panel when the movie is not playing
+local m_keyNavNeedsReannounce:boolean = false;	-- announced while the leaders were not loaded yet; announce again when they appear
 
 
 -------------------------------------------------------------------------------
@@ -37,7 +38,10 @@ Events.FinishedGameplayContentConfigure.Add(function(result)
 	if(result.Success) then
 		if(ConstructParameters()) then
 			Controls.StatusPanel:SetHide(true);
-			Controls.TutorialPanel:SetHide(false);		
+			Controls.TutorialPanel:SetHide(false);
+			if m_keyNavAnnounced and m_keyNavNeedsReannounce and Controls.IntroMovieContainer:IsHidden() then
+				KeyNavAnnounceScreen();
+			end
 		end
 	else
 		 Controls.Status:SetText("[COLOR_RED]There was an error loading the tutorial.[ENDCOLOR]");	
@@ -62,8 +66,14 @@ function EnsureTutorialIsEnabled()
 		end
 		-- Screen reader: keep this mod enabled in the tutorial game, otherwise none of its in-game UI overrides (advisor popup etc.) load.
 		local srHandle = Modding.GetModHandle(g_ScreenReaderModId);
+		if(srHandle == nil) then
+			-- Handle lookup may be case-sensitive (the game's own ids are upper case): retry before giving up.
+			srHandle = Modding.GetModHandle(string.upper(g_ScreenReaderModId));
+		end
 		if(srHandle ~= nil) then
 			GameConfiguration.AddEnabledMods(srHandle);
+		else
+			print("TutorialSetup WARNING: screen reader mod handle not found ("..g_ScreenReaderModId.."), its in-game UI will not load in the tutorial");
 		end
 	end
 end
@@ -127,7 +137,8 @@ end
 function OnShow()
 	m_keyNavFocus = nil;
 	m_keyNavAnnounced = false;
-	m_keyNavFrames = 0;
+	m_keyNavWaited = 0;
+	m_keyNavNeedsReannounce = false;
 	EnsureTutorialIsEnabled();
 	Controls.IntroMovieContainer:RegisterCallback(  Mouse.eLClick, OnClickStopMovie );
 	Controls.IntroMovieContainer:SetHide( false );
@@ -197,7 +208,9 @@ end
 
 -- ===========================================================================
 function StopMovie()
-	Controls.IntroMovieContainer:ClearCallback(  Mouse.eLClick );	
+	if Controls.IntroMovieContainer:IsHidden() then return; end	-- already stopped (e.g. skipped, then the movie's finished callback fires)
+	Controls.IntroMovieContainer:ClearCallback(  Mouse.eLClick );
+	Controls.IntroMovie:Close();	-- actually stop the movie when skipping it
 	Controls.IntroMovieContainer:SetHide( true );
     UI.StartStopMenuMusic(true);
 	UI.PlaySound("Stop_Cinematic_Tutorial_Intro");
@@ -276,8 +289,10 @@ function KeyNavAnnounceScreen()
 		local status:string = CleanTextForSpeech(Controls.Status:GetText());
 		OutputMessageToScreenReader(title..". "..status, true);
 		m_keyNavFocus = "back";
+		m_keyNavNeedsReannounce = true;
 		return;
 	end
+	m_keyNavNeedsReannounce = false;
 	OutputMessageToScreenReader(title..". "..CleanTextForSpeech(Locale.Lookup("LOC_SETUP_TUTORIAL_DESCRIPTION")), true);
 	local items:table = KeyNavItems();
 	KeyNavFocusItem(items[1], false);
@@ -330,10 +345,17 @@ end
 -- ===========================================================================
 function OnUpdate( deltaTime:number )
 	KeyNav_Tick(deltaTime);
-	-- Fallback: if the movie never started (or already ended) announce the screen once the panel is ready.
-	if not m_keyNavAnnounced and Controls.IntroMovieContainer:IsHidden() then
-		m_keyNavFrames = m_keyNavFrames + 1;
-		if m_keyNavFrames > 20 then KeyNavAnnounceScreen(); end
+	-- Fallback: if the movie is not playing (never started, or ended without the callback) announce the screen after a moment.
+	if not m_keyNavAnnounced and ContextPtr:IsVisible() then
+		if Controls.IntroMovieContainer:IsHidden() or not Controls.IntroMovie:IsPlaying() then
+			m_keyNavWaited = m_keyNavWaited + deltaTime;
+			if m_keyNavWaited > 1.0 then
+				if not Controls.IntroMovieContainer:IsHidden() then StopMovie(); end
+				if not m_keyNavAnnounced then KeyNavAnnounceScreen(); end
+			end
+		else
+			m_keyNavWaited = 0;
+		end
 	end
 end
 
@@ -351,7 +373,7 @@ function OnInputHandler( pInputStruct:table )
 			end
 		else
 			local handled:boolean = false;
-			local ok, err = xpcall(function() handled = KeyNavKeyHandler(uiKey); end, function(e) return tostring(e); end);
+			local ok, err = xpcall(function() handled = KeyNavKeyHandler(uiKey); end, KeyNavErrorHandler);
 			if not ok then print("TutorialSetup keynav error: "..tostring(err)); end
 			if handled then return true; end
 		end
