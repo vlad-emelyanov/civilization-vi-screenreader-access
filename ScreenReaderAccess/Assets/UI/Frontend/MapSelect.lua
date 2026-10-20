@@ -22,8 +22,7 @@ local DEFAULT_MAP_RAWNAME = "LOC_MAP_CONTINENTS";
 
 -- Keyboard navigation state: maps in the order they are shown, and the focused one.
 local m_keyNavMaps		:table = {};
-local m_keyNavIndex		:number = 1;
-local m_keyNavInitial	:number = 1;
+local m_keyNavInitialValue :string;	-- map value selected when the window was shown (for Escape)
 
 -- ===========================================================================
 function Close()
@@ -145,7 +144,6 @@ local function KeyNavMapText( index:number )
 end
 
 local function KeyNavFocusMap( index:number )
-	m_keyNavIndex = index;
 	local entry:table = m_keyNavMaps[index];
 	OnMapButton(entry.data, entry.button);	-- updates the info panel and the selection like a click
 	KeyNavScrollIntoView(Controls.ParametersScrollPanel, Controls.MapSelectPanel, entry.button);
@@ -160,14 +158,13 @@ local function KeyNavFindSelected()
 end
 
 function OnShow()
-	m_keyNavIndex = KeyNavFindSelected();
-	m_keyNavInitial = m_keyNavIndex;
+	m_keyNavInitialValue = m_selectedMapValue;
 	if #m_keyNavMaps == 0 then
 		OutputMessageToScreenReader(Locale.Lookup("LOC_SETUP_MAP_CREATE_GAME_SELECT_MAP")..". No maps available. Escape to close", true);
 		return;
 	end
 	OutputMessageToScreenReader(CleanTextForSpeech(Controls.WindowTitle:GetText())..", "..tostring(#m_keyNavMaps).." maps. Up and Down to browse, Enter to select, Escape to cancel", true);
-	OutputMessageToScreenReader("Current map: "..KeyNavMapText(m_keyNavIndex), true);
+	OutputMessageToScreenReader("Current map: "..KeyNavMapText(KeyNavFindSelected()), true);
 end
 
 -- Called by the setup screen before the window is shown with the map currently set in the game.
@@ -177,27 +174,34 @@ end
 
 function KeyNavKeyHandler( key:number )
 	local count:number = #m_keyNavMaps;
+	-- The focused map is the selected one (keyboard focus selects like a click), so mouse clicks and tab changes stay in sync.
+	local index:number = KeyNavFindSelected();
 	if key == Keys.VK_ESCAPE then
 		-- Cancel: undo the highlight changes made while browsing.
-		if m_keyNavMaps[m_keyNavInitial] ~= nil and m_keyNavIndex ~= m_keyNavInitial then
-			OnMapButton(m_keyNavMaps[m_keyNavInitial].data, m_keyNavMaps[m_keyNavInitial].button);
+		if m_keyNavInitialValue ~= nil and m_keyNavInitialValue ~= m_selectedMapValue then
+			for _, entry in ipairs(m_keyNavMaps) do
+				if entry.data.Value == m_keyNavInitialValue then
+					OnMapButton(entry.data, entry.button);
+					break;
+				end
+			end
 		end
 		Close();
 		OutputMessageToScreenReader("Cancelled", false);
 	elseif count == 0 then
 		return;
 	elseif key == Keys.VK_DOWN then
-		KeyNavFocusMap(m_keyNavIndex % count + 1);
+		KeyNavFocusMap(index % count + 1);
 	elseif key == Keys.VK_UP then
-		KeyNavFocusMap((m_keyNavIndex - 2) % count + 1);
+		KeyNavFocusMap((index - 2) % count + 1);
 	elseif key == Keys.VK_HOME then
 		KeyNavFocusMap(1);
 	elseif key == Keys.VK_END then
 		KeyNavFocusMap(count);
 	elseif key == Keys.VK_SPACE then
-		OutputMessageToScreenReader(KeyNavMapText(m_keyNavIndex), false);
+		OutputMessageToScreenReader(KeyNavMapText(index), false);
 	elseif key == Keys.VK_RETURN then
-		local entry:table = m_keyNavMaps[m_keyNavIndex];
+		local entry:table = m_keyNavMaps[index];
 		local name:string = Locale.Lookup(entry.data.RawName);
 		m_selectedMapValue = entry.data.Value;
 		OnSelectMapButton();

@@ -366,12 +366,20 @@ local function KeyNavInfo( node:table )
 	return GetPlayerInfo(node.item.Domain, node.item.Value);
 end
 
+-- "Leader, Civilization", unless the leader's name already mentions the civilization (e.g. "Eleanor of Aquitaine (England)").
+local function KeyNavLeaderCivText( info:table )
+	local leader:string = CleanTextForSpeech(Locale.Lookup(info.LeaderName));
+	local civ:string = CleanTextForSpeech(Locale.Lookup(info.CivilizationName));
+	if civ == "" or string.find(string.lower(leader), string.lower(civ), 1, true) ~= nil then return leader; end
+	return leader..", "..civ;
+end
+
 local function KeyNavItemText( index:number, withAbilities:boolean )
 	local node:table = m_kItemList[index];
 	local info:table = KeyNavInfo(node);
 	local name:string = CleanTextForSpeech(node.item.Name);
 	if info ~= nil then
-		name = CleanTextForSpeech(Locale.Lookup(info.LeaderName))..", "..CleanTextForSpeech(Locale.Lookup(info.CivilizationName));
+		name = KeyNavLeaderCivText(info);
 	end
 	local text:string = name..", "..(KeyNavIsChecked(node) and "checked" or "unchecked")..", "..tostring(index).." of "..tostring(#m_kItemList);
 	if withAbilities and info ~= nil then
@@ -477,8 +485,11 @@ function KeyNavKeyHandler( key:number )
 		if m_keyNavGroup == 1 then
 			local node:table = m_kItemList[m_keyNavItemIndex];
 			if node ~= nil then
+				local hadWarning:boolean = CleanTextForSpeech(Controls.CountWarning:GetText()) ~= "";
 				OnItemSelect(node.item, node.checkbox);
-				OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex, false), false);
+				local warning:string = KeyNavWarningText();
+				if warning == "" and hadWarning then warning = ". Minimum reached, OK available"; end
+				OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex, false)..warning, false);
 			end
 		elseif key == Keys.VK_RETURN then
 			local button:table = KeyNavButtons()[m_keyNavButtonIndex];

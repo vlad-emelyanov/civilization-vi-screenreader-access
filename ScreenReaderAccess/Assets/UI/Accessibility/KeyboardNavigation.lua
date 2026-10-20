@@ -142,6 +142,7 @@ function PrintKeyMap()
 		print(k, v)
 	end
 end
+
 -- Scrolls a ScrollPanel so that `control` (somewhere inside `stack`, which is inside `panel`) is visible.
 -- Best effort for sighted helpers; never raises.
 function KeyNavScrollIntoView(panel, stack, control)

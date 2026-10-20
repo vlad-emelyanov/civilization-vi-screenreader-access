@@ -20,6 +20,8 @@ local m_pItemIM:table = InstanceManager:new("ItemInstance",	"Button", Controls.I
 
 local m_kParameter:table = nil		-- Reference to the parameter being used. 
 local m_kSelectedValues:table = nil	-- Table of string->boolean that represents checked off items.
+local m_keyNavItemIndex	:number = 1;	-- declared early: RefreshList keeps it on the same city-state
+local m_currentSortFunc;				-- the sort actually applied to the list (mouse or keyboard)
 local m_kItemList:table = nil;		-- Table of controls for select all/none
 
 local m_bInvertSelection:boolean = false;
@@ -203,6 +205,10 @@ end
 -- ===========================================================================
 function RefreshList( sortByFunc )
 
+	-- Remember the focused city-state by identity; the sort changes its index.
+	local focusedValue = (m_kItemList ~= nil and m_kItemList[m_keyNavItemIndex] ~= nil) and m_kItemList[m_keyNavItemIndex].item.Value or nil;
+	m_currentSortFunc = (sortByFunc ~= nil) and sortByFunc or SortByName;
+
 	m_numSelected = 0;
 	m_kItemList = {};
 
@@ -213,6 +219,12 @@ function RefreshList( sortByFunc )
 	m_pItemIM:ResetInstances();
 	for i, v in ipairs(m_kParameter.Values) do
 		InitializeItem(v);
+	end
+
+	if focusedValue ~= nil then
+		for i, node in ipairs(m_kItemList) do
+			if node.item.Value == focusedValue then m_keyNavItemIndex = i; break; end
+		end
 	end
 end
 
@@ -350,9 +362,7 @@ end
 -- Enter presses a button, Escape cancels.
 -- ===========================================================================
 local m_keyNavGroup		:number = 1;	-- 1 = city-states, 2 = controls
-local m_keyNavItemIndex	:number = 1;
 local m_keyNavButtonIndex:number = 1;
-local m_keyNavSortByType:boolean = false;
 
 local function KeyNavControls()
 	return {
@@ -404,7 +414,7 @@ local function KeyNavCountValueText()
 end
 
 local function KeyNavSortText()
-	return string.gsub(CleanTextForSpeech(Locale.Lookup("LOC_CITY_STATE_PICKER_SORT_BY")), ":%s*$", "")..": "..Locale.Lookup(m_keyNavSortByType and "LOC_CITY_STATE_PICKER_SORT_TYPE" or "LOC_CITY_STATE_PICKER_SORT_NAME");
+	return string.gsub(CleanTextForSpeech(Locale.Lookup("LOC_CITY_STATE_PICKER_SORT_BY")), ":%s*$", "")..": "..Locale.Lookup((m_currentSortFunc == SortByType) and "LOC_CITY_STATE_PICKER_SORT_TYPE" or "LOC_CITY_STATE_PICKER_SORT_NAME");
 end
 
 local function KeyNavAnnounceCurrent()
@@ -440,7 +450,6 @@ function OnShow()
 	m_keyNavGroup = 1;
 	m_keyNavItemIndex = 1;
 	m_keyNavButtonIndex = 1;
-	m_keyNavSortByType = false;
 	if m_kParameter == nil or m_kItemList == nil then return; end
 	local title:string = CleanTextForSpeech(Controls.WindowTitle:GetText());
 	OutputMessageToScreenReader(title..", "..KeyNavCountText()..". "..KeyNavCountValueText()..KeyNavWarningText()..". Up and Down to browse, Space to toggle, I for the suzerain bonus, Tab for the number, sort, Select All, Select None and OK, Escape to cancel", true);
@@ -478,13 +487,9 @@ local function KeyNavAdjust( delta:number )
 		OutputMessageToScreenReader(KeyNavCountValueText()..KeyNavWarningText(), false);
 		return true;
 	elseif control.kind == "sort" then
-		m_keyNavSortByType = not m_keyNavSortByType;
-		local focusedValue = m_kItemList[m_keyNavItemIndex] and m_kItemList[m_keyNavItemIndex].item.Value or nil;
-		Controls.SortByPulldown:GetButton():SetText(Locale.Lookup(m_keyNavSortByType and "LOC_CITY_STATE_PICKER_SORT_TYPE" or "LOC_CITY_STATE_PICKER_SORT_NAME"));
-		RefreshList(m_keyNavSortByType and SortByType or SortByName);
-		for i, node in ipairs(m_kItemList) do
-			if node.item.Value == focusedValue then m_keyNavItemIndex = i; end
-		end
+		local sortByType:boolean = (m_currentSortFunc ~= SortByType);	-- toggle relative to the sort really in effect
+		Controls.SortByPulldown:GetButton():SetText(Locale.Lookup(sortByType and "LOC_CITY_STATE_PICKER_SORT_TYPE" or "LOC_CITY_STATE_PICKER_SORT_NAME"));
+		RefreshList(sortByType and SortByType or SortByName);	-- keeps focus on the same city-state
 		OutputMessageToScreenReader(KeyNavSortText(), false);
 		return true;
 	end
@@ -522,8 +527,11 @@ function KeyNavKeyHandler( key:number )
 		if m_keyNavGroup == 1 then
 			local node:table = m_kItemList[m_keyNavItemIndex];
 			if node ~= nil then
+				local hadWarning:boolean = CleanTextForSpeech(Controls.CountWarning:GetText()) ~= "";
 				OnItemSelect(node.item, node.checkbox);
-				OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex), false);
+				local warning:string = KeyNavWarningText();
+				if warning == "" and hadWarning then warning = ". Minimum reached, OK available"; end
+				OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex)..warning, false);
 			end
 		elseif key == Keys.VK_RETURN then
 			local control:table = KeyNavControls()[m_keyNavButtonIndex];
