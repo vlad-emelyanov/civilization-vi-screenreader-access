@@ -814,6 +814,7 @@ function OnMultiplayerHostMigrated( newHostID : number )
 		end
 
 		OnChat( newHostID, -1, PlayerHostMigratedChatStr, false );
+		KeyNavStaging_OnHostMigrated(newHostID);	-- ScreenReaderAccess mod
 		UI.PlaySound("Play_MP_Host_Migration");
 	end
 end
@@ -2493,6 +2494,7 @@ function OnShow()
 	if m_sessionID ~= networkSessionID then
 		-- This is a fresh session.
 		m_sessionID = networkSessionID;
+		KeyNavStaging_ResetChat();	-- ScreenReaderAccess mod: no chat or invitations from a previous game
 
 		StopCountdown();
 
@@ -3335,6 +3337,9 @@ local KEYNAV_CHAT_HISTORY_MAX:number = 50;
 local m_lastBlocker:string = "";			-- last launch blocker that was spoken
 local m_lastCountdown:number = -1;			-- last countdown value that was looked at
 local m_announceDelay:number = 0;			-- seconds before the arrival announcement
+local m_unreadyPids:table = {};				-- players who just became not ready, announced together
+local m_unreadyDelay:number = 0;
+local m_friendsCheck:number = 0.5;
 local KEYNAV_ARE_YOU_READY:string = Locale.ToUpper(Locale.Lookup("LOC_ARE_YOU_READY"));	-- the start label while others are not ready
 local KEYNAV_GROUPS:table = { "rows", "buttons", "tabs" };
 local KEYNAV_GROUP_NAMES:table = { rows = "Players", buttons = "Buttons", tabs = "Tabs" };
@@ -3347,10 +3352,40 @@ local function Clean( text:string )
 	return CleanTextForSpeech(text or "");
 end
 
+-- Chat text typed by players: only the game's markup (icons, colors, newlines) is dropped, "[sad]" stays.
+local function CleanChat( text:string )
+	text = text or "";
+	text = string.gsub(text, "%[NEWLINE%]", " ");
+	text = string.gsub(text, "%[ICON_[^%]]*%]", "");
+	text = string.gsub(text, "%[COLOR[^%]]*%]", "");
+	text = string.gsub(text, "%[ENDCOLOR%]", "");
+	text = string.gsub(text, "%s+", " ");
+	text = string.gsub(text, "^%s+", "");
+	text = string.gsub(text, "%s+$", "");
+	return text;
+end
+
+-- Chat exists in this game: not hotseat, and the chat panel (ChatContainer, hidden for PlayByCloud) and entry are shown.
+local function ChatAvailable()
+	return not GameConfiguration.IsHotseat() and not Controls.ChatContainer:IsHidden() and not Controls.ChatEntry:IsHidden();
+end
+
 local function PlayerLabel( pid:number )
 	local cfg:table = PlayerConfigurations[pid];
 	if cfg == nil then return ""; end
 	return Clean(Locale.Lookup(cfg:GetPlayerName()));
+end
+
+-- Announces the players collected in m_unreadyPids.
+local function FlushUnready()
+	local pids:table = m_unreadyPids;
+	m_unreadyPids = {};
+	m_unreadyDelay = 0;
+	if #pids == 1 then
+		Say(PlayerLabel(pids[1]).." is not ready", true);
+	elseif #pids > 1 then
+		Say("Settings changed, "..tostring(#pids).." players unreadied", true);
+	end
 end
 
 local function SlotTypeName( slotStatus:number )
@@ -3500,6 +3535,33 @@ local function TeamOptions( pid:number )
 	return options, current;
 end
 
+-- True while the player parameters a row's list was opened for are still the ones the game uses (BuildPlayerList releases them).
+local function ParamsCurrent( pid:number, params:table )
+	return RowVisible(pid) and RowIsActive(pid) and params ~= nil and GetPlayerParameters(pid) == params;
+end
+
+-- Kick confirmation of the mod (the game's own ConfirmKick modal maps Enter to "kick" and Escape to "cancel" and ignores
+-- Up/Down): "Kick <name>?" with No (focused) and Yes, handled by onPopupKey like the leave dialog.
+local m_kickPid:number = nil;
+local function AskKick( pid:number )
+	local name:string = RowName(pid);
+	local status0:number = PlayerConfigurations[pid]:GetSlotStatus();
+	m_kickPid = pid;
+	m_kPopupDialog:Close();	-- clear out the popup incase it is already open.
+	m_kPopupDialog:AddText( "Kick "..name.."?" );
+	m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), function() m_kickPid = nil; end );
+	m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_YES_BUTTON_CAPTION"), function()
+		m_kickPid = nil;
+		if RowVisible(pid) and PlayerConfigurations[pid]:GetSlotStatus() == status0 then
+			Network.KickPlayer(pid);
+			Say("Kicked "..name, false);
+		else
+			Say(name.." is no longer in the game", false);
+		end
+	end, nil, nil, "PopupButtonInstanceRed" );
+	m_kPopupDialog:Open();
+end
+
 local function RowControlItems( pid:number )
 	local items:table = {};
 	local entry:table = g_PlayerEntries[pid];
@@ -3507,6 +3569,7 @@ local function RowControlItems( pid:number )
 	local prefix:string = "rc:"..tostring(pid)..":";
 	local function Add( item:table, name:string )
 		item.key = prefix..name;
+		item.rowPid = pid;
 		item.panel = Controls.PlayersScrollPanel;
 		item.stack = Controls.PlayerListStack;
 		item.x, item.y = item.control:GetScreenOffset();
@@ -3516,21 +3579,42 @@ local function RowControlItems( pid:number )
 	-- Slot type (host, for slots that are not taken by a player)
 	local slotPulldown:object = (not entry.SlotTypePulldown:IsHidden()) and entry.SlotTypePulldown or entry.AlternateSlotTypePulldown;
 	if KeyNavSetup_IsUsable(slotPulldown) then
+		local slotStatus0:number = cfg:GetSlotStatus();
 		Add({
 			control = slotPulldown, kind = "pulldown", label = "Slot type", focusSuffix = ", dropdown, Enter to change",
 			getText = function() return "Slot type: "..SlotTypeName(PlayerConfigurations[pid]:GetSlotStatus()); end,
+			-- The slot is still shown and has the status it had when the list was opened (a human may have taken it).
+			validate = function() return RowVisible(pid) and PlayerConfigurations[pid]:GetSlotStatus() == slotStatus0; end,
 			getOptions = function()
 				local options:table, current:number = {}, 1;
+				local found:boolean = false;
 				local status:number = PlayerConfigurations[pid]:GetSlotStatus();
 				for i, pair in ipairs(g_slotTypeData) do
 					if SlotOptionAllowed(pair, pid) then
-						table.insert(options, { Name = Locale.Lookup(pair.name), index = i });
-						if pair.slotStatus == status then current = #options; end
+						local name:string = Locale.Lookup(pair.name);
+						if pair.slotStatus == -1 then
+							name = (status == SlotStatus.SS_OPEN) and "Move to this slot" or ("Swap places with "..RowName(pid));
+						end
+						table.insert(options, { Name = name, index = i });
+						if pair.slotStatus == status then current = #options; found = true; end
 					end
 				end
-				return options, current;
+				-- The current status is not an option (e.g. only the swap is offered): no original choice, Enter applies.
+				return options, current, not found;
 			end,
-			apply = function( v ) OnSlotType(pid, v.index); end,
+			apply = function( v )
+				if g_slotTypeData[v.index].slotStatus ~= -1 then
+					OnSlotType(pid, v.index);
+					return nil;
+				end
+				local requested:boolean = Network.GetChangePlayerID(Network.GetLocalPlayerID()) == pid;
+				local name:string = RowName(pid);
+				local open:boolean = PlayerConfigurations[pid]:GetSlotStatus() == SlotStatus.SS_OPEN;
+				OnSlotType(pid, v.index);	-- OnSwapButton toggles the request
+				if requested then return "Swap request cancelled"; end
+				if open then return "Requested to move to this slot. The player numbering and the row marked you shift once it is done"; end
+				return "Requested swap with "..name..". The player numbering and the row marked you shift once it is done";
+			end,
 		}, "slot");
 	end
 
@@ -3540,7 +3624,10 @@ local function RowControlItems( pid:number )
 	local leader:table = params and params.Parameters["PlayerLeader"] or nil;
 	if not RowIsActive(pid) then params = nil; leader = nil; end
 	if not entry.PlayerPullDown:IsHidden() and leader ~= nil and leader.Value ~= nil and KeyNavSetup_IsUsable(entry.PlayerPullDown) then
-		Add(KeyNavSetup_LeaderItem(entry.PlayerPullDown, params, leader, "Leader"), "leader");
+		local leaderItem:table = KeyNavSetup_LeaderItem(entry.PlayerPullDown, params, leader, "Leader");
+		local leaderParams:table = params;
+		leaderItem.validate = function() return ParamsCurrent(pid, leaderParams); end;
+		Add(leaderItem, "leader");
 	end
 
 	-- Team
@@ -3548,6 +3635,7 @@ local function RowControlItems( pid:number )
 		local item:table = {
 			control = entry.TeamPullDown, kind = "pulldown", label = "Team", focusSuffix = ", dropdown, Left/Right or Enter to change",
 			getText = function() return "Team: "..TeamLabel(PlayerConfigurations[pid]:GetTeam()); end,
+			validate = function() return RowVisible(pid) and RowIsActive(pid); end,
 			getOptions = function() return TeamOptions(pid); end,
 			apply = function( v ) OnTeamPull(pid, v.teamID); end,
 		};
@@ -3560,6 +3648,7 @@ local function RowControlItems( pid:number )
 		local colorParam:table = params.Parameters["PlayerColorAlternate"];
 		local item:table = {
 			control = entry.ColorPullDown, kind = "pulldown", label = "Color", focusSuffix = ", dropdown, Left/Right or Enter to change",
+			validate = function() return ParamsCurrent(pid, params); end,
 			getOptions = function()
 				local icons:table = GetPlayerIcons(leader.Value.Domain, leader.Value.Value);
 				local options:table, current:number = {}, 1;
@@ -3586,14 +3675,17 @@ local function RowControlItems( pid:number )
 	-- Difficulty
 	local difficulty:table = params and params.Parameters["PlayerDifficulty"] or nil;
 	if difficulty ~= nil and difficulty.Value ~= nil and not entry.HandicapPullDown:IsHidden() and KeyNavSetup_IsUsable(entry.HandicapPullDown) then
-		Add(PlayerParameterItem(entry.HandicapPullDown, params, difficulty, "Difficulty"), "difficulty");
+		local diffItem:table = PlayerParameterItem(entry.HandicapPullDown, params, difficulty, "Difficulty");
+		local diffParams:table = params;
+		diffItem.validate = function() return ParamsCurrent(pid, diffParams); end;
+		Add(diffItem, "difficulty");
 	end
 
 	-- Kick and add player
 	local status:number = cfg:GetSlotStatus();
 	if (status == SlotStatus.SS_TAKEN or status == SlotStatus.SS_OBSERVER) and pid ~= Network.GetLocalPlayerID() and KeyNavSetup_IsUsable(entry.KickButton) then
 		Add({ control = entry.KickButton, kind = "button", getText = function() return "Kick "..RowName(pid); end,
-			activate = function() OnKickButton(pid); end }, "kick");
+			activate = function() AskKick(pid); end }, "kick");
 	end
 	if status == SlotStatus.SS_CLOSED and KeyNavSetup_IsUsable(entry.AddPlayerButton) then
 		Add({ control = entry.AddPlayerButton, kind = "button", getText = function() return "Add player"; end,
@@ -3624,7 +3716,9 @@ local function ReadyText()
 	local readyControl:object = Controls.ReadyCheckContainer:IsHidden() and Controls.ReadyButton or Controls.ReadyCheck;
 	local label:string = Clean(Controls.StartLabel:GetText());
 	if m_countdownType ~= CountdownTypes.None then
-		return label..", "..tostring(math.floor(GetCountdownTimeRemaining())).." seconds, Enter to cancel";
+		local text:string = label..", "..tostring(math.floor(GetCountdownTimeRemaining())).." seconds";
+		if IsLaunchCountdownActive() then text = text..", Enter to cancel"; end
+		return text;
 	end
 	local text:string = "Ready: "..(localConfig:GetReady() and "checked" or "unchecked");
 	if readyControl:IsDisabled() then
@@ -3648,6 +3742,21 @@ local function ButtonItems()
 			control = readyControl, kind = "button", key = "ready", getText = ReadyText,
 			activate = function() OnReadyButton(); end,
 		});
+	else
+		-- Hotseat has no ready check: the Start button (ReadyButton) launches the game; disabled while something blocks it.
+		local startButton:table = KeyNavSetup_ButtonItem(Controls.ReadyButton, function() OnReadyButton(); end);
+		startButton.key = "start";
+		startButton.getText = function()
+			local text:string = Clean(Controls.StartLabel:GetText());
+			if Controls.ReadyButton:IsDisabled() then
+				text = text..", disabled";
+				local ok, tip = pcall(function() return Controls.ReadyButton:GetToolTipString(); end);
+				tip = ok and tip and Clean(tip) or "";
+				if tip ~= "" and tip ~= text then text = text..", "..tip; end
+			end
+			return text;
+		end;
+		table.insert(items, startButton);
 	end
 	AddButton(Controls.BackButton, "back", OnExitGameAskAreYouSure);
 	if not Controls.EndGameButton:IsHidden() then AddButton(Controls.EndGameButton, "endgame", OnEndGameAskAreYouSure); end
@@ -3670,7 +3779,7 @@ local function TabItems()
 			getText = function() return LOC_FRIENDS..", tab, Enter to list and invite"; end,
 			activate = function() KeyNavStaging_EnterFriends(); end });
 	end
-	if not GameConfiguration.IsHotseat() then
+	if ChatAvailable() then
 		table.insert(items, { control = Controls.ChatEntry, kind = "button", key = "chat:send",
 			getText = function() return "Send chat message, Enter or C to type"; end,
 			activate = function() KeyNavStaging_StartChat(); end });
@@ -3709,6 +3818,14 @@ end
 -- The online friends (the game's own list: Civilization players first), or one "No friends online" line.
 local function FriendItems()
 	local friends:table = GetFriendsList();
+	-- Forget invitations of friends who left the list or joined the game.
+	local present:table = {};
+	for _, friend in ipairs(friends) do
+		if not IsFriendInGame(friend) then present[friend.ID] = true; end
+	end
+	for id, _ in pairs(m_invited) do
+		if not present[id] then m_invited[id] = nil; end
+	end
 	local items:table = {};
 	if #friends == 0 then
 		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "friend:none",
@@ -3739,7 +3856,7 @@ local function FriendActionItems( id:string )
 			activate = function()
 				OnFriendPulldownCallback(id, "invite");
 				m_invited[id] = true;
-				Say("Invited "..name, false);
+				Say("Invite sent to "..name, false);
 			end });
 	else
 		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "action:none",
@@ -3770,7 +3887,7 @@ local function SummaryItems()
 	local items:table = {};
 	local function Add( text:string )
 		table.insert(items, { control = Controls.ParametersScrollPanel, kind = "button", key = "sum:"..tostring(#items + 1),
-			getText = function() return text; end });
+			getText = function() return text; end, activate = function() end });
 	end
 	Add("Players: "..PlayerCountsText());
 	local lines:table = {};
@@ -3797,6 +3914,7 @@ local function BuildItems()
 		if m_mode.type == "friends" then return FriendItems(); end
 		if m_mode.type == "friend" then return FriendActionItems(m_mode.id); end
 		if m_mode.type == "chat" then return ChatItems(); end
+		if not RowVisible(m_mode.pid) then return {}; end	-- the row went away; the next key / update leaves the mode
 		return RowControlItems(m_mode.pid);
 	end
 	if m_group == "buttons" then return ButtonItems(); end
@@ -3861,7 +3979,13 @@ function KeyNavStaging_EnterFriend( id:string )
 end
 
 function KeyNavStaging_EnterChatHistory()
-	m_mode = { type = "chat" };
+	if not ChatAvailable() then
+		Say("Chat is not available", false);
+		return;
+	end
+	-- Remember the row / friend / list the history was opened from: Escape returns there.
+	local previous:table = (m_mode ~= nil and m_mode.type ~= "chat") and m_mode or nil;
+	m_mode = { type = "chat", previous = previous };
 	m_nav.CancelSelection();
 	Say("Chat history", true);
 	local items:table = BuildItems();
@@ -3870,7 +3994,7 @@ end
 
 -- Types a chat message: Enter sends it (to the target shown in the chat pulldown), Escape cancels.
 function KeyNavStaging_StartChat()
-	if GameConfiguration.IsHotseat() or Controls.ChatEntry:IsHidden() then
+	if not ChatAvailable() then
 		Say("Chat is not available", false);
 		return;
 	end
@@ -3901,6 +4025,20 @@ local function ExitMode()
 		end
 	elseif mode ~= nil and mode.type == "friend" then
 		KeyNavStaging_EnterFriends("friend:"..tostring(mode.id));
+	elseif mode ~= nil and mode.type == "chat" and mode.previous ~= nil then
+		local previous:table = mode.previous;
+		if previous.type == "row" and RowVisible(previous.pid) then
+			KeyNavStaging_EnterRow(previous.pid);
+		elseif previous.type == "friend" and FindFriend(previous.id) ~= nil then
+			KeyNavStaging_EnterFriend(previous.id);
+		elseif previous.type == "friends" then
+			KeyNavStaging_EnterFriends();
+		elseif previous.type == "summary" then
+			KeyNavStaging_EnterSummary();
+		else
+			m_group = "rows";
+			FocusItemByKey("row:"..tostring(Network.GetLocalPlayerID()));
+		end
 	else
 		m_group = "tabs";
 		local keys:table = { summary = "tab:summary", friends = "tab:friends", chat = "chat:history" };
@@ -3963,10 +4101,10 @@ local function PreKey( key:number )
 	elseif key == Keys.S then
 		Say(StatusText(), false);
 		return true;
-	elseif key == Keys.C and not GameConfiguration.IsHotseat() then
+	elseif key == Keys.C and ChatAvailable() then
 		KeyNavStaging_StartChat();
 		return true;
-	elseif key == Keys.H and not GameConfiguration.IsHotseat() then
+	elseif key == Keys.H and ChatAvailable() then
 		KeyNavStaging_EnterChatHistory();
 		return true;
 	elseif key == Keys.VK_RIGHT and m_mode ~= nil and m_mode.type == "friends" then
@@ -4006,6 +4144,7 @@ m_nav = KeyNavSetup_NewController({
 	onPopupKey = function( key:number )
 		if m_kPopupDialog == nil or not m_kPopupDialog:IsOpen() then return nil; end
 		if key == Keys.VK_ESCAPE then
+			m_kickPid = nil;
 			m_kPopupDialog:Close();
 		else
 			m_kPopupDialog:KeyHandler(key);
@@ -4015,6 +4154,29 @@ m_nav = KeyNavSetup_NewController({
 });
 
 function KeyNavStaging_Update( deltaTime:number )
+	if not ContextPtr:IsHidden() then
+		-- A row the player had open disappeared (slot closed ...).
+		if m_mode ~= nil and m_mode.type == "row" and not RowVisible(m_mode.pid) and not KeyNavEditBox_IsEditing() then
+			m_nav.CancelSelection();
+			ExitMode();
+		end
+		-- The focused friend went offline (or the list changed) while the friends list is open.
+		if m_mode ~= nil and m_mode.type == "friends" then
+			m_friendsCheck = m_friendsCheck - deltaTime;
+			if m_friendsCheck <= 0 then
+				m_friendsCheck = 0.5;
+				if m_nav.FindFocused() == nil then
+					Say("Friends list changed", true);
+					m_nav.Focus(BuildItems()[1], false);
+				end
+			end
+		end
+		-- Several players unreadied at once (a host config change): one announcement.
+		if #m_unreadyPids > 0 then
+			m_unreadyDelay = m_unreadyDelay - deltaTime;
+			if m_unreadyDelay <= 0 then FlushUnready(); end
+		end
+	end
 	if m_announceDelay > 0 then
 		m_announceDelay = m_announceDelay - deltaTime;
 		if m_announceDelay <= 0 then
@@ -4051,6 +4213,8 @@ function KeyNavStaging_OnShow()
 	m_groupFocus = {};
 	m_lastBlocker = "";
 	m_lastCountdown = -1;
+	m_unreadyPids = {};
+	m_kickPid = nil;
 	m_nav.SetFocus(nil);
 	m_announceDelay = 1.0;
 end
@@ -4060,6 +4224,7 @@ end
 function KeyNavStaging_OnChat( fromPlayer:number, toPlayer:number, text:string, eTargetType )
 	local name:string = PlayerLabel(fromPlayer);
 	local line:string;
+	local mine:boolean = fromPlayer == Network.GetLocalPlayerID();
 	local system:boolean = type(eTargetType) ~= "number";
 	if system then
 		line = name.." "..Clean(text);
@@ -4070,12 +4235,13 @@ function KeyNavStaging_OnChat( fromPlayer:number, toPlayer:number, text:string, 
 		elseif eTargetType == ChatTargetTypes.CHATTARGET_PLAYER then
 			tag = " (to "..PlayerLabel(toPlayer)..")";
 		end
-		line = name..tag..": "..Clean(text);
+		line = name..tag..": "..CleanChat(text);
 	end
 	m_chatSeq = m_chatSeq + 1;
 	table.insert(m_chatHistory, { seq = m_chatSeq, text = line });
 	if #m_chatHistory > KEYNAV_CHAT_HISTORY_MAX then table.remove(m_chatHistory, 1); end
-	if not system and not g_isBuildingPlayerList then Say(line, true); end
+	-- The engine echoes the local player's own message back: it is kept in the history but not spoken again.
+	if not system and not mine and not g_isBuildingPlayerList then Say(line, true); end
 end
 
 function KeyNavStaging_ResetChat()
@@ -4083,53 +4249,99 @@ function KeyNavStaging_ResetChat()
 	m_invited = {};
 end
 
+-- A list opened on a row (slot type, leader ...) is no longer valid when a player connects to / leaves that slot.
+local function CancelSelectionFor( pid:number )
+	local item:table = m_nav.SelectionItem();
+	if item ~= nil and item.rowPid == pid then
+		m_nav.CancelSelection();
+		Say("Slot changed, list closed", true);
+	end
+end
+
 function KeyNavStaging_OnPlayerConnected( pid:number )
+	CancelSelectionFor(pid);
 	Say(PlayerLabel(pid).." joined", true);
 end
 
 function KeyNavStaging_OnPlayerDisconnected( pid:number, kicked:boolean )
+	CancelSelectionFor(pid);
+	if m_kickPid == pid then
+		m_kickPid = nil;
+		if m_kPopupDialog:IsOpen() then m_kPopupDialog:Close(); end
+	end
 	Say(PlayerLabel(pid)..(kicked and " was kicked" or " left"), true);
+end
+
+function KeyNavStaging_OnHostMigrated( newHostID:number )
+	if ContextPtr:IsHidden() then return; end
+	if newHostID == Network.GetLocalPlayerID() then
+		Say("You are now the host", true);
+	else
+		Say(PlayerLabel(newHostID).." is now the host", true);
+	end
 end
 
 function KeyNavStaging_OnReadyChanged( pid:number, ready:boolean )
 	if g_isBuildingPlayerList then return; end
 	if pid == Network.GetLocalPlayerID() then
 		Say(ready and "You are ready" or "You are not ready", true);
+	elseif ready then
+		for i, id in ipairs(m_unreadyPids) do
+			if id == pid then table.remove(m_unreadyPids, i); break; end
+		end
+		Say(PlayerLabel(pid).." is ready", true);
 	else
-		Say(PlayerLabel(pid)..(ready and " is ready" or " is not ready"), true);
+		-- Collected for a moment: a host config change unreadies everybody at once.
+		table.insert(m_unreadyPids, pid);
+		m_unreadyDelay = 0.4;
 	end
 end
 
 function KeyNavStaging_OnTeamChanged( pid:number, oldTeam:number, newTeam:number )
 	if g_isBuildingPlayerList or oldTeam == nil or oldTeam == newTeam or pid == Network.GetLocalPlayerID() then return; end
 	if PlayerConfigurations[pid]:GetSlotStatus() ~= SlotStatus.SS_TAKEN then return; end	-- the host's own changes to computer slots
-	Say(PlayerLabel(pid).." joined "..TeamLabel(newTeam), true);
+	if newTeam < 0 then
+		Say(PlayerLabel(pid).." has no team", true);
+	else
+		Say(PlayerLabel(pid).." joined "..TeamLabel(newTeam), true);
+	end
 end
 
 function KeyNavStaging_OnCountdownStarted( countdownType:string, seconds:number )
 	m_lastCountdown = seconds;
-	if countdownType == CountdownTypes.Launch and seconds > 0 then
+	if ContextPtr:IsHidden() or seconds <= 0 then return; end
+	if countdownType == CountdownTypes.Launch or countdownType == CountdownTypes.Launch_Instant then
 		Say("Everyone is ready. Game starting in "..tostring(seconds).." seconds. Press Enter on Ready to cancel", true);
+	elseif countdownType == CountdownTypes.Ready_MatchMaking or countdownType == CountdownTypes.Ready_PlayByCloud then
+		Say("Ready countdown started, "..tostring(seconds).." seconds", true);
+	elseif countdownType == CountdownTypes.WaitForPlayers then
+		Say("Waiting for players, "..tostring(seconds).." seconds", true);
 	end
 end
 
 function KeyNavStaging_OnCountdownTick( seconds:number )
 	if seconds == m_lastCountdown then return; end
 	m_lastCountdown = seconds;
-	if m_countdownType == CountdownTypes.Launch and seconds > 0 and (seconds <= 3 or seconds % 5 == 0) then
-		Say(tostring(seconds), true);
+	if ContextPtr:IsHidden() or m_countdownType == CountdownTypes.None or seconds <= 0 then return; end
+	local say:boolean;
+	if IsLaunchCountdownActive() then
+		say = seconds <= 3 or seconds % 5 == 0;
+	else
+		say = seconds <= 3 or (seconds <= 30 and seconds % 10 == 0);
 	end
+	if say then Say(tostring(seconds), true); end
 end
 
 function KeyNavStaging_OnCountdownStopping()
-	if m_countdownType == CountdownTypes.Launch and GetCountdownTimeRemaining() > 0 then
-		Say("Countdown cancelled", true);
+	if not ContextPtr:IsHidden() and m_countdownType ~= CountdownTypes.None and GetCountdownTimeRemaining() > 0 then
+		Say(IsLaunchCountdownActive() and "Countdown cancelled" or "Countdown stopped", true);
 	end
 	m_lastCountdown = -1;
 end
 
 -- After the ready button / start label were refreshed: say why the launch is blocked (once per reason).
 function KeyNavStaging_AfterReadyUpdate()
+	if ContextPtr:IsHidden() then return; end
 	if m_countdownType ~= CountdownTypes.None or GameConfiguration.IsHotseat() then return; end
 	local ready:boolean = PlayerConfigurations[Network.GetLocalPlayerID()]:GetReady();
 	local label:string = Clean(Controls.StartLabel:GetText());

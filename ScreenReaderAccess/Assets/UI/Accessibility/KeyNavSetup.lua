@@ -424,6 +424,11 @@ function KeyNavSetup_NewController( cfg:table )
 		m_selection = nil;
 	end
 
+	-- The item whose selection list is open, or nil.
+	function nav.SelectionItem()
+		return m_selection and m_selection.item or nil;
+	end
+
 	-- True while the pulldown selection mode (Enter on a pulldown) is open.
 	function nav.IsSelecting()
 		return m_selection ~= nil;
@@ -438,10 +443,12 @@ function KeyNavSetup_NewController( cfg:table )
 	end
 
 	local function OpenSelection( item:table )
-		local options:table, current:number = item.getOptions();
+		-- getOptions may return a third value, true: the current state is not one of the options (e.g. only "Swap" is offered),
+		-- so there is no original option and Enter always applies the chosen one.
+		local options:table, current:number, noOriginal:boolean = item.getOptions();
 		if #options == 0 then return; end
 		local label:string = item.label or "";
-		m_selection = { item = item, options = options, index = current, originalIndex = current };
+		m_selection = { item = item, options = options, index = current, originalIndex = (not noOriginal) and current or nil };
 		OutputMessageToScreenReader(label..", "..SelectionText()..". Up/Down to choose, Enter to select, Escape to cancel", false);
 	end
 
@@ -460,10 +467,19 @@ function KeyNavSetup_NewController( cfg:table )
 			OutputMessageToScreenReader(SelectionText(), false);
 		elseif key == Keys.VK_RETURN then
 			m_selection = nil;
-			if sel.index ~= sel.originalIndex then
-				sel.item.apply(sel.options[sel.index]);
+			-- item.validate() (optional): false if what the list was opened for changed meanwhile (slot taken, parameters
+			-- rebuilt ...). item.apply may return a message that is spoken before the item text.
+			if sel.item.validate ~= nil and not sel.item.validate() then
+				OutputMessageToScreenReader("Slot changed, cancelled", false);
+				return true;
 			end
-			OutputMessageToScreenReader(sel.item.getText(), false);
+			local message:string = nil;
+			if sel.index ~= sel.originalIndex then
+				message = sel.item.apply(sel.options[sel.index]);
+			end
+			local text:string = sel.item.getText();
+			if type(message) == "string" then text = message..". "..text; end
+			OutputMessageToScreenReader(text, false);
 		elseif key == Keys.VK_ESCAPE then
 			m_selection = nil;
 			OutputMessageToScreenReader("Cancelled, "..sel.item.getText(), false);

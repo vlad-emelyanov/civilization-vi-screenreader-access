@@ -423,7 +423,7 @@ function PopupDialog:KeyHandler(key)
 		if active ~= nil and active.Callback ~= nil then
 			active.Callback();	-- call the button's callback directly, not a click at the mouse position
 		else
-			KeyNavLeftClick()
+			self:Close();	-- a button without a callback only closes the dialog (no click at the mouse position)
 		end
 		return true;
         end

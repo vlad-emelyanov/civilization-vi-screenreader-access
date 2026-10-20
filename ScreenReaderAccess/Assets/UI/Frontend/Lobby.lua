@@ -1461,8 +1461,10 @@ function OnShow()
 	-- Keyboard navigation: announce the screen and focus the first usable item (Host Game, unless it is hidden or disabled).
 	local first:table = KeyNavBuildItems()[1];
 	OutputMessageToScreenReader(Controls.TitleLabel:GetText(), true);
-	OutputMessageToScreenReader(first:getText(), true);
-	m_nav.SetFocus(first.control, first.control, 10);
+	if first ~= nil then
+		OutputMessageToScreenReader(first:getText(), true);
+		m_nav.SetFocus(first.control, first.control, 10);
+	end
 end
 
 -- ===========================================================================
