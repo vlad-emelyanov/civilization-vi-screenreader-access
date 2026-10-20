@@ -24,6 +24,7 @@ param(
     [int]$Count = 1,
     [int]$Timeout = 120,
     [int]$Settle = 600,
+    [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
     [string]$Out
 )
@@ -192,7 +193,7 @@ function Invoke-Key {
     $pending = Format-Lines (Read-NewLogLines)
     if ($pending) { $pending | ForEach-Object { "(earlier) $_" } }
     for ($i = 0; $i -lt $Count; $i++) {
-        [CivCtl.Native]::Tap($vk, 40)
+        [CivCtl.Native]::Tap($vk, $Hold)
         Start-Sleep -Milliseconds $Settle
         Format-Lines (Read-NewLogLines)
     }

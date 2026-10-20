@@ -361,12 +361,16 @@ function PopupDialog:Open( optionalID:string )
 	
 	self.Controls.PopupRoot:SetHide(false);
 
-	local screenReaderText = self.Controls.PopupTitle:GetText();
+	local screenReaderParts = {};
+	local title = CleanTextForSpeech(self.Controls.PopupTitle:GetText());
+	if title ~= "" then table.insert(screenReaderParts, title); end
 	for _, control in ipairs(self.PopupControls) do
 		if control.Type == "Text" then
-			screenReaderText = screenReaderText..control.Control:GetText();
+			local text = CleanTextForSpeech(control.Control:GetText());
+			if text ~= "" then table.insert(screenReaderParts, text); end
 		end
 	end
+	local screenReaderText = table.concat(screenReaderParts, ". ");
 
 	OutputMessageToScreenReader("Popup: "..screenReaderText, true);
 
