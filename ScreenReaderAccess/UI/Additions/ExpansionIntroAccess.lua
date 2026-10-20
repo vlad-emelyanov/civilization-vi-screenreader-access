@@ -9,15 +9,13 @@ include( "ScreenReader" );
 -- Screen reader: accessible copy of the DLC's ExpansionIntro popup (UI/Additions/ExpansionIntro.lua of Expansion1 and
 -- Expansion2). The DLC context cannot be replaced by a mod (its script is resolved by name and the DLC's file wins over
 -- an ImportFiles/ReplaceUIScript of ours), so this is a second context, ExpansionIntroAccess, that shows this popup
--- instead and keeps the DLC's own context from showing it at game start (see OnLoadGameViewStateDone). Rise and Fall
+-- instead: the DLC's own context still queues its popup (it also saves the "seen" flag and owns the options), and this
+-- context then finds it (ContextPtr:LookUpControl) and dequeues it before showing its own copy. No option is changed
+-- in memory or on disk by this context except the player's own "don't show again" checkbox. Rise and Fall
 -- (XP1) constants are kept here too, selected by the game's ruleset.
 local IS_XP1			:boolean = GameConfiguration.GetRuleSet() == "RULESET_EXPANSION_1";
 local EXPANSION_NAME_KEY:string = IS_XP1 and "LOC_EXPANSION1_NAME" or "LOC_EXPANSION2_NAME";
-local RULESET_TYPE		:string = IS_XP1 and "RULESET_EXPANSION_1" or "RULESET_EXPANSION_2";
-local OPTIONS_SEEN_KEY	:string = IS_XP1 and "HasSeenXP1FeaturesScreen" or "HasSeenXP2FeaturesScreen";
 local OPTIONS_HIDE_KEY	:string = IS_XP1 and "HideXP1FeaturesScreen" or "HideXP2FeaturesScreen";
-
-local MIN_TUTORIAL_LEVEL = IS_XP1 and TutorialLevel.LEVEL_NEW_TO_XP1 or TutorialLevel.LEVEL_NEW_TO_XP2;
 
 local INTRO_ILLUSTRATIONS:table = IS_XP1 and {
 	"XP1Intro_Diagram_1",
@@ -96,9 +94,13 @@ local CONTINUE_BUTTON_TEXT = Locale.Lookup("LOC_XP1_INTRO_CONTINUE");
 --	MEMBERS
 -- ===========================================================================
 local m_PageIndex:number = 1;
-local m_realHide:number = 0;			-- Screen reader: the player's saved "don't show again" value while the DLC's popup is being suppressed
-local m_hideSuppressed:boolean = false;	-- OPTIONS_HIDE_KEY is temporarily 1 (in memory only, never saved)
-local m_pendingShow:boolean = false;	-- The popup was queued at LoadGameViewStateDone, announce it once the load screen closes
+local m_waitForDlc:boolean = false;		-- Screen reader: the DLC context is expected to show its popup; replace it with ours when it does
+local m_waitIdles:number = 0;			-- UIIdle ticks spent waiting after the load screen closed
+local m_loadScreenClosed:boolean = true;
+local m_fromMenu:boolean = false;		-- the pending replacement was requested from the game menu
+local m_dlcContext = nil;
+local m_pendingShow:boolean = false;	-- The popup was queued while the load screen was up, announce it once it closes
+local MAX_WAIT_IDLES:number = 120;
 local m_keyNavFocus:string = "next";	-- Screen reader: key of the focused control ("previous", "next", "dontshow", "close")
 
 -- ===========================================================================
@@ -206,24 +208,6 @@ function KeyNavAfterPageChange()
 end
 
 -- ===========================================================================
-function OnShow()
-	m_PageIndex = 1;
-	m_keyNavFocus = "next";
-	Realize();
-	UIManager:QueuePopup(ContextPtr, PopupPriority.TutorialHigh);
-	KeyNavAnnouncePage( true, false );
-end
-
--- ===========================================================================
-function OnShowFromMenu()
-	m_PageIndex = 1;
-	m_keyNavFocus = "next";
-	Realize();
-	UIManager:QueuePopup(ContextPtr, PopupPriority.Current);
-	KeyNavAnnouncePage( true, false );
-end
-
--- ===========================================================================
 function OnClose()
 	UIManager:DequeuePopup(ContextPtr);	
 end
@@ -247,41 +231,85 @@ function OnPrevious()
 end
 
 -- ===========================================================================
-function OnLoadGameViewStateDone()
+-- Screen reader: the DLC's own copy of this popup (inaccessible) is a sibling context; find it once.
+function GetDlcContext()
+	if m_dlcContext == nil then
+		m_dlcContext = ContextPtr:LookUpControl( "/InGame/ExpansionIntro" );
+		if m_dlcContext == nil then
+			print( "ExpansionIntroAccess: DLC context /InGame/ExpansionIntro not found" );
+		end
+	end
+	return m_dlcContext;
+end
 
-	local isRuleSet		:boolean = GameConfiguration.GetRuleSet() == RULESET_TYPE;
-	local isAutoPlayMode:boolean = (Game.GetLocalPlayer() == -1);
-	local hasSeenScreen	:boolean = Options.GetUserOption("Tutorial", OPTIONS_SEEN_KEY) == 1;
-	local hideScreen	:boolean = m_realHide == 1;
-	local showScreen	:boolean = isRuleSet
-						and not GameConfiguration.IsNetworkMultiplayer()
-						and not isAutoPlayMode
-						and (not hasSeenScreen or UserConfiguration.TutorialLevel() <= MIN_TUTORIAL_LEVEL ) 
-						and not hideScreen;
+-- Replace the DLC's popup by ours if it is showing. Returns true when it did.
+function ReplaceDlcPopup()
+	local dlc = GetDlcContext();
+	if dlc == nil or dlc:IsHidden() then
+		return false;
+	end
+	UIManager:DequeuePopup( dlc );
+	dlc:SetHide( true );
 
-	if showScreen and Game.GetCurrentGameTurn() == GameConfiguration.GetStartTurn() then
-		-- The "seen" flag is saved in OnLoadScreenClose, once the saved "don't show again" value is back in place.
-		Options.SetUserOption("Tutorial", OPTIONS_SEEN_KEY, 1);
+	m_PageIndex = 1;
+	m_keyNavFocus = "next";
+	Controls.DontShowAgain:SetCheck( Options.GetUserOption("Tutorial", OPTIONS_HIDE_KEY) == 1 );
+	Realize();
+	if m_fromMenu then
+		UIManager:QueuePopup( ContextPtr, PopupPriority.Current );
+	else
+		UIManager:QueuePopup( ContextPtr, PopupPriority.TutorialHigh );
+	end
+	if m_loadScreenClosed then
+		KeyNavAnnouncePage( true, false );
+	else
 		m_pendingShow = true;
-		m_PageIndex = 1;
-		m_keyNavFocus = "next";
-		Realize();
-		UIManager:QueuePopup(ContextPtr, PopupPriority.TutorialHigh);
+	end
+	return true;
+end
+
+-- ===========================================================================
+function OnLoadGameViewStateDone()
+	-- The DLC context decides (ruleset, seen/hide options, turn) whether to show its popup; just watch for it.
+	m_waitForDlc = true;
+	m_waitIdles = 0;
+	m_fromMenu = false;
+	m_loadScreenClosed = false;
+	ContextPtr:RequestRefresh();
+end
+
+-- ===========================================================================
+function OnLoadScreenClose()
+	m_loadScreenClosed = true;
+	if m_waitForDlc and ReplaceDlcPopup() then m_waitForDlc = false; end
+	if m_pendingShow then
+		m_pendingShow = false;
+		KeyNavAnnouncePage( true, false );
 	end
 end
 
 -- ===========================================================================
--- Screen reader: by now the DLC's context has handled LoadGameViewStateDone (and found OPTIONS_HIDE_KEY set, so it did
--- not show its own copy of this popup): put the player's value back, save, and announce the popup.
-function OnLoadScreenClose()
-	if m_hideSuppressed then
-		Options.SetUserOption("Tutorial", OPTIONS_HIDE_KEY, m_realHide);
-		m_hideSuppressed = false;
-		Options.SaveOptions();
+function OnShowFromMenuRequest()
+	m_waitForDlc = true;
+	m_waitIdles = 0;
+	m_fromMenu = true;
+	m_loadScreenClosed = true;
+	ContextPtr:RequestRefresh();
+end
+
+-- ===========================================================================
+-- (Events.UIIdle did not fire reliably, and a hidden context gets no update: RequestRefresh runs the refresh handler next frame.)
+function OnRefresh()
+	if not m_waitForDlc then return; end
+	if ReplaceDlcPopup() then
+		m_waitForDlc = false;
+		return;
 	end
-	if m_pendingShow then
-		m_pendingShow = false;
-		KeyNavAnnouncePage( true, false );
+	if m_loadScreenClosed then m_waitIdles = m_waitIdles + 1; end
+	if m_waitIdles > MAX_WAIT_IDLES then
+		m_waitForDlc = false;
+	else
+		ContextPtr:RequestRefresh();
 	end
 end
 
@@ -332,9 +360,7 @@ function Initialize()
 	Controls.Previous:RegisterCallback(Mouse.eMouseEnter, function()
 		UI.PlaySound("Main_Menu_Mouse_Over"); end);
 
-	m_realHide = Options.GetUserOption("Tutorial", OPTIONS_HIDE_KEY);
-	if m_realHide ~= 1 then m_realHide = 0; end
-	Controls.DontShowAgain:SetCheck(m_realHide == 1);
+	Controls.DontShowAgain:SetCheck(Options.GetUserOption("Tutorial", OPTIONS_HIDE_KEY) == 1);
 	Controls.DontShowAgain:RegisterCheckHandler(function(bCheck)
 		local value = bCheck and 1 or 0;
 		Options.SetUserOption("Tutorial", OPTIONS_HIDE_KEY, value);
@@ -343,15 +369,10 @@ function Initialize()
 
 	Events.LoadGameViewStateDone.Add( OnLoadGameViewStateDone );
 	Events.LoadScreenClose.Add( OnLoadScreenClose );
+	ContextPtr:SetRefreshHandler( OnRefresh );
 
-	-- Make the DLC's context see "don't show again" while the game loads (this context is created before it). Not saved.
-	if GameConfiguration.GetRuleSet() == RULESET_TYPE and m_realHide ~= 1 then
-		Options.SetUserOption("Tutorial", OPTIONS_HIDE_KEY, 1);
-		m_hideSuppressed = true;
-	end
-
-	-- Not hooked: LuaEvents.InGameTopOptionsMenu_ShowExpansionIntro (the game menu's welcome entry) also reaches the DLC's
-	-- own, inaccessible, popup; showing a second one on top of it would leave it open behind this one.
+	-- The game menu's welcome entry also reaches the DLC's popup: swap that one for ours too.
+	LuaEvents.InGameTopOptionsMenu_ShowExpansionIntro.Add( OnShowFromMenuRequest );
 	LuaEvents.DiplomacyActionView_HideIngameUI.Add( HideIfVisible );
 end
 Initialize();
