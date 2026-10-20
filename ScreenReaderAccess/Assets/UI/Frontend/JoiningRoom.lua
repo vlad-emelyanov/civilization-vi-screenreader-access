@@ -106,7 +106,10 @@ function OnJoinGameComplete()
 		-- Remote clients might still be waiting for FinishedGameplayContentConfigure.  
 		-- It is possible that FinishedGameplayContentConfigure happened before JoinGameComplete.
 		-- Updating the joining phase for that case.
-		KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_CONFIGURING_CONTENT")));
+		-- (not when CheckTransitionToStagingRoom already moved on to the Staging Room)
+		if (not ContextPtr:IsHidden()) then
+			KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_CONFIGURING_CONTENT")));
+		end
 	end
 end
 
@@ -300,7 +303,9 @@ function OnShow()
 	-- ScreenReaderAccess mod: announce the screen, then the status (the labels are spoken by KeyNavSetStatus)
 	m_lastStatus = "";
 	m_lastModsRemaining = -1;
-	OutputMessageToScreenReader("Joining game. Press Escape to cancel", true);
+	if not Network.IsNetSessionHost() then
+		OutputMessageToScreenReader("Joining game. Press Escape to cancel", true);
+	end
 	if(Network.IsMatchMaking()) then
 		KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_MATCHMAKING")));
 	else

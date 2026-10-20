@@ -87,6 +87,10 @@ local function OnTextChanged(...)
 	local added:string = string.sub(new, p + 1, #new - s);
 	local removed:string = string.sub(old, p + 1, #old - s);
 
+	-- cancelOnRevert: a KeepFocus box gives the context no key events at all (checked live), so Escape can only be guessed from
+	-- the text reverting to the original in one change that removed 2+ characters. Ambiguous cases: Escape after exactly one typed
+	-- character (looks like Backspace) and Escape in an empty box (no change at all) do not end the edit, while Ctrl+Backspace /
+	-- select-all+Delete back to the original text count as a cancel. Enter always ends the edit ("Nothing sent" when unchanged).
 	if new == edit.original and removed ~= "" and added == "" and #removed > 1 then
 		if edit.cancelOnRevert then
 			-- EditBox with KeepFocus (chat): Escape restores the text but neither commits nor drops the focus
