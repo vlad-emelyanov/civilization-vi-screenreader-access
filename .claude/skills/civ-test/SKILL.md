@@ -37,6 +37,7 @@ description: Build the mod, launch Civilization VI and drive it with the keyboar
 
 ## Tips
 
+- Screenshots are not routine: do not `shot` after keys. Take one only for the UI you are actively building, or when the SR> output is unexpected and unexplained.
 - Token cost: `key`/`sr` output is ~10-30 tokens per press; a screenshot is ~1-1.5k. Screenshot only when the announcements don't explain what happened.
 - `Lua.log` shows what the mod printed, not what the console app actually spoke.
 - Don't use Bash `sleep` to wait on the game; use `wait`, or a PowerShell loop polling `Lua.log` for a pattern.

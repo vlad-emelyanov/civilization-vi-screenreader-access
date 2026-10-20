@@ -422,7 +422,6 @@ function PopupDialog:Close()
 	self:Reset();
 
 	self.KeyNavElements = {}
-	OutputMessageToScreenReader("Popup closed");
 end
 
 -- ===========================================================================

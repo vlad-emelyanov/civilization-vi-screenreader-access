@@ -119,11 +119,36 @@ local function KeyNavButtonItem( control:object, activate, message:string )
 	};
 end
 
+-- Selection mode (Enter on a pulldown): the mod lists the parameter's valid values itself instead of using the engine's popup.
+local m_selection:table = nil;		-- { item, label, options, index, originalIndex }
+
+local PULLDOWN_HINT:string = ", dropdown, Left/Right or Enter to change";
+
+-- Returns the list of selectable (non-invalid) values and the index of the current one.
+local function KeyNavGetOptions( parameter:table )
+	local options:table = {};
+	local current:number = 1;
+	if parameter.Values ~= nil then
+		for i, v in ipairs(parameter.Values) do
+			if not v.Invalid then
+				table.insert(options, v);
+				if parameter.Value ~= nil and v.Value == parameter.Value.Value then current = #options; end
+			end
+		end
+	end
+	return options, current;
+end
+
 local function KeyNavPulldownItem( control:object, parameter:table, label:string )
 	return {
-		control = control, kind = "pulldown",
+		control = control, kind = "pulldown", label = label, focusSuffix = PULLDOWN_HINT,
 		getText = function()
 			return label..": "..(parameter.Value and tostring(parameter.Value.Name) or "");
+		end,
+		getOptions = function() return KeyNavGetOptions(parameter); end,
+		apply = function( v )
+			g_GameParameters:SetParameterValue(parameter, v);
+			Network.BroadcastGameConfig();
 		end,
 		step = function( delta )
 			local v = KeyNavGetValueByOffset(parameter, delta);
@@ -138,16 +163,17 @@ end
 -- Leader / civilization pulldown of a player; Enter opens the game's pulldown.
 local function KeyNavLeaderItem( control:object, playerParams:table, leaderParam:table, label:string )
 	local item:table = KeyNavPulldownItem(control, leaderParam, label);
-	item.kind = "popup";
+	local function Apply( v )
+		playerParams:SetParameterValue(leaderParam, v);
+		local colorParameter = playerParams.Parameters["PlayerColorAlternate"];
+		if colorParameter then
+			playerParams:SetParameterValue(colorParameter, 0);
+		end
+	end
+	item.apply = Apply;
 	item.step = function( delta )
 		local v = KeyNavGetValueByOffset(leaderParam, delta);
-		if v ~= nil then
-			playerParams:SetParameterValue(leaderParam, v);
-			local colorParameter = playerParams.Parameters["PlayerColorAlternate"];
-			if colorParameter then
-				playerParams:SetParameterValue(colorParameter, 0);
-			end
-		end
+		if v ~= nil then Apply(v); end
 	end;
 	return item;
 end
@@ -213,7 +239,7 @@ local function KeyNavBuildBasicItems()
 						local minimumValue:number = parameter.Values.MinimumValue;
 						local maximumValue:number = parameter.Values.MaximumValue;
 						table.insert(middle, {
-							control = c.OptionSlider, mouseTarget = c.OptionTitle, kind = "slider",
+							control = c.OptionSlider, mouseTarget = c.OptionTitle, kind = "slider", focusSuffix = ", slider, minimum "..tostring(minimumValue)..", maximum "..tostring(maximumValue),
 							getText = function() return parameter.Name..": "..tostring(parameter.Value); end,
 							step = function( delta )
 								local newValue:number = math.max(minimumValue, math.min(maximumValue, parameter.Value + delta));
@@ -391,7 +417,7 @@ local function KeyNavBuildAdvancedItems()
 				if c.OptionSlider ~= nil then
 					if parameter.Value ~= nil and c.Root ~= nil and not c.Root:IsHidden() and not c.OptionSlider:IsHidden() and parameter.Values ~= nil then
 						item = {
-							control = c.OptionSlider, mouseTarget = c.OptionTitle, kind = "slider",
+							control = c.OptionSlider, mouseTarget = c.OptionTitle, kind = "slider", focusSuffix = ", slider, minimum "..tostring(parameter.Values.MinimumValue)..", maximum "..tostring(parameter.Values.MaximumValue),
 							getText = function() return label..": "..tostring(parameter.Value); end,
 							step = function( delta )
 								local newValue:number = math.max(parameter.Values.MinimumValue, math.min(parameter.Values.MaximumValue, parameter.Value + delta));
@@ -487,6 +513,7 @@ local function KeyNavFocus( item:table, nointerrupt:boolean, prefix:string )
 	end
 	m_pendingMouseMove = { control = item.mouseTarget or item.control, frames = frames };
 	local text:string = item.getText();
+	if item.focusSuffix ~= nil then text = text..item.focusSuffix; end
 	if prefix ~= nil then text = prefix.." "..text; end
 	OutputMessageToScreenReader(text, nointerrupt);
 end
@@ -540,7 +567,53 @@ local function KeyNavIsActive()
 	return not Controls.CreateGameWindow:IsHidden();
 end
 
+-- ---------------------------------------------------------------------------
+-- Selection mode (Enter on a pulldown)
+-- ---------------------------------------------------------------------------
+local function KeyNavSelectionText()
+	local v:table = m_selection.options[m_selection.index];
+	return tostring(v.Name)..", "..tostring(m_selection.index).." of "..tostring(#m_selection.options);
+end
+
+local function KeyNavOpenSelection( item:table )
+	local options:table, current:number = item.getOptions();
+	if #options == 0 then return; end
+	local label:string = item.label or "";
+	m_selection = { item = item, options = options, index = current, originalIndex = current };
+	OutputMessageToScreenReader(label..", "..KeyNavSelectionText()..". Up/Down to choose, Enter to select, Escape to cancel", false);
+end
+
+local function KeyNavSelectionKey( key:number )
+	local sel:table = m_selection;
+	if key == Keys.VK_UP or key == Keys.VK_DOWN or key == Keys.VK_HOME or key == Keys.VK_END then
+		if key == Keys.VK_UP then
+			sel.index = sel.index - 1; if sel.index < 1 then sel.index = #sel.options; end
+		elseif key == Keys.VK_DOWN then
+			sel.index = sel.index + 1; if sel.index > #sel.options then sel.index = 1; end
+		elseif key == Keys.VK_HOME then
+			sel.index = 1;
+		else
+			sel.index = #sel.options;
+		end
+		OutputMessageToScreenReader(KeyNavSelectionText(), false);
+	elseif key == Keys.VK_RETURN then
+		m_selection = nil;
+		if sel.index ~= sel.originalIndex then
+			sel.item.apply(sel.options[sel.index]);
+		end
+		OutputMessageToScreenReader(sel.item.getText(), false);
+	elseif key == Keys.VK_ESCAPE then
+		m_selection = nil;
+		OutputMessageToScreenReader("Cancelled, "..sel.item.getText(), false);
+	end
+	return true;
+end
+
 function KeyHandler( key:number )
+	if m_selection ~= nil and not KeyNavIsActive() then m_selection = nil; end
+	if m_selection ~= nil then
+		return KeyNavSelectionKey(key);
+	end
 	if key == Keys.VK_ESCAPE then
 		if not KeyNavPopupOpen() then
 			OnBackButton();
@@ -564,7 +637,9 @@ function KeyHandler( key:number )
 	elseif key == Keys.VK_RETURN or key == Keys.VK_SPACE then
 		local item:table = KeyNavFindFocused();
 		if item ~= nil then
-			if item.kind == "checkbox" then
+			if key == Keys.VK_RETURN and item.getOptions ~= nil then
+				KeyNavOpenSelection(item);
+			elseif item.kind == "checkbox" then
 				item.toggle();
 				OutputMessageToScreenReader(item.getText(), false);
 			elseif key == Keys.VK_RETURN and (item.kind == "button" or item.kind == "popup" or item.kind == "edit") then
