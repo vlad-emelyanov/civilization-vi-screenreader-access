@@ -9,13 +9,16 @@ local KEYNAV_CLICK_LOG_PREFIX: string = "#KEYNAV_CLICK - ";
 local _KeyNavTasks = {}            -- queued sampling tasks
 local _KeyNavMoveTasks = {}
 
+-- Error handler for xpcall. The game's Lua sandbox may have no `debug` table, so guard it.
+function KeyNavErrorHandler(e)
+	if debug ~= nil and debug.traceback ~= nil then
+		return debug.traceback(tostring(e), 2);
+	end
+	return tostring(e);
+end
+
 local function _DebugCall(f)
-	local ok, trace = xpcall(f, function(e)
-		if debug and debug.traceback then
-			return debug.traceback(tostring(e), 2)
-		end
-		return tostring(e)
-	end)
+	local ok, trace = xpcall(f, KeyNavErrorHandler)
 
 	if not ok then
 		print(tostring(trace))

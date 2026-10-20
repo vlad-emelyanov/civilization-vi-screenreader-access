@@ -559,7 +559,7 @@ end
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then
-		local ok, err = xpcall(function() KeyNavKeyHandler(pInputStruct:GetKey()); end, function(e) return debug.traceback(tostring(e), 2); end);
+		local ok, err = xpcall(function() KeyNavKeyHandler(pInputStruct:GetKey()); end, KeyNavErrorHandler);
 		if not ok then print("KEYNAV ERROR: "..tostring(err)); end
 	end
 	return true;
