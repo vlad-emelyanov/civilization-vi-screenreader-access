@@ -12,7 +12,8 @@
 --      KeyNavSetup_MapItem(control, params, label, activate)             map button: Left/Right cycle, Enter activates
 --      KeyNavSetup_ParameterItem(pid, parameter, c, label, opts)         any game parameter from its driver's control table c
 --      KeyNavSetup_BuildParameterItems(params, panel, stack, opts)       all visible parameters, sorted by screen position
---    opts: { openMap = fn (opens the Map Select popup, for a "Map" parameter that is a button), section = false (no section prefix) }
+--    opts: { openMap = fn (opens the Map Select popup, for a "Map" parameter that is a button), section = false (no section prefix),
+--            kinds = { slider = true, ... } (only items of these kinds) }
 --    Helpers: KeyNavSetup_IsUsable, KeyNavSetup_SortByPosition, KeyNavSetup_SectionPrefix, KeyNavSetup_GetDriver,
 --    KeyNavSetup_OpenPicker(pid, parameter), KeyNavSetup_GetOptions(parameter), KeyNavSetup_GetValueByOffset(parameter, offset).
 --
@@ -90,10 +91,21 @@ function KeyNavSetup_SortByPosition( list:table )
 	end
 end
 
+-- A disabled button is still an item (so the player can find out why): it reads "<text>, disabled, <tooltip reason>" and
+-- activating it only repeats that.
 function KeyNavSetup_ButtonItem( control:object, activate, message:string )
 	return {
 		control = control, kind = "button", activate = activate, activateMessage = message,
-		getText = function() return control:GetText(); end,
+		getText = function()
+			local text:string = CleanTextForSpeech(control:GetText());
+			if control:IsDisabled() then
+				text = text..", disabled";
+				local ok, tip = pcall(function() return control:GetToolTipString(); end);
+				tip = ok and tip and CleanTextForSpeech(tip) or "";
+				if tip ~= "" then text = text..", "..tip; end
+			end
+			return text;
+		end,
 	};
 end
 
@@ -209,9 +221,7 @@ local function DefaultStringCommit( parameter:table )
 	end
 end
 
--- Builds the item for one parameter from its driver's control table c (the instance of the slider / checkbox / edit box /
--- pulldown / button), or nil if it is not shown, not usable or of an unknown kind.
-function KeyNavSetup_ParameterItem( pid:string, parameter:table, c:table, label:string, opts:table )
+local function BuildParameterItem( pid:string, parameter:table, c:table, label:string, opts:table )
 	opts = opts or {};
 	if c.OptionSlider ~= nil then
 		if parameter.Value ~= nil and c.Root ~= nil and not c.Root:IsHidden() and not c.OptionSlider:IsHidden() and parameter.Values ~= nil then
@@ -269,6 +279,15 @@ function KeyNavSetup_ParameterItem( pid:string, parameter:table, c:table, label:
 		end
 	end
 	return nil;
+end
+
+-- Builds the item for one parameter from its driver's control table c (the instance of the slider / checkbox / edit box /
+-- pulldown / button), or nil if it is not shown, not usable or of an unknown kind. opts.kinds (optional) limits the result
+-- to those item kinds, e.g. { slider = true, checkbox = true, pulldown = true } for the basic Create Game window.
+function KeyNavSetup_ParameterItem( pid:string, parameter:table, c:table, label:string, opts:table )
+	local item:table = BuildParameterItem(pid, parameter, c, label, opts);
+	if item ~= nil and opts ~= nil and opts.kinds ~= nil and not opts.kinds[item.kind] then return nil; end
+	return item;
 end
 
 -- All shown parameters of g_GameParameters as items (key "param:<pid>"), sorted by screen position. panel / stack: the
@@ -405,6 +424,11 @@ function KeyNavSetup_NewController( cfg:table )
 		m_selection = nil;
 	end
 
+	-- True while the pulldown selection mode (Enter on a pulldown) is open.
+	function nav.IsSelecting()
+		return m_selection ~= nil;
+	end
+
 	-- -----------------------------------------------------------------------
 	-- Selection mode (Enter on a pulldown): the mod lists the parameter's valid values itself instead of the engine's popup.
 	-- -----------------------------------------------------------------------
@@ -488,6 +512,8 @@ function KeyNavSetup_NewController( cfg:table )
 				elseif item.kind == "checkbox" then
 					item.toggle();
 					OutputMessageToScreenReader(item.getText(), false);
+				elseif key == Keys.VK_RETURN and item.kind == "button" and item.control ~= nil and item.control:IsDisabled() then
+					OutputMessageToScreenReader(item.getText(), false);	-- disabled: only say why
 				elseif key == Keys.VK_RETURN and (item.kind == "button" or item.kind == "popup" or item.kind == "edit") then
 					if item.activate ~= nil then
 						item.activate();

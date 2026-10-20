@@ -416,7 +416,17 @@ local function KeyNavBuildItems()
 	if KeyNavSetup_IsUsable(Controls.DefaultButton) then
 		table.insert(items, KeyNavSetup_ButtonItem(Controls.DefaultButton, OnDefaultButton, "Settings restored to defaults"));
 	end
-	table.insert(items, KeyNavSetup_ButtonItem(Controls.BackButton, OnExitGameAskAreYouSure));
+	if Network.IsInSession() then
+		local tab:table = KeyNavSetup_ButtonItem(Controls.BackButton, function() LuaEvents.HostGame_ShowStagingRoom(); end);
+		tab.key = "stagingroom";
+		tab.getText = function() return Locale.Lookup("LOC_MULTIPLAYER_STAGING_ROOM")..", tab"; end;
+		table.insert(items, tab);
+	end
+	local back:table = KeyNavSetup_ButtonItem(Controls.BackButton, OnExitGameAskAreYouSure);
+	if Network.IsInSession() then
+		back.getText = function() return CleanTextForSpeech(Controls.BackButton:GetText())..", leave the game"; end;
+	end
+	table.insert(items, back);
 
 	local params:table = g_GameParameters and g_GameParameters.Parameters or nil;
 	for i, item in ipairs(KeyNavSetup_BuildParameterItems(params, Controls.ParametersScrollPanel, Controls.ParametersStack)) do
@@ -425,7 +435,7 @@ local function KeyNavBuildItems()
 
 	if KeyNavSetup_IsUsable(Controls.LoadConfigButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadConfigButton, OnLoadConfig)); end
 	if KeyNavSetup_IsUsable(Controls.SaveConfigButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.SaveConfigButton, OnSaveConfig)); end
-	if KeyNavSetup_IsUsable(Controls.ConfirmButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.ConfirmButton, OnConfirmClick)); end
+	if not Controls.ConfirmButton:IsHidden() then table.insert(items, KeyNavSetup_ButtonItem(Controls.ConfirmButton, OnConfirmClick)); end
 	return items;
 end
 
@@ -446,7 +456,15 @@ local m_nav:table = KeyNavSetup_NewController({
 	buildItems = KeyNavBuildItems,
 	isActive = function() return not ContextPtr:IsHidden(); end,
 	popupOpen = KeyNavPopupOpen,
-	onBack = function() LuaEvents.Multiplayer_ExitShell(); end,
+	-- In a session (the Game Setup tab of the Staging Room) Escape goes back to the Staging Room; leaving the game
+	-- is the Back button, which asks first.
+	onBack = function()
+		if Network.IsInSession() then
+			LuaEvents.HostGame_ShowStagingRoom();
+		else
+			LuaEvents.Multiplayer_ExitShell();
+		end
+	end,
 	-- Keys for the confirmation dialogs (Up/Down/Enter; Escape closes them). The pickers handle their own keys.
 	onPopupKey = function( key:number )
 		local dialog:table = KeyNavOpenDialog();
@@ -466,16 +484,19 @@ end
 
 -- The screen is shown briefly when a hosted game is created, just before the Staging Room takes over, so the
 -- announcement waits a moment and is dropped if the screen is gone by then.
-local m_announceFrames:number = 0;
+local m_announceDelay:number = 0;	-- seconds left before announcing (0: nothing pending)
 
 function OnKeyNavUpdate( deltaTime:number )
-	if m_announceFrames > 0 then
-		m_announceFrames = m_announceFrames - 1;
-		if m_announceFrames == 0 and not ContextPtr:IsHidden() then
-			local first:object = KeyNavSetup_IsUsable(Controls.DefaultButton) and Controls.DefaultButton or Controls.BackButton;
-			OutputMessageToScreenReader(Controls.TitleLabel:GetText(), true);
-			OutputMessageToScreenReader(first:GetText(), true);
-			m_nav.SetFocus(first, first, 3);
+	if m_announceDelay > 0 then
+		m_announceDelay = m_announceDelay - deltaTime;
+		if m_announceDelay <= 0 then
+			m_announceDelay = 0;
+			if not ContextPtr:IsHidden() then
+				local first:table = KeyNavBuildItems()[1];
+				OutputMessageToScreenReader(Controls.TitleLabel:GetText(), true);
+				OutputMessageToScreenReader(first.getText(), true);
+				m_nav.SetFocus(first.key or first.control, first.control, 3);
+			end
 		end
 	end
 	m_nav.Update(deltaTime);
@@ -511,7 +532,7 @@ function OnShow()
 
 	-- Keyboard navigation: announce the screen and focus the first button (see OnKeyNavUpdate).
 	m_nav.SetFocus(nil);
-	m_announceFrames = 20;
+	m_announceDelay = 0.4;
 end
 
 -- ===========================================================================
@@ -531,7 +552,7 @@ end
 
 -- ===========================================================================
 function OnHide( isHide, isInit )
-	m_announceFrames = 0;
+	m_announceDelay = 0;
 	KeyNavEditBox_Cancel();
 	m_nav.CancelSelection();
 	ReleasePlayerParameters();

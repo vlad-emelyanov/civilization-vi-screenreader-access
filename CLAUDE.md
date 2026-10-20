@@ -44,7 +44,7 @@ util\civctl.cmd shot                  # screenshot path, view only when output i
 
 ## Workflow rules
 
-- **New override of a game file:** first commit the untouched game file alone ("Add X.lua pristine asset"), then commit the mod changes on top. Register it in the `.civ6proj`: a `<File priority="10001">` entry in `FrontEndActionData` and/or `InGameActionData` (which context loads it: verify a print from your copy shows up in `Lua.log`) plus a `<Content Include>` entry.
+- **New override of a game file:** first commit the untouched game file alone ("Add X.lua pristine asset"), then commit the mod changes on top. Register it in the `.civ6proj`: a `<File priority="10001">` entry in `FrontEndActionData` and/or `InGameActionData` (which context loads it: verify a print from your copy shows up in `Lua.log`) plus a `<Content Include>` entry. Any `Accessibility/` helper that a front-end screen `include`s must be listed in BOTH `FrontEndActionData` and `InGameActionData`, or it silently fails to load after returning from a game (the screen script aborts).
 - **`.civ6proj`** often contains the user's uncommitted work. Never commit their hunks. Stage only your lines by building the index blob (`git hash-object -w` + `git update-index --cacheinfo`). The file has a UTF-8 BOM; keep it.
 - Keep edits to game files minimal and localized (they're copies of upstream code); put reusable logic in `Accessibility/`. Match the surrounding Lua style (type annotations like `local x:number`, tabs, semicolons).
 - Don't touch untracked personal scripts at the repo root (`build.cmd`, `run.cmd`, `open_log.cmd`, `util/update_assets.bat` which points at the user's other PC).

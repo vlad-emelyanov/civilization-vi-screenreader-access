@@ -417,6 +417,14 @@ local m_nav:table = KeyNavSetup_NewController({
 	isActive = function() return not ContextPtr:IsHidden(); end,
 	popupOpen = function() return m_kPopupDialog ~= nil and m_kPopupDialog:IsOpen(); end,
 	onBack = function() Close(); end,
+	-- Escape closes the join code dialog.
+	onPopupKey = function( key:number )
+		if key == Keys.VK_ESCAPE and m_kPopupDialog ~= nil and m_kPopupDialog:IsOpen() then
+			m_kPopupDialog:Close();
+			return true;
+		end
+		return nil;
+	end,
 });
 
 function OnInputHandler( pInputStruct:table )
@@ -1450,10 +1458,11 @@ function OnShow()
 
 	m_firstTimeShow = false;
 
-	-- Keyboard navigation: announce the screen and focus Host Game.
+	-- Keyboard navigation: announce the screen and focus the first usable item (Host Game, unless it is hidden or disabled).
+	local first:table = KeyNavBuildItems()[1];
 	OutputMessageToScreenReader(Controls.TitleLabel:GetText(), true);
-	OutputMessageToScreenReader(Controls.HostButton:GetText(), true);
-	m_nav.SetFocus(Controls.HostButton, Controls.HostButton, 10);
+	OutputMessageToScreenReader(first:getText(), true);
+	m_nav.SetFocus(first.control, first.control, 10);
 end
 
 -- ===========================================================================

@@ -67,6 +67,9 @@ end
 local m_keyNavSlots			:table = {};		-- Player slots built by RefreshPlayerSlots: { id, isLocal, instance, canRemove }.
 local nav					:table = nil;		-- The KeyNavSetup controller, created below.
 
+-- The basic window only shows sliders, checkboxes and pulldowns among the generic parameters (the rest is Advanced Setup).
+local BASIC_KINDS:table = { slider = true, checkbox = true, pulldown = true };
+
 -- Builds the items for the basic Create Game window.
 -- Each item: { control, kind, getText(), step(delta), toggle(), activate() }
 local function KeyNavBuildBasicItems()
@@ -105,7 +108,7 @@ local function KeyNavBuildBasicItems()
 			local driver:table = drivers and drivers[1] or nil;
 			local c:table = driver and driver.Control or nil;
 			if type(c) == "table" and parameter.Value ~= nil then
-				local item:table = KeyNavSetup_ParameterItem(pid, parameter, c, parameter.Name);
+				local item:table = KeyNavSetup_ParameterItem(pid, parameter, c, parameter.Name, BASIC_KINDS);
 				if item ~= nil then table.insert(middle, item); end
 			end
 		end
@@ -121,8 +124,8 @@ local function KeyNavBuildBasicItems()
 	table.insert(items, KeyNavSetup_ButtonItem(Controls.DefaultButton, OnDefaultButton, "Settings restored to defaults"));
 	table.insert(items, KeyNavSetup_ButtonItem(Controls.CloseButton, OnBackButton));
 	for i, v in ipairs(middle) do table.insert(items, v); end
-	if KeyNavSetup_IsUsable(Controls.AdvancedSetupButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.AdvancedSetupButton, OnAdvancedSetup)); end
-	if KeyNavSetup_IsUsable(Controls.StartButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.StartButton, OnStartButton)); end
+	if not Controls.AdvancedSetupButton:IsHidden() then table.insert(items, KeyNavSetup_ButtonItem(Controls.AdvancedSetupButton, OnAdvancedSetup)); end
+	if not Controls.StartButton:IsHidden() then table.insert(items, KeyNavSetup_ButtonItem(Controls.StartButton, OnStartButton)); end
 	return items;
 end
 
@@ -205,9 +208,9 @@ local function KeyNavBuildAdvancedItems()
 	end
 
 	-- Footer buttons.
-	if KeyNavSetup_IsUsable(Controls.LoadConfig) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadConfig, OnLoadConfig)); end
-	if KeyNavSetup_IsUsable(Controls.SaveConfig) then table.insert(items, KeyNavSetup_ButtonItem(Controls.SaveConfig, OnSaveConfig)); end
-	if KeyNavSetup_IsUsable(Controls.StartButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.StartButton, OnStartButton)); end
+	if not Controls.LoadConfig:IsHidden() then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadConfig, OnLoadConfig)); end
+	if not Controls.SaveConfig:IsHidden() then table.insert(items, KeyNavSetup_ButtonItem(Controls.SaveConfig, OnSaveConfig)); end
+	if not Controls.StartButton:IsHidden() then table.insert(items, KeyNavSetup_ButtonItem(Controls.StartButton, OnStartButton)); end
 	return items;
 end
 

@@ -41,6 +41,7 @@ Announcement formats: `"<Label>: <value>"` for options, `"<Label>: checked|unche
 - **The front-end menu animates in.** Positions read during the slide are wrong (e.g. x=699 instead of 978).
 - **Popups own input while open.** Make your handler inactive when a picker/popup in the same context is shown, and re-announce the focused item when it closes.
 - **The game's Lua sandbox has no `debug` table.** `xpcall` error handlers must not call `debug.traceback` (that errors inside the handler and hides the real error); use `tostring(e)`.
+- **Helpers that a front-end screen `include`s must be imported in both `FrontEndActionData` and `InGameActionData`** (`ImportFiles` in the `.civ6proj`). After a game is played and exited, the front end is rebuilt from the in-game file set; a helper missing there makes `include` find nothing and the screen script silently aborts (e.g. an empty Create Game).
 - **The game must be restarted** to load Lua changes after `build`.
 
 ## Coverage (2026-10-19)
