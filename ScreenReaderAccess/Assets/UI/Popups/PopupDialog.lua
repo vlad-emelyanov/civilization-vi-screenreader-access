@@ -54,7 +54,7 @@ PopupDialogInGame = {
 -- ===========================================================================
 -- Label of a button we just announced ourselves (keyboard focus); the MouseEnter that follows the
 -- synthetic mouse move must not speak it a second time.
-local m_suppressLabel:string = nil;
+local m_suppressControl = nil;	-- button control whose next MouseEnter is the echo of a keyboard focus move
 
 PopupDialog.TOP_CONTROL_ROW				= "Row";
 PopupDialog.TOP_CONTROL_TEXT			= "Text";
@@ -222,12 +222,16 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 	-- Set the same mouseover button sound for all popup buttons
 	pButtonControl:RegisterCallback( Mouse.eMouseEnter, function()
 		UI.PlaySound("Main_Menu_Mouse_Over");
-		if m_suppressLabel ~= nil and m_suppressLabel == label then
-			m_suppressLabel = nil;
+		if m_suppressControl ~= nil and m_suppressControl == pButtonControl then
+			m_suppressControl = nil;
 		else
-			m_suppressLabel = nil;
+			m_suppressControl = nil;
 			OutputMessageToScreenReader(label);
 		end
+	end);
+	-- if the mouse was already on this button no MouseEnter fired; forget the suppression once it leaves
+	pButtonControl:RegisterCallback( Mouse.eMouseExit, function()
+		if m_suppressControl == pButtonControl then m_suppressControl = nil; end
 	end);
 
 	-- Wrap callback in local function so we can close the popup before trigerring the callback
@@ -402,11 +406,11 @@ function PopupDialog:Open( optionalID:string )
 		end
 	end
 
-	m_suppressLabel = nil;
+	m_suppressControl = nil;
 	local first = self.KeyNavElements[self.ActiveKeyNavElement + 1];
 	if first ~= nil then
 		if first.Label ~= nil then
-			m_suppressLabel = first.Label;
+			m_suppressControl = first.Control;
 			OutputMessageToScreenReader(first.Label, true);
 		end
 		KeyNavMoveMouse(first.Control, checkStable);
@@ -435,7 +439,7 @@ function PopupDialog:KeyHandler(key)
 	end
 	if move then
 		local active = self.KeyNavElements[self.ActiveKeyNavElement + 1];
-		m_suppressLabel = active.Label;
+		m_suppressControl = active.Control;
 		if active.Label ~= nil then OutputMessageToScreenReader(active.Label, false); end
 		KeyNavMoveMouse(active.Control);
 		return true;
@@ -445,7 +449,7 @@ end
 
 -- ===========================================================================
 function PopupDialog:Close()
-	m_suppressLabel = nil;
+	m_suppressControl = nil;
 	self.Controls.PopupRoot:SetHide(true);
 	self:Reset();
 
@@ -619,21 +623,15 @@ end
 function PopupDialogInGame:Open()
 	LuaEvents.OnRaisePopupInGame(self.ID, self.m_options);
 
-	local screenReaderTitle = "";
+	local screenReaderParts = {};
 	for _, control in ipairs(self.m_options) do
-		if control.Type == "Title" then
-			screenReaderTitle = screenReaderTitle..control.Content;
+		if control.Type == "Title" or control.Type == "Text" then
+			local part = CleanTextForSpeech(tostring(control.Content));
+			if part ~= "" then table.insert(screenReaderParts, part); end
 		end
 	end
 
-	local screenReaderText = "";
-	for _, control in ipairs(self.m_options) do
-		if control.Type == "Text" then
-			screenReaderText = screenReaderText..control.Content;
-		end
-	end
-
-	OutputMessageToScreenReader("Popup: "..screenReaderTitle..screenReaderText);
+	OutputMessageToScreenReader("Popup: "..table.concat(screenReaderParts, ". "));
 
 	self.m_options = {};
 end

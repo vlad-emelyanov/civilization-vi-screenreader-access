@@ -15,19 +15,28 @@ local ICON_WORDS: table = {
 
 -- True when the text around an icon already says its word, so the icon word would only repeat it:
 -- "[ICON_Gold] Gold", "[ICON_Strength] Combat Strength", "Production [ICON_Production]".
--- Compared case-insensitively on the first 5 letters, so "[ICON_Amenities] Amenity" is covered too.
+-- Words are compared whole and case-insensitively, with simple plural variants ("Amenities" = "Amenity").
+-- Only the original text is passed in (never the words this function inserted for other icons).
+local function _WordKey(w: string)
+	w = string.lower(w);
+	if string.sub(w, -3) == "ies" then return string.sub(w, 1, -4).."y"; end
+	if #w > 3 and string.sub(w, -1) == "s" then return string.sub(w, 1, -2); end
+	return w;
+end
+
 local function _AlreadySaid(word: string, before: string, after: string)
-	local stem = string.lower(string.sub(word, 1, 5));
+	local key = _WordKey(word);
 	local count = 0;
 	after = string.gsub(string.sub(after, 1, 60), "%[[^%]]*%]", " ");
 	for w in string.gmatch(after, "%a+") do
-		if string.lower(string.sub(w, 1, 5)) == stem then return true; end
+		if _WordKey(w) == key then return true; end
 		count = count + 1;
 		if count >= 2 then break; end
 	end
+	before = string.gsub(string.sub(before, -40), "%[[^%]]*%]", " ");
 	local lastWord = nil;
-	for w in string.gmatch(string.sub(before, -40), "%a+") do lastWord = w; end
-	return lastWord ~= nil and string.lower(string.sub(lastWord, 1, 5)) == stem;
+	for w in string.gmatch(before, "%a+") do lastWord = w; end
+	return lastWord ~= nil and _WordKey(lastWord) == key;
 end
 
 -- Replaces [ICON_xxx] markup (it would be spoken literally) with a word or nothing, and tidies the whitespace.
@@ -41,7 +50,7 @@ local function _StripIconMarkup(message: string)
 		if s == nil then break; end
 		table.insert(out, string.sub(message, pos, s - 1));
 		local word = ICON_WORDS[tag];
-		if word ~= nil and not _AlreadySaid(word, table.concat(out), string.sub(message, e + 1)) then
+		if word ~= nil and not _AlreadySaid(word, string.sub(message, 1, s - 1), string.sub(message, e + 1)) then
 			table.insert(out, " "..word.." ");
 		else
 			table.insert(out, " ");

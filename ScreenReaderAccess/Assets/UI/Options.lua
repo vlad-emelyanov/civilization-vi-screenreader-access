@@ -61,6 +61,10 @@ local m_currentTab = nil;
 local m_comboState = {};		-- pulldown control -> {values, index, handler}
 local m_checkState = {};		-- checkbox control -> handler
 local m_contentFocus = nil;		-- id of the control focused in the current tab's content
+local m_contentFocusIndex = 1;	-- its position, to clamp to when it disappears
+local m_resetDirty = false;		-- Reset to defaults was applied and not yet confirmed
+local m_captureKeyDown = nil;	-- last key pressed while the key binding popup was shown
+local m_swallowKeyUp = nil;		-- key whose KeyUp completes a binding capture and must not act as navigation
 
 -- Registers a slider callback and remembers it (the keyboard changes the value and calls it).
 local function RegisterSliderCb(control, callback)
@@ -179,10 +183,11 @@ end
 --
 -------------------------------------------------------------------------------
 function OnReset()
-    function EnableControls()
+    local confirmWasDisabled = Controls.ConfirmButton:IsDisabled();
+    function EnableControls(confirmDisabled)
         Controls.ResetButton:SetDisabled(false);
         Controls.WindowCloseButton:SetDisabled(false);
-        Controls.ConfirmButton:SetDisabled(true);
+        Controls.ConfirmButton:SetDisabled(confirmDisabled);
     end
 	function ResetOptions()
 		Options.ResetOptions();
@@ -194,11 +199,12 @@ function OnReset()
         PopulateGraphicsOptions();
 
 		TemporaryHardCodedGoodness();
-        EnableControls();
+        m_resetDirty = true;
+        EnableControls(true);
         OutputMessageToScreenReader("Options reset to defaults");
 	end
     function CancelReset()
-        EnableControls();
+        EnableControls(confirmWasDisabled);
         OutputMessageToScreenReader("Reset cancelled");
     end
 
@@ -323,8 +329,9 @@ function OnConfirm()
 
 		Controls.ConfirmButton:SetDisabled(true);
         _PromptResolutionAck = false;
+		m_resetDirty = false;
 		if not _kPopupDialog:IsOpen() then
-			OutputMessageToScreenReader("Settings applied", true);
+			OutputMessageToScreenReader(bSuccess and "Settings applied" or "Some settings could not be applied", true);
 		end
     end
 
@@ -354,6 +361,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
 
 	control:ClearEntries();
 	local selectedIndex = 1;
+	local matched = false;
 	for i, v in ipairs(values) do
 		local instance = {};
 		control:BuildEntry( "InstanceOne", instance );
@@ -362,6 +370,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
 
 		if(v[2] == selected_value) then
 			selectedIndex = i;
+			matched = true;
 			local button = control:GetButton();
             button:LocalizeAndSetText(v[1]);
 		end
@@ -369,7 +378,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
 	control:CalculateInternals();	
 		
 	control:SetDisabled(is_locked ~= false);
-	m_comboState[control] = { values = values, index = selectedIndex, handler = selection_handler };
+	m_comboState[control] = { values = values, index = selectedIndex, matched = matched, handler = selection_handler };
 
 	if(selection_handler) then
 		control:GetButton():RegisterCallback(Mouse.eMouseEnter, function()
@@ -379,6 +388,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
 			function(voidValue1, voidValue2, control)
 				local option = values[voidValue1];
 				m_comboState[control].index = voidValue1;
+				m_comboState[control].matched = true;
 
 				local button = control:GetButton();
                 button:LocalizeAndSetText(option[1]);
@@ -588,10 +598,11 @@ function AdjustResolutionPulldown(window_mode, is_in_game )
 		local resText = current_width .. "x" .. current_height;
 		if window_mode == FULLSCREEN_OPTION then resText = resText .. " (" .. refresh_rate .. " Hz)"; end
 		local resIndex = 1;
+		local resMatched = false;
 		for i, v in ipairs(final_indexed_modes) do
-			if v[1] == resText then resIndex = i; break; end
+			if v[1] == resText then resIndex = i; resMatched = true; break; end
 		end
-		m_comboState[Controls.ResolutionPullDown] = { values = final_indexed_modes, index = resIndex, handler = applyResolution };
+		m_comboState[Controls.ResolutionPullDown] = { values = final_indexed_modes, index = resIndex, matched = resMatched, handler = applyResolution };
 	end
 
 	local debug_enabled = Options.GetAppOption("Debug", "EnableDebugMenu");	-- When debugging allow game resolution change. TODO: Evaluate allowing change for everyone.
@@ -2031,7 +2042,7 @@ local function ItemValueText(item)
 	local text = "";
 	if item.kind == "pulldown" then
 		local state = m_comboState[control];
-		if state ~= nil and state.values[state.index] ~= nil and not control:IsDisabled() then
+		if state ~= nil and state.matched ~= false and state.values[state.index] ~= nil and not control:IsDisabled() then
 			text = Locale.Lookup(state.values[state.index][1]);
 		else
 			text = control:GetButton():GetText();
@@ -2079,6 +2090,9 @@ end
 
 function FocusItem(item, full)
 	m_contentFocus = item.id;
+	for i, it in ipairs(GetTabItems(m_currentTab)) do
+		if it.id == item.id then m_contentFocusIndex = i; end
+	end
 	OutputMessageToScreenReader(DescribeItem(item, full));
 	if item.kind == "slider" then
 		ParkMouse();
@@ -2090,6 +2104,7 @@ end
 
 local function SetComboIndex(control, state, index)
 	state.index = index;
+	state.matched = true;
 	local option = state.values[index];
 	control:GetButton():LocalizeAndSetText(option[1]);
 	if state.handler then state.handler(option[2]); end
@@ -2223,6 +2238,7 @@ function EnterTabContent(tab)
 	end
 	m_inMainKeyNav = false;
 	m_contentFocus = items[1].id;
+	m_contentFocusIndex = 1;
 	local first = items[1];
 	OutputMessageToScreenReader(TabName(tab)..", "..tostring(#items).." options. "..DescribeItem(first, true));
 	if first.kind == "slider" then ParkMouse(); else KeyNavMoveMouse(first.control); end
@@ -2242,7 +2258,7 @@ function LeaveTabContent()
 end
 
 function CancelOptions()
-	if not Controls.ConfirmButton:IsDisabled() then
+	if m_resetDirty or not Controls.ConfirmButton:IsDisabled() then
 		OutputMessageToScreenReader("Changes discarded");
 	end
 	OnCancel();
@@ -2310,9 +2326,14 @@ local function HandleContentKey(key)
 	local count = #items;
 	if count == 0 then return false; end
 
-	local focused = 1;
+	local focused = nil;
 	for i, item in ipairs(items) do
 		if item.id == m_contentFocus then focused = i; end
+	end
+	if focused == nil then
+		-- the focused item vanished (e.g. Advanced Options collapsed by mouse): clamp to the nearest and announce it
+		FocusItem(items[math.max(1, math.min(count, m_contentFocusIndex))], true);
+		return true;
 	end
 	local item = items[focused];
 	local control = item.control;
@@ -2335,7 +2356,15 @@ local function HandleContentKey(key)
 			local state = m_comboState[control];
 			if state ~= nil and not control:IsDisabled() then
 				local numValues = #state.values;
-				SetComboIndex(control, state, (state.index - 1 + dir + numValues) % numValues + 1);
+				if numValues > 0 then
+					local newIndex;
+					if state.matched == false then
+						newIndex = (dir > 0) and 1 or numValues;	-- current value isn't in the list: start from an end
+					else
+						newIndex = (state.index - 1 + dir + numValues) % numValues + 1;
+					end
+					SetComboIndex(control, state, newIndex);
+				end
 			end
 			OutputMessageToScreenReader(DescribeItem(item, false));
 		elseif item.kind == "slider" then
@@ -2482,13 +2511,25 @@ end
 
 function InputHandler( pInputStruct )
 	local uiMsg = pInputStruct:GetMessageType();
+	if(uiMsg == KeyEvents.KeyDown) then
+		-- remember the key pressed during a binding capture: if the engine completes the capture on KeyDown,
+		-- its KeyUp reaches us with the popup already hidden and must not act as navigation
+		if not Controls.KeyBindingPopup:IsHidden() then m_captureKeyDown = pInputStruct:GetKey(); end
+		return false;
+	end
 	if(uiMsg == KeyEvents.KeyUp) then
 		local uiKey = pInputStruct:GetKey();
 		local result = false;
 		m_secondsSinceKey = 0;
 		local ok, err = xpcall(function()
 			-- Handle escape being pressed to cancel active key binding.
+			if m_swallowKeyUp ~= nil then
+				local swallow = (m_swallowKeyUp == uiKey);
+				m_swallowKeyUp = nil;
+				if swallow then result = true; return; end
+			end
 			if not Controls.KeyBindingPopup:IsHidden() then
+				m_captureKeyDown = nil;	-- a capture completing on KeyUp leaves no KeyUp behind
 				if uiKey == Keys.VK_ESCAPE then
 					StopActiveKeyBinding();
 					OutputMessageToScreenReader("Cancelled, "..DescribeBinding(false));
@@ -2621,11 +2662,16 @@ function InitializeKeyBinding()
 	end
 
 	function BindRecordedGesture(gesture)
+		local recordedAction = _CurrentAction;
 		if(_CurrentAction and _CurrentActionIndex) then
 			Controls.ConfirmButton:SetDisabled(false);
 			Input.BindAction(_CurrentAction, _CurrentActionIndex, gesture);
 			RefreshKeyBinding();
-			local info = m_bindingInfo[m_selectedBindingIndex];
+			m_swallowKeyUp = m_captureKeyDown;
+			local info = nil;
+			for _, bi in ipairs(m_bindingInfo) do
+				if bi.actionId == recordedAction then info = bi; break; end
+			end
 			if info ~= nil then
 				local bound = (_CurrentActionIndex == 0) and info.g1 or info.g2;
 				OutputMessageToScreenReader(info.name.." bound to "..tostring(bound or "none")..", "..((_CurrentActionIndex == 0) and "primary" or "alternate").." binding");
@@ -2667,6 +2713,9 @@ function OnShow()
 
 	-- Disable confirm button until user changes any option
 	Controls.ConfirmButton:SetDisabled(true);
+	m_resetDirty = false;
+	m_swallowKeyUp = nil;
+	m_captureKeyDown = nil;
 
 	if IsInGame() and GameConfiguration.IsAnyMultiplayer() then
 		m_pendingGameConfigChanges = {};
@@ -2875,7 +2924,13 @@ function Initialize()
             UI.PlaySound("Main_Menu_Mouse_Over");
 		end);
 		button:RegisterCallback(Mouse.eLClick, function() 
-			EnterTabContent(tab);
+			-- a mouse click selects the tab but stays at tab level, so Escape still closes Options
+			OnSelectTab(tab);
+			m_inMainKeyNav = true;
+			m_selection = nil;
+			for j, t in ipairs(m_tabs) do
+				if t == tab then m_mainFocusKey = "tab:"..tostring(j); end
+			end
 		end );
 		button:SetHide(false);
 	end
