@@ -2661,6 +2661,25 @@ function InitializeKeyBinding()
 		Controls.KeyBindingsScrollPanel:CalculateSize();
 	end
 
+	-- Logs every action shown on the Key Bindings tab as `#KEYMAP - category|name|primary|alternate|description`
+	-- (bracketed by BEGIN/END). `civctl keymap` turns this into the civ-test skill's keymap.md.
+	function DumpKeyMap()
+		local function clean(text) return (string.gsub(tostring(text or ""), "[%c|]+", " ")); end
+		print("#KEYMAP - BEGIN");
+		for i = 0, Input.GetActionCount() - 1, 1 do
+			local action = Input.GetActionId(i);
+			if Input.ShouldShowActionKeybinding(action) then
+				print("#KEYMAP - "..table.concat({
+					clean(Locale.Lookup(Input.GetActionCategory(action))),
+					clean(Locale.Lookup(Input.GetActionName(action))),
+					clean(Input.GetGestureDisplayString(action, 0)),
+					clean(Input.GetGestureDisplayString(action, 1)),
+					clean(Locale.Lookup(Input.GetActionDescription(action)))}, "|"));
+			end
+		end
+		print("#KEYMAP - END");
+	end
+
 	function StartActiveKeyBinding(actionId, index)
         Controls.BindingTitle:SetText(Locale.Lookup(Input.GetActionName(actionId)));
 		Controls.KeyBindingPopup:SetHide(false);
@@ -2729,6 +2748,7 @@ end
 function OnShow()
 	KeyNavEditBox_Cancel();
 	RefreshKeyBinding();
+	DumpKeyMap();
 	UserConfiguration.SaveCheckpoint();
     PopulateGraphicsOptions();
     TemporaryHardCodedGoodness();

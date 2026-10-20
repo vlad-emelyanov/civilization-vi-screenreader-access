@@ -8,6 +8,8 @@
   .\util\civctl.ps1 sr                    # print new screen reader lines since last call
   .\util\civctl.ps1 key Down              # press a key (Down, Up, Enter, Escape, Tab, A, F1, ...)
   .\util\civctl.ps1 key Down -Count 3     # press it several times
+  .\util\civctl.ps1 key Shift+E           # chord: Shift/Control/Alt + one key
+  .\util\civctl.ps1 keymap                # regenerate skills\civ-test\keymap.md from the Key Bindings dump in Lua.log
   .\util\civctl.ps1 wait 'Exit to Desktop' -Timeout 10   # wait for a matching screen reader line
   .\util\civctl.ps1 shot                  # screenshot game window, prints the png path
   .\util\civctl.ps1 stop                  # kill game + console app
@@ -17,7 +19,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status')]
+    [ValidateSet('build', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -80,6 +82,20 @@ public static class Native {
     static bool IsExtended(uint vk) {
         // arrows, ins/del, home/end, pgup/pgdn, numpad divide, right ctrl/alt
         return (vk >= 0x21 && vk <= 0x28) || vk == 0x2D || vk == 0x2E || vk == 0x6F || vk == 0xA3 || vk == 0xA5;
+    }
+
+    // Holds the modifier keys (VK codes) down around a Tap, e.g. Shift+E.
+    public static void Chord(uint[] mods, uint vk, int holdMs) {
+        int size = Marshal.SizeOf(typeof(INPUT));
+        foreach (uint m in mods) { INPUT d = Make(m, 0); SendInput(1, new[] { d }, size); System.Threading.Thread.Sleep(30); }
+        Tap(vk, holdMs);
+        for (int i = mods.Length - 1; i >= 0; i--) { INPUT u = Make(mods[i], KEYEVENTF_KEYUP); SendInput(1, new[] { u }, size); }
+    }
+
+    static INPUT Make(uint vk, uint extraFlags) {
+        INPUT i = new INPUT { type = INPUT_KEYBOARD };
+        i.u.ki = new KEYBDINPUT { wVk = (ushort)vk, wScan = (ushort)MapVirtualKey(vk, 0), dwFlags = KEYEVENTF_SCANCODE | (IsExtended(vk) ? KEYEVENTF_EXTENDEDKEY : 0) | extraFlags };
+        return i;
     }
 
     // Sends scancodes (not just VKs) so games reading hardware-ish input still see the key.
@@ -187,13 +203,18 @@ function Invoke-Key {
     if (-not $Arg) { throw 'Usage: civctl.ps1 key <KeyName> [-Count n]' }
     $game = Get-GameProcess
     if (-not $game) { throw 'Game is not running.' }
-    $vk = [uint32][System.Windows.Forms.Keys]::Parse([System.Windows.Forms.Keys], $Arg, $true)
+    # "Shift+E", "Control+Shift+F": modifiers are held around the key. Key names never contain '+' (the + key is OemPlus).
+    $parts = @($Arg -split '\+')
+    $mods = [uint32[]]@($parts | Select-Object -SkipLast 1 | ForEach-Object {
+        switch -Regex ($_) { '^(ctrl|control)$' { 0xA2 } '^shift$' { 0xA0 } '^(alt|menu)$' { 0xA4 } default { throw "Unknown modifier '$_' (use Shift, Control, Alt)" } }
+    })
+    $vk = [uint32][System.Windows.Forms.Keys]::Parse([System.Windows.Forms.Keys], $parts[-1], $true)
     if (-not [CivCtl.Native]::Focus($game.MainWindowHandle)) { Write-Warning 'Could not bring game window to foreground; key may go elsewhere.' }
     # Output that arrived after the previous command returned; shown rather than dropped so nothing is missed.
     $pending = Format-Lines (Read-NewLogLines)
     if ($pending) { $pending | ForEach-Object { "(earlier) $_" } }
     for ($i = 0; $i -lt $Count; $i++) {
-        [CivCtl.Native]::Tap($vk, $Hold)
+        [CivCtl.Native]::Chord($mods, $vk, $Hold)
         Start-Sleep -Milliseconds $Settle
         Format-Lines (Read-NewLogLines)
     }
@@ -251,6 +272,68 @@ function Invoke-Stop {
     Write-Output 'Stopped.'
 }
 
+function ConvertTo-CivctlKey([string]$display) {
+    # Key Bindings display string ("Control+Shift+F", "Down Arrow", "]") -> argument for `civctl key`.
+    $names = @{
+        'Return' = 'Enter'; 'Space' = 'Space'; 'Delete' = 'Delete'; 'Insert' = 'Insert'; 'Home' = 'Home'; 'End' = 'End'
+        'Page Up' = 'Prior'; 'Page Down' = 'Next'; 'Up Arrow' = 'Up'; 'Down Arrow' = 'Down'; 'Left Arrow' = 'Left'; 'Right Arrow' = 'Right'
+        ',' = 'Oemcomma'; '.' = 'OemPeriod'; '[' = 'OemOpenBrackets'; ']' = 'OemCloseBrackets'; '\' = 'OemPipe'
+        '=' = 'Oemplus'; '-' = 'OemMinus'; '/ (Number Pad)' = 'Divide'; ';' = 'OemSemicolon'; "'" = 'OemQuotes'; '`' = 'Oemtilde'
+    }
+    $parts = $display -split '\+(?=.)'
+    $out = foreach ($p in $parts) {
+        if ($names.ContainsKey($p)) { $names[$p] }
+        elseif ($p -match '^[0-9]$') { "D$p" }
+        elseif ($p -match '^([A-Z]|F\d{1,2}|Shift|Control|Alt)$') { $p }
+        else { '?' }
+    }
+    $out -join '+'
+}
+
+function Invoke-Keymap {
+    # Source of truth is the `#KEYMAP` dump that Options.lua prints whenever the Options screen is shown.
+    $outFile = Join-Path $RepoRoot '.claude\skills\civ-test\keymap.md'
+    $rows = $null
+    if (Test-Path $LuaLog) {
+        $fs = [IO.File]::Open($LuaLog, 'Open', 'Read', 'ReadWrite')
+        try { $lines = (New-Object IO.StreamReader($fs)).ReadToEnd() -split "`r?`n" } finally { $fs.Dispose() }
+        $current = $null
+        foreach ($l in $lines) {
+            $i = $l.IndexOf('#KEYMAP - ')
+            if ($i -lt 0) { continue }
+            $t = $l.Substring($i + 10)
+            if ($t -eq 'BEGIN') { $current = @() }
+            elseif ($t -eq 'END') { if ($null -ne $current) { $rows = $current; $current = $null } }
+            elseif ($null -ne $current) { $current += , ($t -split '\|', 5) }
+        }
+    }
+    if (-not $rows) {
+        Write-Output 'No complete #KEYMAP dump in Lua.log. Start the game (civctl start) and open Options from the main menu (Down to "Game Options", Enter), then run this again.'
+        exit 1
+    }
+    $md = New-Object System.Collections.Generic.List[string]
+    $md.Add('# Civ VI key bindings (generated)')
+    $md.Add('')
+    $md.Add("Generated by ``util\civctl.cmd keymap`` on $(Get-Date -Format 'yyyy-MM-dd') from the in-game Key Bindings list (Options.lua ``DumpKeyMap``). Do not edit by hand; regenerate after rebinding keys or changing mod hotkeys (``Database/*.sql``).")
+    $md.Add('')
+    $md.Add('"civctl key" is the argument for `util\civctl.cmd key <arg>`. These are in-game (World) hotkeys: they need a game in progress and no popup open. A blank key means unbound; `?` means civctl cannot send it yet (extend ConvertTo-CivctlKey).')
+    $unbound = @($rows | Where-Object { -not $_[2] })
+    if ($unbound) { $md.Add(''); $md.Add("**Unbound actions: $(($unbound | ForEach-Object { $_[1] }) -join ', ')**") }
+    foreach ($group in ($rows | Group-Object { $_[0] -replace ':\s*$', '' })) {
+        $md.Add('')
+        $md.Add("## $($group.Name)")
+        $md.Add('')
+        $md.Add('| Action | Key | civctl key | Alternate | Description |')
+        $md.Add('|---|---|---|---|---|')
+        foreach ($r in ($group.Group | Sort-Object { $_[1] })) {
+            $key = if ($r[2]) { ConvertTo-CivctlKey $r[2] } else { '' }
+            $md.Add("| $($r[1]) | $($r[2]) | $key | $($r[3]) | $($r[4]) |")
+        }
+    }
+    [IO.File]::WriteAllText($outFile, (($md -join "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
+    Write-Output "Wrote $outFile ($($rows.Count) actions, $($unbound.Count) unbound)."
+}
+
 switch ($Command) {
     'build' { Invoke-Build }
     'start' { Invoke-Start }
@@ -261,6 +344,7 @@ switch ($Command) {
         if (-not (Wait-ForScreenReader $Arg $Timeout)) { Write-Output "Timed out waiting for '$Arg'"; exit 1 }
     }
     'shot' { Invoke-Shot }
+    'keymap' { Invoke-Keymap }
     'status' {
         $game = Get-GameProcess
         "game: $(if ($game) { "running (pid $($game.Id), '$($game.MainWindowTitle)')" } else { 'not running' })"
