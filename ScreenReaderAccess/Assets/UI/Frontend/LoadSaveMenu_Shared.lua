@@ -38,10 +38,9 @@ g_FilenameIsValid = false;
 
 g_DontUpdateFileName = false;
 
-g_inCarousel = false;
-g_iSelectedKeyNavEntry = 1;
+g_ExtraTick = nil;	-- optional per-frame hook set by the screen (keyboard navigation)
 
-
+-- Scrolls the file list so entry 'index' is in view.
 function EnsureCarouselSelectionVisible(index)
 	local numEntries = #g_FileEntryInstanceList;
 	if numEntries == 0 then return end
@@ -57,34 +56,69 @@ function EnsureCarouselSelectionVisible(index)
 		return;
 	end
 
-	local scrollValue = scrollPanel:GetScrollValue();
 	local elementHeight = stackHeight / numEntries;
-	
 	local newScroll = (index - 1) * elementHeight / (stackHeight - viewHeight);
+	if newScroll > 1 then newScroll = 1; end
 	scrollPanel:SetScrollValue(newScroll);
 end
 
-function LoadSaveMenu_HandleCarouselKey(key)
-	if key == Keys.VK_SPACE then
-		KeyNavLeftClick()
-		return true;
+-- Text helpers for speech (keyboard navigation).
+local function _LookupBundleOrText(value)
+	if value then
+		local text = Locale.LookupBundle(value);
+		if text == nil or text == "" then
+			text = Locale.Lookup(value);
+		end
+		return text;
 	end
-
-	local menuSize = #g_FileEntryInstanceList;
-	if key == Keys.VK_UP then
-		g_iSelectedKeyNavEntry = g_iSelectedKeyNavEntry - 1;
-		if g_iSelectedKeyNavEntry < 1 then g_iSelectedKeyNavEntry = menuSize; end
-	elseif key == Keys.VK_DOWN then
-		g_iSelectedKeyNavEntry = g_iSelectedKeyNavEntry + 1;
-		if g_iSelectedKeyNavEntry > menuSize then g_iSelectedKeyNavEntry = 1; end
-	else
-		return false;
-	end
-	
-	EnsureCarouselSelectionVisible(g_iSelectedKeyNavEntry);
-	KeyNavMoveMouse(g_FileEntryInstanceList[g_iSelectedKeyNavEntry].Button);
-	return true;
 end
+
+-- Spoken summary of a save: name, leader/civilization, turn, date. full = true adds game options.
+function GetSaveSummaryText(fileInfo:table, full:boolean)
+	local parts = {};
+	table.insert(parts, GetDisplayName(fileInfo));
+	if fileInfo.IsDirectory then
+		table.insert(parts, "folder");
+		return table.concat(parts, ", ");
+	end
+	local leader = _LookupBundleOrText(fileInfo.HostLeaderName);
+	local civ = _LookupBundleOrText(fileInfo.HostCivilizationName);
+	if leader ~= nil and civ ~= nil then
+		table.insert(parts, leader..", "..civ);
+	elseif leader ~= nil or civ ~= nil then
+		table.insert(parts, leader or civ);
+	end
+	if fileInfo.CurrentTurn ~= nil then
+		table.insert(parts, Locale.Lookup("LOC_LOADSAVE_CURRENT_TURN", fileInfo.CurrentTurn));
+	end
+	if fileInfo.DisplaySaveTime ~= nil then
+		table.insert(parts, fileInfo.DisplaySaveTime);
+	end
+	if full then
+		local function add(label, value)
+			if value ~= nil and value ~= "" then table.insert(parts, label..": "..value); end
+		end
+		add("Era", _LookupBundleOrText(fileInfo.HostEraName));
+		add("Difficulty", _LookupBundleOrText(fileInfo.HostDifficultyName));
+		add("Game speed", _LookupBundleOrText(fileInfo.GameSpeedName));
+		add("Ruleset", _LookupBundleOrText(fileInfo.RulesetName));
+		add("Map", _LookupBundleOrText(fileInfo.MapScriptName));
+		add("Map size", _LookupBundleOrText(fileInfo.MapSizeName));
+		add("Saved by version", fileInfo.SavedByVersion);
+		local mods = fileInfo.RequiredMods or {};
+		if #mods > 0 then
+			local names = {};
+			for i, v in ipairs(mods) do
+				local title = Locale.LookupBundle(v.Title);
+				if title == nil or #title == 0 then title = Locale.Lookup(v.Title); end
+				table.insert(names, title);
+			end
+			table.insert(parts, "Mods: "..table.concat(names, ", "));
+		end
+	end
+	return table.concat(parts, ". ");
+end
+
 
 ----------------------------------------------------------------        
 -- File Name Handling
@@ -199,6 +233,42 @@ function RefreshSortPulldown()
 end
 
 ---------------------------------------------------------------------------
+function ApplySortOption(i)
+	local v = m_sortOptions[i];
+	Controls.SortByPullDown:GetButton():LocalizeAndSetText( v[1] );
+	g_CurrentSort = v[2];
+	-- Store the default
+	if g_GameType == SaveTypes.WORLDBUILDER_MAP then
+		Options.SetUserOption("Interface", "WorldBuilderMapBrowseSortDefault", v[3]);
+	else
+		Options.SetUserOption("Interface", "SaveGameBrowseSortDefault", v[3]);
+	end
+
+	Options.SaveOptions();
+
+	RebuildFileList();
+end
+
+-- Keyboard navigation: current sort name, and stepping to the next/previous one.
+function GetSortOptionText()
+	for i, v in ipairs(m_sortOptions) do
+		if g_CurrentSort == v[2] then return Locale.Lookup(v[1]); end
+	end
+	return Controls.SortByPullDown:GetButton():GetText();
+end
+
+function CycleSortOption(step)
+	local current = 1;
+	for i, v in ipairs(m_sortOptions) do
+		if g_CurrentSort == v[2] then current = i; end
+	end
+	current = current + step;
+	if current < 1 then current = #m_sortOptions; end
+	if current > #m_sortOptions then current = 1; end
+	ApplySortOption(current);
+end
+
+---------------------------------------------------------------------------
 function SetupSortPulldown()
 	local sortByPulldown = Controls.SortByPullDown;
 	sortByPulldown:ClearEntries();
@@ -207,20 +277,7 @@ function SetupSortPulldown()
 		sortByPulldown:BuildEntry( "InstanceOne", controlTable );
 		controlTable.Button:LocalizeAndSetText(v[1]);
 	
-		controlTable.Button:RegisterCallback(Mouse.eLClick, function()
-			sortByPulldown:GetButton():LocalizeAndSetText( v[1] );
-			g_CurrentSort = v[2];
-			-- Store the default
-			if g_GameType == SaveTypes.WORLDBUILDER_MAP then
-				Options.SetUserOption("Interface", "WorldBuilderMapBrowseSortDefault", v[3]);
-			else
-				Options.SetUserOption("Interface", "SaveGameBrowseSortDefault", v[3]);
-			end
-
-	        Options.SaveOptions();
-
-			RebuildFileList();
-		end);
+		controlTable.Button:RegisterCallback(Mouse.eLClick, function() ApplySortOption(i); end);
 	
 	end
 	sortByPulldown:CalculateInternals();
@@ -970,7 +1027,6 @@ function RebuildFileList()
 		controlTable.Button:SetVoid1( instance_index );
 		controlTable.Button:RegisterCallback( Mouse.eMouseEnter, function()
 			OnMouseEnter();
-			OutputMessageToScreenReader(entry.DisplayName);
 		end);
 		controlTable.Button:RegisterCallback( Mouse.eLClick, SetSelected );
 		controlTable.Button:RegisterCallback( Mouse.eLDblClick, OnDoubleClick); 
@@ -986,7 +1042,11 @@ function RebuildFileList()
 	end
 
 	function post_process()
-		ContextPtr:ClearUpdate();
+		-- Keep a light update running for the keyboard navigation's deferred mouse moves.
+		ContextPtr:SetUpdate(function(deltaTime)
+			KeyNav_Tick(deltaTime);
+			if g_ExtraTick ~= nil then g_ExtraTick(deltaTime); end
+		end);
 	end
 
 	local iterator = ProcessEntries(g_FileList, 100, per_entry, per_batch, post_process);
@@ -994,6 +1054,7 @@ function RebuildFileList()
 	ContextPtr:SetUpdate(function(deltaTime)
 		iterator();
 		KeyNav_Tick(deltaTime);
+		if g_ExtraTick ~= nil then g_ExtraTick(deltaTime); end
 	end);
 	
 	Controls.NoGames:SetHide( #g_FileList > 0 );

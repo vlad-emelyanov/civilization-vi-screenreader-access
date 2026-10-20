@@ -44,8 +44,12 @@ Announcement formats: `"<Label>: <value>"` for options, `"<Label>: checked|unche
 
 ## Coverage (2026-10-19)
 
-Keyboard path that works end to end: Main menu → Single Player → Create Game (basic options) / Advanced Setup (all options, players, add/remove AI) → Start Game → load screen announcements → Enter begins the game. Load Game and the Exit confirmation popup also work.
+Keyboard path that works end to end: Main menu → Single Player → Create Game (basic options) / Advanced Setup (all options, players, add/remove AI) → Start Game → load screen announcements → Enter begins the game. Load Game (see below) and the Exit confirmation popup also work.
 
-Gaps: inside the leader picker, city-state picker, multi-select window, map select popup and the leader pulldown (Enter opens, Escape closes, no navigation inside; Left/Right on the setup screens covers the same choices); seed text fields; the Gathering Storm welcome popup and most of the in-game UI. Known in-game Lua error: `WorldInput.lua` `KeyNavPlotMoveTo` (function expected instead of nil).
+Setup-screen pulldowns are covered by the mod-side selection mode (d4a7e11): Enter opens it, Up/Down/Home/End announce "value, i of n", Enter applies, Escape cancels.
+
+Load Game (`Frontend/LoadGameMenu.lua`): announces the title and "N saves" / "No saved games" on open, focuses the first save. Up/Down walk saves (name, leader, civ, turn, date, "i of n"; selecting loads the details panel), Autosaves, Cloud, sort, Load, Delete, Back, wrapping. Tab jumps between the groups (saves / options / buttons), Home/End first/last save, Space on a save reads its full details, Space/Enter toggles the checkboxes (state announced), Left/Right/Enter changes the sort, Enter on a save or Load loads it, Delete opens the confirmation popup (Up/Down + Enter work in it, Escape cancels), Escape goes back. The in-game Save Game screen (same shared code) is not covered.
+
+Gaps: inside the leader picker, city-state picker, multi-select window and map select popup (Enter opens, Escape closes, no navigation inside; Left/Right on the setup screens covers the same choices); seed text fields; the Gathering Storm welcome popup and most of the in-game UI. Known in-game Lua error: `WorldInput.lua` `KeyNavPlotMoveTo` (function expected instead of nil).
 
 Options screen (main menu > Game Options): tabs, the Game tab (pulldowns cycle with Left/Right, checkbox toggles with Enter/Space) and Key Bindings work. Gaps: the Game tab's time-of-day slider, text fields and multiplayer parameters, and the Graphics/Audio/Interface/Language/Application tabs (those stay on tab-level navigation).

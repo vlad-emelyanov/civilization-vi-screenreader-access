@@ -226,7 +226,7 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 	pButtonControl:RegisterCallback(Mouse.eLClick, closeAndCallback);
 
 	-- Add button to popup controls table so we can match activate commands to button callbacks
-	table.insert(self.PopupControls, { Type = "Button", Control = pButtonControl, Callback = closeAndCallback, Command = optionalActivateCommand });
+	table.insert(self.PopupControls, { Type = "Button", Control = pButtonControl, Callback = closeAndCallback, Command = optionalActivateCommand, Label = label });
 
 	-- Recalculate size of button container
 	pTopControl:CalculateSize();
@@ -393,10 +393,13 @@ function PopupDialog:Open( optionalID:string )
 end
 
 function PopupDialog:KeyHandler(key)
-	print("Got key")
-
 	if key == Keys.VK_RETURN then
-		KeyNavLeftClick()
+		local active = self.KeyNavElements[self.ActiveKeyNavElement + 1];
+		if active ~= nil and active.Callback ~= nil then
+			active.Callback();	-- call the button's callback directly, not a click at the mouse position
+		else
+			KeyNavLeftClick()
+		end
 		return true;
         end
 
@@ -410,7 +413,9 @@ function PopupDialog:KeyHandler(key)
 		move = true;
 	end
 	if move then
-		KeyNavMoveMouse(self.KeyNavElements[self.ActiveKeyNavElement + 1].Control);
+		local active = self.KeyNavElements[self.ActiveKeyNavElement + 1];
+		if active.Label ~= nil then OutputMessageToScreenReader(active.Label, false); end
+		KeyNavMoveMouse(active.Control);
 		return true;
 	end	
 	return false;

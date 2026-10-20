@@ -26,8 +26,13 @@ g_IsDeletingFile = false;
 
 g_QuickLoadQueryRequestID = nil;
 
-local m_mainKeyNavElements = {}
-local m_selectedKeyNavElement = 0;
+-- Keyboard navigation state
+local m_focus:table = nil;			-- { ref = <file table | control id string> }
+local m_pending:table = nil;		-- announcement/focus to do when the next file query completes
+local m_deletePopup:boolean = false;
+local m_focusWhenBuilt:boolean = false;
+local m_moveDelay:number = 0;
+local m_moveTarget = nil;
 
 ----------------------------------------------------------------        
 ----------------------------------------------------------------        
@@ -279,6 +284,9 @@ function OnShow()
 	
 	Controls.DecoContainer:SetSizeY(decoSize - (count * 25) - count);	
 
+	m_focus = nil;
+	m_pending = { prefix = nil, focusFirst = true };
+	OutputMessageToScreenReader(Controls.WindowHeader:GetText(), true);
 	SetupFileList();
 end
 
@@ -292,6 +300,7 @@ end
 function OnDelete()
 	m_isActionButtonDisabled = Controls.ActionButton:IsDisabled();
 	Controls.ActionButton:SetDisabled(true);
+	m_deletePopup = true;
 	if ( not m_kPopupDialog:IsOpen()) then
 		m_kPopupDialog:AddText(Locale.Lookup("LOC_CONFIRM_TXT"));
 		m_kPopupDialog:AddTitle(Locale.ToUpper(Locale.Lookup("LOC_CONFIRM_DELETE_TITLE_TXT")));
@@ -304,6 +313,8 @@ end
 ----------------------------------------------------------------        
 ----------------------------------------------------------------
 function OnDeleteYes()
+	m_deletePopup = false;
+	m_pending = { prefix = "Deleted", focusFirst = true };
 	m_kPopupDialog:Close();
 	if (g_iSelectedFileEntry ~= -1) then
 		local kSelectedFile = g_FileList[ g_iSelectedFileEntry ];		
@@ -317,6 +328,7 @@ end
 ----------------------------------------------------------------        
 ----------------------------------------------------------------
 function OnDeleteNo( )
+	m_deletePopup = false;
 	Controls.ActionButton:SetDisabled(m_isActionButtonDisabled);
 	m_kPopupDialog:Close();
 end
@@ -377,64 +389,235 @@ end
 -- ===========================================================================
 --	Input Processing
 -- ===========================================================================
-function KeyHandler( key:number )
-	if key == Keys.VK_ESCAPE then
-		if(m_kPopupDialog:IsOpen()) then
-			m_kPopupDialog:Close();
+-- ===========================================================================
+--	Keyboard navigation
+--	Up/Down: all saves, then Autosaves, Cloud, Sort, Load, Delete, Back (wrapping)
+--	Tab: jump between the groups (saves / options / buttons). Home/End: first/last save.
+--	Enter: load the save / activate. Space: toggle checkbox. Left/Right: change sort. Space on a save: full details.
+-- ===========================================================================
+
+-- Item list, rebuilt from the visible state at every key press.
+local function KeyNavBuildItems()
+	local items:table = {};
+	local files:table = g_FileList or {};
+	local count:number = math.min(#files, g_FileEntryInstanceList and #g_FileEntryInstanceList or 0);
+	for i = 1, count do
+		table.insert(items, { ref = files[i], group = 1, kind = "file", index = i });
+	end
+	local function ctl(id, control, group, kind)
+		if control ~= nil and not control:IsHidden() then
+			table.insert(items, { ref = id, group = group, kind = kind, control = control });
+		end
+	end
+	ctl("auto",  Controls.AutoCheck, 2, "check");
+	ctl("cloud", Controls.CloudCheck, 2, "check");
+	ctl("sort",  Controls.SortByPullDown, 2, "sort");
+	ctl("action", Controls.ActionButton, 3, "button");
+	ctl("delete", Controls.Delete, 3, "button");
+	ctl("back",  Controls.BackButton, 3, "button");
+	return items;
+end
+
+local function KeyNavItemText(item:table, items:table)
+	if item.kind == "file" then
+		local total:number = 0;
+		for _, it in ipairs(items) do if it.kind == "file" then total = total + 1; end end
+		return GetSaveSummaryText(item.ref, false)..", "..item.index.." of "..total;
+	elseif item.ref == "auto" then
+		return Controls.AutoCheck:GetText()..": "..(g_ShowAutoSaves and "checked" or "unchecked");
+	elseif item.ref == "cloud" then
+		local t:string = Controls.CloudCheck:GetText()..": "..(g_ShowCloudSaves and "checked" or "unchecked");
+		if Controls.CloudCheck:IsDisabled() then t = t..", unavailable"; end
+		return t;
+	elseif item.ref == "sort" then
+		return GetSortOptionText()..", Left or Right to change";
+	else
+		local t:string = item.control:GetText();
+		if item.control:IsDisabled() then t = t..", unavailable"; end
+		return t;
+	end
+end
+
+local function KeyNavFindFocused(items:table)
+	if m_focus ~= nil then
+		for i, item in ipairs(items) do
+			if item.ref == m_focus.ref then return item, i; end
+		end
+	end
+	return nil, 0;
+end
+
+local function KeyNavFocus(item:table, items:table, prefix:string, noInterrupt:boolean)
+	m_focus = { ref = item.ref };
+	if item.kind == "file" then
+		if g_iSelectedFileEntry ~= item.index then SetSelected(item.index); end
+		EnsureCarouselSelectionVisible(item.index);
+		local entry = g_FileEntryInstanceList[item.index];
+		m_moveTarget = entry and entry.Button or nil;
+	else
+		m_moveTarget = item.control;
+	end
+	m_moveDelay = 6;	-- let the scroll/animations settle before the real mouse follows
+	local text:string = KeyNavItemText(item, items);
+	if prefix ~= nil then text = prefix..". "..text; end
+	OutputMessageToScreenReader(text, noInterrupt == true);
+end
+
+local function KeyNavTick(deltaTime)
+	if m_focusWhenBuilt and g_FileList ~= nil and g_FileEntryInstanceList ~= nil and #g_FileEntryInstanceList >= #g_FileList then
+		m_focusWhenBuilt = false;
+		local items:table = KeyNavBuildItems();
+		if #items > 0 then KeyNavFocus(items[1], items, nil, true); end
+	end
+	if m_moveTarget ~= nil then
+		m_moveDelay = m_moveDelay - 1;
+		if m_moveDelay <= 0 then
+			local t = m_moveTarget;
+			m_moveTarget = nil;
+			KeyNavMoveMouse(t);
+		end
+	end
+end
+g_ExtraTick = KeyNavTick;
+
+local function KeyNavCountText()
+	local n:number = g_FileList and #g_FileList or 0;
+	if n == 0 then
+		return Locale.Lookup("LOC_NO_SAVED_GAMES");
+	elseif n == 1 then
+		return "1 save";
+	end
+	return n.." saves";
+end
+
+-- Called when a file query finishes: announce the count and (re)focus.
+local function KeyNavOnListReady()
+	local pending:table = m_pending;
+	m_pending = nil;
+	if pending == nil then return; end
+	local items:table = KeyNavBuildItems();
+	local text:string = KeyNavCountText();
+	if pending.prefix ~= nil then text = pending.prefix..". "..text; end
+	OutputMessageToScreenReader(text, true);
+	-- The entries are created over the next frames; focus once they exist.
+	m_focusWhenBuilt = pending.focusFirst == true;
+end
+
+local function KeyNavMove(step:number, items:table)
+	local item, idx = KeyNavFindFocused(items);
+	if item == nil then
+		idx = (step > 0) and 0 or (#items + 1);
+	end
+	idx = idx + step;
+	if idx < 1 then idx = #items; end
+	if idx > #items then idx = 1; end
+	if items[idx] ~= nil then KeyNavFocus(items[idx], items); end
+end
+
+local function KeyNavTab(items:table)
+	local item, idx = KeyNavFindFocused(items);
+	local group:number = item and item.group or 0;
+	local target:number = (group % 3) + 1;
+	for attempt = 1, 3 do
+		for _, it in ipairs(items) do
+			if it.group == target then
+				KeyNavFocus(it, items, (target == 1 and "Saves") or (target == 2 and "Options") or "Buttons");
+				return;
+			end
+		end
+		target = (target % 3) + 1;
+	end
+end
+
+local function KeyNavActivate(item:table, items:table, key:number)
+	if item.kind == "file" then
+		if key == Keys.VK_RETURN then
+			if g_iSelectedFileEntry ~= item.index then SetSelected(item.index); end
+			OnActionButton();
+		end
+	elseif item.kind == "check" then
+		if item.ref == "auto" then OnAutoCheck(); else OnCloudCheck(); end
+		m_pending = { prefix = nil };
+		OutputMessageToScreenReader(KeyNavItemText(item, items), false);
+	elseif item.kind == "sort" then
+		if key == Keys.VK_RETURN then
+			CycleSortOption(1);
+			OutputMessageToScreenReader(KeyNavItemText(item, items), false);
+		end
+	elseif key == Keys.VK_RETURN then
+		if item.ref == "action" then
+			if Controls.ActionButton:IsDisabled() then
+				OutputMessageToScreenReader(KeyNavItemText(item, items), false);
+			else
+				OnActionButton();
+			end
+		elseif item.ref == "delete" then
+			OnDelete();
 		else
 			OnBack();
-		end		
-		return true;
-	end
-	if(m_kPopupDialog:IsOpen()) then
-		return m_kPopupDialog:KeyHandler(key);
-	end	
-	if key == Keys.VK_RETURN then
-        if(not Controls.ActionButton:IsHidden() and not Controls.ActionButton:IsDisabled()) then
-            OnActionButton();
-            return true;
-        end
-	end
-
-	if key == Keys.VK_LEFT then
-		if g_inCarousel then
-			g_inCarousel = false;
-			KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
 		end
-		return true;
 	end
-	if key == Keys.VK_RIGHT then
-		if not g_inCarousel and g_FileEntryInstanceList ~= nil and #g_FileEntryInstanceList > 0 then
-			g_inCarousel = true;
-			EnsureCarouselSelectionVisible(g_iSelectedKeyNavEntry);
-			KeyNavMoveMouse(g_FileEntryInstanceList[g_iSelectedKeyNavEntry].Button);
-		end
-		return true;
-	end
-
-	if g_inCarousel then
-		return LoadSaveMenu_HandleCarouselKey(key);
-	end
-
-	local menuSize = #m_mainKeyNavElements;
-	if key == Keys.VK_UP then
-		m_selectedKeyNavElement = m_selectedKeyNavElement - 1;
-		if m_selectedKeyNavElement < 1 then m_selectedKeyNavElement = menuSize; end
-		KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
-		return true;
-	elseif key == Keys.VK_DOWN then
-		m_selectedKeyNavElement = m_selectedKeyNavElement + 1;
-		if m_selectedKeyNavElement > menuSize then m_selectedKeyNavElement = 1; end
-		KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
-		return true;
-	end
-
-	return false;
 end
+
+function KeyHandler( key:number )
+	if key == Keys.VK_ESCAPE then
+		if m_kPopupDialog:IsOpen() then
+			if m_deletePopup then OnDeleteNo(); else m_kPopupDialog:Close(); end
+			local items:table = KeyNavBuildItems();
+			local item:table = KeyNavFindFocused(items);
+			if item ~= nil then OutputMessageToScreenReader(KeyNavItemText(item, items), false); end
+		else
+			OnBack();
+		end
+		return true;
+	end
+	if m_kPopupDialog:IsOpen() then
+		return m_kPopupDialog:KeyHandler(key);
+	end
+
+	local items:table = KeyNavBuildItems();
+	if #items == 0 then return true; end
+	local item:table = KeyNavFindFocused(items);
+
+	if key == Keys.VK_UP then
+		KeyNavMove(-1, items);
+	elseif key == Keys.VK_DOWN then
+		KeyNavMove(1, items);
+	elseif key == Keys.VK_TAB then
+		KeyNavTab(items);
+	elseif key == Keys.VK_HOME or key == Keys.VK_END then
+		if item ~= nil and item.kind == "file" then
+			local target:table = nil;
+			for _, it in ipairs(items) do
+				if it.kind == "file" then
+					if target == nil or key == Keys.VK_END then target = it; end
+				end
+			end
+			if target ~= nil then KeyNavFocus(target, items); end
+		end
+	elseif key == Keys.VK_LEFT or key == Keys.VK_RIGHT then
+		if item ~= nil and item.kind == "sort" then
+			CycleSortOption(key == Keys.VK_LEFT and -1 or 1);
+			OutputMessageToScreenReader(KeyNavItemText(item, items), false);
+		end
+	elseif key == Keys.VK_RETURN or key == Keys.VK_SPACE then
+		if item ~= nil and key == Keys.VK_SPACE and item.kind == "file" then
+			-- Space on a save reads its full details
+			OutputMessageToScreenReader(GetSaveSummaryText(item.ref, true), false);
+		elseif item ~= nil and (key == Keys.VK_RETURN or item.kind == "check") then
+			KeyNavActivate(item, items, key);
+		end
+	end
+	return true;
+end
+
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
-	if uiMsg == KeyEvents.KeyUp then KeyHandler( pInputStruct:GetKey() ); end;
-    return true;
+	if uiMsg == KeyEvents.KeyUp then
+		local ok, result = xpcall(function() return KeyHandler( pInputStruct:GetKey() ); end, function(e) return debug.traceback(tostring(e), 2); end);
+		if not ok then print("KEYNAV ERROR: "..tostring(result)); end
+	end
+	return true;
 end
 
 -- ===========================================================================
@@ -532,6 +715,7 @@ end
 -- ===========================================================================
 function OnFileListQueryComplete()
 	UpdateActionButtonState();
+	KeyNavOnListReady();
 end
 
 -- ===========================================================================
@@ -603,33 +787,11 @@ function Initialize()
 
 	-- UI Callbacks
 	Controls.ActionButton:RegisterCallback( Mouse.eLClick, OnActionButton );
-	Controls.ActionButton:RegisterCallback( Mouse.eMouseEnter, function()
-		UI.PlaySound("Main_Menu_Mouse_Over");
-		OutputMessageToScreenReader(Controls.ActionButton:GetText());
-	end);
 	Controls.AutoCheck:RegisterCallback( Mouse.eLClick, OnAutoCheck );
-	Controls.AutoCheck:RegisterCallback( Mouse.eMouseEnter, function() OutputMessageToScreenReader(Controls.AutoCheck:GetText()); end);
 	Controls.BackButton:RegisterCallback( Mouse.eLClick, OnBack );
-	Controls.BackButton:RegisterCallback( Mouse.eMouseEnter, function()
-		UI.PlaySound("Main_Menu_Mouse_Over");
-		OutputMessageToScreenReader(Controls.BackButton:GetText());
-	end);
 	Controls.CloudCheck:RegisterCallback( Mouse.eLClick, OnCloudCheck );
-	Controls.CloudCheck:RegisterCallback( Mouse.eMouseEnter, function() OutputMessageToScreenReader(Controls.CloudCheck:GetText()); end);
 	Controls.Delete:RegisterCallback( Mouse.eLClick, OnDelete );
-	Controls.Delete:RegisterCallback( Mouse.eMouseEnter, function()
-		UI.PlaySound("Main_Menu_Mouse_Over");
-		OutputMessageToScreenReader(Controls.Delete:GetText());
-	end);
 	Controls.SelectedFileStack:RegisterSizeChanged( OnSelectedFileStackSizeChanged );
-
-	m_mainKeyNavElements = {
-		Controls.ActionButton,
-		Controls.BackButton,
-		Controls.Delete,
-		Controls.AutoCheck,
-		Controls.CloudCheck
-	};
 
 	-- LUA Events
 	LuaEvents.HostGame_SetLoadGameServerType.Add( OnSetLoadGameServerType );
