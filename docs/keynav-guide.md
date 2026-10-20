@@ -57,3 +57,24 @@ Map Select popup and Multi-Select window (Natural Wonders; only shown for non-st
 Options screen (main menu > Game Options, `Options.lua`): every tab is keyboard accessible. Tab level: Up/Down over the tabs, Confirm, Restore Defaults and Back (announced, disabled state spoken), Enter/Right enters a tab, Escape = Back ("Changes discarded" if Confirm was enabled). Inside a tab (controls listed in `TAB_ITEMS`, rebuilt from visible state at key time): Up/Down/Home/End, Left/Right change pulldowns and sliders (sliders announce value, minimum, maximum; the mouse is parked off sliders), Enter opens the mod-side pulldown list ("value, i of n"), Enter/Space toggles checkboxes, Enter presses buttons (Show Advanced Options), Escape returns to the tab bar. Key Bindings: Up/Down/Home/End/Tab(next category), Left/Right primary or alternate, Enter rebinds (the next key is captured by the engine, Escape cancels, "X bound to Y"), Delete clears. The Confirm/Reset popups (including the 15 second keep-display-settings countdown) are announced and operated with Up/Down/Enter, Escape = the last (No) button. Gaps: the in-game multiplayer game parameters, and the Switch UI Layout popup. Note: the engine only records a rebinding key if the input handler returns false for it, and key-state polling needs `civctl key <Key> -Hold 200`.
 
 Text fields (Map/Game Random Seed in Advanced Setup, LAN player name and webhook URL in Options): `Accessibility/KeyNavEditBox.lua`. Focus reads "label, edit, value|blank, Enter to edit"; Enter starts editing ("editing label"), typed characters / deletions are echoed, Enter commits ("label set to value"), Escape restores the old text ("Cancelled, ...") and stays on the screen. Engine facts it works around: while an EditBox has focus the context's input handler gets no key events at all; Enter fires the commit callback; Escape reverts the text, fires the commit callback, and its KeyUp still reaches the context (so the helper swallows the KeyUp of the key that ended the edit); the HasFocus callback receives the control, not a boolean; characters rejected by `SetNumberInput(true)` produce no callback, so "invalid input" can't be announced. Reuse: see the header of that file.
+
+Staging Room (multiplayer lobby, `Frontend/StagingRoom.lua`, host side; client side untested): three groups, Tab cycles Players / Buttons / Tabs, Up/Down wrap inside a group. Key map:
+
+| Key | Where | Does |
+|---|---|---|
+| Tab | rows / buttons / tabs | next group (not inside a row, summary, friends or chat sub-mode) |
+| Up / Down | everywhere | move; Home/End/Up/Down in a pulldown list |
+| Enter or Right | player row | open the row's controls (slot type, leader, team, color, difficulty, kick, add player) |
+| Left / Right, Enter | row controls | change value / open value list ("value, i of n", Enter applies, Escape cancels) |
+| Escape | sub-mode | back to the row / tab; at top level: leave-game confirmation |
+| Enter | Ready (Buttons group) | toggle ready, or cancel the launch countdown; Back / End / Quit buttons ask first |
+| S | anywhere | read the launch status (why the launch is blocked, countdown, player counts) |
+| Enter | Tabs: Game Summary | read-only list: players, settings, mods |
+| Enter | Tabs: Friends | list of online friends ("name, status, i of n"; status online / playing Civilization, <presence> / invited / in this game; "No friends online" when empty) |
+| Enter or Right | friend | friend actions: Invite (Steam API, no overlay; "Invited <name>"). View Profile and Chat open the Steam overlay and are left out |
+| C | anywhere (or Tabs: Send chat message) | type a chat message to the chat target ("To All"); Enter sends, Escape cancels, Enter on unchanged text says "Nothing sent" |
+| H | anywhere (or Tabs: Chat history) | read the last 50 chat lines, newest first, Up/Down, Escape leaves |
+
+Incoming chat is spoken as "<player>: <message>" without interrupting ("(team)" / "(to name)" for team and whispers). Joins, leaves, ready and team changes, the launch countdown and blockers are announced as well; the chat's own join/leave notices are not repeated aloud but are in the history. Chat target selection (team, whisper) is only available through the game's chat commands typed in the message. JoiningRoom (`Frontend/JoiningRoom.lua`, shown for a moment when hosting and while joining an invite): announces "Joining game. Press Escape to cancel" and each status (joining room, connecting to players, configuring content, mod download n/m); Escape cancels ("Cancelled joining the game"); failures arrive as the FrontEndPopup (Close with Enter or Escape).
+
+`ChatEntry` has KeepFocus, so Escape only reverts its text and does not end the edit; `KeyNavEditBox` option `cancelOnRevert` treats an all-at-once revert as Escape and ends the edit itself.

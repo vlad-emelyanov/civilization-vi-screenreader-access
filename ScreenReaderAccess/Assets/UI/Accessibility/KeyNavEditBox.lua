@@ -88,6 +88,11 @@ local function OnTextChanged(...)
 	local removed:string = string.sub(old, p + 1, #old - s);
 
 	if new == edit.original and removed ~= "" and added == "" and #removed > 1 then
+		if edit.cancelOnRevert then
+			-- EditBox with KeepFocus (chat): Escape restores the text but neither commits nor drops the focus
+			EndEdit(false, true);
+			Say("Cancelled, "..edit.label);
+		end
 		return;	-- most likely Escape restoring the old text: the commit that follows announces it
 	end
 	if edit.numeric and string.find(added, "[^%d]") ~= nil then
@@ -99,7 +104,9 @@ local function OnTextChanged(...)
 	end
 end
 
--- Starts editing: gives the box keyboard focus and announces it. opts: label, commit(text), numeric, onEnd(committed)
+-- Starts editing: gives the box keyboard focus and announces it. opts: label, commit(text), numeric, onEnd(committed),
+-- cancelOnRevert (EditBox with KeepFocus: text vanishing at once is taken as Escape and ends the edit), unchangedText
+-- (announced instead of "label set to ..." when Enter is pressed without changing the text)
 function KeyNavEditBox_Begin(editBox:object, opts:table)
 	if m_edit ~= nil then EndEdit(false, false); end
 	if editBox:IsDisabled() then
@@ -109,7 +116,7 @@ function KeyNavEditBox_Begin(editBox:object, opts:table)
 	local text:string = editBox:GetText() or "";
 	local edit:table = {
 		box = editBox, label = opts.label or "", original = text, last = text,
-		numeric = opts.numeric == true, commit = opts.commit, onEnd = opts.onEnd, committedText = nil,
+		numeric = opts.numeric == true, cancelOnRevert = opts.cancelOnRevert == true, unchangedText = opts.unchangedText, commit = opts.commit, onEnd = opts.onEnd, committedText = nil,
 	};
 	m_edit = edit;
 	m_swallowUp = false;
@@ -133,7 +140,7 @@ function KeyNavEditBox_Begin(editBox:object, opts:table)
 			Say(edit.label.." set to "..OrBlank(final));
 		else
 			-- text equals the original: either Escape (reverted) or Enter without changes (or typed back); the key tells
-			m_pending = { label = edit.label, text = final, age = 0 };
+			m_pending = { label = edit.label, text = final, age = 0, unchangedText = edit.unchangedText };
 		end
 	end);
 	editBox:RegisterHasFocusCallback(function()
@@ -164,6 +171,8 @@ local function FlushPending(escape:boolean)
 	if pending == nil then return; end
 	if escape then
 		Say("Cancelled, "..pending.label..", "..OrBlank(pending.text));
+	elseif pending.unchangedText ~= nil then
+		Say(pending.unchangedText);
 	else
 		Say(pending.label.." set to "..OrBlank(pending.text));
 	end

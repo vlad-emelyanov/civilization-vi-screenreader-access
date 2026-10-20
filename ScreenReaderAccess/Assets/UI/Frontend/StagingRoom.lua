@@ -558,6 +558,7 @@ function OnChat( fromPlayer, toPlayer, text, eTargetType, playSounds :boolean )
 		chatString			= chatString .. text .. " [ENDCOLOR]";
 
 		AddChatEntry( chatString, Controls.ChatStack, m_ChatInstances, Controls.ChatScroll);
+		KeyNavStaging_OnChat(fromPlayer, toPlayer, text, eTargetType);	-- ScreenReaderAccess mod
 
 		if(playSounds and fromPlayer ~= Network.GetLocalPlayerID()) then
 			UI.PlaySound("Play_MP_Chat_Message_Received");
@@ -2398,6 +2399,7 @@ end
 -------------------------------------------------
 function ResetChat()
 	m_ChatInstances = {}
+	KeyNavStaging_ResetChat();	-- ScreenReaderAccess mod
 	Controls.ChatStack:DestroyAllChildren();
 	ChatPrintHelpHint(Controls.ChatStack, m_ChatInstances, Controls.ChatScroll);
 end
@@ -3049,13 +3051,16 @@ function RealizeInfoTabs()
 	gameSummary.SelectedButton:SetText(LOC_GAME_SUMMARY);
 	gameSummary.Selected:SetHide(not g_viewingGameSummary);
 
-	gameSummary.Button:RegisterCallback(Mouse.eLClick, function()
+	local function ShowGameSummary()
 		g_viewingGameSummary = true;
 		Controls.Friends:SetHide(true);
-		friends.Selected:SetHide(true);
+		if friends ~= nil then friends.Selected:SetHide(true); end
 		gameSummary.Selected:SetHide(false);
 		Controls.ParametersScrollPanel:SetHide(false);
-	end);
+	end
+	gameSummary.Button:RegisterCallback(Mouse.eLClick, ShowGameSummary);
+	g_KeyNavShowSummaryTab = ShowGameSummary;	-- ScreenReaderAccess mod
+	g_KeyNavShowFriendsTab = nil;
 
 	AutoSizeGridButton(gameSummary.Button,200,32,10,"H");
 	AutoSizeGridButton(gameSummary.SelectedButton,200,32,20,"H");
@@ -3067,14 +3072,16 @@ function RealizeInfoTabs()
 		friends.SelectedButton:SetText(LOC_FRIENDS);
 		friends.Selected:SetHide(g_viewingGameSummary);
 		friends.Button:SetDisabled(not Network.IsInSession());
-		friends.Button:RegisterCallback( Mouse.eLClick, function()
+		local function ShowFriends()
 			g_viewingGameSummary = false;
 			Controls.Friends:SetHide(false);
 			friends.Selected:SetHide(false);
 			gameSummary.Selected:SetHide(true);
 			Controls.ParametersScrollPanel:SetHide(true);
 			UpdateFriendsList();
-		end );
+		end
+		friends.Button:RegisterCallback( Mouse.eLClick, ShowFriends );
+		g_KeyNavShowFriendsTab = ShowFriends;	-- ScreenReaderAccess mod
 
 		AutoSizeGridButton(friends.Button,200,32,20,"H");
 		AutoSizeGridButton(friends.SelectedButton,200,32,20,"H");
@@ -3314,11 +3321,17 @@ end
 -- Three groups of items, switched with Tab: the player rows, the buttons (Ready, Back, ...) and the tabs (Game Setup, Game
 -- Summary). Up/Down move within the group. On a player row, Enter or Right opens that row's controls (slot type, civilization,
 -- team, color, difficulty, kick, add player); Left/Right change the value, Enter opens a list, Escape returns to the row.
--- S reads the launch status. The pulldown selection mode and the item/focus machinery are in Accessibility/KeyNavSetup.lua.
+-- S reads the launch status, C types a chat message (Enter sends, Escape cancels), H reads the chat history (incoming messages
+-- are spoken as they arrive). The Friends tab lists the online friends; Enter or Right on a friend opens its actions (Invite).
+-- The pulldown selection mode and the item/focus machinery are in Accessibility/KeyNavSetup.lua.
 local m_nav:table = nil;
 local m_group:string = "rows";				-- "rows", "buttons" or "tabs"
 local m_groupFocus:table = {};				-- group -> key of the item that was focused when the group was left
-local m_mode:table = nil;					-- nil, { type = "row", pid = n } or { type = "summary" }
+local m_mode:table = nil;					-- nil, { type = "row", pid = n }, { type = "summary" }, { type = "friends" }, { type = "friend", id = steamID } or { type = "chat" }
+local m_chatHistory:table = {};				-- chat lines, oldest first: { seq = n, text = "..." }
+local m_chatSeq:number = 0;
+local m_invited:table = {};					-- Steam ID of a friend -> true once invited from here
+local KEYNAV_CHAT_HISTORY_MAX:number = 50;
 local m_lastBlocker:string = "";			-- last launch blocker that was spoken
 local m_lastCountdown:number = -1;			-- last countdown value that was looked at
 local m_announceDelay:number = 0;			-- seconds before the arrival announcement
@@ -3652,6 +3665,103 @@ local function TabItems()
 	table.insert(items, { control = Controls.ParametersScrollPanel, kind = "button", key = "tab:summary",
 		getText = function() return LOC_GAME_SUMMARY..", tab, Enter to read"; end,
 		activate = function() KeyNavStaging_EnterSummary(); end });
+	if g_KeyNavShowFriendsTab ~= nil then
+		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "tab:friends",
+			getText = function() return LOC_FRIENDS..", tab, Enter to list and invite"; end,
+			activate = function() KeyNavStaging_EnterFriends(); end });
+	end
+	if not GameConfiguration.IsHotseat() then
+		table.insert(items, { control = Controls.ChatEntry, kind = "button", key = "chat:send",
+			getText = function() return "Send chat message, Enter or C to type"; end,
+			activate = function() KeyNavStaging_StartChat(); end });
+		table.insert(items, { control = Controls.ChatScroll, kind = "button", key = "chat:history",
+			getText = function() return "Chat history, "..tostring(#m_chatHistory)..(#m_chatHistory == 1 and " message" or " messages")..", Enter or H to read"; end,
+			activate = function() KeyNavStaging_EnterChatHistory(); end });
+	end
+	return items;
+end
+
+-- ---------------------------------------------------------------------------
+-- Friends and chat
+-- ---------------------------------------------------------------------------
+local function FriendStatusText( friend:table )
+	if IsFriendInGame(friend) then return "in this game"; end
+	if m_invited[friend.ID] then return "invited"; end
+	if friend.PlayingCiv then
+		local presence:string = Clean(friend.RichPresence);
+		if presence ~= "" then return "playing Civilization, "..presence; end
+		return "playing Civilization";
+	end
+	return "online";
+end
+
+local function FindFriend( id:string )
+	for _, friend in ipairs(GetFriendsList()) do
+		if friend.ID == id then return friend; end
+	end
+	return nil;
+end
+
+local function CanInviteFriend( friend:table )
+	return CanInviteFriends(false) and Network.HasSingleFriendInvite() and not IsFriendInGame(friend);
+end
+
+-- The online friends (the game's own list: Civilization players first), or one "No friends online" line.
+local function FriendItems()
+	local friends:table = GetFriendsList();
+	local items:table = {};
+	if #friends == 0 then
+		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "friend:none",
+			getText = function() return "No friends online"; end, activate = function() end });
+		return items;
+	end
+	for i, friend in ipairs(friends) do
+		local id:string = friend.ID;
+		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "friend:"..tostring(id), friendID = id,
+			getText = function()
+				return Clean(friend.PlayerName)..", "..FriendStatusText(friend)..", "..tostring(i).." of "..tostring(#friends);
+			end,
+			activate = function() KeyNavStaging_EnterFriend(id); end });
+	end
+	return items;
+end
+
+-- The actions of one friend. Invite uses the Steam API directly (no overlay). View Profile and Chat only open the Steam
+-- overlay, which is not usable, so they are left out.
+local function FriendActionItems( id:string )
+	local friend:table = FindFriend(id);
+	local items:table = {};
+	if friend == nil then return items; end
+	local name:string = Clean(friend.PlayerName);
+	if CanInviteFriend(friend) then
+		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "action:invite",
+			getText = function() return "Invite "..name..(m_invited[id] and ", already invited" or ""); end,
+			activate = function()
+				OnFriendPulldownCallback(id, "invite");
+				m_invited[id] = true;
+				Say("Invited "..name, false);
+			end });
+	else
+		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "action:none",
+			getText = function()
+				if IsFriendInGame(friend) then return name.." is already in this game"; end
+				return "Cannot invite "..name.." from this game";
+			end, activate = function() end });
+	end
+	return items;
+end
+
+local function ChatItems()
+	local items:table = {};
+	if #m_chatHistory == 0 then
+		table.insert(items, { control = Controls.ChatScroll, kind = "button", key = "chat:none",
+			getText = function() return "No chat messages"; end, activate = function() end });
+		return items;
+	end
+	for i, entry in ipairs(m_chatHistory) do
+		table.insert(items, { control = Controls.ChatScroll, kind = "button", key = "chat:"..tostring(entry.seq),
+			getText = function() return entry.text..", "..tostring(i).." of "..tostring(#m_chatHistory); end, activate = function() end });
+	end
 	return items;
 end
 
@@ -3684,6 +3794,9 @@ end
 local function BuildItems()
 	if m_mode ~= nil then
 		if m_mode.type == "summary" then return SummaryItems(); end
+		if m_mode.type == "friends" then return FriendItems(); end
+		if m_mode.type == "friend" then return FriendActionItems(m_mode.id); end
+		if m_mode.type == "chat" then return ChatItems(); end
 		return RowControlItems(m_mode.pid);
 	end
 	if m_group == "buttons" then return ButtonItems(); end
@@ -3717,8 +3830,56 @@ end
 function KeyNavStaging_EnterSummary()
 	m_mode = { type = "summary" };
 	m_nav.CancelSelection();
+	if g_KeyNavShowSummaryTab ~= nil then g_KeyNavShowSummaryTab(); end
 	Say(LOC_GAME_SUMMARY, true);
 	m_nav.Focus(BuildItems()[1], true);
+end
+
+function KeyNavStaging_EnterFriends( focusKey:string )
+	m_mode = { type = "friends" };
+	m_nav.CancelSelection();
+	if g_KeyNavShowFriendsTab ~= nil then g_KeyNavShowFriendsTab(); end
+	Say(LOC_FRIENDS, true);
+	local items:table = BuildItems();
+	local target:table = items[1];
+	for _, item in ipairs(items) do
+		if item.key == focusKey then target = item; end
+	end
+	m_nav.Focus(target, true);
+end
+
+function KeyNavStaging_EnterFriend( id:string )
+	m_mode = { type = "friend", id = id };
+	local items:table = BuildItems();
+	local friend:table = FindFriend(id);
+	if friend == nil or #items == 0 then
+		KeyNavStaging_EnterFriends();
+		return;
+	end
+	Say(Clean(friend.PlayerName)..", "..FriendStatusText(friend), true);
+	m_nav.Focus(items[1], true);
+end
+
+function KeyNavStaging_EnterChatHistory()
+	m_mode = { type = "chat" };
+	m_nav.CancelSelection();
+	Say("Chat history", true);
+	local items:table = BuildItems();
+	m_nav.Focus(items[#items], true);	-- the newest message; Up goes back in time
+end
+
+-- Types a chat message: Enter sends it (to the target shown in the chat pulldown), Escape cancels.
+function KeyNavStaging_StartChat()
+	if GameConfiguration.IsHotseat() or Controls.ChatEntry:IsHidden() then
+		Say("Chat is not available", false);
+		return;
+	end
+	local target:string = "";
+	local ok, text = pcall(function() return Controls.ChatPull:GetButton():GetTextControl():GetText(); end);
+	if ok and text ~= nil then target = Clean(text); end
+	local label:string = "Chat message";
+	if target ~= "" then label = label.." to "..target; end
+	KeyNavEditBox_Begin(Controls.ChatEntry, { label = label, commit = SendChat, cancelOnRevert = true, unchangedText = "Nothing sent" });
 end
 
 -- Leaves the row / summary mode and focuses the row (or tab) it was opened from.
@@ -3738,8 +3899,12 @@ local function ExitMode()
 			target = target or ids[#ids];
 			if target ~= nil then FocusItemByKey("row:"..tostring(target)); end
 		end
+	elseif mode ~= nil and mode.type == "friend" then
+		KeyNavStaging_EnterFriends("friend:"..tostring(mode.id));
 	else
-		FocusItemByKey("tab:summary");
+		m_group = "tabs";
+		local keys:table = { summary = "tab:summary", friends = "tab:friends", chat = "chat:history" };
+		FocusItemByKey(keys[mode and mode.type or "summary"] or "tab:summary");
 	end
 end
 
@@ -3787,11 +3952,26 @@ local function PreKey( key:number )
 		ExitMode();
 		return true;
 	end
+	-- A friend who went offline.
+	if m_mode ~= nil and m_mode.type == "friend" and FindFriend(m_mode.id) == nil then
+		ExitMode();
+		return true;
+	end
 	if key == Keys.VK_TAB then
 		if m_mode == nil then CycleGroup(); end
 		return true;
 	elseif key == Keys.S then
 		Say(StatusText(), false);
+		return true;
+	elseif key == Keys.C and not GameConfiguration.IsHotseat() then
+		KeyNavStaging_StartChat();
+		return true;
+	elseif key == Keys.H and not GameConfiguration.IsHotseat() then
+		KeyNavStaging_EnterChatHistory();
+		return true;
+	elseif key == Keys.VK_RIGHT and m_mode ~= nil and m_mode.type == "friends" then
+		local item:table = m_nav.FindFocused();
+		if item ~= nil and item.friendID ~= nil then KeyNavStaging_EnterFriend(item.friendID); end
 		return true;
 	elseif key == Keys.VK_RIGHT and m_mode == nil and m_group == "rows" then
 		local item:table = m_nav.FindFocused();
@@ -3873,6 +4053,34 @@ function KeyNavStaging_OnShow()
 	m_lastCountdown = -1;
 	m_nav.SetFocus(nil);
 	m_announceDelay = 1.0;
+end
+
+-- Called for every chat line the screen shows. Chat is spoken without interrupting; the join / leave notices that the game also
+-- puts into the chat (the target type is false) are only kept for the history, they are announced separately.
+function KeyNavStaging_OnChat( fromPlayer:number, toPlayer:number, text:string, eTargetType )
+	local name:string = PlayerLabel(fromPlayer);
+	local line:string;
+	local system:boolean = type(eTargetType) ~= "number";
+	if system then
+		line = name.." "..Clean(text);
+	else
+		local tag:string = "";
+		if eTargetType == ChatTargetTypes.CHATTARGET_TEAM then
+			tag = " (team)";
+		elseif eTargetType == ChatTargetTypes.CHATTARGET_PLAYER then
+			tag = " (to "..PlayerLabel(toPlayer)..")";
+		end
+		line = name..tag..": "..Clean(text);
+	end
+	m_chatSeq = m_chatSeq + 1;
+	table.insert(m_chatHistory, { seq = m_chatSeq, text = line });
+	if #m_chatHistory > KEYNAV_CHAT_HISTORY_MAX then table.remove(m_chatHistory, 1); end
+	if not system and not g_isBuildingPlayerList then Say(line, true); end
+end
+
+function KeyNavStaging_ResetChat()
+	m_chatHistory = {};
+	m_invited = {};
 end
 
 function KeyNavStaging_OnPlayerConnected( pid:number )

@@ -1,3 +1,4 @@
+include( "ScreenReader" );	-- ScreenReaderAccess mod
 ---------------------------------------------------------------- 
 -- Globals
 ----------------------------------------------------------------  
@@ -8,6 +9,18 @@ local g_waitingForJoinGameComplete : boolean = true;
 local g_waitingForContentConfigure : boolean = true;
 
 local downloadPendingStr = Locale.Lookup("LOC_MODS_SUBSCRIPTION_DOWNLOAD_PENDING");
+
+-- ScreenReaderAccess mod: the screen is passive (a status label and Cancel), so every status change is spoken.
+local m_lastStatus:string = "";
+local m_lastModsRemaining:number = -1;
+function KeyNavSetStatus( text:string, announce:boolean )
+	Controls.JoiningLabel:SetText(text);
+	local spoken:string = CleanTextForSpeech(Locale.Lookup(text)) or "";
+	if announce ~= false and spoken ~= "" and spoken ~= m_lastStatus then
+		OutputMessageToScreenReader(spoken, true);
+	end
+	m_lastStatus = spoken;
+end
 
 ----------------------------------------------------------------        
 -- Input Handler
@@ -26,6 +39,7 @@ end
 -------------------------------------------------
 function HandleExitRequest()
 	print("JoiningRoom::HandleExitRequest() leaving the network session.");
+	OutputMessageToScreenReader("Cancelled joining the game", false);	-- ScreenReaderAccess mod
 	Network.LeaveGame();
 	UIManager:DequeuePopup( ContextPtr );
 end
@@ -49,7 +63,7 @@ end
 function OnJoinRoomComplete()
 	if (not ContextPtr:IsHidden()) then
 		if(not Network.IsNetSessionHost()) then
-			Controls.JoiningLabel:SetText(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_JOINING_HOST")));
+			KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_JOINING_HOST")));
 		end
 	end
 end
@@ -92,7 +106,7 @@ function OnJoinGameComplete()
 		-- Remote clients might still be waiting for FinishedGameplayContentConfigure.  
 		-- It is possible that FinishedGameplayContentConfigure happened before JoinGameComplete.
 		-- Updating the joining phase for that case.
-		Controls.JoiningLabel:SetText(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_CONFIGURING_CONTENT")));
+		KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_CONFIGURING_CONTENT")));
 	end
 end
 
@@ -194,7 +208,9 @@ function OnModStatusUpdated(playerID: number, modState : number, bytesDownloaded
 		if(modState == 1) then -- MOD_STATE_DOWNLOADING
 			local modStatusString = downloadPendingStr;
 			modStatusString = modStatusString .. "[NEWLINE][Icon_AdditionalContent]" .. tostring(modsRemaining) .. "/" .. tostring(modsRequired);
-			Controls.JoiningLabel:SetText(modStatusString);
+			-- ScreenReaderAccess mod: speak the download progress once per mod, not on every update
+			KeyNavSetStatus(modStatusString, modsRemaining ~= m_lastModsRemaining);
+			m_lastModsRemaining = modsRemaining;
 		end
 	end
 end
@@ -204,7 +220,7 @@ end
 -------------------------------------------------
 function OnConnectedToNetSessionHost()
 	if (not ContextPtr:IsHidden()) then
-		Controls.JoiningLabel:SetText(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_CONNECTING_TO_PLAYERS")));
+		KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_CONNECTING_TO_PLAYERS")));
 	end
 end
 
@@ -281,10 +297,14 @@ function OnShow()
 	g_waitingForJoinGameComplete = true;
 	g_waitingForContentConfigure = true;
 	
+	-- ScreenReaderAccess mod: announce the screen, then the status (the labels are spoken by KeyNavSetStatus)
+	m_lastStatus = "";
+	m_lastModsRemaining = -1;
+	OutputMessageToScreenReader("Joining game. Press Escape to cancel", true);
 	if(Network.IsMatchMaking()) then
-		Controls.JoiningLabel:SetText(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_MATCHMAKING")));
+		KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_MATCHMAKING")));
 	else
-		Controls.JoiningLabel:SetText(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_JOINING_ROOM")));
+		KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_JOINING_ROOM")));
 	end
 	
 	LuaEvents.JoiningRoom_Showing();
