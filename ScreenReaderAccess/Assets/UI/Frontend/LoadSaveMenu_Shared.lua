@@ -246,6 +246,8 @@ function ApplySortOption(i)
 
 	Options.SaveOptions();
 
+	-- The entries are rebuilt in a new order, so the old selection index would point at a different save.
+	SetSelected(-1);
 	RebuildFileList();
 end
 
@@ -1042,6 +1044,7 @@ function RebuildFileList()
 	end
 
 	function post_process()
+		-- Front-end only assumption: this permanent per-frame update is fine in the front end.
 		-- Keep a light update running for the keyboard navigation's deferred mouse moves.
 		ContextPtr:SetUpdate(function(deltaTime)
 			KeyNav_Tick(deltaTime);

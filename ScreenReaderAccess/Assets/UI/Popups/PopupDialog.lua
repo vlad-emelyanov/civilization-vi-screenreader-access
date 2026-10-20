@@ -52,6 +52,10 @@ PopupDialogInGame = {
 -- ===========================================================================
 --	Class Constants
 -- ===========================================================================
+-- Label of a button we just announced ourselves (keyboard focus); the MouseEnter that follows the
+-- synthetic mouse move must not speak it a second time.
+local m_suppressLabel:string = nil;
+
 PopupDialog.TOP_CONTROL_ROW				= "Row";
 PopupDialog.TOP_CONTROL_TEXT			= "Text";
 PopupDialog.TOP_CONTROL_BUTTON			= "Button";
@@ -218,7 +222,12 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 	-- Set the same mouseover button sound for all popup buttons
 	pButtonControl:RegisterCallback( Mouse.eMouseEnter, function()
 		UI.PlaySound("Main_Menu_Mouse_Over");
-		OutputMessageToScreenReader(label);
+		if m_suppressLabel ~= nil and m_suppressLabel == label then
+			m_suppressLabel = nil;
+		else
+			m_suppressLabel = nil;
+			OutputMessageToScreenReader(label);
+		end
 	end);
 
 	-- Wrap callback in local function so we can close the popup before trigerring the callback
@@ -389,7 +398,15 @@ function PopupDialog:Open( optionalID:string )
 		end
 	end
 
-	KeyNavMoveMouse(self.KeyNavElements[self.ActiveKeyNavElement + 1].Control, checkStable);
+	m_suppressLabel = nil;
+	local first = self.KeyNavElements[self.ActiveKeyNavElement + 1];
+	if first ~= nil then
+		if first.Label ~= nil then
+			m_suppressLabel = first.Label;
+			OutputMessageToScreenReader(first.Label, true);
+		end
+		KeyNavMoveMouse(first.Control, checkStable);
+	end
 end
 
 function PopupDialog:KeyHandler(key)
@@ -414,6 +431,7 @@ function PopupDialog:KeyHandler(key)
 	end
 	if move then
 		local active = self.KeyNavElements[self.ActiveKeyNavElement + 1];
+		m_suppressLabel = active.Label;
 		if active.Label ~= nil then OutputMessageToScreenReader(active.Label, false); end
 		KeyNavMoveMouse(active.Control);
 		return true;
@@ -423,6 +441,7 @@ end
 
 -- ===========================================================================
 function PopupDialog:Close()
+	m_suppressLabel = nil;
 	self.Controls.PopupRoot:SetHide(true);
 	self:Reset();
 

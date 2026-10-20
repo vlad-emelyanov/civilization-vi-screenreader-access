@@ -34,6 +34,15 @@ local m_focusWhenBuilt:boolean = false;
 local m_moveDelay:number = 0;
 local m_moveTarget = nil;
 
+local function KeyNavResetState()
+	m_focus = nil;
+	m_pending = nil;
+	m_focusWhenBuilt = false;
+	m_moveTarget = nil;
+	m_moveDelay = 0;
+	m_deletePopup = false;
+end
+
 ----------------------------------------------------------------        
 ----------------------------------------------------------------        
 function OnLoadNo()
@@ -284,13 +293,14 @@ function OnShow()
 	
 	Controls.DecoContainer:SetSizeY(decoSize - (count * 25) - count);	
 
-	m_focus = nil;
+	KeyNavResetState();
 	m_pending = { prefix = nil, focusFirst = true };
 	OutputMessageToScreenReader(Controls.WindowHeader:GetText(), true);
 	SetupFileList();
 end
 
 function OnHide()
+	KeyNavResetState();
 	LoadSaveMenu_OnHide();
 end
 
@@ -536,6 +546,10 @@ local function KeyNavActivate(item:table, items:table, key:number)
 			OnActionButton();
 		end
 	elseif item.kind == "check" then
+		if item.control:IsDisabled() then
+			OutputMessageToScreenReader(KeyNavItemText(item, items), false);
+			return;
+		end
 		if item.ref == "auto" then OnAutoCheck(); else OnCloudCheck(); end
 		m_pending = { prefix = nil };
 		OutputMessageToScreenReader(KeyNavItemText(item, items), false);

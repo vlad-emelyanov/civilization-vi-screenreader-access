@@ -1962,6 +1962,7 @@ end
 -- ===========================================================================
 function OnShow()
 
+	m_selection = nil;
 	 m_WorldBuilderImport = false;
 	local bWorldBuilder = GameConfiguration.IsWorldBuilderEditor();
 
@@ -2014,6 +2015,7 @@ end
 
 -- ===========================================================================
 function OnHide()
+	m_selection = nil;
 	HideGameSetup();
 	ReleasePlayerParameters();
 	m_RulesetData = {};
