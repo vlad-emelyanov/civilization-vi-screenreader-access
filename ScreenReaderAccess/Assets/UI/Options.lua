@@ -2524,6 +2524,7 @@ local function PopupKey(key)
 end
 
 function OnOptionsUpdate( deltaTime:number )
+	KeyNavEditBox_Update(deltaTime);
 	m_secondsSinceKey = m_secondsSinceKey + deltaTime;
 end
 
@@ -2574,7 +2575,7 @@ function InputHandler( pInputStruct )
 				CancelOptions();
 				result = true;
 			end
-		end, function(e) return debug.traceback(tostring(e), 2); end);
+		end, function(e) return tostring(e); end);
 		if not ok then print("Options input error: "..tostring(err)); end
 		return result;
 	end
@@ -2726,6 +2727,7 @@ end
 
 -------------------------------------------------------------------------------
 function OnShow()
+	KeyNavEditBox_Cancel();
 	RefreshKeyBinding();
 	UserConfiguration.SaveCheckpoint();
     PopulateGraphicsOptions();
@@ -2903,6 +2905,7 @@ function Initialize()
 	LuaEvents.PBCNotifyRemind_ShowOptions.Add(OnPBCNotifyRemind_ShowOptions);
 
 	ContextPtr:SetShowHandler( OnShow );
+	ContextPtr:SetHideHandler( function() KeyNavEditBox_Cancel(); end );
 	ContextPtr:SetInputHandler(InputHandler, true );
 	ContextPtr:SetUpdate( OnOptionsUpdate );
 

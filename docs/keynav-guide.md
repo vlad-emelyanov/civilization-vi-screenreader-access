@@ -40,6 +40,7 @@ Announcement formats: `"<Label>: <value>"` for options, `"<Label>: checked|unche
 - **Errors in an input handler kill keyboard input for the screen silently.** Wrap in `xpcall` and print the traceback while developing.
 - **The front-end menu animates in.** Positions read during the slide are wrong (e.g. x=699 instead of 978).
 - **Popups own input while open.** Make your handler inactive when a picker/popup in the same context is shown, and re-announce the focused item when it closes.
+- **The game's Lua sandbox has no `debug` table.** `xpcall` error handlers must not call `debug.traceback` (that errors inside the handler and hides the real error); use `tostring(e)`.
 - **The game must be restarted** to load Lua changes after `build`.
 
 ## Coverage (2026-10-19)

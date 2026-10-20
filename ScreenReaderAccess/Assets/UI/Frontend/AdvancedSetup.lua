@@ -674,7 +674,7 @@ function OnInputHandler( pInputStruct:table )
 	local editHandled = KeyNavEditBox_HandleInput(pInputStruct);
 	if editHandled ~= nil then return editHandled; end
 	if uiMsg == KeyEvents.KeyUp then
-		local ok, result = xpcall(function() return KeyHandler( pInputStruct:GetKey() ); end, function(e) return debug.traceback(tostring(e), 2); end);
+		local ok, result = xpcall(function() return KeyHandler( pInputStruct:GetKey() ); end, function(e) return tostring(e); end);
 		if not ok then print("KEYNAV ERROR: "..tostring(result)); return true; end
 		return result;
 	end
@@ -716,6 +716,7 @@ local function KeyNavUpdate()
 end
 
 function OnKeyNavUpdate( deltaTime:number )
+	KeyNavEditBox_Update(deltaTime);
 	local ok, err = pcall(KeyNavUpdate);
 	if not ok then print("KEYNAV ERROR: "..tostring(err)); end
 	if m_pendingMouseMove ~= nil then
@@ -1976,6 +1977,7 @@ end
 -- ===========================================================================
 function OnShow()
 
+	KeyNavEditBox_Cancel();
 	m_selection = nil;
 	 m_WorldBuilderImport = false;
 	local bWorldBuilder = GameConfiguration.IsWorldBuilderEditor();
@@ -2029,6 +2031,7 @@ end
 
 -- ===========================================================================
 function OnHide()
+	KeyNavEditBox_Cancel();
 	m_selection = nil;
 	HideGameSetup();
 	ReleasePlayerParameters();
