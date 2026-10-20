@@ -66,9 +66,103 @@ g_MostRecentSave = nil;					-- The most recent single player save a user has (lo
 
 -- Keyboard Navigation helpers
 local m_currentSubOptions:table = {};
-local m_inSubMenu:boolean = false
-local m_highlightedOption:number = 0
+local m_focusInSub:boolean = false;		-- Keyboard focus is in the submenu (true) or the top level (false)
+local m_focusLabel:string = nil;			-- Label key of the focused entry (survives rebuilds of the instances)
+local m_pendingMove:table = nil;			-- { control, frames, stable, lastX, lastY } mouse move waiting for the layout to settle
+local m_mouseIgnoreFrames:number = 0;		-- While > 0, MouseEnter does not change focus/announce (animations slide items under the cursor)
+local MOUSE_STABLE_FRAMES = 8;
+local MOUSE_IGNORE_AFTER_MOVE = 20;
 
+
+
+-- ===========================================================================
+-- Keyboard navigation
+-- ===========================================================================
+local function KeyNavIsUsable(entry:table)
+	if entry == nil then return false; end
+	local ok, hidden = pcall(function() return entry.control.Top:IsHidden(); end);
+	if ok and hidden then return false; end
+	local ok2, disabled = pcall(function() return entry.control.OptionButton:IsDisabled(); end);
+	if ok2 and disabled then return false; end
+	return true;
+end
+
+-- Visible, enabled entries of the top level or the sub menu, built from current state.
+function KeyNavGetList(sub:boolean)
+	local list:table = {};
+	for _, entry in ipairs(sub and m_currentSubOptions or m_currentOptions) do
+		if KeyNavIsUsable(entry) then
+			table.insert(list, entry);
+		end
+	end
+	return list;
+end
+
+local function KeyNavFocusIndex(list:table)
+	for i, entry in ipairs(list) do
+		if entry.label == m_focusLabel then return i; end
+	end
+	return nil;
+end
+
+local function KeyNavQueueMove(entry:table)
+	m_pendingMove = { control = entry.control, frames = 0, stable = 0, lastX = nil, lastY = nil };
+	m_mouseIgnoreFrames = 1000000;	-- until the move has been performed
+end
+
+-- Make 'entry' the keyboard focus. Announces it and (optionally) schedules the mouse move.
+function KeyNavFocusEntry(entry:table, sub:boolean, announce:boolean, nointerrupt:boolean, noMouse:boolean)
+	if entry == nil then return; end
+	m_focusInSub = sub;
+	m_focusLabel = entry.label;
+	if announce then
+		OutputMessageToScreenReader(entry.control.ButtonLabel:GetText(), nointerrupt);
+	end
+	if not noMouse then
+		KeyNavQueueMove(entry);
+	end
+end
+
+-- Real mouse hover: focus follows the mouse, announced once, unless the hover is just our own
+-- synthetic mouse move / an item sliding under the cursor.
+function KeyNavOnMouseEnter(entry:table, sub:boolean)
+	if m_mouseIgnoreFrames > 0 or m_pendingMove ~= nil then return; end
+	if m_focusLabel == entry.label and m_focusInSub == sub then return; end
+	KeyNavFocusEntry(entry, sub, true, false, true);
+end
+
+function KeyNavSelectedTopIndex()
+	for i, entry in ipairs(m_currentOptions) do
+		if entry.isSelected and entry.submenu ~= nil then
+			return i;
+		end
+	end
+	return nil;
+end
+
+-- Called each frame from OnUpdate: perform the pending mouse move once the target stopped moving.
+local function KeyNavUpdatePending()
+	if m_pendingMove == nil then
+		if m_mouseIgnoreFrames > 0 then m_mouseIgnoreFrames = m_mouseIgnoreFrames - 1; end
+		return;
+	end
+	local mv:table = m_pendingMove;
+	mv.frames = mv.frames + 1;
+	local ok, x, y = pcall(function() return mv.control.OptionButton:GetScreenOffset(); end);
+	if not ok then m_pendingMove = nil; m_mouseIgnoreFrames = 0; return; end
+	local animDone = mv.control.FlagAnim == nil or mv.control.FlagAnim:IsStopped();
+	if animDone and x == mv.lastX and y == mv.lastY and x > 0 then
+		mv.stable = mv.stable + 1;
+	else
+		mv.stable = 0;
+	end
+	mv.lastX = x; mv.lastY = y;
+	if mv.stable >= MOUSE_STABLE_FRAMES or mv.frames > 600 then
+		KeyNavMoveMouse(mv.control.OptionButton);
+		m_pendingMove = nil;
+		m_mouseIgnoreFrames = MOUSE_IGNORE_AFTER_MOVE;
+	end
+end
 
 -- ===========================================================================
 -- Button Handlers
@@ -898,6 +992,8 @@ function ToggleOption(optionIndex, submenu)
 		Controls.SubMenuSlide:Reverse();
 		SetCarouselEnabled(true);
 		DeselectOption(optionIndex);
+		-- Keyboard focus returns to the top level entry that owned the submenu.
+		KeyNavFocusEntry(m_currentOptions[optionIndex], false, true, false);
 	else
 		-- OTHERWISE - I am selecting a new thing
 		-- Was anything else OTHER than the optionIndex selected?  If so, we should hide its selection fanciness and turn it off
@@ -934,19 +1030,10 @@ function ToggleOption(optionIndex, submenu)
 		end
 		m_currentOptions[optionIndex].isSelected = true;
 
-		-- Move into sub menu
-		m_inSubMenu = true;
-		m_highlightedOption = 0;
-		local activeOption = m_currentSubOptions[m_highlightedOption + 1].control;
-		KeyNavMoveMouse(activeOption.OptionButton, function()
-			if Controls.SubMenuSlide ~= nil and not Controls.SubMenuSlide:IsStopped() then
-				return false
-			end
-			if Controls.SubMenuAlpha ~= nil and not Controls.SubMenuAlpha:IsStopped() then
-				return false
-			end
-			return activeOption.FlagAnim == nil or activeOption.FlagAnim:IsStopped()
-		end);
+		-- Move keyboard focus into the sub menu (first visible entry).
+		if submenu ~= nil then
+			KeyNavFocusEntry(KeyNavGetList(true)[1], true, true, false);
+		end
 	end
 end
 
@@ -1164,8 +1251,21 @@ function BuildMenu(menuOptions:table)
 																	menuOption.callback();
 																end
 															end);
+		local entry:table = {
+			control = option,
+			isSelected = false,
+			label = menuOption.label,
+			submenu = menuOption.submenu,
+			activate = function()
+				if (menuOption.submenu ~= nil) then
+					menuOption.callback(i, menuOption.submenu);
+				else
+					menuOption.callback();
+				end
+			end,
+		};
 		option.OptionButton:RegisterCallback( Mouse.eMouseEnter, function ()
-			OutputMessageToScreenReader(option.ButtonLabel:GetText());
+			KeyNavOnMouseEnter(entry, false);
 			MenuOptionMouseEnterCallback();
 		end);
 
@@ -1188,7 +1288,7 @@ function BuildMenu(menuOptions:table)
 		-- Accumulate a pause so that the flags appear one at a time
 		pauseAccumulator = pauseAccumulator + PAUSE_INCREMENT;
 		-- Track which options are being displayed and preserve the selection state so that we can rebuild a submenu
-		m_currentOptions[i] = {control = option, isSelected = false};
+		m_currentOptions[i] = entry;
 	end
 	Controls.MainMenuOptionStack:CalculateSize();
 
@@ -1232,8 +1332,9 @@ function BuildSubMenu(menuOptions:table)
 			uiOption.LabelAlphaAnim:Play();
 			uiOption.LabelAlphaAnim:SetPauseTime(0);
 			uiOption.OptionButton:RegisterCallback( Mouse.eLClick, kMenuOption.callback);
+			local entry:table = { control = uiOption, label = kMenuOption.label, activate = kMenuOption.callback };
 			uiOption.OptionButton:RegisterCallback( Mouse.eMouseEnter, function ()
-				OutputMessageToScreenReader(uiOption.ButtonLabel:GetText());
+				KeyNavOnMouseEnter(entry, true);
 				MenuOptionMouseEnterCallback();
 			end);
 			uiOption.OptionButton:SetHide(false);
@@ -1266,7 +1367,7 @@ function BuildSubMenu(menuOptions:table)
 				uiOption.HelpButton:RegisterCallback( Mouse.eLClick, kMenuOption.helpCallback);
 			end
 
-			table.insert(m_currentSubOptions, { control = uiOption })
+			table.insert(m_currentSubOptions, entry)
 		end		
 	end
 
@@ -1577,14 +1678,13 @@ function OnShow()
 		end
 	end
 
-	-- Move to the first menu element
-	if not subMenuOpen then
-		m_highlightedOption = 0
-		m_inSubMenu = false;		
-		local activeOption = m_currentOptions[m_highlightedOption + 1].control;
-		KeyNavMoveMouse(activeOption.OptionButton, function()
-			return activeOption.FlagAnim == nil or activeOption.FlagAnim:IsStopped()
-		end);
+	-- Keyboard focus: first top level entry, or (if a sub menu is still open) its first visible entry.
+	local selectedIndex = KeyNavSelectedTopIndex();
+	if selectedIndex == nil then
+		KeyNavFocusEntry(KeyNavGetList(false)[1], false, true, true);
+	else
+		local subList = KeyNavGetList(true);
+		KeyNavFocusEntry(subList[KeyNavFocusIndex(subList) or 1], true, true, true);
 	end
 
 	GameConfiguration.SetToDefaults();
@@ -1800,56 +1900,51 @@ function OnUpdate( fDeltaTime )
 	end
 
 	KeyNav_Tick(fDeltaTime)
+	KeyNavUpdatePending()
 end
 
 function KeyHandler( key:number )
-	print("Got key "..key)
+	local selectedIndex = KeyNavSelectedTopIndex();
+	if not m_focusInSub or selectedIndex == nil then
+		m_focusInSub = false;
+	end
+	local list = KeyNavGetList(m_focusInSub);
+	local idx = KeyNavFocusIndex(list);
 
 	if key == Keys.VK_RETURN then
-		KeyNavLeftClick()
-		return true;
-        end
-
-	local subMenuOpen = false;
-	for i=1, table.count(m_currentOptions) do
-		if m_currentOptions[i].isSelected and m_defaultMainMenuOptions[i].submenu ~= nil then
-			subMenuOpen = true;
-			break;
+		if idx ~= nil and list[idx].activate ~= nil then
+			list[idx].activate();
 		end
-	end
-
-	local currentMenu = m_currentOptions
-	if subMenuOpen and m_inSubMenu then
-		currentMenu = m_currentSubOptions
-	end
-
-	local menuSize = #currentMenu
-	local move = false
-	if key == Keys.VK_UP then
-		m_highlightedOption = (m_highlightedOption - 1 + menuSize) % menuSize;
-		move = true
-	elseif key == Keys.VK_DOWN then
-		m_highlightedOption = (m_highlightedOption + 1) % menuSize;
-		move = true;
+		return true;
+	elseif key == Keys.VK_UP or key == Keys.VK_DOWN then
+		if #list == 0 then return true; end
+		if idx == nil then
+			idx = 1;
+		elseif key == Keys.VK_DOWN then
+			idx = (idx % #list) + 1;
+		else
+			idx = ((idx - 2 + #list) % #list) + 1;
+		end
+		KeyNavFocusEntry(list[idx], m_focusInSub, true, false);
+		return true;
 	elseif key == Keys.VK_LEFT then
-		move = true;
-		if subMenuOpen and m_inSubMenu then
-			currentMenu = m_currentOptions
-			m_highlightedOption = 0;
-			m_inSubMenu = false;
+		if m_focusInSub and selectedIndex ~= nil then
+			KeyNavFocusEntry(m_currentOptions[selectedIndex], false, true, false);
 		end
-	elseif key == Keys.VK_RIGHT then
-		move = true;
-		if subMenuOpen and not m_inSubMenu then
-			currentMenu = m_currentSubOptions
-			m_highlightedOption = 0;
-			m_inSubMenu = true;
-		end
-	end
-	if move then
-		KeyNavMoveMouse(currentMenu[m_highlightedOption + 1].control.OptionButton);
 		return true;
-	end	
+	elseif key == Keys.VK_RIGHT then
+		if not m_focusInSub and selectedIndex ~= nil then
+			KeyNavFocusEntry(KeyNavGetList(true)[1], true, true, false);
+		end
+		return true;
+	elseif key == Keys.VK_ESCAPE then
+		-- Close an open sub menu (focus returns to its parent entry).
+		if selectedIndex ~= nil and Controls.SubMenuSlide:IsStopped() then
+			ToggleOption(selectedIndex, m_currentOptions[selectedIndex].submenu);
+			return true;
+		end
+		return false;
+	end
 	return false;
 end
 
