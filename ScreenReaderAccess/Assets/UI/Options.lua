@@ -8,6 +8,7 @@ include("PlayerSetupLogic");
 
 include("ScreenReader")
 include("KeyboardNavigation")
+include("KeyNavEditBox")
 
 
 -- Quick utility function to determine if Rise and Fall is installed.
@@ -436,6 +437,7 @@ end
 -------------------------------------------------------------------------------
 --
 -------------------------------------------------------------------------------
+local m_editCommit = {};	-- EditBox -> its commit handler (for keyboard editing)
 function PopulateEditBox(control, current_value, commit_handler, is_locked)
     
     if (is_locked == nil) then
@@ -449,6 +451,7 @@ function PopulateEditBox(control, current_value, commit_handler, is_locked)
         UI.PlaySound("Main_Menu_Mouse_Over");
     end);
 
+    m_editCommit[control] = commit_handler;
     if(commit_handler) then
         control:RegisterCommitCallback( 
             function(editString)
@@ -1873,6 +1876,7 @@ end
 local function PulldownDef(id, label, opts) local d = opts or {}; d.id = id; d.kind = "pulldown"; d.label = label; return d; end
 local function CheckDef(id, label, opts) local d = opts or {}; d.id = id; d.kind = "checkbox"; d.label = label; return d; end
 local function SliderDef(id, label, opts) local d = opts or {}; d.id = id; d.kind = "slider"; d.label = label; return d; end
+local function EditDef(id, label, opts) local d = opts or {}; d.id = id; d.kind = "edit"; d.label = label; return d; end
 local function ButtonDef(id, label, activate, opts) local d = opts or {}; d.id = id; d.kind = "button"; d.label = label; d.activate = activate; return d; end
 
 -- Marks a Graphics tab control that is only reachable while "Show advanced graphics options" is on.
@@ -1895,6 +1899,8 @@ local TAB_ITEMS = {
 		PulldownDef("SaveKeepPullDown",						"LOC_OPTIONS_AUTOSAVES_TO_KEEP"),
 		SliderDef("TODSlider",								"LOC_OPTIONS_TIME_OF_DAY", { steps = 48, text = LabelText("TODText"), min = "12:00 AM", max = "11:59 PM" }),
 		CheckDef("TimeOfDayCheckbox",						"LOC_OPTIONS_TIME_OF_DAY_TEXT"),
+		EditDef("LANPlayerNameEdit",						"LOC_OPTIONS_LAN_PLAYER_NAME"),
+		EditDef("PBCTurnWebhookEdit",						"LOC_OPTIONS_WEBHOOK_URL"),
 		PulldownDef("TurnWebhookFreqPullDown",				"LOC_OPTIONS_WEBHOOK_FREQ"),
 	},
 	["LOC_OPTIONS_GRAPHICS_OPTIONS"] = {
@@ -2052,6 +2058,10 @@ local function ItemValueText(item)
 	elseif item.kind == "slider" then
 		text = item.def.text and Txt(item.def.text(control)) or tostring(control:GetValue());
 	end
+	if item.kind == "edit" then
+		text = control:GetText();
+		if text == nil or text == "" then text = "blank"; end
+	end
 	if item.kind ~= "button" and control:IsDisabled() then
 		text = text..", disabled";
 	end
@@ -2068,7 +2078,9 @@ function DescribeItem(item, full)
 		return item.label..": "..value;
 	end
 	local disabled = item.control:IsDisabled();
-	if item.kind == "pulldown" then
+	if item.kind == "edit" then
+		return item.label..", edit, "..value..(disabled and "" or ", Enter to edit");
+	elseif item.kind == "pulldown" then
 		return item.label..", dropdown: "..value..(disabled and "" or ". Enter to choose, Left or Right to change");
 	elseif item.kind == "checkbox" then
 		return item.label..", checkbox: "..value..(disabled and "" or ". Enter or Space to toggle");
@@ -2385,6 +2397,12 @@ local function HandleContentKey(key)
 				handler(selected);
 			end
 			OutputMessageToScreenReader(DescribeItem(item, false));
+		elseif item.kind == "edit" then
+			if key == Keys.VK_RETURN then
+				KeyNavEditBox_Begin(control, {
+					label = item.label, commit = m_editCommit[control],
+				});
+			end
 		elseif item.kind == "button" then
 			if key == Keys.VK_RETURN and item.def.activate ~= nil then
 				item.def.activate();
@@ -2510,6 +2528,8 @@ function OnOptionsUpdate( deltaTime:number )
 end
 
 function InputHandler( pInputStruct )
+	local editHandled = KeyNavEditBox_HandleInput(pInputStruct);
+	if editHandled ~= nil then return editHandled; end
 	local uiMsg = pInputStruct:GetMessageType();
 	if(uiMsg == KeyEvents.KeyDown) then
 		-- remember the key pressed during a binding capture: if the engine completes the capture on KeyDown,

@@ -7,6 +7,7 @@ include("Civ6Common");
 include("SupportFunctions");
 include("PopupDialog");
 include("KeyboardNavigation");
+include("KeyNavEditBox");
 include("ScreenReader");
 
 -- ===========================================================================
@@ -410,7 +411,7 @@ local function KeyNavBuildAdvancedItems()
 		for pid, parameter in pairs(params) do
 			local driver:table = KeyNavGetAdvancedDriver(g_GameParameters.Controls[pid]);
 			local c:table = driver and driver.Control or nil;
-			if type(c) == "table" and (parameter.Value ~= nil or c.Button ~= nil) then
+			if type(c) == "table" and (parameter.Value ~= nil or c.Button ~= nil or c.StringEdit ~= nil) then
 				local section:string = KeyNavSectionPrefix(parameter);
 				local label:string = section and (section..", "..tostring(parameter.Name)) or tostring(parameter.Name);
 				local item:table = nil;
@@ -440,10 +441,17 @@ local function KeyNavBuildAdvancedItems()
 						};
 					end
 				elseif c.StringEdit ~= nil then
-					if parameter.Value ~= nil and c.StringRoot ~= nil and not c.StringRoot:IsHidden() and KeyNavIsUsable(c.StringEdit) then
+					local editRoot:object = c.StringRoot or c.Root or c.StringEdit;
+					if not editRoot:IsHidden() and KeyNavIsUsable(c.StringEdit) then
 						item = {
-							control = c.StringEdit, kind = "edit",
-							getText = function() return label..": "..tostring(c.StringEdit:GetText()); end,
+							control = c.StringEdit, kind = "edit", focusSuffix = ", Enter to edit",
+							getText = function() return KeyNavEditBox_Describe(label, c.StringEdit); end,
+							activate = function()
+								KeyNavEditBox_Begin(c.StringEdit, {
+									label = label, commit = c.StringCommit,
+									numeric = (parameter.Domain == "int" or parameter.Domain == "uint"),
+								});
+							end,
 						};
 					end
 				elseif c.PullDown ~= nil and c.Root ~= nil and parameter.Value ~= nil and parameter.Values ~= nil and not parameter.Array then
@@ -610,6 +618,7 @@ local function KeyNavSelectionKey( key:number )
 end
 
 function KeyHandler( key:number )
+	if KeyNavEditBox_IsEditing() then return true; end
 	if m_selection ~= nil and not KeyNavIsActive() then m_selection = nil; end
 	if m_selection ~= nil then
 		return KeyNavSelectionKey(key);
@@ -662,6 +671,8 @@ end
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
+	local editHandled = KeyNavEditBox_HandleInput(pInputStruct);
+	if editHandled ~= nil then return editHandled; end
 	if uiMsg == KeyEvents.KeyUp then
 		local ok, result = xpcall(function() return KeyHandler( pInputStruct:GetKey() ); end, function(e) return debug.traceback(tostring(e), 2); end);
 		if not ok then print("KEYNAV ERROR: "..tostring(result)); return true; end
@@ -1601,26 +1612,29 @@ function CreateSimpleParameterDriver(o, parameter, parent)
 		if(parameter.Domain == "int") then
 			c.StringEdit:SetNumberInput(true);
 			c.StringEdit:SetMaxCharacters(16);
-			c.StringEdit:RegisterCommitCallback(function(textString)
+			c.StringCommit = function(textString)
 				o:SetParameterValue(parameter, tonumber(textString));	
 				Network.BroadcastGameConfig();
-			end);
+			end;
+			c.StringEdit:RegisterCommitCallback(c.StringCommit);
 		elseif(parameter.Domain == "uint") then
 			c.StringEdit:SetNumberInput(true);
 			c.StringEdit:SetMaxCharacters(16);
-			c.StringEdit:RegisterCommitCallback(function(textString)
+			c.StringCommit = function(textString)
 				local value = math.max(tonumber(textString) or 0, 0);
 				o:SetParameterValue(parameter, value);	
 				Network.BroadcastGameConfig();
-			end);
+			end;
+			c.StringEdit:RegisterCommitCallback(c.StringCommit);
 		else
 			c.StringEdit:SetNumberInput(false);
 			c.StringEdit:SetMaxCharacters(64);
 			if UI.HasFeature("TextEntry") == true then
-				c.StringEdit:RegisterCommitCallback(function(textString)
+				c.StringCommit = function(textString)
 					o:SetParameterValue(parameter, textString);	
 					Network.BroadcastGameConfig();
-				end);
+				end;
+				c.StringEdit:RegisterCommitCallback(c.StringCommit);
 			else
 				canChangeEnableState = false;
 				c.StringEdit:SetEnabled(false);
