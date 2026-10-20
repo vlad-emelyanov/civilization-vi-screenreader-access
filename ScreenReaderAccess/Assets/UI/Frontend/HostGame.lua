@@ -7,6 +7,10 @@ include("InstanceManager");
 include("PlayerSetupLogic");
 include("PopupDialog");
 include("Civ6Common");
+include("KeyboardNavigation");
+include("KeyNavEditBox");
+include("KeyNavSetup");
+include("ScreenReader");
 
 
 -- ===========================================================================
@@ -405,18 +409,83 @@ end
 -- ===========================================================================
 --	Input Handler
 -- ===========================================================================
-function OnInputHandler( uiMsg, wParam, lParam )
-	if uiMsg == KeyEvents.KeyUp then
-		if wParam == Keys.VK_ESCAPE then
-			LuaEvents.Multiplayer_ExitShell();
+-- Keyboard navigation (shared machinery in Accessibility/KeyNavSetup.lua, same behaviour as Advanced Setup).
+-- Items in reading order: header buttons, game parameters, footer buttons. The Mods and hot seat Load Game buttons are not covered.
+local function KeyNavBuildItems()
+	local items:table = {};
+	if KeyNavSetup_IsUsable(Controls.DefaultButton) then
+		table.insert(items, KeyNavSetup_ButtonItem(Controls.DefaultButton, OnDefaultButton, "Settings restored to defaults"));
+	end
+	table.insert(items, KeyNavSetup_ButtonItem(Controls.BackButton, OnExitGameAskAreYouSure));
+
+	local params:table = g_GameParameters and g_GameParameters.Parameters or nil;
+	for i, item in ipairs(KeyNavSetup_BuildParameterItems(params, Controls.ParametersScrollPanel, Controls.ParametersStack)) do
+		table.insert(items, item);
+	end
+
+	if KeyNavSetup_IsUsable(Controls.LoadConfigButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadConfigButton, OnLoadConfig)); end
+	if KeyNavSetup_IsUsable(Controls.SaveConfigButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.SaveConfigButton, OnSaveConfig)); end
+	if KeyNavSetup_IsUsable(Controls.ConfirmButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.ConfirmButton, OnConfirmClick)); end
+	return items;
+end
+
+-- The open confirmation dialog (city-state warning or leave game), if any.
+local function KeyNavOpenDialog()
+	if m_pCityStateWarningPopup:IsOpen() then return m_pCityStateWarningPopup; end
+	if m_kPopupDialog ~= nil and m_kPopupDialog:IsOpen() then return m_kPopupDialog; end
+	return nil;
+end
+
+local function KeyNavPopupOpen()
+	return not Controls.MultiSelectWindow:IsHidden() or not Controls.CityStatePicker:IsHidden() or not Controls.LeaderPicker:IsHidden()
+		or not Controls.LoadGameMenu:IsHidden() or not Controls.SaveGameMenu:IsHidden() or not Controls.ModsMenu:IsHidden()
+		or KeyNavOpenDialog() ~= nil;
+end
+
+local m_nav:table = KeyNavSetup_NewController({
+	buildItems = KeyNavBuildItems,
+	isActive = function() return not ContextPtr:IsHidden(); end,
+	popupOpen = KeyNavPopupOpen,
+	onBack = function() LuaEvents.Multiplayer_ExitShell(); end,
+	-- Keys for the confirmation dialogs (Up/Down/Enter; Escape closes them). The pickers handle their own keys.
+	onPopupKey = function( key:number )
+		local dialog:table = KeyNavOpenDialog();
+		if dialog == nil then return nil; end
+		if key == Keys.VK_ESCAPE then
+			dialog:Close();
+		else
+			dialog:KeyHandler(key);
+		end
+		return true;
+	end,
+});
+
+function OnInputHandler( pInputStruct:table )
+	return m_nav.HandleInput(pInputStruct);
+end
+
+-- The screen is shown briefly when a hosted game is created, just before the Staging Room takes over, so the
+-- announcement waits a moment and is dropped if the screen is gone by then.
+local m_announceFrames:number = 0;
+
+function OnKeyNavUpdate( deltaTime:number )
+	if m_announceFrames > 0 then
+		m_announceFrames = m_announceFrames - 1;
+		if m_announceFrames == 0 and not ContextPtr:IsHidden() then
+			local first:object = KeyNavSetup_IsUsable(Controls.DefaultButton) and Controls.DefaultButton or Controls.BackButton;
+			OutputMessageToScreenReader(Controls.TitleLabel:GetText(), true);
+			OutputMessageToScreenReader(first:GetText(), true);
+			m_nav.SetFocus(first, first, 3);
 		end
 	end
-	return true;
+	m_nav.Update(deltaTime);
 end
 
 -- ===========================================================================
 function OnShow()
 	
+	KeyNavEditBox_Cancel();
+	m_nav.CancelSelection();
 	RebuildPlayerParameters(true);
 	GameSetup_RefreshParameters();
 	
@@ -439,6 +508,10 @@ function OnShow()
 	--]]
 
 	RealizeShellTabs();
+
+	-- Keyboard navigation: announce the screen and focus the first button (see OnKeyNavUpdate).
+	m_nav.SetFocus(nil);
+	m_announceFrames = 20;
 end
 
 -- ===========================================================================
@@ -458,6 +531,9 @@ end
 
 -- ===========================================================================
 function OnHide( isHide, isInit )
+	m_announceFrames = 0;
+	KeyNavEditBox_Cancel();
+	m_nav.CancelSelection();
 	ReleasePlayerParameters();
 	HideGameSetup();
 end
@@ -777,7 +853,8 @@ function Initialize()
 
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
-	ContextPtr:SetInputHandler(OnInputHandler);
+	ContextPtr:SetInputHandler(OnInputHandler, true);
+	ContextPtr:SetUpdate(OnKeyNavUpdate);
 	ContextPtr:SetShowHandler(OnShow);
 	ContextPtr:SetHideHandler(OnHide);
 

@@ -7,6 +7,10 @@ include("NetworkUtilities");
 include("ButtonUtilities");
 include( "Civ6Common" ); -- AutoSizeGridButton
 include( "PopupDialog" );
+include("KeyboardNavigation");
+include("KeyNavEditBox");
+include("KeyNavSetup");
+include("ScreenReader");
 
 
 -- ===========================================================================
@@ -399,14 +403,29 @@ end
 ----------------------------------------------------------------        
 -- Input Handler
 ----------------------------------------------------------------        
-function OnInputHandler( uiMsg, wParam, lParam )
-	if uiMsg == KeyEvents.KeyUp then
-		if wParam == Keys.VK_ESCAPE then
-			Close();
-		end
-	end
-	return true;
-end		
+-- Keyboard navigation: this screen is only a gateway to Host Game (the server list is not covered), so the
+-- focusable items are Host Game and Back.
+local function KeyNavBuildItems()
+	local items:table = {};
+	if KeyNavSetup_IsUsable(Controls.HostButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.HostButton, OnHostButtonClick)); end
+	table.insert(items, KeyNavSetup_ButtonItem(Controls.BackButton, OnBackButtonClick));
+	return items;
+end
+
+local m_nav:table = KeyNavSetup_NewController({
+	buildItems = KeyNavBuildItems,
+	isActive = function() return not ContextPtr:IsHidden(); end,
+	popupOpen = function() return m_kPopupDialog ~= nil and m_kPopupDialog:IsOpen(); end,
+	onBack = function() Close(); end,
+});
+
+function OnInputHandler( pInputStruct:table )
+	return m_nav.HandleInput(pInputStruct);
+end
+
+function OnKeyNavUpdate( deltaTime:number )
+	m_nav.Update(deltaTime);
+end
 
 -- is this game list search type usable by the current browser state?
 function IsCurrentSearchType(eSearchType)
@@ -1430,6 +1449,11 @@ function OnShow()
 	end
 
 	m_firstTimeShow = false;
+
+	-- Keyboard navigation: announce the screen and focus Host Game.
+	OutputMessageToScreenReader(Controls.TitleLabel:GetText(), true);
+	OutputMessageToScreenReader(Controls.HostButton:GetText(), true);
+	m_nav.SetFocus(Controls.HostButton, Controls.HostButton, 10);
 end
 
 -- ===========================================================================
@@ -1544,7 +1568,8 @@ function Initialize()
 
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
-	ContextPtr:SetInputHandler(OnInputHandler);
+	ContextPtr:SetInputHandler(OnInputHandler, true);
+	ContextPtr:SetUpdate(OnKeyNavUpdate);
 	ContextPtr:SetShowHandler(OnShow);
 	ContextPtr:SetHideHandler(OnHide);
 
