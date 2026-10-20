@@ -406,3 +406,5 @@ FodyWeavers.xsd
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio
 
 *.civ6suo
+# Local build output
+build_errors.txt
