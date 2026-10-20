@@ -11,6 +11,9 @@ include( "PopupDialog" );
 include( "LocalPlayerActionSupport" );
 include("PopupPriorityLoader_", true);
 
+include("ScreenReader")
+include("KeyboardNavigation")
+
 
 -- ===========================================================================
 --	GLOBALS
@@ -29,6 +32,9 @@ local m_isEndGameOpen	: boolean = false;
 local m_isNeedRestoreOptions		: boolean = false;
 local m_isNeedRestoreSaveGameMenu	: boolean = false;
 local m_isNeedRestoreLoadGameMenu	: boolean = false;
+
+local m_keyNavElements: table = {};
+local m_selectedKeyNavElement: number = 0;
 
 
 -- State variable to track that the menu is in the process of being closed and 
@@ -66,7 +72,7 @@ function OnRetireGame()
 				if (not m_kPopupDialog:IsOpen()) then
 					m_kPopupDialog:AddText(	  Locale.Lookup("LOC_GAME_MENU_RETIRE_WARNING"));
 					m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_YES_BUTTON_CAPTION"), OnReallyRetire, nil, nil, "PopupButtonInstanceRed" );
-					m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), nil );
+					m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), OnNo );
 					m_kPopupDialog:Open();
 				end
 			end
@@ -84,7 +90,7 @@ function OnRestartGame()
 	if (not m_kPopupDialog:IsOpen()) then
 		m_kPopupDialog:AddText(	  Locale.Lookup("LOC_GAME_MENU_RESTART_WARNING"));
 		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_YES_BUTTON_CAPTION"), OnReallyRestart, nil, nil, "PopupButtonInstanceRed" );
-		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), nil );
+		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), OnNo );
 		m_kPopupDialog:Open();
 	end
 end
@@ -105,7 +111,7 @@ function OnPBCDeleteButton()
 	if (not m_kPopupDialog:IsOpen()) then
 		m_kPopupDialog:AddText(	  Locale.Lookup("LOC_GAME_MENU_PBC_DELETE_WARNING"));
 		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_YES_BUTTON_CAPTION"), DoPBCDelete, nil, nil, "PopupButtonInstanceRed" );
-		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), nil );
+		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), OnNo );
 		m_kPopupDialog:Open();
 	end
 end
@@ -126,7 +132,7 @@ function OnPBCQuitButton()
 	if (not m_kPopupDialog:IsOpen()) then
 		m_kPopupDialog:AddText(	  Locale.Lookup("LOC_GAME_MENU_PBC_QUIT_WARNING"));
 		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_YES_BUTTON_CAPTION"), DoPBCQuit, nil, nil, "PopupButtonInstanceRed" );
-		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), nil );
+		m_kPopupDialog:AddButton( Locale.Lookup("LOC_COMMON_DIALOG_NO_BUTTON_CAPTION"), OnNo );
 		m_kPopupDialog:Open();
 	end
 end
@@ -146,6 +152,7 @@ function OnCancelExit()
 	if m_isNeedRestoreOptions then Controls.Options:SetHide( false); end
 	if m_isNeedRestoreSaveGameMenu then Controls.SaveGameMenu:SetHide( false); end
 	if m_isNeedRestoreLoadGameMenu then Controls.LoadGameMenu:SetHide( false ); end
+	KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
 end
 
 -- ===========================================================================
@@ -385,6 +392,30 @@ function SetupButtons()
 	RefreshIconData();
 
 	Controls.MainStack:CalculateSize();
+	SetupKeyNav();
+end
+
+function SetupKeyNav()
+	m_keyNavElements = {};
+	local buttons = {
+		Controls.ReturnButton,
+		Controls.QuickSaveButton,
+		Controls.SaveGameButton,
+		Controls.LoadGameButton,
+		Controls.OptionsButton,
+		Controls.RestartButton,
+		Controls.RetireButton,
+		Controls.PBCDeleteButton,
+		Controls.PBCQuitButton,
+		Controls.MainMenuButton,
+		Controls.ExitGameButton
+	};
+
+	for _, button in ipairs(buttons) do
+		if not button:IsHidden() then
+			table.insert(m_keyNavElements, button);
+		end
+	end
 end
 
 function RefreshIconData()
@@ -466,22 +497,46 @@ end
 -- ===========================================================================
 function OnNo( )
 	m_kPopupDialog:Close();
+	KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
 end
 
 -- ===========================================================================
 function KeyHandler( key:number )
-	local bHandled:boolean = false;
 	if key == Keys.VK_ESCAPE then		
 		if m_kPopupDialog:IsOpen() then
 			m_kPopupDialog:Close();
+			KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
 		else
 			if (not ContextPtr:IsHidden() ) then
 				Close();
 			end
 		end
-		bHandled = true;
+		return true;
 	end
-	return bHandled;
+
+	if m_kPopupDialog:IsOpen() then
+		return m_kPopupDialog:KeyHandler(key);
+	end
+
+	if key == Keys.VK_RETURN or key == Keys.VK_SPACE then
+		KeyNavLeftClick();
+		return true;
+	end
+
+	local menuSize = #m_keyNavElements;
+	if menuSize == 0 then return false; end
+
+	if key == Keys.VK_UP then
+		m_selectedKeyNavElement = (m_selectedKeyNavElement - 1 + menuSize) % menuSize;
+		KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
+		return true;
+	elseif key == Keys.VK_DOWN then
+		m_selectedKeyNavElement = (m_selectedKeyNavElement + 1) % menuSize;
+		KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
+		return true;
+	end
+
+	return false;
 end
 
 -- ===========================================================================
@@ -591,6 +646,9 @@ function OnShow()
 	end
 
 	SetupButtons();
+	m_selectedKeyNavElement = 0;
+	KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
+	OutputMessageToScreenReader("In game menu", true);
 
 	-- Do not deselect all as on-rails scenarios (e.g., tutorials) may get out of sync.	
 	Controls.PauseWindow:SetHide(false);
@@ -688,34 +746,87 @@ function OnInit( isReload:boolean )
 end
 
 -- ===========================================================================
+function OnUpdate( fDeltaTime:number )
+	KeyNav_Tick(fDeltaTime);
+end
+
+-- ===========================================================================
+function AnnounceButton(control:table)
+	if m_kPopupDialog:IsOpen() then return; end
+	OutputMessageToScreenReader(GetButtonText(control));
+end
+
+function GetButtonText(control:table)
+	local text = control:GetText();
+	if text == nil then
+		return "";
+	end
+	return text;
+end
+
+-- ===========================================================================
 function Initialize()
 
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetInputHandler( OnInput, true );
 	ContextPtr:SetShowHandler( OnShow );
+	ContextPtr:SetUpdate( OnUpdate );
 	
-	Controls.ExitGameButton:RegisterCallback( Mouse.eLClick, OnExitGameAskAreYouSure );
-	Controls.ExitGameButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.LoadGameButton:RegisterCallback( Mouse.eLClick, OnLoadGame );
-	Controls.LoadGameButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.MainMenuButton:RegisterCallback( Mouse.eLClick, OnMainMenu );
-	Controls.MainMenuButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.OptionsButton:RegisterCallback( Mouse.eLClick, OnOptions );
-	Controls.OptionsButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.QuickSaveButton:RegisterCallback( Mouse.eLClick, OnQuickSaveGame );
-	Controls.QuickSaveButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.RetireButton:RegisterCallback( Mouse.eLClick, OnRetireGame );
-	Controls.RetireButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.RestartButton:RegisterCallback( Mouse.eLClick, OnRestartGame );
-	Controls.RestartButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.PBCDeleteButton:RegisterCallback( Mouse.eLClick, OnPBCDeleteButton );
-	Controls.PBCDeleteButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.PBCQuitButton:RegisterCallback( Mouse.eLClick, OnPBCQuitButton );
-	Controls.PBCQuitButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.ReturnButton:RegisterCallback( Mouse.eLClick, OnReturn );
-	Controls.ReturnButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
-	Controls.SaveGameButton:RegisterCallback( Mouse.eLClick, OnSaveGame );
-	Controls.SaveGameButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
+	Controls.ExitGameButton:RegisterCallback( Mouse.eLClick, function() OnExitGameAskAreYouSure(); end );
+	Controls.ExitGameButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.ExitGameButton);
+	end);
+	Controls.LoadGameButton:RegisterCallback( Mouse.eLClick, function() OnLoadGame(); end );
+	Controls.LoadGameButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.LoadGameButton);
+	end);
+	Controls.MainMenuButton:RegisterCallback( Mouse.eLClick, function() OnMainMenu(); end );
+	Controls.MainMenuButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.MainMenuButton);
+	end);
+	Controls.OptionsButton:RegisterCallback( Mouse.eLClick, function() OnOptions(); end );
+	Controls.OptionsButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.OptionsButton);
+	end);
+	Controls.QuickSaveButton:RegisterCallback( Mouse.eLClick, function() OnQuickSaveGame(); end );
+	Controls.QuickSaveButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.QuickSaveButton);
+	end);
+	Controls.RetireButton:RegisterCallback( Mouse.eLClick, function() OnRetireGame(); end );
+	Controls.RetireButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.RetireButton);
+	end);
+	Controls.RestartButton:RegisterCallback( Mouse.eLClick, function() OnRestartGame(); end );
+	Controls.RestartButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.RestartButton);
+	end);
+	Controls.PBCDeleteButton:RegisterCallback( Mouse.eLClick, function() OnPBCDeleteButton(); end );
+	Controls.PBCDeleteButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.PBCDeleteButton);
+	end);
+	Controls.PBCQuitButton:RegisterCallback( Mouse.eLClick, function() OnPBCQuitButton(); end );
+	Controls.PBCQuitButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.PBCQuitButton);
+	end);
+	Controls.ReturnButton:RegisterCallback( Mouse.eLClick, function() OnReturn(); end );
+	Controls.ReturnButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.ReturnButton);
+	end);
+	Controls.SaveGameButton:RegisterCallback( Mouse.eLClick, function() OnSaveGame(); end );
+	Controls.SaveGameButton:RegisterCallback( Mouse.eMouseEnter, function() 
+		UI.PlaySound("Main_Menu_Mouse_Over"); 
+		AnnounceButton(Controls.SaveGameButton);
+	end);
 	Controls.PauseWindowClose:RegisterEndCallback( ShutdownAfterClose );
 
 	LuaEvents.InGame_OpenInGameOptionsMenu.Add( OnOpenInGameOptionsMenu );
