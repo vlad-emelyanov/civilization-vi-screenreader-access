@@ -135,12 +135,15 @@ function Format-Lines($lines) {
 function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec) {
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     while ((Get-Date) -lt $deadline) {
+        $matched = $false
+        # Finish the whole batch even after a match: the cursor has already moved past these lines.
         foreach ($l in (Read-NewLogLines)) {
             $f = Format-Lines @($l)
             # Write-Host: plain output would be swallowed into this function's return value.
             if ($f) { Write-Host $f }
-            if ($l.Contains($ScreenReaderMarker) -and $l -match $pattern) { return $true }
+            if ($l.Contains($ScreenReaderMarker) -and $l -match $pattern) { $matched = $true }
         }
+        if ($matched) { return $true }
         Start-Sleep -Milliseconds 250
     }
     return $false
@@ -240,6 +243,10 @@ function Invoke-Build {
 function Invoke-Stop {
     Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue | Stop-Process -Force
     Get-ConsoleProcess | Stop-Process -Force
+    # Relaunching while the old process is still tearing down makes the new launch silently exit.
+    $deadline = (Get-Date).AddSeconds(30)
+    while ((Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    Start-Sleep -Seconds 3
     Write-Output 'Stopped.'
 }
 
