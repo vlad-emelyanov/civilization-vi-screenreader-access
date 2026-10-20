@@ -142,3 +142,21 @@ function PrintKeyMap()
 		print(k, v)
 	end
 end
+-- Scrolls a ScrollPanel so that `control` (somewhere inside `stack`, which is inside `panel`) is visible.
+-- Best effort for sighted helpers; never raises.
+function KeyNavScrollIntoView(panel, stack, control)
+	pcall(function()
+		local _, panelY = panel:GetScreenOffset();
+		local panelH = panel:GetSizeY();
+		local _2, y = control:GetScreenOffset();
+		local itemH = control:GetSizeY();
+		if y < panelY or y + itemH > panelY + panelH then
+			local __, stackY = stack:GetScreenOffset();
+			local range = stack:GetSizeY() - panelH;
+			if range > 0 then
+				local scroll = (y - stackY + itemH / 2 - panelH / 2) / range;
+				panel:SetScrollValue(math.max(0, math.min(1, scroll)));
+			end
+		end
+	end);
+end

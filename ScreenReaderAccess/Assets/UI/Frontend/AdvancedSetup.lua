@@ -2069,6 +2069,10 @@ end
 
 -- ===========================================================================
 function OnMapSelect()
+	local mapParameter:table = g_GameParameters and g_GameParameters.Parameters and g_GameParameters.Parameters["Map"] or nil;
+	if mapParameter ~= nil and mapParameter.Value ~= nil then
+		LuaEvents.MapSelect_SetCurrentMap( mapParameter.Value.Value );	-- so the picker opens on the current map
+	end
 	LuaEvents.MapSelect_PopulatedMaps( g_kMapData );
 	Controls.MapSelectWindow:SetHide(false);
 end

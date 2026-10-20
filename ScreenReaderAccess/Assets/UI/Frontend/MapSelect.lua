@@ -1,5 +1,7 @@
 
 include("InstanceManager");
+include("KeyboardNavigation");
+include("ScreenReader");
 
 -- ===========================================================================
 -- Members
@@ -17,6 +19,11 @@ local m_sortType :number = 0;
 local m_lastSelectedSort :table;
 
 local DEFAULT_MAP_RAWNAME = "LOC_MAP_CONTINENTS";
+
+-- Keyboard navigation state: maps in the order they are shown, and the focused one.
+local m_keyNavMaps		:table = {};
+local m_keyNavIndex		:number = 1;
+local m_keyNavInitial	:number = 1;
 
 -- ===========================================================================
 function Close()
@@ -74,6 +81,7 @@ end
 
 -- ===========================================================================
 function PopulateMapSelectPanel()
+	m_keyNavMaps = {};
 
 	if(m_mapSelectorIM ~= nil) then
 		m_mapSelectorIM:ResetInstances();
@@ -103,6 +111,7 @@ function PopulateMapButton(kMapData:table)
 	uiMap.MapButton:RegisterCallback( Mouse.eLClick, function() OnMapButton(kMapData, uiMap.MapButton); end );
 	uiMap.MapButton:RegisterCallback( Mouse.eLDblClick,function() m_selectedMapValue = kMapData.Value; OnSelectMapButton(); end);
 	uiMap.MapButton:SetSelected(false);
+	table.insert(m_keyNavMaps, { data = kMapData, button = uiMap.MapButton });
 
 	if(m_selectedMapValue == kMapData.Value)then
 		OnMapButton(kMapData, uiMap.MapButton);
@@ -123,13 +132,85 @@ function ClearMapData()
 end
 
 -- ===========================================================================
+-- Keyboard navigation (screen reader)
+-- ===========================================================================
+local function KeyNavMapText( index:number )
+	local entry:table = m_keyNavMaps[index];
+	local text:string = Locale.Lookup(entry.data.RawName)..", "..tostring(index).." of "..tostring(#m_keyNavMaps);
+	if entry.data.RawDescription ~= nil then
+		local description:string = CleanTextForSpeech(Locale.Lookup(entry.data.RawDescription));
+		if description ~= "" then text = text..". "..description; end
+	end
+	return text;
+end
+
+local function KeyNavFocusMap( index:number )
+	m_keyNavIndex = index;
+	local entry:table = m_keyNavMaps[index];
+	OnMapButton(entry.data, entry.button);	-- updates the info panel and the selection like a click
+	KeyNavScrollIntoView(Controls.ParametersScrollPanel, Controls.MapSelectPanel, entry.button);
+	OutputMessageToScreenReader(KeyNavMapText(index), false);
+end
+
+local function KeyNavFindSelected()
+	for i, entry in ipairs(m_keyNavMaps) do
+		if entry.data.Value == m_selectedMapValue then return i; end
+	end
+	return 1;
+end
+
+function OnShow()
+	m_keyNavIndex = KeyNavFindSelected();
+	m_keyNavInitial = m_keyNavIndex;
+	if #m_keyNavMaps == 0 then
+		OutputMessageToScreenReader(Locale.Lookup("LOC_SETUP_MAP_CREATE_GAME_SELECT_MAP")..". No maps available. Escape to close", true);
+		return;
+	end
+	OutputMessageToScreenReader(CleanTextForSpeech(Controls.WindowTitle:GetText())..", "..tostring(#m_keyNavMaps).." maps. Up and Down to browse, Enter to select, Escape to cancel", true);
+	OutputMessageToScreenReader("Current map: "..KeyNavMapText(m_keyNavIndex), true);
+end
+
+-- Called by the setup screen before the window is shown with the map currently set in the game.
+function OnSetCurrentMap( value:string )
+	m_lastSetMapValue = value;
+end
+
+function KeyNavKeyHandler( key:number )
+	local count:number = #m_keyNavMaps;
+	if key == Keys.VK_ESCAPE then
+		-- Cancel: undo the highlight changes made while browsing.
+		if m_keyNavMaps[m_keyNavInitial] ~= nil and m_keyNavIndex ~= m_keyNavInitial then
+			OnMapButton(m_keyNavMaps[m_keyNavInitial].data, m_keyNavMaps[m_keyNavInitial].button);
+		end
+		Close();
+		OutputMessageToScreenReader("Cancelled", false);
+	elseif count == 0 then
+		return;
+	elseif key == Keys.VK_DOWN then
+		KeyNavFocusMap(m_keyNavIndex % count + 1);
+	elseif key == Keys.VK_UP then
+		KeyNavFocusMap((m_keyNavIndex - 2) % count + 1);
+	elseif key == Keys.VK_HOME then
+		KeyNavFocusMap(1);
+	elseif key == Keys.VK_END then
+		KeyNavFocusMap(count);
+	elseif key == Keys.VK_SPACE then
+		OutputMessageToScreenReader(KeyNavMapText(m_keyNavIndex), false);
+	elseif key == Keys.VK_RETURN then
+		local entry:table = m_keyNavMaps[m_keyNavIndex];
+		local name:string = Locale.Lookup(entry.data.RawName);
+		m_selectedMapValue = entry.data.Value;
+		OnSelectMapButton();
+		OutputMessageToScreenReader("Selected "..name, false);
+	end
+end
+
+-- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then
-		local key:number = pInputStruct:GetKey();
-		if key == Keys.VK_ESCAPE then
-			Close();
-		end
+		local ok, err = xpcall(function() KeyNavKeyHandler(pInputStruct:GetKey()); end, function(e) return debug.traceback(tostring(e), 2); end);
+		if not ok then print("KEYNAV ERROR: "..tostring(err)); end
 	end
 	return true;
 end
@@ -137,6 +218,7 @@ end
 -- ===========================================================================
 function Initialize()
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	ContextPtr:SetShowHandler( OnShow );
 
 	Controls.CloseButton:RegisterCallback( Mouse.eLClick, OnBackButton );
 	Controls.CloseButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
@@ -152,6 +234,7 @@ function Initialize()
 
 	LuaEvents.MapSelect_PopulatedMaps.Add( LoadMaps );
 	LuaEvents.MapSelect_ClearMapData.Add( ClearMapData );
+	LuaEvents.MapSelect_SetCurrentMap.Add( OnSetCurrentMap );
 
 	m_uiMapInfo = m_mapInfoIM:GetInstance();
 end

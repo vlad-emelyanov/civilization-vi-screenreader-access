@@ -25,3 +25,15 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 		print(SCREENREADER_LOG_PREFIX .. message);
 	end
 end
+
+-- Prepares game text (with [NEWLINE] and [ICON_x] style markup) for speech.
+function CleanTextForSpeech(text: string)
+	if text == nil then return ""; end
+	text = string.gsub(text, "%[NEWLINE%]", ". ");
+	text = string.gsub(text, "%[ICON_[^%]]*%]", " ");
+	text = string.gsub(text, "%[[^%]]*%]", "");
+	text = string.gsub(text, "%s+", " ");
+	text = string.gsub(text, "^%s+", "");
+	text = string.gsub(text, "%s+$", "");
+	return text;
+end
