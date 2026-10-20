@@ -2,6 +2,8 @@
 include("InstanceManager");
 include("PlayerSetupLogic");
 include("Civ6Common");
+include("KeyboardNavigation");
+include("ScreenReader");
 
 -- ===========================================================================
 -- CONSTANTS
@@ -25,6 +27,7 @@ local m_bInvertSelection:boolean = false;
 local m_kCityStateDataCache:table = {};
 
 local m_kCityStateCountParam:table = nil;
+local m_kGameParameters:table = nil;		-- Setup parameters (for the keyboard city-state count)
 
 local m_RulesetType:string = "";
 
@@ -163,6 +166,7 @@ end
 -- ===========================================================================
 function ParameterInitialize(parameter : table, pGameParameters:table)
 	m_kParameter = parameter;
+	m_kGameParameters = pGameParameters;
 	m_kSelectedValues = {};
 
 	m_kCityStateCountParam = pGameParameters.Parameters["CityStateCount"];
@@ -338,13 +342,217 @@ function OnShutdown()
 end
 
 -- ===========================================================================
+-- ===========================================================================
+-- Keyboard navigation (screen reader)
+-- Two groups switched with Tab: the city-state list (Up/Down/Home/End) and the controls
+-- (number of city-states, sort, Select All, Select None, OK, Back).
+-- Space/Enter toggles a city-state, I reads its suzerain bonus, Left/Right changes the number or sort,
+-- Enter presses a button, Escape cancels.
+-- ===========================================================================
+local m_keyNavGroup		:number = 1;	-- 1 = city-states, 2 = controls
+local m_keyNavItemIndex	:number = 1;
+local m_keyNavButtonIndex:number = 1;
+local m_keyNavSortByType:boolean = false;
+
+local function KeyNavControls()
+	return {
+		{ kind = "count" },
+		{ kind = "sort" },
+		{ name = Locale.Lookup("LOC_SELECT_ALL"),	activate = OnSelectAll,		message = "All selected" },
+		{ name = Locale.Lookup("LOC_SELECT_NONE"),	activate = OnSelectNone,	message = "All deselected" },
+		{ name = Locale.Lookup("LOC_OK_BUTTON"),	activate = OnConfirmChanges },
+		{ name = Locale.Lookup("LOC_MULTIPLAYER_BACK")..", cancel",	activate = OnBackButton },
+	};
+end
+
+local function KeyNavIsChecked( node:table )
+	return node.checkbox:IsChecked();
+end
+
+local function KeyNavCountText()
+	local checked:number = 0;
+	for _, node in ipairs(m_kItemList) do
+		if KeyNavIsChecked(node) then checked = checked + 1; end
+	end
+	return tostring(checked).." of "..tostring(#m_kItemList).." selected";
+end
+
+local function KeyNavWarningText()
+	local warning:string = CleanTextForSpeech(Controls.CountWarning:GetText());
+	if warning ~= "" then return ". "..warning; end
+	return "";
+end
+
+local function KeyNavTypeText( item:table )
+	local data:table = GetCityStateData(item.Value);
+	local category:string = data and data.CityStateCategory or nil;
+	if category == nil then return ""; end
+	local tag:string = "LOC_CITY_STATES_TYPE_"..string.upper(tostring(category));
+	local text:string = Locale.Lookup(tag);
+	if text == tag then text = tostring(category); end
+	return CleanTextForSpeech(text);
+end
+
+local function KeyNavItemText( index:number )
+	local node:table = m_kItemList[index];
+	local typeText:string = KeyNavTypeText(node.item);
+	return CleanTextForSpeech(node.item.Name)..(typeText ~= "" and (", "..typeText) or "")..", "..(KeyNavIsChecked(node) and "checked" or "unchecked")..", "..tostring(index).." of "..tostring(#m_kItemList);
+end
+
+local function KeyNavCountValueText()
+	return "City-states to spawn: "..tostring(m_kCityStateCountParam.Value);
+end
+
+local function KeyNavSortText()
+	return string.gsub(CleanTextForSpeech(Locale.Lookup("LOC_CITY_STATE_PICKER_SORT_BY")), ":%s*$", "")..": "..Locale.Lookup(m_keyNavSortByType and "LOC_CITY_STATE_PICKER_SORT_TYPE" or "LOC_CITY_STATE_PICKER_SORT_NAME");
+end
+
+local function KeyNavAnnounceCurrent()
+	if m_keyNavGroup == 1 then
+		OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex), false);
+	else
+		local controls:table = KeyNavControls();
+		local control:table = controls[m_keyNavButtonIndex];
+		local text:string;
+		if control.kind == "count" then
+			text = KeyNavCountValueText()..", Left and Right to change";
+		elseif control.kind == "sort" then
+			text = KeyNavSortText()..", Left and Right to change";
+		else
+			text = control.name..", button";
+			if control.activate == OnConfirmChanges and Controls.ConfirmButton:IsDisabled() then
+				text = text..", disabled"..KeyNavWarningText();
+			end
+		end
+		OutputMessageToScreenReader(text..", "..tostring(m_keyNavButtonIndex).." of "..tostring(#controls), false);
+	end
+end
+
+local function KeyNavFocusItem( index:number )
+	m_keyNavItemIndex = index;
+	local node:table = m_kItemList[index];
+	OnItemFocus(node.item);	-- updates the info panel like hovering would
+	KeyNavScrollIntoView(Controls.ItemsScrollPanel, Controls.ItemsPanel, node.checkbox);
+	KeyNavAnnounceCurrent();
+end
+
+function OnShow()
+	m_keyNavGroup = 1;
+	m_keyNavItemIndex = 1;
+	m_keyNavButtonIndex = 1;
+	m_keyNavSortByType = false;
+	if m_kParameter == nil or m_kItemList == nil then return; end
+	local title:string = CleanTextForSpeech(Controls.WindowTitle:GetText());
+	OutputMessageToScreenReader(title..", "..KeyNavCountText()..". "..KeyNavCountValueText()..KeyNavWarningText()..". Up and Down to browse, Space to toggle, I for the suzerain bonus, Tab for the number, sort, Select All, Select None and OK, Escape to cancel", true);
+	if #m_kItemList > 0 then
+		OnItemFocus(m_kItemList[1].item);
+		OutputMessageToScreenReader(KeyNavItemText(1), true);
+	end
+end
+
+local function KeyNavMove( delta:number )
+	if m_keyNavGroup == 1 then
+		local count:number = #m_kItemList;
+		if count == 0 then return; end
+		KeyNavFocusItem((m_keyNavItemIndex - 1 + delta) % count + 1);
+	else
+		m_keyNavButtonIndex = (m_keyNavButtonIndex - 1 + delta) % #KeyNavControls() + 1;
+		KeyNavAnnounceCurrent();
+	end
+end
+
+-- Left/Right on the count and sort rows. Returns true if the key was used.
+local function KeyNavAdjust( delta:number )
+	local control:table = KeyNavControls()[m_keyNavButtonIndex];
+	if control.kind == "count" then
+		local param:table = m_kGameParameters.Parameters["CityStateCount"] or m_kCityStateCountParam;
+		local value:number = math.max(param.Values.MinimumValue, math.min(param.Values.MaximumValue, param.Value + delta));
+		if value ~= param.Value then
+			m_kGameParameters:SetParameterValue(param, value);
+			Network.BroadcastGameConfig();
+			m_kCityStateCountParam = m_kGameParameters.Parameters["CityStateCount"] or param;
+			Controls.CityStateCountNumber:SetText(m_kCityStateCountParam.Value);
+			Controls.CityStateCountSlider:SetStep(m_kCityStateCountParam.Value - param.Values.MinimumValue);
+			RefreshCountWarning();
+		end
+		OutputMessageToScreenReader(KeyNavCountValueText()..KeyNavWarningText(), false);
+		return true;
+	elseif control.kind == "sort" then
+		m_keyNavSortByType = not m_keyNavSortByType;
+		local focusedValue = m_kItemList[m_keyNavItemIndex] and m_kItemList[m_keyNavItemIndex].item.Value or nil;
+		Controls.SortByPulldown:GetButton():SetText(Locale.Lookup(m_keyNavSortByType and "LOC_CITY_STATE_PICKER_SORT_TYPE" or "LOC_CITY_STATE_PICKER_SORT_NAME"));
+		RefreshList(m_keyNavSortByType and SortByType or SortByName);
+		for i, node in ipairs(m_kItemList) do
+			if node.item.Value == focusedValue then m_keyNavItemIndex = i; end
+		end
+		OutputMessageToScreenReader(KeyNavSortText(), false);
+		return true;
+	end
+	return false;
+end
+
+function KeyNavKeyHandler( key:number )
+	if m_kParameter == nil or m_kItemList == nil then
+		if key == Keys.VK_ESCAPE then ContextPtr:SetHide(true); end
+		return;
+	end
+	if key == Keys.VK_ESCAPE then
+		OnBackButton();
+		OutputMessageToScreenReader("Cancelled", false);
+	elseif key == Keys.VK_DOWN then
+		KeyNavMove(1);
+	elseif key == Keys.VK_UP then
+		KeyNavMove(-1);
+	elseif key == Keys.VK_RIGHT and m_keyNavGroup == 2 then
+		if not KeyNavAdjust(1) then KeyNavMove(1); end
+	elseif key == Keys.VK_LEFT and m_keyNavGroup == 2 then
+		if not KeyNavAdjust(-1) then KeyNavMove(-1); end
+	elseif key == Keys.VK_HOME and m_keyNavGroup == 1 and #m_kItemList > 0 then
+		KeyNavFocusItem(1);
+	elseif key == Keys.VK_END and m_keyNavGroup == 1 and #m_kItemList > 0 then
+		KeyNavFocusItem(#m_kItemList);
+	elseif key == Keys.I and m_keyNavGroup == 1 and #m_kItemList > 0 then
+		OnItemFocus(m_kItemList[m_keyNavItemIndex].item);
+		OutputMessageToScreenReader(CleanTextForSpeech(Controls.FocusedItemName:GetText())..". "..CleanTextForSpeech(Controls.FocusedItemDescription:GetText()), false);
+	elseif key == Keys.VK_TAB then
+		m_keyNavGroup = (m_keyNavGroup == 1) and 2 or 1;
+		if m_keyNavGroup == 2 then m_keyNavButtonIndex = 1; end
+		KeyNavAnnounceCurrent();
+	elseif key == Keys.VK_RETURN or key == Keys.VK_SPACE then
+		if m_keyNavGroup == 1 then
+			local node:table = m_kItemList[m_keyNavItemIndex];
+			if node ~= nil then
+				OnItemSelect(node.item, node.checkbox);
+				OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex), false);
+			end
+		elseif key == Keys.VK_RETURN then
+			local control:table = KeyNavControls()[m_keyNavButtonIndex];
+			if control.activate == nil then
+				KeyNavAnnounceCurrent();
+			elseif control.activate == OnConfirmChanges then
+				if Controls.ConfirmButton:IsDisabled() then
+					OutputMessageToScreenReader("OK is not available"..KeyNavWarningText(), false);
+				else
+					local summary:string = KeyNavCountText();
+					OnConfirmChanges();
+					OutputMessageToScreenReader("OK, "..summary, false);
+				end
+			elseif control.activate == OnBackButton then
+				OnBackButton();
+				OutputMessageToScreenReader("Cancelled", false);
+			else
+				control.activate();
+				OutputMessageToScreenReader(control.message..", "..KeyNavCountText()..KeyNavWarningText(), false);
+			end
+		end
+	end
+end
+
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then
-		local key:number = pInputStruct:GetKey();
-		if key == Keys.VK_ESCAPE then
-			OnBackButton();
-		end
+		local ok, err = xpcall(function() KeyNavKeyHandler(pInputStruct:GetKey()); end, function(e) return debug.traceback(tostring(e), 2); end);
+		if not ok then print("KEYNAV ERROR: "..tostring(err)); end
 	end
 	return true;
 end
@@ -353,6 +561,7 @@ end
 function Initialize()
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	ContextPtr:SetShowHandler( OnShow );
 
 	local OnMouseEnter = function() UI.PlaySound("Main_Menu_Mouse_Over"); end;
 

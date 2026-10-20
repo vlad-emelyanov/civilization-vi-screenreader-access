@@ -3,6 +3,8 @@
 include("InstanceManager");
 include("PlayerSetupLogic");
 include("Civ6Common");
+include("KeyboardNavigation");
+include("ScreenReader");
 
 -- ===========================================================================
 -- Members
@@ -202,6 +204,7 @@ function ParameterInitialize( kParameter:table, pGameParameters:table )
 	m_pItemIM:ResetInstances();
 
 	RefreshList();
+	RefreshCountWarning();	-- clear a stale warning from a previous opening
 
     InitPresets();
 
@@ -321,13 +324,188 @@ function OnShutdown()
 end
 
 -- ===========================================================================
+-- ===========================================================================
+-- Keyboard navigation (screen reader)
+-- Two groups switched with Tab: the leader list (Up/Down/Home/End) and the buttons
+-- (Select All / Select None / leaders with no wins / OK / Back).
+-- Space/Enter toggles a leader, I reads the full abilities, Enter presses a button, Escape cancels.
+-- ===========================================================================
+local m_keyNavGroup		:number = 1;	-- 1 = leaders, 2 = buttons
+local m_keyNavItemIndex	:number = 1;
+local m_keyNavButtonIndex:number = 1;
+
+local function KeyNavButtons()
+	return {
+		{ name = Locale.Lookup("LOC_LEADER_PICK_PRESET_ALL"),		activate = OnSelectAll,				message = "All selected" },
+		{ name = Locale.Lookup("LOC_LEADER_PICK_PRESET_NONE"),		activate = OnSelectNone,			message = "All deselected" },
+		{ name = Locale.Lookup("LOC_LEADER_PICK_PRESET_NO_WINS"),	activate = SelectLeadersWithNoWins,	message = "Leaders with no wins selected" },
+		{ name = Locale.Lookup("LOC_OK_BUTTON"),					activate = OnConfirmChanges },
+		{ name = Locale.Lookup("LOC_MULTIPLAYER_BACK")..", cancel",	activate = OnBackButton },
+	};
+end
+
+local function KeyNavIsChecked( node:table )
+	return node.checkbox:IsChecked();
+end
+
+local function KeyNavCountText()
+	local checked:number = 0;
+	for _, node in ipairs(m_kItemList) do
+		if KeyNavIsChecked(node) then checked = checked + 1; end
+	end
+	return tostring(checked).." of "..tostring(#m_kItemList).." selected";
+end
+
+local function KeyNavWarningText()
+	local warning:string = CleanTextForSpeech(Controls.CountWarning:GetText());
+	if warning ~= "" then return ". "..warning; end
+	return "";
+end
+
+local function KeyNavInfo( node:table )
+	return GetPlayerInfo(node.item.Domain, node.item.Value);
+end
+
+local function KeyNavItemText( index:number, withAbilities:boolean )
+	local node:table = m_kItemList[index];
+	local info:table = KeyNavInfo(node);
+	local name:string = CleanTextForSpeech(node.item.Name);
+	if info ~= nil then
+		name = CleanTextForSpeech(Locale.Lookup(info.LeaderName))..", "..CleanTextForSpeech(Locale.Lookup(info.CivilizationName));
+	end
+	local text:string = name..", "..(KeyNavIsChecked(node) and "checked" or "unchecked")..", "..tostring(index).." of "..tostring(#m_kItemList);
+	if withAbilities and info ~= nil then
+		if info.LeaderAbility ~= nil then
+			text = text..". Leader ability: "..CleanTextForSpeech(Locale.Lookup(info.LeaderAbility.Name));
+		end
+		if info.CivilizationAbility ~= nil then
+			text = text..". Civilization ability: "..CleanTextForSpeech(Locale.Lookup(info.CivilizationAbility.Name));
+		end
+	end
+	return text;
+end
+
+local function KeyNavDetailsText( index:number )
+	local node:table = m_kItemList[index];
+	local info:table = KeyNavInfo(node);
+	if info == nil then return CleanTextForSpeech(node.item.Name); end
+	local parts:table = { CleanTextForSpeech(Locale.Lookup(info.LeaderName)) };
+	if info.LeaderAbility ~= nil then
+		table.insert(parts, "Leader ability: "..CleanTextForSpeech(Locale.Lookup(info.LeaderAbility.Name))..": "..CleanTextForSpeech(Locale.Lookup(info.LeaderAbility.Description)));
+	end
+	table.insert(parts, CleanTextForSpeech(Locale.Lookup(info.CivilizationName)));
+	if info.CivilizationAbility ~= nil then
+		table.insert(parts, "Civilization ability: "..CleanTextForSpeech(Locale.Lookup(info.CivilizationAbility.Name))..": "..CleanTextForSpeech(Locale.Lookup(info.CivilizationAbility.Description)));
+	end
+	if info.Uniques ~= nil then
+		for _, ability in ipairs(info.Uniques) do
+			table.insert(parts, "Unique: "..CleanTextForSpeech(Locale.Lookup(ability.Name))..": "..CleanTextForSpeech(Locale.Lookup(ability.Description)));
+		end
+	end
+	return table.concat(parts, ". ");
+end
+
+local function KeyNavAnnounceCurrent( withAbilities:boolean )
+	if m_keyNavGroup == 1 then
+		OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex, withAbilities), false);
+	else
+		local buttons:table = KeyNavButtons();
+		local button:table = buttons[m_keyNavButtonIndex];
+		local text:string = button.name..", button, "..tostring(m_keyNavButtonIndex).." of "..tostring(#buttons);
+		if button.activate == OnConfirmChanges and Controls.ConfirmButton:IsDisabled() then
+			text = text..", disabled"..KeyNavWarningText();
+		end
+		OutputMessageToScreenReader(text, false);
+	end
+end
+
+local function KeyNavFocusItem( index:number )
+	m_keyNavItemIndex = index;
+	local node:table = m_kItemList[index];
+	OnItemFocus(node.item);	-- updates the info panel like hovering would
+	KeyNavScrollIntoView(Controls.ItemsScrollPanel, Controls.ItemsPanel, node.checkbox);
+	KeyNavAnnounceCurrent(true);
+end
+
+function OnShow()
+	m_keyNavGroup = 1;
+	m_keyNavItemIndex = 1;
+	m_keyNavButtonIndex = 1;
+	if m_kParameter == nil or m_kItemList == nil then return; end
+	local title:string = CleanTextForSpeech(Controls.WindowTitle:GetText());
+	OutputMessageToScreenReader(title..", "..KeyNavCountText()..KeyNavWarningText()..". Up and Down to browse, Space to toggle, I for abilities, Tab for Select All, Select None and OK, Escape to cancel", true);
+	if #m_kItemList > 0 then
+		OnItemFocus(m_kItemList[1].item);
+		OutputMessageToScreenReader(KeyNavItemText(1, true), true);
+	end
+end
+
+local function KeyNavMove( delta:number )
+	if m_keyNavGroup == 1 then
+		local count:number = #m_kItemList;
+		if count == 0 then return; end
+		KeyNavFocusItem((m_keyNavItemIndex - 1 + delta) % count + 1);
+	else
+		m_keyNavButtonIndex = (m_keyNavButtonIndex - 1 + delta) % #KeyNavButtons() + 1;
+		KeyNavAnnounceCurrent(false);
+	end
+end
+
+function KeyNavKeyHandler( key:number )
+	if m_kParameter == nil or m_kItemList == nil then
+		if key == Keys.VK_ESCAPE then Close(); end
+		return;
+	end
+	if key == Keys.VK_ESCAPE then
+		Close();
+		OutputMessageToScreenReader("Cancelled", false);
+	elseif key == Keys.VK_DOWN or (key == Keys.VK_RIGHT and m_keyNavGroup == 2) then
+		KeyNavMove(1);
+	elseif key == Keys.VK_UP or (key == Keys.VK_LEFT and m_keyNavGroup == 2) then
+		KeyNavMove(-1);
+	elseif key == Keys.VK_HOME and m_keyNavGroup == 1 and #m_kItemList > 0 then
+		KeyNavFocusItem(1);
+	elseif key == Keys.VK_END and m_keyNavGroup == 1 and #m_kItemList > 0 then
+		KeyNavFocusItem(#m_kItemList);
+	elseif key == Keys.I and m_keyNavGroup == 1 and #m_kItemList > 0 then
+		OutputMessageToScreenReader(KeyNavDetailsText(m_keyNavItemIndex), false);
+	elseif key == Keys.VK_TAB then
+		m_keyNavGroup = (m_keyNavGroup == 1) and 2 or 1;
+		if m_keyNavGroup == 2 then m_keyNavButtonIndex = 1; end
+		KeyNavAnnounceCurrent(true);
+	elseif key == Keys.VK_RETURN or key == Keys.VK_SPACE then
+		if m_keyNavGroup == 1 then
+			local node:table = m_kItemList[m_keyNavItemIndex];
+			if node ~= nil then
+				OnItemSelect(node.item, node.checkbox);
+				OutputMessageToScreenReader(KeyNavItemText(m_keyNavItemIndex, false), false);
+			end
+		elseif key == Keys.VK_RETURN then
+			local button:table = KeyNavButtons()[m_keyNavButtonIndex];
+			if button.activate == OnConfirmChanges then
+				if Controls.ConfirmButton:IsDisabled() then
+					OutputMessageToScreenReader("OK is not available"..KeyNavWarningText(), false);
+				else
+					local summary:string = KeyNavCountText();
+					OnConfirmChanges();
+					OutputMessageToScreenReader("OK, "..summary, false);
+				end
+			elseif button.activate == OnBackButton then
+				OnBackButton();
+				OutputMessageToScreenReader("Cancelled", false);
+			else
+				button.activate();
+				OutputMessageToScreenReader(button.message..", "..KeyNavCountText()..KeyNavWarningText(), false);
+			end
+		end
+	end
+end
+
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then
-		local key:number = pInputStruct:GetKey();
-		if key == Keys.VK_ESCAPE then
-			Close();
-		end
+		local ok, err = xpcall(function() KeyNavKeyHandler(pInputStruct:GetKey()); end, function(e) return debug.traceback(tostring(e), 2); end);
+		if not ok then print("KEYNAV ERROR: "..tostring(err)); end
 	end
 	return true;
 end
@@ -336,6 +514,7 @@ end
 function Initialize()
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	ContextPtr:SetShowHandler( OnShow );
 
 	local OnMouseEnter = function() UI.PlaySound("Main_Menu_Mouse_Over"); end;
 

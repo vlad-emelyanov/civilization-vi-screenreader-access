@@ -32,6 +32,8 @@ end
 -- nointerrupt: Defaults to false. If set, will not try to interrupt currently speaking prompts. Useful for things that aren't in response to user action
 function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 	message = _StripIconMarkup(message);
+	-- The game's print() treats "%" as a printf escape: "50% of" came out as "50<number>f". Say it in words instead.
+	if type(message) == "string" then message = string.gsub(message, "%s*%%", " percent"); end
 	if message == nil or message == "" then return; end
 	if nointerrupt == true then
 		print(SCREENREADER_NO_INTERRUPT_LOG_PREFIX .. message);

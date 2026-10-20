@@ -44,11 +44,7 @@ local m_featureTexts				:table = {};	-- Screen reader text for each unique abili
 --	Screen reader helpers
 -- ===========================================================================
 function CleanForSpeech( text:string )
-	if text == nil then return ""; end
-	text = string.gsub(text, "%[NEWLINE%]", ". ");
-	text = string.gsub(text, "%[ICON_[^%]]*%]", " ");
-	text = string.gsub(text, "%[[^%]]*%]", "");
-	return text;
+	return CleanTextForSpeech(text);	-- shared helper in Accessibility/ScreenReader.lua
 end
 
 function AddFeatureText( header:string, description:string )
