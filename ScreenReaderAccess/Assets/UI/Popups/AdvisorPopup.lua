@@ -3,6 +3,8 @@
 -- ===========================================================================
 include( "InstanceManager" );
 include( "Civ6Common" ); -- IsTutorialRunning()
+include( "KeyboardNavigation" );
+include( "ScreenReader" );
 
 
 -- ===========================================================================
@@ -49,6 +51,45 @@ local m_currentItem			: AdvisorItem;		-- Currently only exists for hotloading
 local m_isDiplomacyUp		: boolean = false;	-- Is the diplomacy system currently not showing
 local m_hotkeyCallback		: ifunction = nil;
 local m_kQueuedPopups		: table	 = {};
+local m_kKeyNavButtons		: table	 = {};	-- Screen reader: { Label, Callback } for each button of the current advisor item
+local m_keyNavFocus			: number = 1;
+local m_keyNavHotkeyFired	: boolean = false;	-- The continue hotkey already activated a button for the key press being released
+local m_keyNavAnnouncement	: string = "";	-- Title and text of the current item, for re-reading
+
+-- ===========================================================================
+--	Screen reader / keyboard navigation
+-- ===========================================================================
+function KeyNavActivate( index:number )
+	local entry :table = m_kKeyNavButtons[index];
+	if entry ~= nil then
+		entry.Callback();
+	end
+end
+
+function KeyNavAnnounceFocus( noInterrupt:boolean )
+	local entry :table = m_kKeyNavButtons[m_keyNavFocus];
+	if entry ~= nil then
+		local text :string = entry.Label;
+		if #m_kKeyNavButtons > 1 then
+			text = text .. ", " .. m_keyNavFocus .. " of " .. #m_kKeyNavButtons;
+		end
+		OutputMessageToScreenReader( text, noInterrupt );
+	end
+end
+
+function KeyNavAnnouncePopup( noInterrupt:boolean )
+	if m_keyNavAnnouncement ~= "" then
+		OutputMessageToScreenReader( m_keyNavAnnouncement, noInterrupt );
+	end
+	KeyNavAnnounceFocus( true );
+end
+
+function KeyNavMoveFocus( delta:number )
+	local count :number = #m_kKeyNavButtons;
+	if count == 0 then return; end
+	m_keyNavFocus = ((m_keyNavFocus - 1 + delta + count) % count) + 1;
+	KeyNavAnnounceFocus( false );
+end
 
 -- ===========================================================================
 --	FUNCTIONS
@@ -76,12 +117,23 @@ function AddAdvisorButton( data:AdvisorItem, text:string, callbackFunc:ifunction
 			OnHideAdvisorDialog(); 
 			callbackFunc(data); 
 		end );
-
-	if isHotkeyed then
-		m_hotkeyCallback = 
+	table.insert( m_kKeyNavButtons, { Label = CleanTextForSpeech( buttonInstance.DialogButton:GetText() ), Callback = 
 		function() 
 			OnHideAdvisorDialog(); 
 			callbackFunc(data); 
+		end } );
+
+	if isHotkeyed then
+		-- Screen reader: the continue hotkey (Enter/Space) activates the focused button, not just the first one.
+		m_hotkeyCallback = 
+		function() 
+			if m_kKeyNavButtons[m_keyNavFocus] ~= nil then
+				m_keyNavHotkeyFired = true;
+				KeyNavActivate( m_keyNavFocus );
+			else
+				OnHideAdvisorDialog(); 
+				callbackFunc(data); 
+			end
 		end
 	end
 
@@ -102,6 +154,9 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 
 	 m_dialogButtonIM:ResetInstances();
 	 m_metaDialogButtonIM:ResetInstances();
+	 m_kKeyNavButtons = {};
+	 m_keyNavFocus = 1;
+	 m_keyNavAnnouncement = "";
 
 	if advisorData == nil then
 		UI.DataError("Attempt to show advisor with NIL advisor data.");
@@ -185,6 +240,31 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 		AddAdvisorButton( advisorData, advisorData.Button2Text, advisorData.Button2Func );
 	end
 
+	-- Screen reader: announce what is being shown (the advisor text, the tutorial callout) and the focused button.
+	local srParts :table = {};
+	if not bHideAdvisor then
+		local title :string = "Advisor";
+		if advisorData.ShowPortrait then title = CleanTextForSpeech( Controls.TitleText:GetText() ); end
+		table.insert( srParts, title .. ": " .. CleanTextForSpeech( advisorData.ShowPortrait and Controls.InfoString:GetText() or Controls.MetaInfoString:GetText() ) );
+	end
+	local calloutBody :string = "";
+	if advisorData.CalloutBody ~= nil and advisorData.CalloutBody ~= "" then
+		calloutBody = CleanTextForSpeech( Controls.CalloutBody:GetText() );
+	end
+	if string.find( calloutBody, "text not set", 1, true ) ~= nil then calloutBody = ""; end	-- Placeholder callouts (dev text) are not shown on screen
+	if calloutBody ~= "" then
+		local calloutHeader :string = "";
+		if advisorData.CalloutHeader ~= nil and advisorData.CalloutHeader ~= "" then
+			calloutHeader = CleanTextForSpeech( Controls.CalloutHeader:GetText() );
+		end
+		if calloutHeader ~= "" then calloutHeader = calloutHeader .. ". "; end
+		table.insert( srParts, "Tutorial: " .. calloutHeader .. calloutBody );
+	end
+	m_keyNavAnnouncement = table.concat( srParts, ". " );
+	if m_keyNavAnnouncement ~= "" then
+		KeyNavAnnouncePopup( false );
+	end
+
 	-- If there are any associated <tutorial> triggers... trigger them.
 	for _,trigger in ipairs(advisorData.UITriggers) do	
 		UITutorialManager:ShowControlsByID( trigger, false );	
@@ -230,6 +310,8 @@ end
 
 -- ===========================================================================
 function OnHideAdvisorDialog()
+	m_kKeyNavButtons = {};
+	m_keyNavFocus = 1;
 	-- If there are any associated <tutorial> triggers... trigger them.
 	for _,trigger in ipairs(m_currentItem.UITriggers) do	
 		UITutorialManager:HideControlsByID( trigger, false );	
@@ -394,6 +476,30 @@ end
 
 -- ===========================================================================
 function KeyHandler( key:number )
+	-- Screen reader: keyboard navigation of the advisor's buttons while it is showing.
+	if IsBlockingInput() and (not m_isDiplomacyUp) then
+		if key == Keys.VK_UP then
+			KeyNavMoveFocus( -1 );
+			return true;
+		elseif key == Keys.VK_DOWN or key == Keys.VK_TAB then
+			KeyNavMoveFocus( 1 );
+			return true;
+		elseif key == Keys.VK_ESCAPE then
+			-- Nothing to dismiss (the advisor must be answered): read it again instead of opening the game menu.
+			KeyNavAnnouncePopup( false );
+			return true;
+		elseif (key == Keys.VK_RETURN or key == Keys.VK_SPACE) and #m_kKeyNavButtons > 0 then
+			-- The continue hotkey may have activated the button already on key down; otherwise do it now.
+			if m_keyNavHotkeyFired then
+				m_keyNavHotkeyFired = false;
+			else
+				KeyNavActivate( m_keyNavFocus );
+			end
+			return true;
+		end
+	end
+	m_keyNavHotkeyFired = false;
+
 	if key == Keys.VK_ESCAPE then
 		if m_isDiplomacyUp then return false; end	-- Currently cannot handle ESC if diplomacy is up.
 		LuaEvents.Tutorial_ToggleInGameOptionsMenu();
@@ -417,7 +523,12 @@ end
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then 
-		return KeyHandler( pInputStruct:GetKey() ); 
+		local ok, result = xpcall( function() return KeyHandler( pInputStruct:GetKey() ); end, KeyNavErrorHandler );
+		if not ok then
+			print( "AdvisorPopup input error: " .. tostring(result) );
+			return IsBlockingInput();
+		end
+		return result;
 	end
 	return IsBlockingInput();
 end

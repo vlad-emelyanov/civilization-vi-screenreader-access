@@ -6,6 +6,7 @@ include("KeyboardNavigation");
 include("ScreenReader");
 
 g_TutorialModId = "17462E0F-1EE1-4819-AAAA-052B5896B02A";
+g_ScreenReaderModId = "49224623-c629-4e7a-a5cb-ad822828072e";
 g_GameParameters = nil;		-- Game Parameters.
 local m_isMoviePaused:boolean = false;
 
@@ -58,6 +59,11 @@ function EnsureTutorialIsEnabled()
 	else
 		if(not tutorialEnabled) then
 			GameConfiguration.AddEnabledMods(tutorialHandle, true);
+		end
+		-- Screen reader: keep this mod enabled in the tutorial game, otherwise none of its in-game UI overrides (advisor popup etc.) load.
+		local srHandle = Modding.GetModHandle(g_ScreenReaderModId);
+		if(srHandle ~= nil) then
+			GameConfiguration.AddEnabledMods(srHandle);
 		end
 	end
 end
