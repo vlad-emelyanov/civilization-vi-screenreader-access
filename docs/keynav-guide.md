@@ -47,3 +47,5 @@ Announcement formats: `"<Label>: <value>"` for options, `"<Label>: checked|unche
 Keyboard path that works end to end: Main menu → Single Player → Create Game (basic options) / Advanced Setup (all options, players, add/remove AI) → Start Game → load screen announcements → Enter begins the game. Load Game and the Exit confirmation popup also work.
 
 Gaps: inside the leader picker, city-state picker, multi-select window, map select popup and the leader pulldown (Enter opens, Escape closes, no navigation inside; Left/Right on the setup screens covers the same choices); seed text fields; the Gathering Storm welcome popup and most of the in-game UI. Known in-game Lua error: `WorldInput.lua` `KeyNavPlotMoveTo` (function expected instead of nil).
+
+Options screen (main menu > Game Options): tabs, the Game tab (pulldowns cycle with Left/Right, checkbox toggles with Enter/Space) and Key Bindings work. Gaps: the Game tab's time-of-day slider, text fields and multiplayer parameters, and the Graphics/Audio/Interface/Language/Application tabs (those stay on tab-level navigation).

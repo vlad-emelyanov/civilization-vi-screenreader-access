@@ -53,6 +53,10 @@ local m_inMainKeyNav = true;
 local m_bindingInstances = {};
 local m_selectedBindingIndex = 1;
 local m_selectedBindingColumn = 1;
+local m_currentTab = nil;
+local m_comboState = {};		-- pulldown control -> {values, index, handler}
+local m_checkState = {};		-- checkbox control -> handler
+local m_contentFocus = nil;		-- control focused in the current tab's content
 
 local BORDERLESS_OPTION = 2;
 local FULLSCREEN_OPTION = 1;
@@ -331,6 +335,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
 	end
 
 	control:ClearEntries();
+	local selectedIndex = 1;
 	for i, v in ipairs(values) do
 		local instance = {};
 		control:BuildEntry( "InstanceOne", instance );
@@ -338,6 +343,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
         instance.Button:LocalizeAndSetText(v[1]);
 
 		if(v[2] == selected_value) then
+			selectedIndex = i;
 			local button = control:GetButton();
             button:LocalizeAndSetText(v[1]);
 		end
@@ -345,6 +351,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
 	control:CalculateInternals();	
 		
 	control:SetDisabled(is_locked ~= false);
+	m_comboState[control] = { values = values, index = selectedIndex, handler = selection_handler };
 
 	if(selection_handler) then
 		control:GetButton():RegisterCallback(Mouse.eMouseEnter, function()
@@ -353,6 +360,7 @@ function PopulateComboBox(control, values, selected_value, selection_handler, is
 		control:RegisterSelectionCallback(
 			function(voidValue1, voidValue2, control)
 				local option = values[voidValue1];
+				m_comboState[control].index = voidValue1;
 
 				local button = control:GetButton();
                 button:LocalizeAndSetText(option[1]);
@@ -380,6 +388,7 @@ function PopulateCheckBox(control, current_value, check_handler, is_locked)
     end
 
     control:SetDisabled(is_locked ~= false);
+	m_checkState[control] = check_handler;
 
     if(check_handler) then
         control:RegisterCallback(Mouse.eLClick, 
@@ -1775,7 +1784,125 @@ function EnsureBindingVisible(index)
 	scrollPanel:SetScrollValue(scrollValue);
 end
 
+-- Items reachable by keyboard on the Game tab, in order. {control id, label loc key}
+local GAME_TAB_ITEMS = {
+	{ "QuickCombatPullDown",				"LOC_OPTIONS_QUICK_COMBAT" },
+	{ "QuickMovementPullDown",				"LOC_OPTIONS_QUICK_MOVEMENT" },
+	{ "AutoEndTurnPullDown",				"LOC_OPTIONS_AUTO_END_TURN" },
+	{ "CityRangeAttackTurnBlockingPullDown","LOC_OPTIONS_CITY_RANGE_ATTACK" },
+	{ "TunerPullDown",						"LOC_OPTIONS_TUNER" },
+	{ "AutoDownloadPullDown",				"LOC_OPTIONS_AUTO_DOWNLOAD_ADDITIONAL_CONTENT" },
+	{ "TutorialPullDown",					"LOC_OPTIONS_TUTORIAL" },
+	{ "SaveFrequencyPullDown",				"LOC_OPTIONS_TURNS_BETWEEN_AUTOSAVES" },
+	{ "SaveKeepPullDown",					"LOC_OPTIONS_AUTOSAVES_TO_KEEP" },
+	{ "TimeOfDayCheckbox",					"LOC_OPTIONS_TIME_OF_DAY_TEXT" },
+	{ "TurnWebhookFreqPullDown",			"LOC_OPTIONS_WEBHOOK_FREQ" },
+};
+
+function IsGameTab(tab)
+	return tab ~= nil and tab[2] == Controls.GameOptions;
+end
+
+function IsKeyBindingsTab(tab)
+	return tab ~= nil and tab[2] == Controls.KeyBindings;
+end
+
+-- Rebuilt at key time: some controls are hidden depending on platform/state.
+function GetGameTabItems()
+	local items = {};
+	for _, def in ipairs(GAME_TAB_ITEMS) do
+		local control = Controls[def[1]];
+		if control ~= nil and not control:IsHidden() then
+			table.insert(items, { control = control, label = (string.gsub(Locale.Lookup(def[2]), ":%s*$", "")) });
+		end
+	end
+	return items;
+end
+
+function DescribeGameTabItem(item)
+	local control = item.control;
+	local state = m_comboState[control];
+	local text;
+	if state ~= nil then
+		text = Locale.Lookup(state.values[state.index][1]);
+	else
+		text = control:IsSelected() and "checked" or "unchecked";
+	end
+	if control:IsDisabled() then
+		text = text..", disabled";
+	end
+	return item.label..": "..text;
+end
+
+function FocusGameTabItem(item)
+	m_contentFocus = item.control;
+	OutputMessageToScreenReader(DescribeGameTabItem(item));
+	KeyNavMoveMouse(item.control);
+end
+
+function FocusFirstGameTabItem()
+	local items = GetGameTabItems();
+	if #items > 0 then
+		FocusGameTabItem(items[1]);
+	end
+end
+
+function HandleGameTabKey(key)
+	local items = GetGameTabItems();
+	local count:number = #items;
+	if count == 0 then return false; end
+
+	local focused:number = 1;
+	for i, item in ipairs(items) do
+		if item.control == m_contentFocus then focused = i; end
+	end
+	local item = items[focused];
+	local control = item.control;
+	local state = m_comboState[control];
+
+	if key == Keys.VK_UP then
+		FocusGameTabItem(items[(focused - 2 + count) % count + 1]);
+		return true;
+	elseif key == Keys.VK_DOWN then
+		FocusGameTabItem(items[focused % count + 1]);
+		return true;
+	elseif (key == Keys.VK_LEFT or key == Keys.VK_RIGHT) and state ~= nil then
+		if not control:IsDisabled() then
+			local numValues:number = #state.values;
+			local step:number = (key == Keys.VK_RIGHT) and 1 or -1;
+			state.index = (state.index - 1 + step + numValues) % numValues + 1;
+			local option = state.values[state.index];
+			control:GetButton():LocalizeAndSetText(option[1]);
+			if state.handler then state.handler(option[2]); end
+		end
+		OutputMessageToScreenReader(DescribeGameTabItem(item));
+		return true;
+	elseif (key == Keys.VK_RETURN or key == Keys.VK_SPACE) and state == nil then
+		local handler = m_checkState[control];
+		if handler ~= nil and not control:IsDisabled() then
+			local selected = not control:IsSelected();
+			control:SetSelected(selected);
+			handler(selected);
+		end
+		OutputMessageToScreenReader(DescribeGameTabItem(item));
+		return true;
+	end
+	return false;
+end
+
 function HandleOptionsKey(key)
+	local numElements:number = #m_mainKeyNavElements;
+	local numBindings:number = #m_bindingInstances;
+
+	if not m_inMainKeyNav and IsGameTab(m_currentTab) then
+		if key == Keys.VK_ESCAPE then
+			m_inMainKeyNav = true;
+			KeyNavMoveMouse(m_mainKeyNavElements[m_selectedKeyNavElement]);
+			return true;
+		end
+		return HandleGameTabKey(key);
+	end
+
 	if key == Keys.VK_RETURN or key == Keys.VK_SPACE then
 		KeyNavLeftClick();
 		return true;
@@ -2009,6 +2136,14 @@ function OnShow()
 	else
 		Controls.GameSetupContainer:SetHide(true);
 	end
+
+	-- Always open on the first tab with focus on it
+	OnSelectTab(m_tabs[1]);
+	m_inMainKeyNav = true;
+	m_selectedKeyNavElement = 1;
+	OutputMessageToScreenReader("Options", true);
+	OutputMessageToScreenReader(Locale.Lookup(m_tabs[1][3]), true);
+	KeyNavMoveMouse(m_mainKeyNavElements[1]);
 end
 
 -------------------------------------------------------------------------------
@@ -2118,7 +2253,8 @@ function OnSelectTab( tab )
 		end
 	end	
 	button:SetSelected(true);
-	panel:SetHide(false);		
+	panel:SetHide(false);
+	m_currentTab = tab;
 	Controls.WindowTitle:SetText(Locale.ToUpper(Locale.Lookup(title)));
 end
 
@@ -2192,8 +2328,9 @@ function Initialize()
             UI.PlaySound("Main_Menu_Mouse_Over");
 		end);
 		button:RegisterCallback(Mouse.eLClick, function() 
-			m_inMainKeyNav = false;
 			OnSelectTab(tab);
+			m_inMainKeyNav = not (IsGameTab(tab) or IsKeyBindingsTab(tab));
+			if IsGameTab(tab) then FocusFirstGameTabItem(); end
 		end );
 		button:SetHide(false);
 	end
@@ -2203,6 +2340,7 @@ function Initialize()
 	end
 
 	m_tabs[1][1]:SetSelected(true);
+	m_currentTab = m_tabs[1];
 	Controls.WindowTitle:SetText(Locale.ToUpper(Locale.Lookup(m_tabs[1][3])));
 	Controls.TabStack:CalculateSize();
 
