@@ -9,6 +9,7 @@ include( "InstanceManager" );
 include( "SupportFunctions" );
 include( "Civ6Common" );
 include( "Colors") ;
+include( "ScreenReader" );
 
 -- ===========================================================================
 --	Action Hotkeys
@@ -36,7 +37,43 @@ local TIMEOUT_LOAD			:number = 1000;	-- # of frames before a timeout occurs obta
 local m_isLoadComplete				:boolean = false;
 local m_isResyncLoad				:boolean = false;
 local m_isTraitsFullDescriptions	:boolean = false;
+local m_featureTexts				:table = {};	-- Screen reader text for each unique ability / unit / building shown
 
+
+-- ===========================================================================
+--	Screen reader helpers
+-- ===========================================================================
+function CleanForSpeech( text:string )
+	if text == nil then return ""; end
+	text = string.gsub(text, "%[NEWLINE%]", ". ");
+	text = string.gsub(text, "%[ICON_[^%]]*%]", " ");
+	text = string.gsub(text, "%[[^%]]*%]", "");
+	return text;
+end
+
+function AddFeatureText( header:string, description:string )
+	local text:string = "";
+	if header ~= nil and header ~= "" then text = CleanForSpeech(header); end
+	if description ~= nil and description ~= "" then
+		text = text .. (text ~= "" and ": " or "") .. CleanForSpeech(description);
+	end
+	if text ~= "" then table.insert(m_featureTexts, text); end
+end
+
+function AnnounceLoadScreenContent()
+	OutputMessageToScreenReader(Locale.Lookup("LOC_LOADING_PLEASE_WAIT"), true);
+	OutputMessageToScreenReader(CleanForSpeech(Controls.CivName:GetText()), true);
+	OutputMessageToScreenReader(CleanForSpeech(Controls.LeaderName:GetText()), true);
+	if not Controls.EraInfo:IsHidden() then
+		OutputMessageToScreenReader(CleanForSpeech(Controls.EraInfo:GetText()), true);
+	end
+	if not Controls.LeaderInfo:IsHidden() then
+		OutputMessageToScreenReader(CleanForSpeech(Controls.LeaderInfo:GetText()), true);
+	end
+	for _, text in ipairs(m_featureTexts) do
+		OutputMessageToScreenReader(text, true);
+	end
+end
 
 
 -- ===========================================================================
@@ -77,7 +114,7 @@ end
 -- ===========================================================================
 function OnInput( uiMsg, wParam, lParam )
     if uiMsg == KeyEvents.KeyUp then
-        if wParam == Keys.VK_ESCAPE then
+        if wParam == Keys.VK_ESCAPE or wParam == Keys.VK_RETURN then
 			if m_isLoadComplete then
 				OnActivateButtonClicked();
 				return true;
@@ -120,6 +157,7 @@ end
 function OnShow()
 	
 	m_isLoadComplete	= false;
+	m_featureTexts		= {};
 	m_isResyncLoad		= UI.IsResyncLoadInProgress(); -- Remember if this is a resync load for later.
 
 	UIManager:SetUICursor( 1 );
@@ -411,6 +449,7 @@ function OnLoadScreenContentReady()
 			else
 				instance.Description:SetShow(false);
 			end
+			AddFeatureText( instance.Header:GetText(), instance.Description:GetText() );
 		end
 
 		local size:number = SIZE_BUILDING_ICON;
@@ -425,6 +464,7 @@ function OnLoadScreenContentReady()
 			local headerText:string = Locale.ToUpper(Locale.Lookup( item.Name ));
 			instance.Header:SetText( headerText );
 			instance.Description:SetText(Locale.Lookup(item.Description));
+			AddFeatureText( headerText, Locale.Lookup(item.Description) );
 		end
 
 
@@ -439,7 +479,9 @@ function OnLoadScreenContentReady()
 			local headerText:string = Locale.ToUpper(Locale.Lookup( item.Name ));
 			instance.Header:SetText( headerText );
 			instance.Description:SetText(Locale.Lookup(item.Description));
+			AddFeatureText( headerText, Locale.Lookup(item.Description) );
 		end
+		AnnounceLoadScreenContent();
 	end
 end
 
@@ -476,6 +518,7 @@ function OnLoadGameViewStateDone()
 		end
 
 		Controls.StartLabelButton:SetText(strGameButtonName);
+		OutputMessageToScreenReader(strGameButtonName .. ". Press Enter to start.", true);
 		Controls.ActivateButton:SetHide(false);
 		Controls.LoadingContainer:SetHide(true);
 		Controls.FadeAnim:SetToBeginning();
