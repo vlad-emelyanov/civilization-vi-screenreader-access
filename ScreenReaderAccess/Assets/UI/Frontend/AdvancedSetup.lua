@@ -8,6 +8,7 @@ include("SupportFunctions");
 include("PopupDialog");
 include("KeyboardNavigation");
 include("KeyNavEditBox");
+include("KeyNavSetup");
 include("ScreenReader");
 
 -- ===========================================================================
@@ -61,141 +62,10 @@ end
 
 -- ===========================================================================
 -- Keyboard navigation (basic Create Game window and Advanced Setup window)
+-- The shared machinery (items, focus, selection mode, keys) lives in Accessibility/KeyNavSetup.lua.
 -- ===========================================================================
-local m_keyNavFocus			:object = nil;		-- Key (see item.key) of the item that currently has keyboard focus.
-local m_pendingMouseMove	:table = nil;		-- { control, frames } move mouse once layout has settled.
-local m_pendingFocus		:table = nil;		-- { key, prefix, frames, tries } focus an item once the UI has refreshed.
 local m_keyNavSlots			:table = {};		-- Player slots built by RefreshPlayerSlots: { id, isLocal, instance, canRemove }.
-local m_keyNavPopupWasOpen	:boolean = false;
-
-local function KeyNavIsUsable( control:object )
-	return control ~= nil and not control:IsHidden() and not control:IsDisabled();
-end
-
--- Returns the previous/next valid (non-invalid) value of a parameter, without wrapping.
-local function KeyNavGetValueByOffset( parameter:table, offset:number )
-	local values:table = parameter.Values;
-	if values == nil or parameter.Value == nil then return nil; end
-	local current:number = nil;
-	for i, v in ipairs(values) do
-		if v.Value == parameter.Value.Value then current = i; break; end
-	end
-	if current == nil then return nil; end
-	local i:number = current + offset;
-	while i >= 1 and i <= #values and values[i].Invalid do
-		i = i + offset;
-	end
-	if i >= 1 and i <= #values then
-		return values[i];
-	end
-	return nil;
-end
-
--- Order by on-screen position (rows first, then left to right); insertion sort so the result is deterministic.
-local function KeyNavSortByPosition( list:table )
-	for i = 1, #list do
-		local x:number, y:number = list[i].control:GetScreenOffset();
-		list[i].x = x;
-		list[i].y = y;
-	end
-	for i = 2, #list do
-		local item:table = list[i];
-		local j:number = i - 1;
-		while j >= 1 do
-			local other:table = list[j];
-			local before:boolean;
-			if math.abs(item.y - other.y) > 8 then before = item.y < other.y; else before = item.x < other.x; end
-			if not before then break; end
-			list[j + 1] = other;
-			j = j - 1;
-		end
-		list[j + 1] = item;
-	end
-end
-
-local function KeyNavButtonItem( control:object, activate, message:string )
-	return {
-		control = control, kind = "button", activate = activate, activateMessage = message,
-		getText = function() return control:GetText(); end,
-	};
-end
-
--- Selection mode (Enter on a pulldown): the mod lists the parameter's valid values itself instead of using the engine's popup.
-local m_selection:table = nil;		-- { item, label, options, index, originalIndex }
-
-local PULLDOWN_HINT:string = ", dropdown, Left/Right or Enter to change";
-
--- Returns the list of selectable (non-invalid) values and the index of the current one.
-local function KeyNavGetOptions( parameter:table )
-	local options:table = {};
-	local current:number = 1;
-	if parameter.Values ~= nil then
-		for i, v in ipairs(parameter.Values) do
-			if not v.Invalid then
-				table.insert(options, v);
-				if parameter.Value ~= nil and v.Value == parameter.Value.Value then current = #options; end
-			end
-		end
-	end
-	return options, current;
-end
-
-local function KeyNavPulldownItem( control:object, parameter:table, label:string )
-	return {
-		control = control, kind = "pulldown", label = label, focusSuffix = PULLDOWN_HINT,
-		getText = function()
-			return label..": "..(parameter.Value and tostring(parameter.Value.Name) or "");
-		end,
-		getOptions = function() return KeyNavGetOptions(parameter); end,
-		apply = function( v )
-			g_GameParameters:SetParameterValue(parameter, v);
-			Network.BroadcastGameConfig();
-		end,
-		step = function( delta )
-			local v = KeyNavGetValueByOffset(parameter, delta);
-			if v ~= nil then
-				g_GameParameters:SetParameterValue(parameter, v);
-				Network.BroadcastGameConfig();
-			end
-		end,
-	};
-end
-
--- Leader / civilization pulldown of a player; Enter opens the game's pulldown.
-local function KeyNavLeaderItem( control:object, playerParams:table, leaderParam:table, label:string )
-	local item:table = KeyNavPulldownItem(control, leaderParam, label);
-	local function Apply( v )
-		playerParams:SetParameterValue(leaderParam, v);
-		local colorParameter = playerParams.Parameters["PlayerColorAlternate"];
-		if colorParameter then
-			playerParams:SetParameterValue(colorParameter, 0);
-		end
-	end
-	item.apply = Apply;
-	item.step = function( delta )
-		local v = KeyNavGetValueByOffset(leaderParam, delta);
-		if v ~= nil then Apply(v); end
-	end;
-	return item;
-end
-
-local function KeyNavMapItem( control:object, params:table, label:string, activate )
-	local parameter:table = params["Map"];
-	return {
-		control = control, kind = "popup", activate = activate,
-		getText = function()
-			local name:string = parameter.Value and parameter.Value.Name or control:GetText();
-			return label..": "..tostring(name);
-		end,
-		step = function( delta )
-			local v = KeyNavGetValueByOffset(parameter, delta);
-			if v ~= nil then
-				g_GameParameters:SetParameterValue(parameter, v);
-				Network.BroadcastGameConfig();
-			end
-		end,
-	};
-end
+local nav					:table = nil;		-- The KeyNavSetup controller, created below.
 
 -- Builds the items for the basic Create Game window.
 -- Each item: { control, kind, getText(), step(delta), toggle(), activate() }
@@ -206,8 +76,8 @@ local function KeyNavBuildBasicItems()
 	if params ~= nil then
 		local function AddPulldown( pid:string, container:object, pulldown:object )
 			local parameter:table = params[pid];
-			if parameter ~= nil and parameter.Value ~= nil and not container:IsHidden() and KeyNavIsUsable(pulldown) then
-				table.insert(middle, KeyNavPulldownItem(pulldown, parameter, parameter.Name));
+			if parameter ~= nil and parameter.Value ~= nil and not container:IsHidden() and KeyNavSetup_IsUsable(pulldown) then
+				table.insert(middle, KeyNavSetup_PulldownItem(pulldown, parameter, parameter.Name));
 			end
 		end
 		AddPulldown("Ruleset",			Controls.CreateGame_RulesetContainer,			Controls.CreateGame_GameRuleset);
@@ -216,17 +86,17 @@ local function KeyNavBuildBasicItems()
 		AddPulldown("MapSize",			Controls.CreateGame_MapSizeContainer,			Controls.CreateGame_MapSize);
 
 		-- Civilization / leader (a player parameter).
-		if not Controls.CreateGame_LocalPlayerContainer:IsHidden() and KeyNavIsUsable(Controls.Basic_LocalPlayerPulldown) then
+		if not Controls.CreateGame_LocalPlayerContainer:IsHidden() and KeyNavSetup_IsUsable(Controls.Basic_LocalPlayerPulldown) then
 			local playerParams:table = GetPlayerParameters(m_singlePlayerID);
 			local leaderParam:table = playerParams and playerParams.Parameters["PlayerLeader"] or nil;
 			if leaderParam ~= nil then
-				table.insert(middle, KeyNavLeaderItem(Controls.Basic_LocalPlayerPulldown, playerParams, leaderParam, Locale.Lookup("LOC_SETUP_CIVILIZATION")));
+				table.insert(middle, KeyNavSetup_LeaderItem(Controls.Basic_LocalPlayerPulldown, playerParams, leaderParam, Locale.Lookup("LOC_SETUP_CIVILIZATION")));
 			end
 		end
 
 		-- Map type: Left/Right cycles maps, Enter opens the map select popup.
-		if params["Map"] ~= nil and not Controls.CreateGame_MapSelectContainer:IsHidden() and KeyNavIsUsable(Controls.MapSelectButton) then
-			table.insert(middle, KeyNavMapItem(Controls.MapSelectButton, params, Locale.Lookup("LOC_SETUP_MAP_TYPE"), OnMapSelect));
+		if params["Map"] ~= nil and not Controls.CreateGame_MapSelectContainer:IsHidden() and KeyNavSetup_IsUsable(Controls.MapSelectButton) then
+			table.insert(middle, KeyNavSetup_MapItem(Controls.MapSelectButton, params, Locale.Lookup("LOC_SETUP_MAP_TYPE"), OnMapSelect));
 		end
 
 		-- Game modes, checkboxes, sliders and pulldowns created dynamically from the first (simple) driver.
@@ -235,108 +105,32 @@ local function KeyNavBuildBasicItems()
 			local driver:table = drivers and drivers[1] or nil;
 			local c:table = driver and driver.Control or nil;
 			if type(c) == "table" and parameter.Value ~= nil then
-				if c.OptionSlider ~= nil then
-					if c.Root ~= nil and not c.Root:IsHidden() and not c.OptionSlider:IsHidden() then
-						local minimumValue:number = parameter.Values.MinimumValue;
-						local maximumValue:number = parameter.Values.MaximumValue;
-						table.insert(middle, {
-							control = c.OptionSlider, mouseTarget = c.OptionTitle, kind = "slider", focusSuffix = ", slider, minimum "..tostring(minimumValue)..", maximum "..tostring(maximumValue),
-							getText = function() return parameter.Name..": "..tostring(parameter.Value); end,
-							step = function( delta )
-								local newValue:number = math.max(minimumValue, math.min(maximumValue, parameter.Value + delta));
-								if newValue ~= parameter.Value then
-									g_GameParameters:SetParameterValue(parameter, newValue);
-									Network.BroadcastGameConfig();
-								end
-							end,
-						});
-					end
-				elseif c.CheckBox ~= nil then
-					if KeyNavIsUsable(c.CheckBox) then
-						table.insert(middle, {
-							control = c.CheckBox, kind = "checkbox",
-							getText = function()
-								return parameter.Name..": "..(parameter.Value and "checked" or "unchecked");
-							end,
-							toggle = function()
-								g_GameParameters:SetParameterValue(parameter, not parameter.Value);
-								Network.BroadcastGameConfig();
-							end,
-						});
-					end
-				elseif c.PullDown ~= nil and c.Root ~= nil and parameter.Values ~= nil then
-					if not c.Root:IsHidden() and KeyNavIsUsable(c.PullDown) then
-						table.insert(middle, KeyNavPulldownItem(c.PullDown, parameter, parameter.Name));
-					end
-				end
+				local item:table = KeyNavSetup_ParameterItem(pid, parameter, c, parameter.Name);
+				if item ~= nil then table.insert(middle, item); end
 			end
 		end
 	end
 
-	KeyNavSortByPosition(middle);
+	KeyNavSetup_SortByPosition(middle);
 	for i, item in ipairs(middle) do
 		item.panel = Controls.CreateGame_ParametersScrollPanel;
 		item.stack = Controls.CreateGameOptions;
 	end
 
 	local items:table = {};
-	table.insert(items, KeyNavButtonItem(Controls.DefaultButton, OnDefaultButton, "Settings restored to defaults"));
-	table.insert(items, KeyNavButtonItem(Controls.CloseButton, OnBackButton));
+	table.insert(items, KeyNavSetup_ButtonItem(Controls.DefaultButton, OnDefaultButton, "Settings restored to defaults"));
+	table.insert(items, KeyNavSetup_ButtonItem(Controls.CloseButton, OnBackButton));
 	for i, v in ipairs(middle) do table.insert(items, v); end
-	if KeyNavIsUsable(Controls.AdvancedSetupButton) then table.insert(items, KeyNavButtonItem(Controls.AdvancedSetupButton, OnAdvancedSetup)); end
-	if KeyNavIsUsable(Controls.StartButton) then table.insert(items, KeyNavButtonItem(Controls.StartButton, OnStartButton)); end
+	if KeyNavSetup_IsUsable(Controls.AdvancedSetupButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.AdvancedSetupButton, OnAdvancedSetup)); end
+	if KeyNavSetup_IsUsable(Controls.StartButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.StartButton, OnStartButton)); end
 	return items;
 end
 
 -- ---------------------------------------------------------------------------
 -- Advanced Setup window
 -- ---------------------------------------------------------------------------
-
--- Parameters of these groups are announced with their section name, e.g. "Victory Conditions, Science Victory: checked".
-local function KeyNavSectionPrefix( parameter:table )
-	if parameter.GroupId == "Victories" then
-		return Locale.Lookup("LOC_SETUP_VICTORY_CONDITIONS");
-	elseif parameter.GroupId == "GameModes" then
-		return Locale.Lookup("LOC_SETUP_GAME_MODES");
-	end
-	return nil;
-end
-
--- The control(s) of a parameter are either one driver or an array { basicDriver, advancedDriver }.
-local function KeyNavGetAdvancedDriver( control:table )
-	if control == nil then return nil; end
-	if control.Control ~= nil then return control; end
-	local bestKey:number = nil;
-	for k, v in pairs(control) do
-		if type(k) == "number" and (bestKey == nil or k > bestKey) then bestKey = k; end
-	end
-	return bestKey and control[bestKey] or nil;
-end
-
-local function KeyNavOpenPicker( pid:string, parameter:table )
-	if pid == "Map" then
-		OnMapSelect();
-	elseif pid == "CityStates" then
-		LuaEvents.CityStatePicker_Initialize(g_GameParameters.Parameters[pid], g_GameParameters);
-		Controls.CityStatePicker:SetHide(false);
-	elseif pid == "LeaderPool1" or pid == "LeaderPool2" then
-		LuaEvents.LeaderPicker_Initialize(g_GameParameters.Parameters[pid], g_GameParameters);
-		Controls.LeaderPicker:SetHide(false);
-	elseif parameter.Array then
-		LuaEvents.MultiSelectWindow_Initialize(g_GameParameters.Parameters[pid]);
-		Controls.MultiSelectWindow:SetHide(false);
-	else
-		return false;
-	end
-	return true;
-end
-
 local function KeyNavPlayerCount()
 	return #GameConfiguration.GetParticipatingPlayerIDs();
-end
-
-local function KeyNavQueueFocus( key:object, prefix:string )
-	m_pendingFocus = { key = key, prefix = prefix, frames = 6, tries = 0 };
 end
 
 local function KeyNavAddPlayer()
@@ -347,7 +141,7 @@ local function KeyNavAddPlayer()
 	for i, id in ipairs(GameConfiguration.GetParticipatingPlayerIDs()) do
 		if not before[id] then newKey = "leader:"..tostring(id); end
 	end
-	KeyNavQueueFocus(newKey, "Player added, "..KeyNavPlayerCount().." players.");
+	nav.QueueFocus(newKey, "Player added, "..KeyNavPlayerCount().." players.");
 end
 
 local function KeyNavRemovePlayer( playerId:number )
@@ -357,7 +151,7 @@ local function KeyNavRemovePlayer( playerId:number )
 	end
 	RemovePlayer(playerId);
 	local target:table = m_keyNavSlots[math.min(index, #m_keyNavSlots)];
-	KeyNavQueueFocus(target and ("leader:"..tostring(target.id)) or "addai", "Player removed, "..KeyNavPlayerCount().." players.");
+	nav.QueueFocus(target and ("leader:"..tostring(target.id)) or "addai", "Player removed, "..KeyNavPlayerCount().." players.");
 end
 
 -- Builds the items for the Advanced Setup window, in reading order:
@@ -366,8 +160,8 @@ local function KeyNavBuildAdvancedItems()
 	local params:table = g_GameParameters and g_GameParameters.Parameters or nil;
 	local items:table = {};
 
-	table.insert(items, KeyNavButtonItem(Controls.DefaultButton, OnDefaultButton, "Settings restored to defaults"));
-	table.insert(items, KeyNavButtonItem(Controls.CloseButton, OnBackButton));
+	table.insert(items, KeyNavSetup_ButtonItem(Controls.DefaultButton, OnDefaultButton, "Settings restored to defaults"));
+	table.insert(items, KeyNavSetup_ButtonItem(Controls.CloseButton, OnBackButton));
 
 	-- Players.
 	for index, slot in ipairs(m_keyNavSlots) do
@@ -378,8 +172,8 @@ local function KeyNavBuildAdvancedItems()
 		local leaderName:string = leaderParam ~= nil and Locale.Lookup(tostring(leaderParam.Name)) or "Leader";
 		if string.sub(leaderName, 1, 4) == "LOC_" then leaderName = "Leader"; end
 		local pulldown:object = slot.isLocal and Controls.Advanced_LocalPlayerPulldown or (slot.instance and slot.instance.PlayerPullDown);
-		if leaderParam ~= nil and leaderParam.Value ~= nil and KeyNavIsUsable(pulldown) then
-			local item:table = KeyNavLeaderItem(pulldown, playerParams, leaderParam, playerLabel..", "..leaderName);
+		if leaderParam ~= nil and leaderParam.Value ~= nil and KeyNavSetup_IsUsable(pulldown) then
+			local item:table = KeyNavSetup_LeaderItem(pulldown, playerParams, leaderParam, playerLabel..", "..leaderName);
 			item.key = "leader:"..tostring(slot.id);
 			if not slot.isLocal then
 				item.panel = Controls.NonLocalPlayersPanel;
@@ -387,7 +181,7 @@ local function KeyNavBuildAdvancedItems()
 			end
 			table.insert(items, item);
 		end
-		if not slot.isLocal and slot.canRemove and slot.instance ~= nil and KeyNavIsUsable(slot.instance.RemoveButton) then
+		if not slot.isLocal and slot.canRemove and slot.instance ~= nil and KeyNavSetup_IsUsable(slot.instance.RemoveButton) then
 			local removeButton:object = slot.instance.RemoveButton;
 			table.insert(items, {
 				control = removeButton, kind = "button", key = "remove:"..tostring(slot.id),
@@ -397,8 +191,8 @@ local function KeyNavBuildAdvancedItems()
 			});
 		end
 	end
-	if KeyNavIsUsable(Controls.AddAIButton) then
-		local item:table = KeyNavButtonItem(Controls.AddAIButton, KeyNavAddPlayer);
+	if KeyNavSetup_IsUsable(Controls.AddAIButton) then
+		local item:table = KeyNavSetup_ButtonItem(Controls.AddAIButton, KeyNavAddPlayer);
 		item.key = "addai";
 		item.panel = Controls.NonLocalPlayersPanel;
 		item.stack = Controls.NonLocalPlayersStack;
@@ -406,158 +200,15 @@ local function KeyNavBuildAdvancedItems()
 	end
 
 	-- Game parameters.
-	local middle:table = {};
-	if params ~= nil then
-		for pid, parameter in pairs(params) do
-			local driver:table = KeyNavGetAdvancedDriver(g_GameParameters.Controls[pid]);
-			local c:table = driver and driver.Control or nil;
-			if type(c) == "table" and (parameter.Value ~= nil or c.Button ~= nil or c.StringEdit ~= nil) then
-				local section:string = KeyNavSectionPrefix(parameter);
-				local label:string = section and (section..", "..tostring(parameter.Name)) or tostring(parameter.Name);
-				local item:table = nil;
-				if c.OptionSlider ~= nil then
-					if parameter.Value ~= nil and c.Root ~= nil and not c.Root:IsHidden() and not c.OptionSlider:IsHidden() and parameter.Values ~= nil then
-						item = {
-							control = c.OptionSlider, mouseTarget = c.OptionTitle, kind = "slider", focusSuffix = ", slider, minimum "..tostring(parameter.Values.MinimumValue)..", maximum "..tostring(parameter.Values.MaximumValue),
-							getText = function() return label..": "..tostring(parameter.Value); end,
-							step = function( delta )
-								local newValue:number = math.max(parameter.Values.MinimumValue, math.min(parameter.Values.MaximumValue, parameter.Value + delta));
-								if newValue ~= parameter.Value then
-									g_GameParameters:SetParameterValue(parameter, newValue);
-									Network.BroadcastGameConfig();
-								end
-							end,
-						};
-					end
-				elseif c.CheckBox ~= nil then
-					if parameter.Value ~= nil and KeyNavIsUsable(c.CheckBox) then
-						item = {
-							control = c.CheckBox, kind = "checkbox",
-							getText = function() return label..": "..(parameter.Value and "checked" or "unchecked"); end,
-							toggle = function()
-								g_GameParameters:SetParameterValue(parameter, not parameter.Value);
-								Network.BroadcastGameConfig();
-							end,
-						};
-					end
-				elseif c.StringEdit ~= nil then
-					local editRoot:object = c.StringRoot or c.Root or c.StringEdit;
-					if not editRoot:IsHidden() and KeyNavIsUsable(c.StringEdit) then
-						item = {
-							control = c.StringEdit, kind = "edit", focusSuffix = ", Enter to edit",
-							getText = function() return KeyNavEditBox_Describe(label, c.StringEdit); end,
-							activate = function()
-								KeyNavEditBox_Begin(c.StringEdit, {
-									label = label, commit = c.StringCommit,
-									numeric = (parameter.Domain == "int" or parameter.Domain == "uint"),
-								});
-							end,
-						};
-					end
-				elseif c.PullDown ~= nil and c.Root ~= nil and parameter.Value ~= nil and parameter.Values ~= nil and not parameter.Array then
-					if not c.Root:IsHidden() and KeyNavIsUsable(c.PullDown) then
-						item = KeyNavPulldownItem(c.PullDown, parameter, label);
-					end
-				elseif c.Button ~= nil and c.ButtonRoot ~= nil then
-					if not c.ButtonRoot:IsHidden() and KeyNavIsUsable(c.Button) then
-						if pid == "Map" then
-							item = KeyNavMapItem(c.Button, params, label, OnMapSelect);
-						else
-							item = {
-								control = c.Button, kind = "popup",
-								getText = function() return label..": "..tostring(c.Button:GetText()); end,
-								activate = function() if not KeyNavOpenPicker(pid, parameter) then KeyNavLeftClick(); end end,
-							};
-						end
-					end
-				end
-				if item ~= nil then
-					item.key = "param:"..pid;
-					item.panel = Controls.ParametersScrollPanel;
-					item.stack = Controls.ParametersStack;
-					table.insert(middle, item);
-				end
-			end
-		end
+	for i, item in ipairs(KeyNavSetup_BuildParameterItems(params, Controls.ParametersScrollPanel, Controls.ParametersStack, { openMap = OnMapSelect })) do
+		table.insert(items, item);
 	end
-	KeyNavSortByPosition(middle);
-	for i, item in ipairs(middle) do table.insert(items, item); end
 
 	-- Footer buttons.
-	if KeyNavIsUsable(Controls.LoadConfig) then table.insert(items, KeyNavButtonItem(Controls.LoadConfig, OnLoadConfig)); end
-	if KeyNavIsUsable(Controls.SaveConfig) then table.insert(items, KeyNavButtonItem(Controls.SaveConfig, OnSaveConfig)); end
-	if KeyNavIsUsable(Controls.StartButton) then table.insert(items, KeyNavButtonItem(Controls.StartButton, OnStartButton)); end
+	if KeyNavSetup_IsUsable(Controls.LoadConfig) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadConfig, OnLoadConfig)); end
+	if KeyNavSetup_IsUsable(Controls.SaveConfig) then table.insert(items, KeyNavSetup_ButtonItem(Controls.SaveConfig, OnSaveConfig)); end
+	if KeyNavSetup_IsUsable(Controls.StartButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.StartButton, OnStartButton)); end
 	return items;
-end
-
--- Builds the navigable items from the current UI state. Each item has a stable key used to track focus.
-local function KeyNavBuildItems()
-	local items:table = m_AdvancedMode and KeyNavBuildAdvancedItems() or KeyNavBuildBasicItems();
-	for i, item in ipairs(items) do
-		if item.key == nil then item.key = item.control; end
-	end
-	return items;
-end
-
--- Announce an item, scroll its panel if needed, and move the mouse onto it.
-local function KeyNavFocus( item:table, nointerrupt:boolean, prefix:string )
-	m_keyNavFocus = item.key;
-	local frames:number = 0;
-	if item.panel ~= nil and item.y ~= nil then
-		local panel:object = item.panel;
-		local stack:object = item.stack;
-		local _:number, panelY:number = panel:GetScreenOffset();
-		local panelH:number = panel:GetSizeY();
-		local itemH:number = item.control:GetSizeY();
-		if item.y < panelY or item.y + itemH > panelY + panelH then
-			local __:number, stackY:number = stack:GetScreenOffset();
-			local range:number = stack:GetSizeY() - panelH;
-			if range > 0 then
-				local scroll:number = (item.y - stackY + itemH / 2 - panelH / 2) / range;
-				panel:SetScrollValue(math.max(0, math.min(1, scroll)));
-				frames = 3;	-- let the layout update before reading the new position
-			end
-		end
-	end
-	m_pendingMouseMove = { control = item.mouseTarget or item.control, frames = frames };
-	local text:string = item.getText();
-	if item.focusSuffix ~= nil then text = text..item.focusSuffix; end
-	if prefix ~= nil then text = prefix.." "..text; end
-	OutputMessageToScreenReader(text, nointerrupt);
-end
-
-local function KeyNavFindIndex( items:table )
-	for i, item in ipairs(items) do
-		if item.key == m_keyNavFocus then return i; end
-	end
-	return 0;
-end
-
-local function KeyNavMove( delta:number )
-	local items:table = KeyNavBuildItems();
-	local current:number = KeyNavFindIndex(items);
-	local nextIndex:number;
-	if current == 0 then
-		nextIndex = (delta > 0) and 1 or #items;
-	else
-		nextIndex = current + delta;
-		if nextIndex < 1 then nextIndex = #items; end
-		if nextIndex > #items then nextIndex = 1; end
-	end
-	KeyNavFocus(items[nextIndex], false);
-end
-
-local function KeyNavFindFocused()
-	local items:table = KeyNavBuildItems();
-	local index:number = KeyNavFindIndex(items);
-	return index > 0 and items[index] or nil;
-end
-
--- Focus the first item of the current window and announce the window.
-local function KeyNavEnterWindow( title:string )
-	local items:table = KeyNavBuildItems();
-	OutputMessageToScreenReader(title, true);
-	KeyNavFocus(items[1], true);
 end
 
 local function KeyNavPopupOpen()
@@ -566,168 +217,40 @@ local function KeyNavPopupOpen()
 		or not Controls.MultiSelectWindow:IsHidden() or m_pWarningPopup:IsOpen();
 end
 
--- Only handle keys while the Create Game or Advanced Setup window is what the player is looking at.
-local function KeyNavIsActive()
-	if KeyNavPopupOpen() then return false; end
-	if m_AdvancedMode then
-		return not Controls.AdvancedOptionsWindow:IsHidden();
-	end
-	return not Controls.CreateGameWindow:IsHidden();
-end
-
--- ---------------------------------------------------------------------------
--- Selection mode (Enter on a pulldown)
--- ---------------------------------------------------------------------------
-local function KeyNavSelectionText()
-	local v:table = m_selection.options[m_selection.index];
-	return tostring(v.Name)..", "..tostring(m_selection.index).." of "..tostring(#m_selection.options);
-end
-
-local function KeyNavOpenSelection( item:table )
-	local options:table, current:number = item.getOptions();
-	if #options == 0 then return; end
-	local label:string = item.label or "";
-	m_selection = { item = item, options = options, index = current, originalIndex = current };
-	OutputMessageToScreenReader(label..", "..KeyNavSelectionText()..". Up/Down to choose, Enter to select, Escape to cancel", false);
-end
-
-local function KeyNavSelectionKey( key:number )
-	local sel:table = m_selection;
-	if key == Keys.VK_UP or key == Keys.VK_DOWN or key == Keys.VK_HOME or key == Keys.VK_END then
-		if key == Keys.VK_UP then
-			sel.index = sel.index - 1; if sel.index < 1 then sel.index = #sel.options; end
-		elseif key == Keys.VK_DOWN then
-			sel.index = sel.index + 1; if sel.index > #sel.options then sel.index = 1; end
-		elseif key == Keys.VK_HOME then
-			sel.index = 1;
+nav = KeyNavSetup_NewController({
+	buildItems = function()
+		return m_AdvancedMode and KeyNavBuildAdvancedItems() or KeyNavBuildBasicItems();
+	end,
+	-- Only handle keys while the Create Game or Advanced Setup window is what the player is looking at.
+	isActive = function()
+		if m_AdvancedMode then
+			return not Controls.AdvancedOptionsWindow:IsHidden();
+		end
+		return not Controls.CreateGameWindow:IsHidden();
+	end,
+	popupOpen = KeyNavPopupOpen,
+	onBack = function() OnBackButton(); end,
+	-- Keys for the city-state / leader pool warning dialog (Up/Down/Enter; Escape closes it).
+	onPopupKey = function( key:number )
+		if not m_pWarningPopup:IsOpen() then return nil; end
+		if key == Keys.VK_ESCAPE then
+			m_pWarningPopup:Close();
 		else
-			sel.index = #sel.options;
-		end
-		OutputMessageToScreenReader(KeyNavSelectionText(), false);
-	elseif key == Keys.VK_RETURN then
-		m_selection = nil;
-		if sel.index ~= sel.originalIndex then
-			sel.item.apply(sel.options[sel.index]);
-		end
-		OutputMessageToScreenReader(sel.item.getText(), false);
-	elseif key == Keys.VK_ESCAPE then
-		m_selection = nil;
-		OutputMessageToScreenReader("Cancelled, "..sel.item.getText(), false);
-	end
-	return true;
-end
-
-function KeyHandler( key:number )
-	if KeyNavEditBox_IsEditing() then return true; end
-	if m_selection ~= nil and not KeyNavIsActive() then m_selection = nil; end
-	if m_selection ~= nil then
-		return KeyNavSelectionKey(key);
-	end
-	if key == Keys.VK_ESCAPE then
-		if not KeyNavPopupOpen() then
-			OnBackButton();
+			m_pWarningPopup:KeyHandler(key);
 		end
 		return true;
-	end
-	if not KeyNavIsActive() then
-		return true;
-	end
-
-	if key == Keys.VK_UP then
-		KeyNavMove(-1);
-	elseif key == Keys.VK_DOWN then
-		KeyNavMove(1);
-	elseif key == Keys.VK_LEFT or key == Keys.VK_RIGHT then
-		local item:table = KeyNavFindFocused();
-		if item ~= nil and item.step ~= nil then
-			item.step(key == Keys.VK_LEFT and -1 or 1);
-			OutputMessageToScreenReader(item.getText(), false);
-		end
-	elseif key == Keys.VK_RETURN or key == Keys.VK_SPACE then
-		local item:table = KeyNavFindFocused();
-		if item ~= nil then
-			if key == Keys.VK_RETURN and item.getOptions ~= nil then
-				KeyNavOpenSelection(item);
-			elseif item.kind == "checkbox" then
-				item.toggle();
-				OutputMessageToScreenReader(item.getText(), false);
-			elseif key == Keys.VK_RETURN and (item.kind == "button" or item.kind == "popup" or item.kind == "edit") then
-				if item.activate ~= nil then
-					item.activate();
-					if item.activateMessage ~= nil then
-						OutputMessageToScreenReader(item.activateMessage, false);
-					end
-				else
-					KeyNavLeftClick();
-				end
-			end
-		end
-	end
-	return true;
-end
+	end,
+});
 
 -- ===========================================================================
 -- Input Handler
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
-	local uiMsg = pInputStruct:GetMessageType();
-	local editHandled = KeyNavEditBox_HandleInput(pInputStruct);
-	if editHandled ~= nil then return editHandled; end
-	if uiMsg == KeyEvents.KeyUp then
-		local ok, result = xpcall(function() return KeyHandler( pInputStruct:GetKey() ); end, function(e) return tostring(e); end);
-		if not ok then print("KEYNAV ERROR: "..tostring(result)); return true; end
-		return result;
-	end
-	return true;
-end
-
-local function KeyNavUpdate()
-	-- Focus an item once the UI has caught up with a change (e.g. a player was added or removed).
-	if m_pendingFocus ~= nil then
-		m_pendingFocus.frames = m_pendingFocus.frames - 1;
-		if m_pendingFocus.frames <= 0 then
-			local items:table = KeyNavBuildItems();
-			local found:table = nil;
-			for i, item in ipairs(items) do
-				if item.key == m_pendingFocus.key then found = item; end
-			end
-			if found ~= nil then
-				KeyNavFocus(found, false, m_pendingFocus.prefix);
-				m_pendingFocus = nil;
-			elseif m_pendingFocus.tries >= 10 then
-				KeyNavFocus(items[1], false, m_pendingFocus.prefix);
-				m_pendingFocus = nil;
-			else
-				m_pendingFocus.tries = m_pendingFocus.tries + 1;
-				m_pendingFocus.frames = 5;
-			end
-		end
-	end
-
-	-- When a popup (map select, pickers, ...) closes, re-announce the focused item and put the mouse back on it.
-	local popupOpen:boolean = KeyNavPopupOpen();
-	if m_keyNavPopupWasOpen and not popupOpen and m_pendingFocus == nil and m_keyNavFocus ~= nil then
-		local item:table = KeyNavFindFocused();
-		if item ~= nil then
-			KeyNavFocus(item, false);
-		end
-	end
-	m_keyNavPopupWasOpen = popupOpen;
+	return nav.HandleInput(pInputStruct);
 end
 
 function OnKeyNavUpdate( deltaTime:number )
-	KeyNavEditBox_Update(deltaTime);
-	local ok, err = pcall(KeyNavUpdate);
-	if not ok then print("KEYNAV ERROR: "..tostring(err)); end
-	if m_pendingMouseMove ~= nil then
-		if m_pendingMouseMove.frames <= 0 then
-			KeyNavMoveMouse(m_pendingMouseMove.control);
-			m_pendingMouseMove = nil;
-		else
-			m_pendingMouseMove.frames = m_pendingMouseMove.frames - 1;
-		end
-	end
-	KeyNav_Tick(deltaTime);
+	nav.Update(deltaTime);
 end
 
 
@@ -1978,7 +1501,7 @@ end
 function OnShow()
 
 	KeyNavEditBox_Cancel();
-	m_selection = nil;
+	nav.CancelSelection();
 	 m_WorldBuilderImport = false;
 	local bWorldBuilder = GameConfiguration.IsWorldBuilderEditor();
 
@@ -2003,8 +1526,7 @@ function OnShow()
 	end
 
 	-- Keyboard navigation: announce the screen and focus the first item.
-	m_keyNavFocus = Controls.DefaultButton;
-	m_pendingMouseMove = { control = Controls.DefaultButton, frames = 10 };
+	nav.SetFocus(Controls.DefaultButton, Controls.DefaultButton, 10);
 	OutputMessageToScreenReader(Controls.WindowTitle:GetText(), true);
 	OutputMessageToScreenReader(Controls.DefaultButton:GetText(), true);
 
@@ -2032,7 +1554,7 @@ end
 -- ===========================================================================
 function OnHide()
 	KeyNavEditBox_Cancel();
-	m_selection = nil;
+	nav.CancelSelection();
 	HideGameSetup();
 	ReleasePlayerParameters();
 	m_RulesetData = {};
@@ -2082,8 +1604,8 @@ function OnAdvancedSetup()
 	Controls.ButtonStack:CalculateSize();
 
 	m_AdvancedMode = true;
-	m_pendingFocus = nil;
-	KeyNavEnterWindow(Locale.Lookup("LOC_SETUP_ADVANCED_OPTIONS"));
+	nav.SetFocus(nil);
+	nav.EnterWindow(Locale.Lookup("LOC_SETUP_ADVANCED_OPTIONS"));
 end
 
 -- ===========================================================================
@@ -2247,11 +1769,9 @@ function OnBackButton()
 		UpdateCivLeaderToolTip();					-- Need to make sure we update our placard/flyout card if we make a change in advanced setup and then come back
 		m_AdvancedMode = false;
 		-- Back in the basic window: announce it and focus the Advanced Setup button we came from.
-		m_pendingFocus = nil;
-		m_keyNavFocus = Controls.AdvancedSetupButton;
+		nav.SetFocus(Controls.AdvancedSetupButton, Controls.AdvancedSetupButton, 3);
 		OutputMessageToScreenReader(Controls.WindowTitle:GetText(), true);
 		OutputMessageToScreenReader(Controls.AdvancedSetupButton:GetText(), true);
-		m_pendingMouseMove = { control = Controls.AdvancedSetupButton, frames = 3 };
 	else
 		LuaEvents.MapSelect_ClearMapData();
 		UIManager:DequeuePopup( MapSelectWindow );
