@@ -20,7 +20,7 @@ Goal: a blind player can play a full game with the keyboard and speech. The turn
 |---|---|
 | Shift+Arrows | move the map cursor (existing actions `KeyNavMoveCell*`; logic moves from `WorldInput.lua` into the hub) |
 | I | detailed description of the cursor plot |
-| `.` (period) | cursor to the selected unit/city ("where am I") and speak it |
+| `J` | cursor to the selected unit/city ("where am I") and speak it |
 | N | what's next: speak the current end-turn blocker (what Enter will do) |
 | Tab | selected unit: actions menu (Up/Down, Enter runs, Escape closes) |
 | X | scan: with a settler, the settle-spot browser (later: other units scan for threats/targets) |

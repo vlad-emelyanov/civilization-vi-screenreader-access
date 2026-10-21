@@ -21,5 +21,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavCursorToSelection','Cursor to selectio
 INSERT INTO "InputActions" VALUES ('KeyNavWhatsNext','What is next','Read what the Next Action key will do','GLOBAL','World','PC');
 
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavPlotDetails',0,'KBMouse','LOC_OPTIONS_KEY_I');
-INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavCursorToSelection',0,'KBMouse','LOC_OPTIONS_KEY_PERIOD');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavCursorToSelection',0,'KBMouse','LOC_OPTIONS_KEY_J');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavWhatsNext',0,'KBMouse','LOC_OPTIONS_KEY_N');
