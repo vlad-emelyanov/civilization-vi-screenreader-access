@@ -15,6 +15,7 @@ include( "KeyboardNavigation" );
 include( "PlotDescription" );
 include( "KeyNavList" );
 include( "Civ6Common" );		-- MoveUnitToPlot (war declaration check + the right move/attack operation)
+include( "SettleScan" );		-- settler: can settle here, best spots
 
 -- ===========================================================================
 --	MEMBERS
@@ -44,6 +45,8 @@ local m_scanOrigin			:number = nil;		-- plot the X scan started from
 local m_spotted				:table = {};		-- "player:unit" -> turn the enemy was last announced
 local m_spottedTurn			:number = -1;		-- turn m_spottedCount counts
 local m_spottedCount		:number = 0;
+local m_settleOpen			:boolean = false;	-- the settle spot browser (X with a settler selected) is open
+local m_settleItems			:table = {};		-- its items, from the scan made when it opened
 
 -- ===========================================================================
 --	HELPERS
@@ -137,6 +140,40 @@ end
 local function Plural( n:number, one:string, many:string )
 	if n == 1 then return n .. " " .. one; end
 	return n .. " " .. many;
+end
+
+-- Is this one of the local player's units that can found a city?
+local function IsSettler( unit:table )
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return false; end
+	local row:table = GameInfo.Units[ unit:GetUnitType() ];
+	return row ~= nil and row.FoundCity == true;
+end
+
+-- The first n reasons of a settle candidate, as ", river, coast, silk" (empty when there are none).
+local function SettleReasons( candidate:table, n:number )
+	local parts:table = {};
+	for i = 1, math.min( n, #candidate.reasons ) do table.insert( parts, candidate.reasons[i] ); end
+	if #parts == 0 then return ""; end
+	return ", " .. table.concat( parts, ", " );
+end
+
+-- One sentence about the settler's plot and the best spot nearby, said when a settler is selected.
+local function SettleSentence( unit:table )
+	local scan:table = SettleScan_Scan( unit );
+	local here:table, best:table = scan.here, scan.best;
+	if best ~= nil and best.here then
+		return "Here is the best spot nearby" .. ( #best.reasons > 0 and ": " or "" ) .. string.sub( SettleReasons( best, 3 ), 3 ) .. ". B to found.";
+	end
+	local text:string = "Here: ";
+	if here ~= nil then
+		text = text .. "can settle" .. SettleReasons( here, 2 );
+	else
+		text = text .. "cannot settle: " .. ( scan.hereReason or "not possible" );
+	end
+	if best == nil then return text .. ". No spot found nearby."; end
+	text = text .. ". Best: " .. best.relative .. ", " .. Plural( best.turns, "turn", "turns" ) .. SettleReasons( best, 3 );
+	if best.recommended then text = text .. ", recommended"; end
+	return text .. ". X to browse.";
 end
 
 -- Adds a handler to an event when the game has that event.
@@ -444,6 +481,9 @@ local function DescribeCursorPlot( plot:table )
 	if mode ~= nil then
 		local info:string = TargetInfo( mode, plot, unit );
 		if info ~= nil then text = info .. ". " .. text; end
+	elseif IsSettler( unit ) then
+		local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
+		text = text .. ( ok and ", can settle" or ( ", cannot settle: " .. reason ) );
 	end
 	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
 	if relative ~= nil then text = text .. ". " .. relative; end
@@ -675,6 +715,7 @@ end
 
 local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:number, hexJ:number, hexK:number, isSelected:boolean, isEditable:boolean )
 	m_menuOpen = false;
+	m_settleOpen = false;
 	if playerID ~= Game.GetLocalPlayer() then return; end
 	if not isSelected then
 		ResetStaleMode();
@@ -690,6 +731,14 @@ local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:numb
 	SetCursor( plot:GetX(), plot:GetY(), false );
 	local text:string = UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } );
 	OutputMessageToScreenReader( text, UI.GetElapsedTime() - m_lastResultTime < 1.5 );
+	if IsSettler( unit ) and m_ready then
+		local ok:boolean, sentence = xpcall( function() return SettleSentence( unit ); end, KeyNavErrorHandler );
+		if ok then
+			OutputMessageToScreenReader( sentence, true );
+		else
+			print( "InGameAccess settle scan error: " .. tostring( sentence ) );
+		end
+	end
 end
 
 local function CityProductionText( city:table )
@@ -769,6 +818,7 @@ end
 local function OnLocalPlayerTurnEnd()
 	m_menuOpen = false;
 	m_civMenuOpen = false;
+	m_settleOpen = false;
 	m_enterWatch = -1;
 	if GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	OutputMessageToScreenReader( "Turn ended", true );
@@ -779,6 +829,7 @@ end
 -- ===========================================================================
 local function OnInterfaceModeChanged( oldMode:number, newMode:number )
 	m_menuOpen = false;
+	if m_targetModes[ newMode ] ~= nil then m_settleOpen = false; end
 	m_enterWatch = -1;
 	if newMode ~= InterfaceModeTypes.MOVE_TO then m_attackIntent = false; end
 	local label:string = m_targetModes[ newMode ];
@@ -809,6 +860,30 @@ local function ClickCursorPlot()
 	m_lastKeyTime = UI.GetElapsedTime();	-- the click is the player's own action
 	KeyNavMoveMouseToScreen( px, py );
 	After( 0.4, function() KeyNavLeftClick(); end );
+end
+
+-- Orders the unit to the plot through the game's own path (war declaration check included). A plain move is
+-- remembered so that arrival or a stop can be told; an attack or a war declaration (the game asks first, and the
+-- order only goes out after the answer) is not a move order.
+local function IssueMoveOrder( unit:table, plot:table, war:table, enemy:boolean )
+	local unitID:number = unit:GetID();
+	local record:table = nil;
+	if war == nil and not enemy then
+		record = { dest = plot:GetIndex(), issued = UI.GetElapsedTime(), from = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex() };
+		m_movers[ unitID ] = record;
+	end
+	MoveUnitToPlot( unit, plot:GetX(), plot:GetY() );
+	if record ~= nil then
+		After( 1.0, function()
+			-- the order never started: blocked at once
+			if m_movers[ unitID ] ~= record then return; end
+			local mover:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( unitID );
+			if mover ~= nil and Map.GetPlot( mover:GetX(), mover:GetY() ):GetIndex() == record.from and UnitManager.GetQueuedDestination( mover ) == nil then
+				m_movers[ unitID ] = nil;
+				SayResult( "Move blocked, the unit did not move" );
+			end
+		end );
+	end
 end
 
 -- Enter in a target mode: what WorldInput does on the left click in that mode, for the cursor plot.
@@ -843,27 +918,8 @@ local function ConfirmTarget()
 				return;
 			end
 		end
-		-- A plain move is remembered so that arrival or a stop can be told; an attack or a war declaration (the game
-		-- asks first, and the order only goes out after the answer) is not a move order.
-		local unitID:number = unit:GetID();
-		local record:table = nil;
-		if war == nil and not enemy then
-			record = { dest = plot:GetIndex(), issued = UI.GetElapsedTime(), from = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex() };
-			m_movers[ unitID ] = record;
-		end
-		MoveUnitToPlot( unit, x, y );
+		IssueMoveOrder( unit, plot, war, enemy );
 		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-		if record ~= nil then
-			After( 1.0, function()
-				-- the order never started: blocked at once
-				if m_movers[ unitID ] ~= record then return; end
-				local mover:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( unitID );
-				if mover ~= nil and Map.GetPlot( mover:GetX(), mover:GetY() ):GetIndex() == record.from and UnitManager.GetQueuedDestination( mover ) == nil then
-					m_movers[ unitID ] = nil;
-					SayResult( "Move blocked, the unit did not move" );
-				end
-			end );
-		end
 	elseif mode == InterfaceModeTypes.RANGE_ATTACK and unit ~= nil then
 		local parameters:table = {};
 		parameters[UnitOperationTypes.PARAM_X] = x;
@@ -951,6 +1007,93 @@ local function AttackKey()
 		UI.SetInterfaceMode( InterfaceModeTypes.MOVE_TO );
 	end
 	After( 0.3, function() if GetTargetMode() ~= nil then ScanUnits( false ); end end );
+end
+
+-- ===========================================================================
+--	SETTLE SPOT BROWSER (X with a settler selected): candidates from SettleScan, best first
+-- ===========================================================================
+local m_settleList:table;
+
+local function CloseSettle( speak:boolean )
+	m_settleOpen = false;
+	m_settleList.Reset();
+	if speak then OutputMessageToScreenReader( "Closed" ); end
+end
+
+local function BuildSettleItems()
+	return m_settleItems;
+end
+
+-- "2 tiles north-east, 1 turn, river, coast, silk, recommended" / "Here, river, wine"
+local function SettleItemText( c:table )
+	local text:string = c.here and "Here" or ( c.relative .. ", " .. Plural( c.turns, "turn", "turns" ) );
+	text = text .. SettleReasons( c, 3 );
+	if c.recommended then text = text .. ", recommended"; end
+	return text;
+end
+
+local function OpenSettleBrowser( unit:table )
+	local scan:table = SettleScan_Scan( unit );
+	m_settleItems = {};
+	for _, c in ipairs( scan.list ) do
+		table.insert( m_settleItems, { key = c.key, text = SettleItemText( c ), detail = c.detail, candidate = c } );
+	end
+	if #m_settleItems == 0 then
+		OutputMessageToScreenReader( "No spot to settle found nearby" .. ( scan.hereReason ~= nil and ( ", here: " .. scan.hereReason ) or "" ) );
+		return;
+	end
+	m_settleList.Reset();
+	m_settleOpen = true;
+	m_settleList.Open( "Settle spots" );
+end
+
+-- Enter on a spot: the settler walks there (the same path as the move-to mode), or on the spot it stands on: B founds.
+local function SettleGo( item:table )
+	local unit:table = UI.GetHeadSelectedUnit();
+	CloseSettle( false );
+	if not IsSettler( unit ) then
+		SayResult( "No settler selected" );
+		return;
+	end
+	local c:table = item.candidate;
+	local plot:table = Map.GetPlotByIndex( c.plotIndex );
+	if c.here or ( unit:GetX() == c.x and unit:GetY() == c.y ) then
+		local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
+		SayResult( ok and "B to found the city here" or ( "Cannot settle here: " .. reason ) );
+		return;
+	end
+	local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
+	if not ok then
+		SayResult( "Cannot settle there any more: " .. reason );
+		return;
+	end
+	local war:table = WarTargets( unit, plot );
+	local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
+	if war == nil and ( path == nil or path.plots == nil or #path.plots < 2 ) then
+		SayResult( "Unreachable" );
+		return;
+	end
+	IssueMoveOrder( unit, plot, war, false );
+end
+
+m_settleList = KeyNavList_Create{
+	build		= BuildSettleItems,
+	isActive	= function() return m_settleOpen; end,
+	onActivate	= SettleGo,
+	onClose		= function() CloseSettle( true ); end,
+	onFocus		= function( item ) SetCursor( item.candidate.x, item.candidate.y, false ); end,
+};
+
+-- X: with a settler selected the spot browser, otherwise the scan for foreign units.
+local function ScanKey()
+	if not IsLocalPlayerActive() then return; end
+	if m_settleOpen then CloseSettle( true ); return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if IsSettler( unit ) and not m_menuOpen and not m_civMenuOpen and GetTargetMode() == nil then
+		OpenSettleBrowser( unit );
+		return;
+	end
+	ScanUnits( true );
 end
 
 -- ===========================================================================
@@ -1160,7 +1303,18 @@ local function OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:n
 	local plot:table = Map.GetPlot( x, y );
 	if plot ~= nil and plot:GetIndex() == record.dest then
 		m_movers[ unitID ] = nil;
-		SayResult( "Arrived, " .. MovesText( unit ) );
+		local text:string = "Arrived, " .. MovesText( unit );
+		if IsSettler( unit ) then
+			local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
+			if not ok then
+				text = text .. ", cannot settle: " .. reason;
+			elseif unit:GetMovesRemaining() > 0 then
+				text = text .. ", B to found the city";
+			else
+				text = text .. ", can settle, B to found next turn";
+			end
+		end
+		SayResult( text );
 		return;
 	end
 	local queued = UnitManager.GetQueuedDestination( unit );
@@ -1328,6 +1482,7 @@ local function HandleInput( input:table )
 	m_lastKeyTime = UI.GetElapsedTime();
 	if m_menuOpen then return m_menu.HandleInput( input ); end
 	if m_civMenuOpen then return m_civMenu.HandleInput( input ); end
+	if m_settleOpen then return m_settleList.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
 	if GetTargetMode() ~= nil then
@@ -1417,7 +1572,7 @@ function Initialize()
 	RegisterAction( "KeyNavUnitActions",		ToggleUnitMenu );
 	RegisterAction( "KeyNavSelectAtCursor",		SelectAtCursor );
 	RegisterAction( "KeyNavCycleAllUnits",		CycleAllUnits );
-	RegisterAction( "KeyNavScanUnits",			ScanUnits );
+	RegisterAction( "KeyNavScanUnits",			ScanKey );
 	RegisterAction( "KeyNavDiplomacy",			ToggleCivMenu );
 	Events.InputActionTriggered.Add( OnInputActionTriggered );
 

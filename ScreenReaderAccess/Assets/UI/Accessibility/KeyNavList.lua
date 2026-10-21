@@ -6,7 +6,8 @@
 --		isActive   = function() return panelIsOpen; end, -- the list only handles keys while this is true
 --		onActivate = function(item) ... end,             -- Enter
 --		onClose    = function() ... end,                 -- optional: Escape (otherwise left to the game's own handler)
---		extraKeys  = { [Keys.VK_DELETE] = function() ... end },   -- optional: more keys, acted on at KeyUp
+--		onFocus    = function(item) ... end,             -- optional: the focus moved to this item (before it is spoken)
+--		extraKeys  ={ [Keys.VK_DELETE] = function() ... end },   -- optional: more keys, acted on at KeyUp
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
 --	         spoken by Space>, choosable = <false: Enter says item.reason> }
@@ -51,6 +52,10 @@ function KeyNavList_Create( config:table )
 		local item:table = items[ index ];
 		if item == nil then return; end
 		m_focusKey = item.key;
+		if config.onFocus ~= nil then
+			local ok:boolean, err = xpcall( function() config.onFocus( item ); end, KeyNavErrorHandler );
+			if not ok then print( "KeyNavList onFocus error: " .. tostring(err) ); end
+		end
 		local text:string = item.text;
 		if item.section ~= nil and ( withSection or item.section ~= m_lastSection ) then
 			text = item.section .. ": " .. text;
