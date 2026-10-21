@@ -1,5 +1,6 @@
 -- Copyright 2019, Firaxis Games
 include("InstanceManager");
+include("KeyNavList");		-- ScreenReaderAccess: keyboard list of the beliefs
 
 -- ===========================================================================
 --	CONSTANTS
@@ -21,15 +22,20 @@ local m_pGameReligion:table = Game.GetReligion();
 
 local m_uiSelectedBeliefInstance:table = nil;
 
+local m_srList:table = nil;				-- ScreenReaderAccess
+local m_srInstances:table = {};			-- ScreenReaderAccess: belief index -> button instance (filled by Realize)
+
 -- ===========================================================================
 function Realize()
 
 	-- Update available pantheon beliefs
 	m_pSelectBeliefsIM:ResetInstances();
+	m_srInstances = {};
 	for row in GameInfo.Beliefs() do
 		if CanSelectBelief(row) then
 			local beliefInst:table = m_pSelectBeliefsIM:GetInstance();
 			beliefInst[DATA_FIELD_BELIEF_INDEX] = row.Index;
+			m_srInstances[row.Index] = beliefInst;		-- ScreenReaderAccess
 			beliefInst.BeliefLabel:LocalizeAndSetText(Locale.ToUpper(row.Name));
 			beliefInst.BeliefDescription:LocalizeAndSetText(row.Description);
 			SetBeliefIcon(beliefInst.BeliefIcon, row.BeliefType, SIZE_BELIEF_ICON_LARGE);
@@ -165,8 +171,51 @@ function Open()
 		UI.PlaySound("Tech_Tray_Slide_Open");
 
 		Realize();
+		SRA_Announce();		-- ScreenReaderAccess
 	end
 end
+
+-- ===========================================================================
+-- Begin ScreenReaderAccess change: keyboard list of the pantheon beliefs.
+-- Enter selects a belief (the panel's own selection), Enter again on the selected belief confirms it, Escape closes.
+-- ===========================================================================
+function SRA_GetItems()
+	local items:table = {};
+	for row in GameInfo.Beliefs() do
+		if CanSelectBelief(row) then
+			local text:string = CleanTextForSpeech(Locale.Lookup(row.Name)) .. ": " .. CleanTextForSpeech(Locale.Lookup(row.Description));
+			if m_uiSelectedBeliefInstance ~= nil and m_uiSelectedBeliefInstance[DATA_FIELD_BELIEF_INDEX] == row.Index then
+				text = text .. ", selected, Enter to confirm";
+			end
+			table.insert(items, { key = row.Index, text = text, belief = row });
+		end
+	end
+	return items;
+end
+
+function SRA_OnActivate( item:table )
+	local name:string = CleanTextForSpeech(Locale.Lookup(item.belief.Name));
+	if m_uiSelectedBeliefInstance ~= nil and m_uiSelectedBeliefInstance[DATA_FIELD_BELIEF_INDEX] == item.belief.Index then
+		ConfirmPantheon();
+		OutputMessageToScreenReader("Pantheon chosen: " .. name);
+	elseif m_srInstances[item.belief.Index] ~= nil then
+		OnBeliefSelected(m_srInstances[item.belief.Index]);
+		OutputMessageToScreenReader(name .. " selected. Enter to confirm, or pick another");
+	end
+end
+
+function SRA_OnClose()
+	Close();
+	OutputMessageToScreenReader("Pantheon chooser closed");
+end
+
+function SRA_Announce()
+	local faith:number = Players[Game.GetLocalPlayer()]:GetReligion():GetFaithBalance();
+	m_uiSelectedBeliefInstance = nil;
+	m_srList.Reset();
+	m_srList.Open("Choose a pantheon, " .. math.floor(faith) .. " faith");
+end
+-- End ScreenReaderAccess change
 
 -- ===========================================================================
 -- Context Event
@@ -183,6 +232,7 @@ end
 -- Context Event
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	if pInputStruct:GetMessageType() == KeyEvents.KeyUp and pInputStruct:GetKey() == Keys.VK_ESCAPE then 
 		Close();
 		return true;
@@ -226,6 +276,12 @@ end
 
 -- ===========================================================================
 function Initialize()
+	m_srList = KeyNavList_Create{		-- ScreenReaderAccess
+		build = SRA_GetItems,
+		isActive = function() return not ContextPtr:IsHidden() and not Controls.PantheonChooserSlideAnim:IsReversing(); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnClose,
+	};
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
