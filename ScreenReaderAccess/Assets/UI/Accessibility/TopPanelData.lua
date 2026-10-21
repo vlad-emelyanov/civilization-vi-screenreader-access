@@ -24,7 +24,8 @@ end
 
 -- The number as the TopPanel's FormatValuePerTurn shows it ("+2.5", "-1.2", "0"), said as "plus 2.5".
 local function SignedWords( value:number )
-	if value == 0 then return "0"; end
+	value = Round1( value );
+	if value == 0 then return "0"; end		-- also -0.04 and 0.04, which would read "plus 0"
 	local text:string = Locale.Lookup( "{1: number +#,###.#;-#,###.#}", value );
 	local sign:string = string.sub( text, 1, 1 );
 	if sign == "+" then return "plus " .. string.sub( text, 2 ); end
@@ -60,16 +61,23 @@ local function Add( items:table, item:table )
 	table.insert( items, item );
 end
 
+-- Diplomatic favor exists in Gathering Storm only; the player API may answer (with 0) in other rulesets, where the
+-- game's TopPanel shows nothing.
+local function HasFavor()
+	return GameConfiguration.GetRuleSet() == "RULESET_EXPANSION_2" or GameCapabilities.HasCapability( "CAPABILITY_WORLD_CONGRESS" );
+end
+
 local function ResourceItems( items:table, player:table )
 	if not GameCapabilities.HasCapability( "CAPABILITY_DISPLAY_TOP_PANEL_RESOURCES" ) then return; end
 	local resources:table = player:GetResources();
 	for resource in GameInfo.Resources() do
 		if resource.ResourceClassType == "RESOURCECLASS_STRATEGIC" then
 			local amount:number = resources:GetResourceAmount( resource.ResourceType );
-			local hasCap:boolean = resources.GetResourceStockpileCap ~= nil;
-			if hasCap then
+			-- Gathering Storm has stockpiles with a cap; the API may exist elsewhere with a cap of 0: then the base format
+			local cap:number = 0;
+			if resources.GetResourceStockpileCap ~= nil then cap = resources:GetResourceStockpileCap( resource.ResourceType ) or 0; end
+			if cap > 0 then
 				-- Gathering Storm: stockpile with a cap, accumulation per turn, consumption (TopPanel_Expansion2 RefreshResources)
-				local cap:number = resources:GetResourceStockpileCap( resource.ResourceType );
 				local reserved:number = resources:GetReservedResourceAmount( resource.ResourceType );
 				local accumulation:number = resources:GetResourceAccumulationPerTurn( resource.ResourceType );
 				local imported:number = resources:GetResourceImportPerTurn( resource.ResourceType );
@@ -78,7 +86,7 @@ local function ResourceItems( items:table, player:table )
 				local powerUse:number = resources:GetPowerResourceDemandPerTurn( resource.ResourceType );
 				local use:number = unitUse + powerUse;
 				local gain:number = accumulation + imported + bonus;
-				if cap > 0 and ( amount > 0 or gain > 0 or use > 0 ) then
+				if amount > 0 or gain > 0 or use > 0 then
 					local name:string = Locale.Lookup( resource.Name );
 					local text:string = name .. " " .. amount .. " of " .. cap .. ", " .. PerTurn( gain );
 					if use > 0 then text = text .. ", uses " .. use .. " per turn"; end
@@ -111,6 +119,14 @@ local function CurrentResearchItem( items:table, player:table )
 	local id:number = techs:GetResearchingTech();
 	local row:table = ( id ~= nil and id >= 0 ) and GameInfo.Technologies[ id ] or nil;
 	if row == nil then
+		local open:boolean = false;
+		for tech in GameInfo.Technologies() do
+			if not techs:HasTech( tech.Index ) then open = true; break; end
+		end
+		if not open then
+			Add( items, { key = "research", text = "Research: all researched", detail = "Every technology is researched." } );
+			return;
+		end
 		Add( items, { key = "research", text = "Research: none chosen, Enter to choose", open = "research",
 			detail = "No technology is being researched. Enter opens the research chooser." } );
 		return;
@@ -132,6 +148,14 @@ local function CurrentCivicItem( items:table, player:table )
 	local id:number = culture:GetProgressingCivic();
 	local row:table = ( id ~= nil and id >= 0 ) and GameInfo.Civics[ id ] or nil;
 	if row == nil then
+		local open:boolean = false;
+		for civic in GameInfo.Civics() do
+			if not culture:HasCivic( civic.Index ) then open = true; break; end
+		end
+		if not open then
+			Add( items, { key = "civic", text = "Civic: all researched", detail = "Every civic is researched." } );
+			return;
+		end
 		Add( items, { key = "civic", text = "Civic: none chosen, Enter to choose", open = "civic",
 			detail = "No civic is being researched. Enter opens the civics chooser." } );
 		return;
@@ -169,9 +193,15 @@ local function EraItem( items:table, playerID:number )
 	if row == nil then return; end
 	local text:string = "Era: " .. Locale.Lookup( row.Name );
 	local age:string = nil;
-	if eras:HasHeroicGoldenAge( playerID ) then age = "heroic age";
-	elseif eras:HasGoldenAge( playerID ) then age = "golden age";
-	elseif eras:HasDarkAge( playerID ) then age = "dark age";
+	-- HasHeroicGoldenAge only exists with Gathering Storm / Rise and Fall variants: ask each, tolerate a missing one
+	local function Has( method:string )
+		if eras[ method ] == nil then return false; end
+		local ok:boolean, result = pcall( function() return eras[ method ]( eras, playerID ); end );
+		return ok and result == true;
+	end
+	if Has( "HasHeroicGoldenAge" ) then age = "heroic age";
+	elseif Has( "HasGoldenAge" ) then age = "golden age";
+	elseif Has( "HasDarkAge" ) then age = "dark age";
 	end
 	if age ~= nil then text = text .. ", " .. age; end
 	local detail:string = text;
@@ -206,6 +236,12 @@ local function TradeItem( items:table, player:table )
 	Add( items, { key = "trade", text = text, detail = text } );
 end
 
+-- Runs one item builder; an API missing in this ruleset loses that item only, not the whole panel.
+local function Guard( name:string, f )
+	local ok:boolean, err = pcall( f );
+	if not ok then print( "TopPanelData " .. name .. " error: " .. tostring( err ) ); end
+end
+
 function TopPanelData_BuildItems()
 	local items:table = {};
 	local playerID:number = Game.GetLocalPlayer();
@@ -214,31 +250,31 @@ function TopPanelData_BuildItems()
 	if player == nil then return items; end
 	local yields:boolean = GameCapabilities.HasCapability( "CAPABILITY_DISPLAY_TOP_PANEL_YIELDS" );
 
-	if yields and GameCapabilities.HasCapability( "CAPABILITY_SCIENCE" ) then
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_SCIENCE" ) then Guard( "science", function()
 		local value:number = player:GetTechs():GetScienceYield();
 		Add( items, { key = "science", text = "Science, " .. PerTurn( value ), summary = "Science " .. ( PerTurnShort( value ) or "0" ),
 			detail = Clean( GetScienceTooltip() ) } );
-	end
-	if yields and GameCapabilities.HasCapability( "CAPABILITY_CULTURE" ) then
+	end ); end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_CULTURE" ) then Guard( "culture", function()
 		local value:number = player:GetCulture():GetCultureYield();
 		Add( items, { key = "culture", text = "Culture, " .. PerTurn( value ), summary = "Culture " .. ( PerTurnShort( value ) or "0" ),
 			detail = Clean( GetCultureTooltip() ) } );
-	end
-	if yields and GameCapabilities.HasCapability( "CAPABILITY_FAITH" ) then
+	end ); end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_FAITH" ) then Guard( "faith", function()
 		local religion:table = player:GetReligion();
 		local balance:number = religion:GetFaithBalance();
 		local value:number = religion:GetFaithYield();
 		Add( items, { key = "faith", text = "Faith " .. Num( balance ) .. ", " .. PerTurn( value ),
 			summary = WithBalance( "Faith", balance, value ), detail = Clean( GetFaithTooltip() ) } );
-	end
-	if yields and GameCapabilities.HasCapability( "CAPABILITY_GOLD" ) then
+	end ); end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_GOLD" ) then Guard( "gold", function()
 		local treasury:table = player:GetTreasury();
 		local balance:number = math.floor( treasury:GetGoldBalance() );
 		local value:number = treasury:GetGoldYield() - treasury:GetTotalMaintenance();
 		Add( items, { key = "gold", text = "Gold " .. Num( balance ) .. ", " .. PerTurn( value ),
 			summary = WithBalance( "Gold", balance, value ), detail = Clean( GetGoldTooltip() ) } );
-	end
-	if yields and GameCapabilities.HasCapability( "CAPABILITY_TOURISM" ) then
+	end ); end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_TOURISM" ) then Guard( "tourism", function()
 		local stats:table = player:GetStats();
 		local rate:number = Round1( stats:GetTourism() );
 		if rate > 0 then		-- the TopPanel hides the tourism button at 0
@@ -247,22 +283,22 @@ function TopPanelData_BuildItems()
 			if breakdown ~= nil and #breakdown > 0 then detail = detail .. "[NEWLINE]" .. breakdown; end
 			Add( items, { key = "tourism", text = "Tourism " .. Num( rate ) .. " per turn", detail = Clean( detail ) } );
 		end
-	end
-	if player.GetFavor ~= nil and player.GetFavorPerTurn ~= nil then
+	end ); end
+	if HasFavor() and player.GetFavor ~= nil and player.GetFavorPerTurn ~= nil then Guard( "favor", function()
 		local balance:number = player:GetFavor();
 		local value:number = player:GetFavorPerTurn();
 		local detail:string = Locale.Lookup( "LOC_WORLD_CONGRESS_TOP_PANEL_FAVOR_TOOLTIP" );
 		local more:string = player:GetFavorPerTurnToolTip();
 		if more ~= nil and #more > 0 then detail = detail .. "[NEWLINE]" .. more; end
 		Add( items, { key = "favor", text = "Diplomatic favor " .. Num( balance ) .. ", " .. PerTurn( value ), detail = Clean( detail ) } );
-	end
-	ResourceItems( items, player );
-	CurrentResearchItem( items, player );
-	CurrentCivicItem( items, player );
-	TurnItem( items );
-	EraItem( items, playerID );
-	EnvoyItem( items, player );
-	TradeItem( items, player );
+	end ); end
+	Guard( "resources", function() ResourceItems( items, player ); end );
+	Guard( "research", function() CurrentResearchItem( items, player ); end );
+	Guard( "civic", function() CurrentCivicItem( items, player ); end );
+	Guard( "turn", function() TurnItem( items ); end );
+	Guard( "era", function() EraItem( items, playerID ); end );
+	Guard( "envoys", function() EnvoyItem( items, player ); end );
+	Guard( "trade", function() TradeItem( items, player ); end );
 	return items;
 end
 
