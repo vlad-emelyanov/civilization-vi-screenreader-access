@@ -144,6 +144,7 @@ local m_kAllPlayerData			:table  = {};		-- Holds copy of player data for all loc
 local m_kBonuses				:table	= {}
 local m_governmentChangeType	:string = "";		-- The government type proposed being changed to.
 local m_isPoliciesChanged		:boolean= false;
+local m_srOpenPending		:boolean= false;	-- ScreenReaderAccess: announce once the screen is really shown
 local m_kPolicyCatalogData		:table	= {};
 local m_kPolicyCatalogOrder		:table  = {};		-- Track order of policies to display
 local m_kPolicyFilters			:table	= {};
@@ -916,6 +917,8 @@ function OnAcceptGovernmentChange()
 		-- Update tabs and go to policies page.
 		RealizeTabs();
 		m_tabs.SelectTab( Controls.ButtonPolicies );
+		OutputMessageToScreenReader( "Government changed to " .. Locale.Lookup( g_kCurrentGovernment.Name ), true );		-- ScreenReaderAccess
+		SRA_OnOpen();		-- ScreenReaderAccess
 	end
 	m_governmentChangeType = "";
 end
@@ -930,6 +933,7 @@ function OnAcceptAnarchyChange()
 	local kPlayerCulture:table = kPlayer:GetCulture();
 	if kPlayerCulture:RequestChangeGovernment( g_kGovernments[m_governmentChangeType].Hash ) then
 		g_kCurrentGovernment = nil;
+		OutputMessageToScreenReader( "Changing to " .. Locale.Lookup( g_kGovernments[m_governmentChangeType].Name ) .. ", anarchy first", true );		-- ScreenReaderAccess
 	end
 	m_governmentChangeType = "";
 	Close();
@@ -1499,6 +1503,7 @@ function Close()
 			UI.PlaySound("UI_Screen_Close");
 		end
 		UIManager:DequeuePopup(ContextPtr);
+		m_srOpenPending = false;		-- ScreenReaderAccess
 		m_governmentChangeType	= "";
 		m_isPoliciesChanged		= false;
 		LuaEvents.Government_CloseGovernment();
@@ -1573,6 +1578,7 @@ function OnConfirmPolicies()
 
 		m_isPoliciesChanged	= false;
 		Controls.ConfirmPolicies:SetDisabled( true );
+		OutputMessageToScreenReader( "Policies confirmed", true );		-- ScreenReaderAccess
 		Close();
 	end
 
@@ -1741,10 +1747,11 @@ function OnOpenGovernmentScreen( screenEnum:number )
 		kParameters.RenderAtCurrentParent = true;
 		kParameters.InputAtCurrentParent = true;
 		kParameters.AlwaysVisibleInQueue = true;
+		m_srOpenPending = true;		-- ScreenReaderAccess: the show handler announces (another popup may be in front first)
 		UIManager:QueuePopup(ContextPtr, PopupPriority.Low, kParameters);
 
 		LuaEvents.Government_OpenGovernment();
-		SRA_OnOpen();	-- ScreenReaderAccess
+		if m_srOpenPending and not ContextPtr:IsHidden() then m_srOpenPending = false; SRA_OnOpen(); end	-- ScreenReaderAccess
 	end
 end
 
@@ -2742,7 +2749,7 @@ end
 --   Tab switches tabs, Escape goes back / closes the screen. Lists are rebuilt from the screen's data at key time.
 -- ===========================================================================
 local m_srList:table = nil;
-local m_srCatalogSlot:table = nil;		-- slot data (m_ActivePolicyRows) while a policy is being chosen for it
+local m_srCatalogSlotIndex:number = nil;	-- GC_SlotIndex of the slot a policy is being chosen for (slot tables are rebuilt by RefreshAllData)
 
 local SRA_ROW_NAMES:table = {
 	[ROW_INDEX.MILITARY]	= "LOC_GOVT_POLICY_TYPE_MILITARY",
@@ -2764,9 +2771,20 @@ end
 local function SRA_SlotLabel( nRowIndex:number, tSlot:table )
 	local number:number = 1;
 	for i, tOther in ipairs( m_ActivePolicyRows[nRowIndex].SlotArray ) do
-		if tOther == tSlot then number = i; break; end
+		if tOther.GC_SlotIndex == tSlot.GC_SlotIndex then number = i; break; end
 	end
 	return Locale.Lookup( SRA_ROW_NAMES[nRowIndex] ) .. " slot " .. number;
+end
+
+-- The current slot table for a slot index (the tables are replaced on every data refresh).
+local function SRA_FindSlot( slotIndex:number )
+	if slotIndex == nil then return nil; end
+	for _, tRow in ipairs( m_ActivePolicyRows ) do
+		for _, tSlot in ipairs( tRow.SlotArray ) do
+			if tSlot.GC_SlotIndex == slotIndex then return tSlot; end
+		end
+	end
+	return nil;
 end
 
 local function SRA_CountEmptySlots()
@@ -2798,26 +2816,31 @@ local function SRA_SlotItems()
 			table.insert( items, { key = "slot:" .. tSlot.GC_SlotIndex, kind = "slot", slot = tSlot, row = nRowIndex, label = label, policy = policy, text = text, detail = detail } );
 		end
 	end
-	if not Controls.ConfirmPolicies:IsHidden() then
-		local text:string = SRA_Clean( Controls.ConfirmPolicies:GetText() );
-		if Controls.ConfirmPolicies:IsDisabled() then
-			table.insert( items, { key = "confirm", kind = "confirm", text = text .. ", fill all slots first", choosable = false, reason = "Fill all policy slots first" } );
-		else
-			table.insert( items, { key = "confirm", kind = "confirm", text = text } );
+	-- Confirm/Unlock belong to the policies page only (IsHidden() does not look at the page that contains them).
+	if SRA_CurrentTab() == "policies" then
+		if not Controls.ConfirmPolicies:IsHidden() then
+			local text:string = SRA_Clean( Controls.ConfirmPolicies:GetText() );
+			if Controls.ConfirmPolicies:IsDisabled() then
+				local why:string = ( SRA_CountEmptySlots() > 0 ) and "Fill all policy slots first" or "No policy changes to confirm";
+				table.insert( items, { key = "confirm", kind = "confirm", text = text .. ", " .. string.lower( why ), choosable = false, reason = why } );
+			else
+				table.insert( items, { key = "confirm", kind = "confirm", text = text } );
+			end
 		end
-	end
-	if not Controls.UnlockPolicies:IsHidden() then
-		local text:string = SRA_Clean( Controls.UnlockPolicies:GetText() );
-		table.insert( items, { key = "unlock", kind = "unlock", text = text, choosable = not Controls.UnlockPolicies:IsDisabled(), reason = text } );
+		if not Controls.UnlockPolicies:IsHidden() then
+			local text:string = SRA_Clean( Controls.UnlockPolicies:GetText() );
+			table.insert( items, { key = "unlock", kind = "unlock", text = text, choosable = not Controls.UnlockPolicies:IsDisabled(), reason = text } );
+		end
 	end
 	return items;
 end
 
 local function SRA_CatalogItems()
 	local items:table = {};
-	if m_srCatalogSlot == nil then return items; end
+	local slot:table = SRA_FindSlot( m_srCatalogSlotIndex );
+	if slot == nil then return items; end
 	for _, policyType in ipairs( m_kPolicyCatalogOrder ) do
-		if m_kUnlockedPolicies[ policyType ] and not IsPolicyTypeActive( policyType ) and IsPolicyTypeLegalInRow( m_srCatalogSlot.UI_RowIndex, policyType ) then
+		if m_kUnlockedPolicies[ policyType ] and not IsPolicyTypeActive( policyType ) and IsPolicyTypeLegalInRow( slot.UI_RowIndex, policyType ) then
 			local policy:table = m_kPolicyCatalogData[ policyType ];
 			local text:string = policy.Name .. ": " .. CleanTextForSpeech( policy.Description );
 			if m_kNewPoliciesThisTurn ~= nil and m_kNewPoliciesThisTurn[ policyType ] then text = text .. ", new"; end
@@ -2862,17 +2885,27 @@ local function SRA_GovernmentItems()
 end
 
 local function SRA_BuildItems()
-	if m_srCatalogSlot ~= nil then return SRA_CatalogItems(); end
+	if m_srCatalogSlotIndex ~= nil then return SRA_CatalogItems(); end
 	local tab:string = SRA_CurrentTab();
 	if tab == "governments" then return SRA_GovernmentItems(); end
 	return SRA_SlotItems();
+end
+
+-- Why Enter on a government does nothing (mirrors IsAbleToChangeGovernment).
+local function SRA_WhyNoGovernmentChange()
+	if m_ePlayer == -1 or not m_isLocalPlayerTurn then return "It is not your turn"; end
+	local kPlayerCulture:table = Players[m_ePlayer]:GetCulture();
+	if kPlayerCulture:GovernmentChangeMade() then return "You already changed government this turn"; end
+	if not kPlayerCulture:CanChangeGovernmentAtAll() then return "The government can't be changed now"; end
+	if not Game.IsAllowStrategicCommands( m_ePlayer ) then return "Not available now"; end
+	return "You can change government only on the turn you complete a civic";
 end
 
 local function SRA_TabTitle()
 	local tab:string = SRA_CurrentTab();
 	local name:string = ( g_kCurrentGovernment ~= nil ) and Locale.Lookup( g_kCurrentGovernment.Name ) or "no government";
 	if tab == "governments" then
-		return "Governments, current: " .. name;
+		return "Governments, current: " .. name .. ( IsAbleToChangeGovernment() and "" or ", can't change now" );
 	end
 	local empty:number, total:number = SRA_CountEmptySlots();
 	local title:string = ( tab == "policies" and "Policies" or "My government" ) .. ", " .. name .. ", " .. total .. ( total == 1 and " slot" or " slots" );
@@ -2882,7 +2915,7 @@ local function SRA_TabTitle()
 end
 
 local function SRA_OpenCurrentTab()
-	m_srCatalogSlot = nil;
+	m_srCatalogSlotIndex = nil;
 	m_srList.Reset();
 	m_srList.Open( SRA_TabTitle() );
 end
@@ -2891,6 +2924,14 @@ function SRA_OnOpen()
 	if m_srList == nil then return; end
 	local ok:boolean, err = xpcall( SRA_OpenCurrentTab, KeyNavErrorHandler );
 	if not ok then print( "GovernmentScreen announce error: " .. tostring(err) ); end
+end
+
+-- Shown for real (another popup may have been in front when the open was requested).
+function SRA_OnShow()
+	if m_srOpenPending then
+		m_srOpenPending = false;
+		SRA_OnOpen();
+	end
 end
 
 local function SRA_RefreshSlots()
@@ -2904,38 +2945,48 @@ local function SRA_OnActivate( item:table )
 			OutputMessageToScreenReader( "Policies can't be changed now" );
 			return;
 		end
-		m_srCatalogSlot = item.slot;
+		m_srCatalogSlotIndex = item.slot.GC_SlotIndex;
 		local count:number = #SRA_CatalogItems();
 		if count == 0 then
-			m_srCatalogSlot = nil;
+			m_srCatalogSlotIndex = nil;
 			OutputMessageToScreenReader( "No policy available for " .. item.label );
 			return;
 		end
 		m_srList.Reset();
 		m_srList.Open( item.label .. ", choose a policy" .. ( item.policy ~= nil and ( ", replaces " .. item.policy.Name ) or "" ) );
 	elseif item.kind == "policy" then
-		local slot:table = m_srCatalogSlot;
+		local slot:table = SRA_FindSlot( m_srCatalogSlotIndex );
+		if slot == nil then
+			m_srCatalogSlotIndex = nil;
+			SRA_OnOpen();
+			return;
+		end
 		local label:string = SRA_SlotLabel( slot.UI_RowIndex, slot );
-		SetActivePolicyAtSlotIndex( slot.GC_SlotIndex, item.policyType );
+		local slotIndex:number = slot.GC_SlotIndex;
+		SetActivePolicyAtSlotIndex( slotIndex, item.policyType );
 		SRA_RefreshSlots();
-		m_srCatalogSlot = nil;
+		m_srCatalogSlotIndex = nil;
 		local empty:number = SRA_CountEmptySlots();
 		local message:string = m_kPolicyCatalogData[ item.policyType ].Name .. " in " .. label .. ", " .. ( empty == 0 and "all slots filled, confirm policies" or ( empty .. " empty" ) );
-		m_srList.Focus( empty == 0 and "confirm" or ( "slot:" .. slot.GC_SlotIndex ), message );
+		m_srList.Focus( empty == 0 and "confirm" or ( "slot:" .. slotIndex ), message );
 	elseif item.kind == "confirm" then
 		OnConfirmPolicies();
 	elseif item.kind == "unlock" then
 		OnUnlockPolicies();
 		SRA_OnOpen();
 	elseif item.kind == "government" then
+		if not IsAbleToChangeGovernment() then
+			OutputMessageToScreenReader( SRA_WhyNoGovernmentChange() );
+			return;
+		end
 		OnGovernmentSelected( item.governmentType );
 	end
 end
 
 local function SRA_OnDelete()
-	if m_srCatalogSlot ~= nil or SRA_CurrentTab() ~= "policies" then return; end
+	if m_srCatalogSlotIndex ~= nil or SRA_CurrentTab() ~= "policies" then return; end
 	local items:table = SRA_SlotItems();
-	-- the focused slot is found through the list's own focus: ask it by speaking nothing, so match on the key
+	-- the focused slot is found through the list's own focus key
 	local focusKey = m_srList.GetFocusKey();
 	for _, item in ipairs( items ) do
 		if item.key == focusKey and item.kind == "slot" then
@@ -2950,7 +3001,7 @@ local function SRA_OnDelete()
 end
 
 local function SRA_OnTab()
-	if m_srCatalogSlot ~= nil then return; end
+	if m_srCatalogSlotIndex ~= nil then return; end
 	local order:table = {};
 	if not Controls.ButtonMyGovernment:IsHidden() then table.insert( order, Controls.ButtonMyGovernment ); end
 	if not Controls.ButtonPolicies:IsHidden() then table.insert( order, Controls.ButtonPolicies ); end
@@ -2968,10 +3019,10 @@ local function SRA_OnTab()
 end
 
 local function SRA_OnClose()
-	if m_srCatalogSlot ~= nil then
-		local slot:table = m_srCatalogSlot;
-		m_srCatalogSlot = nil;
-		m_srList.Focus( "slot:" .. slot.GC_SlotIndex, "Back" );
+	if m_srCatalogSlotIndex ~= nil then
+		local slotIndex:number = m_srCatalogSlotIndex;
+		m_srCatalogSlotIndex = nil;
+		m_srList.Focus( "slot:" .. slotIndex, "Back" );
 		return;
 	end
 	Close();
@@ -3024,6 +3075,7 @@ function Initialize()
 
 	-- Static controls:
 	ContextPtr:SetInitHandler( OnInit );
+	ContextPtr:SetShowHandler( SRA_OnShow );		-- ScreenReaderAccess
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
 
