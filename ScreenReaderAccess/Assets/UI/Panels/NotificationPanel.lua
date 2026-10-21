@@ -1613,6 +1613,9 @@ function OnNotificationAdded( playerID:number, notificationID:number )
 					end
 				end
 				ProcessStackSizes();				
+				-- Begin ScreenReaderAccess mod change
+				SRA_NotificationArrived( pNotification );
+				-- End ScreenReaderAccess mod change
 			end
 		else
 			-- Sanity check
@@ -1857,6 +1860,68 @@ function OnStartObserverMode()
 end
 
 -- ===========================================================================
+--	Begin ScreenReaderAccess mod change
+--	Keyboard access (the InGameAccess hub, Control+N): the hub asks for the list of notifications and activates or
+--	dismisses one by id, exactly as a click / right click on the notification would. Plain data only.
+-- ===========================================================================
+local function SRA_NotificationTexts( pNotification:table )
+	local message:string = Locale.Lookup( pNotification:GetMessage() );
+	local summary:string = Locale.Lookup( pNotification:GetSummary() );
+	local entry:NotificationType = GetNotificationEntry( pNotification:GetPlayerID(), pNotification:GetID() );
+	if entry ~= nil then message, summary = ApplyNotificationTextOverrides( entry, pNotification, message, summary ); end
+	return message, summary;
+end
+
+-- Told to the hub when a notification that the player can see has been added (after the load only).
+function SRA_NotificationArrived( pNotification:table )
+	if not m_isLoadComplete then return; end
+	local message:string, summary:string = SRA_NotificationTexts( pNotification );
+	LuaEvents.SRA_NotificationAdded( pNotification:GetID(), message, summary );
+end
+
+local function SRA_OnRequestNotifications()
+	local list:table = {};
+	local playerID:number = Game.GetLocalPlayer();
+	local playerTable:table = m_notifications[ playerID ];
+	if playerTable ~= nil then
+		for _, entry in pairs( playerTable ) do
+			for _, id in ipairs( entry.m_IDs ) do
+				local pNotification:table = NotificationManager.Find( playerID, id );
+				if pNotification ~= nil and id < 1000000 then
+					local message:string, summary:string = SRA_NotificationTexts( pNotification );
+					local x:number, y:number = -1, -1;
+					if pNotification:IsLocationValid() then x, y = pNotification:GetLocation(); end
+					table.insert( list, {
+						id = id, message = message, summary = summary,
+						dismissable = pNotification:CanUserDismiss(),
+						activatable = pNotification:IsValidForPhase(),
+						blocking = pNotification:GetEndTurnBlocking() ~= EndTurnBlockingTypes.NO_ENDTURN_BLOCKING,
+						x = x, y = y,
+					} );
+				end
+			end
+		end
+	end
+	LuaEvents.SRA_Notifications( list );
+end
+
+local function SRA_OnActivateNotification( id:number )
+	local pNotification:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
+	if pNotification ~= nil and pNotification:IsValidForPhase() then
+		pNotification:Activate( true );		-- true: the user does it (what OnDefaultTryActivateNotification does)
+	end
+end
+
+local function SRA_OnDismissNotification( id:number )
+	local pNotification:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
+	if pNotification ~= nil and pNotification:CanUserDismiss() then
+		NotificationManager.Dismiss( pNotification:GetPlayerID(), pNotification:GetID() );
+		UI.PlaySound("Play_UI_Click");
+	end
+end
+-- End ScreenReaderAccess mod change
+
+-- ===========================================================================
 --	Late initialize pattern; friendly for MODs.
 -- ===========================================================================
 function LateInitialize()
@@ -1877,6 +1942,12 @@ function LateInitialize()
 
 	LuaEvents.ActionPanel_ActivateNotification.Add( OnLuaActivateNotification );
 	LuaEvents.EndGameMenu_StartObserverMode.Add( OnStartObserverMode );
+
+	-- Begin ScreenReaderAccess mod change
+	LuaEvents.SRA_RequestNotifications.Add( SRA_OnRequestNotifications );
+	LuaEvents.SRA_ActivateNotification.Add( SRA_OnActivateNotification );
+	LuaEvents.SRA_DismissNotification.Add( SRA_OnDismissNotification );
+	-- End ScreenReaderAccess mod change
 end
 
 -- ===========================================================================

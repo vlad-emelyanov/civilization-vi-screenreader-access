@@ -5,6 +5,7 @@
 --	  - the in-game hotkeys (I plot details, J cursor to selection, N what is next, Tab unit actions),
 --	  - the unit actions menu and the target modes (move to, attack ...), which take over Up/Down/Enter/Escape and
 --	    Shift+Arrows through this context's input handler (see the bottom of the file),
+--	  - the regions: top panel (Control+Y) and notifications (Control+N), with arrivals announced,
 --	  - event announcements: unit/city selected, new turn, end of turn, unit results, enemies spotted.
 --	Input order (verified, see docs/ingame-plan.md): this context's input handler runs before WorldInput and
 --	ActionPanel; a key it consumes (KeyDown and KeyUp) also never becomes an input action.
@@ -16,6 +17,7 @@ include( "PlotDescription" );
 include( "KeyNavList" );
 include( "Civ6Common" );		-- MoveUnitToPlot (war declaration check + the right move/attack operation)
 include( "SettleScan" );		-- settler: can settle here, best spots
+include( "TopPanelData" );		-- top panel values as sentences (Control+Y, Control+G)
 
 -- ===========================================================================
 --	MEMBERS
@@ -47,6 +49,13 @@ local m_spottedTurn			:number = -1;		-- turn m_spottedCount counts
 local m_spottedCount		:number = 0;
 local m_settleOpen			:boolean = false;	-- the settle spot browser (X with a settler selected) is open
 local m_settleItems			:table = {};		-- its items, from the scan made when it opened
+local m_topOpen				:boolean = false;	-- the top panel region (Control+Y) is open
+local m_notifOpen			:boolean = false;	-- the notifications region (Control+N) is open
+local m_notifData			:table = {};		-- notifications sent by NotificationPanel (SRA_Notifications), plain data
+local m_arrivals			:table = {};		-- texts of notifications that arrived and are not yet announced
+local m_arrivalTimer		:number = -1;		-- >= 0: seconds until the arrivals are announced together
+local m_lastSelectionSpeech	:number = -100;		-- UI.GetElapsedTime() of the last unit/city selection announcement
+local m_pendingUnit			:number = nil;		-- unit selected while the game was still loading: announced once it is ready
 
 -- ===========================================================================
 --	HELPERS
@@ -713,9 +722,22 @@ local function UnitText( unit:table )
 	return table.concat( parts, ", " );
 end
 
+-- The settle sentence for a selected settler (after the unit announcement, so it does not interrupt it).
+local function SpeakSettleSentence( unit:table )
+	if not IsSettler( unit ) then return; end
+	local ok:boolean, sentence = xpcall( function() return SettleSentence( unit ); end, KeyNavErrorHandler );
+	if ok then
+		OutputMessageToScreenReader( sentence, true );
+	else
+		print( "InGameAccess settle scan error: " .. tostring( sentence ) );
+	end
+end
+
 local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:number, hexJ:number, hexK:number, isSelected:boolean, isEditable:boolean )
 	m_menuOpen = false;
 	m_settleOpen = false;
+	m_topOpen = false;
+	m_notifOpen = false;
 	if playerID ~= Game.GetLocalPlayer() then return; end
 	if not isSelected then
 		ResetStaleMode();
@@ -730,14 +752,12 @@ local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:numb
 	if plot == nil then return; end
 	SetCursor( plot:GetX(), plot:GetY(), false );
 	local text:string = UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } );
+	m_lastSelectionSpeech = UI.GetElapsedTime();
 	OutputMessageToScreenReader( text, UI.GetElapsedTime() - m_lastResultTime < 1.5 );
-	if IsSettler( unit ) and m_ready then
-		local ok:boolean, sentence = xpcall( function() return SettleSentence( unit ); end, KeyNavErrorHandler );
-		if ok then
-			OutputMessageToScreenReader( sentence, true );
-		else
-			print( "InGameAccess settle scan error: " .. tostring( sentence ) );
-		end
+	if m_ready then
+		SpeakSettleSentence( unit );
+	else
+		m_pendingUnit = unitID;		-- the game is still loading (turn 1): said again once it is ready, see OnLoadScreenClose
 	end
 end
 
@@ -772,6 +792,8 @@ end
 
 local function OnCitySelectionChanged( owner:number, cityID:number, i:number, j:number, k:number, isSelected:boolean, isEditable:boolean )
 	m_menuOpen = false;
+	m_topOpen = false;
+	m_notifOpen = false;
 	if owner ~= Game.GetLocalPlayer() or not isSelected then return; end
 	m_enterWatch = -1;
 	local city:table = Players[owner]:GetCities():FindID( cityID );
@@ -783,6 +805,7 @@ local function OnCitySelectionChanged( owner:number, cityID:number, i:number, j:
 	if production ~= nil then table.insert( parts, production ); end
 	local growth:string = CityGrowthText( city );
 	if growth ~= nil then table.insert( parts, growth ); end
+	m_lastSelectionSpeech = UI.GetElapsedTime();
 	OutputMessageToScreenReader( table.concat( parts, ", " ) );
 end
 
@@ -798,6 +821,19 @@ local function AnnounceTurn()
 	OutputMessageToScreenReader( "Turn " .. turn .. ", " .. Calendar.MakeYearStr( turn ), true );
 end
 
+-- The selection that happened while the game was loading, said again now that it is ready.
+local function AnnouncePendingUnit()
+	local unitID:number = m_pendingUnit;
+	m_pendingUnit = nil;
+	if unitID == nil or not IsLocalPlayerActive() then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil or unit:GetID() ~= unitID or unit:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+	if plot == nil then return; end
+	OutputMessageToScreenReader( UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } ), true );
+	SpeakSettleSentence( unit );
+end
+
 -- A game was loaded or started: forget everything about the previous one.
 local function OnLoadScreenClose()
 	m_lastAnnouncedTurn = "";
@@ -805,6 +841,13 @@ local function OnLoadScreenClose()
 	m_ready = true;
 	m_movers = {};
 	m_spotted = {};
+	m_arrivals = {};
+	m_arrivalTimer = -1;
+	m_topOpen = false;
+	m_notifOpen = false;
+	-- The unit that was selected while the game loaded (the turn 1 settler!) was announced into the load screen and
+	-- without the settle sentence: say it again once the turn announcement is out.
+	if m_pendingUnit ~= nil then After( 1.0, function() AnnouncePendingUnit(); end ); end
 	-- A save made between turns loads before the player's turn has begun (LocalPlayerTurnBegin follows and announces
 	-- the right turn); announce here only when the turn is already running, with a late fallback.
 	local player:table = Players[ Game.GetLocalPlayer() ];
@@ -817,6 +860,8 @@ end
 
 local function OnLocalPlayerTurnEnd()
 	m_menuOpen = false;
+	m_topOpen = false;
+	m_notifOpen = false;
 	m_civMenuOpen = false;
 	m_settleOpen = false;
 	m_enterWatch = -1;
@@ -1268,6 +1313,189 @@ local function ToggleCivMenu()
 end
 
 -- ===========================================================================
+--	REGIONS: the top panel (Control+Y) and the notifications (Control+N) as lists
+--	Up/Down (Left/Right in the top panel too) move and wrap, Home/End, Space reads details, Enter opens/activates,
+--	Escape returns to the map. Control+Y / Control+N again closes.
+-- ===========================================================================
+local m_topList:table;
+local m_notifList:table;
+
+local function CloseTop( speak:boolean )
+	m_topOpen = false;
+	m_topList.Reset();
+	if speak then OutputMessageToScreenReader( "Closed" ); end
+end
+
+local function CloseNotifications( speak:boolean )
+	m_notifOpen = false;
+	m_notifList.Reset();
+	if speak then OutputMessageToScreenReader( "Closed" ); end
+end
+
+-- Regions replace the other keyboard menus; they cannot be opened in the middle of a target mode.
+local function PrepareRegion()
+	if not IsLocalPlayerActive() then return false; end
+	if GetTargetMode() ~= nil then
+		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
+		return false;
+	end
+	CloseMenu( false );
+	CloseCivMenu( false );
+	CloseSettle( false );
+	CloseTop( false );
+	CloseNotifications( false );
+	return true;
+end
+
+m_topList = KeyNavList_Create{
+	build		= function() return TopPanelData_BuildItems(); end,
+	isActive	= function() return m_topOpen; end,
+	horizontal	= true,
+	onActivate	= function( item )
+		if item.open == "research" then
+			CloseTop( false );
+			LuaEvents.ActionPanel_OpenChooseResearch();
+		elseif item.open == "civic" then
+			CloseTop( false );
+			LuaEvents.ActionPanel_OpenChooseCivic();
+		else
+			OutputMessageToScreenReader( "Nothing to open here. Space reads the details" );
+		end
+	end,
+	onClose		= function() CloseTop( true ); end,
+};
+
+local function ToggleTopPanel()
+	if m_topOpen then CloseTop( true ); return; end
+	if not PrepareRegion() then return; end
+	m_topOpen = true;
+	m_topList.Open( "Top panel" );
+end
+
+-- Control+G: the basic yields in one sentence, without entering the region.
+local function SpeakYields()
+	if not IsLocalPlayerActive() then return; end
+	OutputMessageToScreenReader( TopPanelData_Summary() );
+end
+
+local function OnNotificationsReceived( list:table )
+	m_notifData = list or {};
+end
+
+-- Active notifications, newest first (ids grow with time). Rebuilt from the panel's own list at key time.
+local function BuildNotificationItems()
+	m_notifData = {};
+	LuaEvents.SRA_RequestNotifications();
+	table.sort( m_notifData, function( a, b ) return a.id > b.id; end );
+	local items:table = {};
+	for _, n in ipairs( m_notifData ) do
+		local title:string = CleanTextForSpeech( n.message );
+		local summary:string = CleanTextForSpeech( n.summary );
+		local detail:string = title;
+		if summary ~= "" and summary ~= title then detail = detail .. ". " .. summary; end
+		detail = string.gsub( detail, "[%.%s]+$", "" );
+		if n.blocking then detail = detail .. ". Blocks ending the turn"; end
+		if not n.dismissable then detail = detail .. ". Can't be dismissed"; end
+		table.insert( items, {
+			key = "n:" .. n.id, text = title, detail = detail, note = n,
+			choosable = n.activatable, reason = "Can't activate this now",
+		} );
+	end
+	return items;
+end
+
+-- Enter: what a click on the notification does (the panel's own Activate: look at the plot, select the unit,
+-- open the chooser or screen). When nothing was selected or opened, the cursor goes to its plot and says it.
+local function ActivateNotification( item:table )
+	local n:table = item.note;
+	CloseNotifications( false );
+	local started:number = UI.GetElapsedTime();
+	LuaEvents.SRA_ActivateNotification( n.id );
+	After( 0.5, function()
+		if m_lastSelectionSpeech < started and n.x >= 0 and n.y >= 0 and not m_menuOpen then
+			SetCursor( n.x, n.y, true, false );
+		end
+	end );
+end
+
+local function DismissNotification()
+	local items:table = BuildNotificationItems();
+	local focus = m_notifList.GetFocusKey();
+	local index:number = nil;
+	for i, item in ipairs( items ) do
+		if item.key == focus then index = i; end
+	end
+	if index == nil then
+		OutputMessageToScreenReader( "Nothing selected" );
+		return;
+	end
+	local item:table = items[ index ];
+	if not item.note.dismissable then
+		OutputMessageToScreenReader( "Can't dismiss this one" );
+		return;
+	end
+	local neighbor = ( items[ index + 1 ] or items[ index - 1 ] );
+	local neighborKey = ( neighbor ~= nil ) and neighbor.key or nil;
+	LuaEvents.SRA_DismissNotification( item.note.id );
+	After( 0.3, function()
+		if not m_notifOpen then return; end
+		local rest:table = BuildNotificationItems();
+		if #rest == 0 then
+			CloseNotifications( false );
+			OutputMessageToScreenReader( "Dismissed. No more notifications" );
+			return;
+		end
+		for _, other in ipairs( rest ) do
+			if other.key == item.key then
+				OutputMessageToScreenReader( "Could not dismiss" );
+				return;
+			end
+		end
+		m_notifList.Focus( neighborKey, "Dismissed" );
+	end );
+end
+
+m_notifList = KeyNavList_Create{
+	build		= BuildNotificationItems,
+	isActive	= function() return m_notifOpen; end,
+	onActivate	= ActivateNotification,
+	onClose		= function() CloseNotifications( true ); end,
+	extraKeys	= { [Keys.VK_DELETE] = DismissNotification },
+};
+
+local function ToggleNotifications()
+	if m_notifOpen then CloseNotifications( true ); return; end
+	if not PrepareRegion() then return; end
+	if #BuildNotificationItems() == 0 then
+		OutputMessageToScreenReader( "No notifications" );
+		return;
+	end
+	m_notifOpen = true;
+	m_notifList.Open( "Notifications" );
+end
+
+-- New notifications are announced when they arrive, without interrupting; a burst (turn start) becomes one sentence.
+local function OnNotificationAdded( id:number, message:string, summary:string )
+	if not m_ready then return; end
+	local text:string = CleanTextForSpeech( message );
+	if text == "" then text = CleanTextForSpeech( summary ); end
+	if text == "" then return; end
+	table.insert( m_arrivals, text );
+	m_arrivalTimer = 0.8;
+end
+
+local function FlushArrivals()
+	local texts:table = m_arrivals;
+	m_arrivals = {};
+	if #texts == 0 then return; end
+	if #texts == 1 then
+		OutputMessageToScreenReader( "Notification: " .. texts[1], true );
+	else
+		OutputMessageToScreenReader( #texts .. " new notifications: " .. KeyNavList_ShortList( texts, 3 ), true );
+	end
+end
+
+-- ===========================================================================
 --	RESULTS of the player's orders and what happens around the player's units
 -- ===========================================================================
 local function OnUnitOperationStarted( ownerID:number, unitID:number, operationID:number )
@@ -1483,6 +1711,8 @@ local function HandleInput( input:table )
 	if m_menuOpen then return m_menu.HandleInput( input ); end
 	if m_civMenuOpen then return m_civMenu.HandleInput( input ); end
 	if m_settleOpen then return m_settleList.HandleInput( input ); end
+	if m_topOpen then return m_topList.HandleInput( input ); end
+	if m_notifOpen then return m_notifList.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
 	if GetTargetMode() ~= nil then
@@ -1519,6 +1749,13 @@ end
 
 local function OnUpdate( deltaTime:number )
 	UpdateMouse( deltaTime );
+	if m_arrivalTimer >= 0 then
+		m_arrivalTimer = m_arrivalTimer - deltaTime;
+		if m_arrivalTimer < 0 then
+			m_arrivalTimer = -1;
+			FlushArrivals();
+		end
+	end
 	local i:number = 1;
 	while i <= #m_delayed do
 		local entry:table = m_delayed[i];
@@ -1574,6 +1811,9 @@ function Initialize()
 	RegisterAction( "KeyNavCycleAllUnits",		CycleAllUnits );
 	RegisterAction( "KeyNavScanUnits",			ScanKey );
 	RegisterAction( "KeyNavDiplomacy",			ToggleCivMenu );
+	RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
+	RegisterAction( "KeyNavNotifications",		ToggleNotifications );
+	RegisterAction( "KeyNavYields",				SpeakYields );
 	Events.InputActionTriggered.Add( OnInputActionTriggered );
 
 	Events.UnitSelectionChanged.Add( Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
@@ -1597,6 +1837,8 @@ function Initialize()
 	end );
 	AddEvent( "UnitKilledInCombat",			OnUnitKilledInCombat );
 	LuaEvents.SRA_UnitActions.Add( OnUnitActionsReceived );
+	LuaEvents.SRA_Notifications.Add( OnNotificationsReceived );
+	LuaEvents.SRA_NotificationAdded.Add( Safe( "NotificationAdded", OnNotificationAdded ) );
 	LuaEvents.SRA_AttackKey.Add( Safe( "AttackKey", AttackKey ) );
 	AddEvent( "UnitRemovedFromMap",			function() After( 0.3, ResetStaleMode ); end );
 	AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )

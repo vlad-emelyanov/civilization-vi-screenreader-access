@@ -8,6 +8,7 @@
 --		onClose    = function() ... end,                 -- optional: Escape (otherwise left to the game's own handler)
 --		onFocus    = function(item) ... end,             -- optional: the focus moved to this item (before it is spoken)
 --		extraKeys  ={ [Keys.VK_DELETE] = function() ... end },   -- optional: more keys, acted on at KeyUp
+--		horizontal = true,                                -- optional: Left/Right also move (like Up/Down)
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
 --	         spoken by Space>, choosable = <false: Enter says item.reason> }
@@ -173,6 +174,8 @@ function KeyNavList_Create( config:table )
 		local action = nil;
 		if key == Keys.VK_UP then			if isDown then action = function() Move( -1 ); end end
 		elseif key == Keys.VK_DOWN then		if isDown then action = function() Move( 1 ); end end
+		elseif config.horizontal and key == Keys.VK_LEFT then	if isDown then action = function() Move( -1 ); end end
+		elseif config.horizontal and key == Keys.VK_RIGHT then	if isDown then action = function() Move( 1 ); end end
 		elseif key == Keys.VK_HOME then		if isDown then action = function() Move( 0, "home" ); end end
 		elseif key == Keys.VK_END then		if isDown then action = function() Move( 0, "end" ); end end
 		elseif key == Keys.VK_RETURN then	if not isDown then action = Activate; end

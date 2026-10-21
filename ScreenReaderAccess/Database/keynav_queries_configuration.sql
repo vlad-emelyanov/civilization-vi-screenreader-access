@@ -35,3 +35,10 @@ INSERT INTO "InputActions" VALUES ('KeyNavScanUnits','Scan for units','Move the 
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavScanUnits',0,'KBMouse','LOC_OPTIONS_KEY_X');
 INSERT INTO "InputActions" VALUES ('KeyNavDiplomacy','Diplomacy','List the civilizations you have met and open the diplomacy screen with one','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavDiplomacy',0,'KBMouse','LOC_OPTIONS_KEY_V');
+
+INSERT INTO "InputActions" VALUES ('KeyNavTopPanel','Top panel','Open a keyboard list of the top panel: yields, resources, research, civic, turn, era','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavTopPanel',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_Y');
+INSERT INTO "InputActions" VALUES ('KeyNavNotifications','Notifications','Open a keyboard list of the active notifications','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavNotifications',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_N');
+INSERT INTO "InputActions" VALUES ('KeyNavYields','Read yields','Read gold, science, culture and faith in one sentence','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavYields',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_G');
