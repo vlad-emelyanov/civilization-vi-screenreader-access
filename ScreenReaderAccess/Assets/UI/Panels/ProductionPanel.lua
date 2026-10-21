@@ -12,6 +12,7 @@ include( "AdjacencyBonusSupport");
 include( "ProductionHelper" );
 
 include("ScreenReader");
+include("KeyNavList");		-- ScreenReaderAccess: keyboard navigation of the item list
 
 -- ===========================================================================
 --	Constants
@@ -108,6 +109,10 @@ local m_CurrentListMode:number = -1;
 
 -- The city whose production we're currently modifying
 local m_pCity:table = nil;
+
+-- ScreenReaderAccess (must be declared before Open/Close, see the keyboard list section further down)
+local m_srActive:boolean = false;			-- the panel is open (set in Open, cleared in Close)
+local m_srAnnouncePending:boolean = false;	-- announce the panel once the tab is selected
 
 -- ===========================================================================
 function toint(n)
@@ -584,6 +589,8 @@ end
 -- ===========================================================================
 function Close()
 	if (Controls.SlideIn:IsStopped()) then			-- Need to check to make sure that we have not already begun the transition before attempting to close the panel.
+		m_srActive = false;							-- ScreenReaderAccess
+		m_srAnnouncePending = false;				-- ScreenReaderAccess
 		UI.PlaySound("Production_Panel_Closed");
 		Controls.SlideIn:Reverse();	
 		Controls.AlphaIn:Reverse();
@@ -613,6 +620,8 @@ function Open()
 	if ContextPtr:IsHidden() then					-- The ContextPtr is only hidden as a callback to the finished SlideIn animation, so this check should be sufficient to ensure that we are not animating.
 		-- Sets up proper selection AND the associated lens so it's not stuck "on".
 		UI.PlaySound("Production_Panel_Open");
+		m_srActive = true;						-- ScreenReaderAccess
+		m_srAnnouncePending = true;				-- ScreenReaderAccess
 		LuaEvents.ProductionPanel_Open();
 		UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);
 		Refresh();
@@ -2293,6 +2302,7 @@ function OnNotificationPanelChooseProduction()
 		else
 			m_tabs.SelectTab(m_productionTab);
 		end
+		SRA_AnnounceIfPending();	-- ScreenReaderAccess
 	end
 end
 
@@ -2350,6 +2360,7 @@ function OnCityBannerManagerProductionToggle()
 		else
 			m_tabs.SelectTab(m_productionTab);
 		end
+		SRA_AnnounceIfPending();	-- ScreenReaderAccess
 	else
 		Close();
 	end
@@ -2366,6 +2377,7 @@ function OnCityPanelProductionOpen()
 	else
 		m_tabs.SelectTab(m_productionTab);
 	end
+	SRA_AnnounceIfPending();	-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -2399,6 +2411,7 @@ function OnStrategicViewMapPlacementProductionOpen( bWasCancelled:boolean )
 	elseif bWasCancelled then
 		Open();
 	end
+	SRA_AnnounceIfPending();	-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -2413,6 +2426,7 @@ end
 -- ===========================================================================
 function OnProductionOpenForQueue()
 	Open();
+	SRA_AnnounceIfPending();	-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -2449,6 +2463,163 @@ function OnGameDebugReturn( context:string, contextTable:table )
 end
 
 -- ===========================================================================
+-- Begin ScreenReaderAccess change: keyboard list of the production items (Production and Queue tabs).
+-- Items are rebuilt from GetData() at key time, in the order the panel shows them: districts with their
+-- buildings, wonders, units, projects. Purchase tabs, corps/armies and queue editing are not covered.
+-- ===========================================================================
+local m_srList:table = nil;
+
+local function SRA_Reasons( kItem:table )
+	local reasons:table = {};
+	for reason in string.gmatch( kItem.ToolTip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
+		table.insert( reasons, CleanTextForSpeech( reason ) );
+	end
+	return table.concat( reasons, ", " );
+end
+
+local function SRA_TurnsText( turns:number )
+	if turns == nil then return nil; end
+	if turns == -1 then return "never completes"; end
+	return turns .. ( turns == 1 and " turn" or " turns" );
+end
+
+local function SRA_Item( kItem:table, kind:string, section:string, owner:string )
+	local name:string = Locale.Lookup( kItem.Name );
+	if kItem.Repair then name = name .. " (repair)"; end
+	local parts:table = { name };
+	if owner ~= nil then table.insert( parts, "in " .. owner ); end
+	local built:boolean = kind == "district" and kItem.HasBeenBuilt and not kItem.Repair and not kItem.Contaminated
+		and kItem.Progress == 0 and kItem.IsComplete == true and GameInfo.Districts[kItem.Type].OnePerCity == true;
+	local reasons:string = SRA_Reasons( kItem );
+	local recommended:boolean = m_kRecommendedItems ~= nil and m_kRecommendedItems[kItem.Hash] ~= nil;
+	if built then
+		table.insert( parts, "already built" );
+	elseif kItem.Disabled then
+		table.insert( parts, "unavailable" .. ( reasons ~= "" and ( ": " .. reasons ) or "" ) );
+	else
+		if kind == "district" or kind == "wonder" then table.insert( parts, kind ); end
+		local turns:string = SRA_TurnsText( kItem.TurnsLeft );
+		if turns ~= nil then table.insert( parts, turns ); end
+		if kItem.Cost ~= nil and kItem.Cost > 0 then
+			local cost:string = tostring( kItem.Cost );
+			if kItem.Progress ~= nil and kItem.Progress > 0 then cost = kItem.Progress .. " of " .. cost; end
+			table.insert( parts, cost .. " production" );
+		end
+		if recommended then table.insert( parts, "recommended" ); end
+	end
+	local detailItem:table = kItem;
+	return {
+		key = kind .. ":" .. tostring( kItem.Hash ),
+		kind = kind,
+		section = section,
+		text = table.concat( parts, ", " ),
+		data = kItem,
+		choosable = not ( kItem.Disabled or built ),
+		reason = built and "Already built" or ( "Can't build " .. name .. ( reasons ~= "" and ( ": " .. reasons ) or "" ) ),
+		recommended = recommended,
+		detail = function() return CleanTextForSpeech( Locale.Lookup( detailItem.ToolTip ) ); end,
+	};
+end
+
+local function SRA_GetItems()
+	local items:table = {};
+	local data:table = GetData();
+	if data == nil then return items; end
+	local districtsSection:string = Locale.Lookup( "LOC_HUD_DISTRICTS_BUILDINGS" );
+	for _, kDistrict in ipairs( data.DistrictItems ) do
+		local districtName:string = Locale.Lookup( kDistrict.Name );
+		table.insert( items, SRA_Item( kDistrict, "district", districtsSection, nil ) );
+		local districtType:string = kDistrict.Type;
+		if GameInfo.DistrictReplaces[ districtType ] ~= nil then districtType = GameInfo.DistrictReplaces[ districtType ].ReplacesDistrictType; end
+		for _, kBuilding in ipairs( data.BuildingItems ) do
+			if not kBuilding.IsWonder and kBuilding.PrereqDistrict == districtType then
+				table.insert( items, SRA_Item( kBuilding, "building", districtsSection, districtName ) );
+			end
+		end
+	end
+	local wondersSection:string = Locale.Lookup( "LOC_HUD_CITY_WONDERS" );
+	for _, kBuilding in ipairs( data.BuildingItems ) do
+		if kBuilding.IsWonder then table.insert( items, SRA_Item( kBuilding, "wonder", wondersSection, nil ) ); end
+	end
+	local unitsSection:string = Locale.Lookup( "LOC_TECH_FILTER_UNITS" );
+	for _, kUnit in ipairs( data.UnitItems ) do
+		if not kUnit.IsCurrentProduction then table.insert( items, SRA_Item( kUnit, "unit", unitsSection, nil ) ); end
+	end
+	local projectsSection:string = Locale.Lookup( "LOC_HUD_PROJECTS" );
+	for _, kProject in ipairs( data.ProjectItems ) do
+		if not kProject.IsCurrentProduction or kProject.IsRepeatable then
+			table.insert( items, SRA_Item( kProject, "project", projectsSection, nil ) );
+		end
+	end
+	return items;
+end
+
+local function SRA_OnActivate( item:table )
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil then return; end
+	local kItem:table = item.data;
+	local name:string = Locale.Lookup( kItem.Name );
+	local queueMode:boolean = m_isQueueOpen or m_isManagerOpen;
+	if item.kind == "district" or item.kind == "wonder" then
+		-- The game switches to placement mode and closes the panel; the player then picks a plot (not covered yet).
+		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
+		OutputMessageToScreenReader( "Choose a tile for " .. name );
+		return;
+	end
+	if item.kind == "unit" then
+		BuildUnit( city, kItem );
+		CloseAfterNewProduction();
+	elseif item.kind == "building" then
+		BuildBuilding( city, kItem );
+	elseif item.kind == "project" then
+		AdvanceProject( city, kItem );
+		CloseAfterNewProduction();
+	end
+	local text:string = ( queueMode and "Queued " or "Producing " ) .. name;
+	local turns:string = SRA_TurnsText( kItem.TurnsLeft );
+	if turns ~= nil and not queueMode then text = text .. ", " .. turns; end
+	OutputMessageToScreenReader( text );
+end
+
+local function SRA_OnClose()
+	Close();
+	OutputMessageToScreenReader( "Production closed" );
+end
+
+local function SRA_Announce()
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil then return; end
+	local title:string = Locale.Lookup( city:GetName() ) .. ", choose production";
+	local queue:table = city:GetBuildQueue();
+	local hash:number = queue ~= nil and queue:GetCurrentProductionTypeHash() or 0;
+	if hash ~= nil and hash ~= 0 then
+		local row:table = GameInfo.Buildings[hash] or GameInfo.Districts[hash] or GameInfo.Units[hash] or GameInfo.Projects[hash];
+		if row ~= nil then title = title .. ", currently " .. Locale.Lookup( row.Name ); end
+	end
+	if m_CurrentListMode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
+	-- Start on the first recommended item that can be built, else the first that can be built.
+	local initialKey = nil;
+	local firstChoosable = nil;
+	for _, item in ipairs( SRA_GetItems() ) do
+		if item.choosable then
+			if firstChoosable == nil then firstChoosable = item.key; end
+			if item.recommended then initialKey = item.key; break; end
+		end
+	end
+	m_srList.Reset();
+	m_srList.Open( title, initialKey or firstChoosable );
+end
+
+-- Called by the handlers that open the panel, once they have selected the tab (a SetUpdate callback never ran here).
+function SRA_AnnounceIfPending()
+	if not m_srAnnouncePending then return; end
+	m_srAnnouncePending = false;
+	local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+	if not ok then print( "ProductionPanel announce error: " .. tostring(err) ); end
+end
+-- End ScreenReaderAccess change
+
+-- ===========================================================================
 --	Keyboard INPUT Handler
 -- ===========================================================================
 function KeyHandler( key:number )
@@ -2469,6 +2640,7 @@ end
 --	UI Event
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then 
 		return KeyHandler( pInputStruct:GetKey() ); 
@@ -2982,6 +3154,12 @@ function Initialize()
 	Controls.ManagerTab:SetText("[ICON_ProductionQueue] " .. Locale.Lookup("LOC_PRODUCTION_PANEL_MULTI_QUEUE"))
 
 	ContextPtr:SetInitHandler( OnInit  );
+	m_srList = KeyNavList_Create{		-- ScreenReaderAccess
+		build = SRA_GetItems,
+		isActive = function() return m_srActive and not ContextPtr:IsHidden() and (m_CurrentListMode == LISTMODE.PRODUCTION or m_CurrentListMode == LISTMODE.PROD_QUEUE); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnClose,
+	};
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
 
