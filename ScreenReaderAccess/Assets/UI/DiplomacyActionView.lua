@@ -12,6 +12,12 @@ include( "GameCapabilities" );
 include( "LeaderIcon" );
 include( "PopupDialog" );
 include( "CivilizationIcon" );
+include( "ScreenReader" );	-- ScreenReaderAccess
+include( "KeyNavList" );	-- ScreenReaderAccess
+
+-- ScreenReaderAccess: the leader's answers on the conversation page, as a keyboard list (see SRA_* below).
+local m_srSelections	:table = {};
+local m_srList			:table = nil;
 
 
 -- ===========================================================================
@@ -587,12 +593,24 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 	end	
 
 	ms_ConversationSelectionIM:ResetInstances();
+	m_srSelections = {};	-- ScreenReaderAccess
 
 	if (kParsedStatement.Selections ~= nil) then
 		for _, selection in ipairs(kParsedStatement.Selections) do
 			if(selection.Key ~= "CHOICE_STOP_ASKING" or (selection.Key == "CHOICE_STOP_ASKING" and not Players[ms_OtherPlayerID]:IsHuman()))then
 				local instance		:table	= ms_ConversationSelectionIM:GetInstance();
 				instance.SelectionText:SetText( Locale.Lookup(selection.Text) );
+				-- Begin ScreenReaderAccess change
+				local isDisabled:boolean = selection.IsDisabled ~= nil and selection.IsDisabled;
+				table.insert( m_srSelections, {
+					key = "selection:" .. tostring(selection.Key),
+					text = CleanTextForSpeech( Locale.Lookup(selection.Text) ),
+					choosable = not isDisabled,
+					reason = ( isDisabled and selection.FailureReasons ~= nil ) and CleanTextForSpeech( Locale.Lookup(selection.FailureReasons[1]) ) or "Not available",
+					isExit = ( selection.Key == "CHOICE_EXIT" ),
+					callback = function() handler.OnSelectionButtonClicked(selection.Key); end,
+				} );
+				-- End ScreenReaderAccess change
 			
 				local texth			:number	= math.max( instance.SelectionText:GetSizeY() + SELECTION_PADDING_Y, 45 );
 				instance.SelectionButton:SetSizeY( texth );
@@ -646,6 +664,20 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 	-- Leader name
 	local leaderDesc = PlayerConfigurations[kStatement.FromPlayer]:GetLeaderName();
 	Controls.LeaderResponseName:SetText(Locale.ToUpper(Locale.Lookup("LOC_DIPLOMACY_DEAL_OTHER_PLAYER_SAYS", leaderDesc)));
+
+	-- Begin ScreenReaderAccess change: say what the leader says, then offer the answers
+	if m_srList ~= nil and kStatement.FromPlayer ~= Game.GetLocalPlayer() then
+		local civName:string = Locale.Lookup( PlayerConfigurations[kStatement.FromPlayer]:GetCivilizationShortDescription() );
+		local speech:string = Locale.Lookup(leaderDesc) .. " of " .. civName .. " says: " .. CleanTextForSpeech(leaderstr);
+		if reasonStr ~= nil and reasonStr ~= "" then speech = speech .. " " .. CleanTextForSpeech(reasonStr); end
+		m_srList.Reset();
+		if #m_srSelections > 0 then
+			m_srList.Open( speech );
+		else
+			OutputMessageToScreenReader( speech .. " Escape to close.", true );
+		end
+	end
+	-- End ScreenReaderAccess change
 end
 
 -- ===========================================================================
@@ -2730,6 +2762,7 @@ end
 --	Consume all key input so it doens't fall through to world
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then 
 		KeyHandler( pInputStruct:GetKey() ); 
@@ -2917,6 +2950,7 @@ end
 ----------------------------------------------------------------    
 function OnHide()
 
+	m_srSelections = {};		-- ScreenReaderAccess
 	LuaEvents.DiploBasePopup_HideUI(false);
 	Controls.BlackFade:SetHide(true);
 	Controls.BlackFadeAnim:SetToBeginning();
@@ -3089,6 +3123,19 @@ end
 
 -- ===========================================================================
 function Initialize()
+	-- ScreenReaderAccess: keyboard list of the answers
+	m_srList = KeyNavList_Create{
+		build = function() return m_srSelections; end,
+		isActive = function() return not ContextPtr:IsHidden() and #m_srSelections > 0 and ms_currentViewMode ~= DEAL_MODE; end,
+		onActivate = function( item )
+			-- In cinema mode (voiced leader scenes) the exit choice does nothing; the game ends it like Escape does.
+			if item.isExit and ms_currentViewMode ~= CONVERSATION_MODE then
+				CloseFocusedState(false);
+			else
+				item.callback();
+			end
+		end,
+	};
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
