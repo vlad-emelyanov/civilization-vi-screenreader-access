@@ -2,8 +2,10 @@
 --	InGameAccess: screen reader hub for the in-game UI (see docs/ingame-plan.md).
 --	A context without visuals, added to InGame (UI/Additions/InGameAccess.xml). It owns
 --	  - the map cursor (Shift+Arrows) and its plot announcements,
---	  - the in-game hotkeys (I plot details, . cursor to selection, N what is next),
---	  - event announcements: unit/city selected, new turn, end of turn.
+--	  - the in-game hotkeys (I plot details, J cursor to selection, N what is next, Tab unit actions),
+--	  - the unit actions menu and the target modes (move to, attack ...), which take over Up/Down/Enter/Escape and
+--	    Shift+Arrows through this context's input handler (see the bottom of the file),
+--	  - event announcements: unit/city selected, new turn, end of turn, unit results, enemies spotted.
 --	Input order (verified, see docs/ingame-plan.md): this context's input handler runs before WorldInput and
 --	ActionPanel; a key it consumes (KeyDown and KeyUp) also never becomes an input action.
 -- ===========================================================================
@@ -21,7 +23,8 @@ local m_cursorX				:number = nil;		-- map cursor (plot coordinates)
 local m_cursorY				:number = nil;
 local m_mouseTimer			:number = -1;		-- >= 0: seconds until the mouse is moved onto the cursor plot
 local m_actions				:table = {};		-- actionId -> handler
-local m_lastAnnouncedTurn	:number = -1;
+local m_lastAnnouncedTurn	:string = "";		-- "<local player>:<turn>" of the last turn announcement (hotseat: every player hears their turn)
+local m_cursorPlayer		:number = -1;		-- local player the cursor belongs to
 
 -- ===========================================================================
 --	HELPERS
@@ -71,20 +74,53 @@ local function QueueMouseMove( plot:table )
 	m_mouseTimer = MOUSE_MOVE_DELAY;
 end
 
+-- Finds where a plot is on the screen by sampling the engine's screen-to-plot mapping (there is no plot-to-screen
+-- call). Normalized screen coordinates run from -1 to 1 with y up. Returns pixel coordinates or nil when off screen.
+local function FindPlotScreenPos( x:number, y:number )
+	local sumX:number, sumY:number, count:number = 0, 0, 0;
+	local STEPS:number = 25;
+	for iy = -STEPS, STEPS do
+		for ix = -STEPS, STEPS do
+			local nx:number, ny:number = ix / STEPS, iy / STEPS;
+			local px:number, py:number = UI.GetPlotCoordFromNormalizedScreenPos( nx, ny );
+			if px == x and py == y then
+				sumX = sumX + nx;
+				sumY = sumY + ny;
+				count = count + 1;
+			end
+		end
+	end
+	if count == 0 then return nil; end
+	local screenWidth:number, screenHeight:number = UIManager:GetScreenSizeVal();
+	return math.floor( ( sumX / count / 2 + 0.5 ) * screenWidth ), math.floor( ( 0.5 - sumY / count / 2 ) * screenHeight );
+end
+
 local function UpdateMouse( deltaTime:number )
 	if m_mouseTimer < 0 then return; end
 	m_mouseTimer = m_mouseTimer - deltaTime;
 	if m_mouseTimer >= 0 then return; end
 	m_mouseTimer = -1;
 	if m_cursorX == nil then return; end
-	local plot:table = Map.GetPlot( m_cursorX, m_cursorY );
-	if plot == nil then return; end
-	-- The camera put the cursor plot at the centre of the screen (see SetCursor), so that is where the mouse goes.
+	-- SetCursor asked the camera to put the cursor plot at the screen centre. Near the edge of the map it cannot, and
+	-- the mouse at the centre would sit on another plot (and the game would read that one): find the real position.
+	local centerX:number, centerY:number = UI.GetPlotCoordFromNormalizedScreenPos( 0, 0 );
 	local screenWidth:number, screenHeight:number = UIManager:GetScreenSizeVal();
-	KeyNavMoveMouseToScreen( math.floor( screenWidth / 2 ), math.floor( screenHeight / 2 ) );
+	if centerX == m_cursorX and centerY == m_cursorY then
+		KeyNavMoveMouseToScreen( math.floor( screenWidth / 2 ), math.floor( screenHeight / 2 ) );
+		return;
+	end
+	local px:number, py:number = FindPlotScreenPos( m_cursorX, m_cursorY );
+	if px ~= nil then KeyNavMoveMouseToScreen( px, py ); end
+end
+
+local function ResetCursor()
+	m_cursorX, m_cursorY = nil, nil;
+	m_mouseTimer = -1;
+	m_cursorPlayer = Game.GetLocalPlayer();
 end
 
 local function GetCursor()
+	if m_cursorPlayer ~= Game.GetLocalPlayer() then ResetCursor(); end	-- hotseat: the next player starts at their own units
 	if m_cursorX == nil then
 		local plot:table = GetSelectionPlot();
 		local capital:table = nil;
@@ -94,7 +130,7 @@ local function GetCursor()
 		elseif capital ~= nil then
 			m_cursorX, m_cursorY = capital:GetX(), capital:GetY();
 		else
-			m_cursorX, m_cursorY = UI.GetPlotCoordFromNormalizedScreenPos( 0.5, 0.5 );	-- what the camera is looking at
+			m_cursorX, m_cursorY = UI.GetPlotCoordFromNormalizedScreenPos( 0, 0 );	-- what the camera is looking at
 		end
 	end
 	return m_cursorX, m_cursorY;
@@ -115,6 +151,7 @@ end
 local function SetCursor( x:number, y:number, speak:boolean, interrupt:boolean )
 	local plot:table = Map.GetPlot( x, y );
 	if plot == nil then return; end
+	m_cursorPlayer = Game.GetLocalPlayer();
 	m_cursorX, m_cursorY = x, y;
 	UI.LookAtPlotScreenPosition( x, y, 0.5, 0.5 );
 	QueueMouseMove( plot );
@@ -275,9 +312,18 @@ end
 local function AnnounceTurn()
 	if not IsLocalPlayerActive() then return; end
 	local turn:number = Game.GetCurrentGameTurn();
-	if turn == m_lastAnnouncedTurn then return; end
-	m_lastAnnouncedTurn = turn;
+	local key:string = Game.GetLocalPlayer() .. ":" .. turn;
+	if key == m_lastAnnouncedTurn then return; end
+	m_lastAnnouncedTurn = key;
+	if m_cursorPlayer ~= Game.GetLocalPlayer() then ResetCursor(); end
 	OutputMessageToScreenReader( "Turn " .. turn .. ", " .. Calendar.MakeYearStr( turn ), true );
+end
+
+-- A game was loaded or started: forget everything about the previous one.
+local function OnLoadScreenClose()
+	m_lastAnnouncedTurn = "";
+	ResetCursor();
+	AnnounceTurn();
 end
 
 local function OnLocalPlayerTurnEnd()
@@ -318,7 +364,7 @@ function Initialize()
 	Events.UnitSelectionChanged.Add( Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
 	Events.CitySelectionChanged.Add( Safe( "CitySelectionChanged", OnCitySelectionChanged ) );
 	Events.LocalPlayerTurnBegin.Add( Safe( "LocalPlayerTurnBegin", AnnounceTurn ) );
-	Events.LoadScreenClose.Add( Safe( "LoadScreenClose", AnnounceTurn ) );
+	Events.LoadScreenClose.Add( Safe( "LoadScreenClose", OnLoadScreenClose ) );
 	Events.LocalPlayerTurnEnd.Add( Safe( "LocalPlayerTurnEnd", OnLocalPlayerTurnEnd ) );
 
 	ContextPtr:SetUpdate( Safe( "Update", UpdateMouse ) );

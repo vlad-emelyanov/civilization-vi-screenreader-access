@@ -651,7 +651,11 @@ function View( data:table )
 			table.insert(details, 2, StringifyCity(Cities.GetCityInPlot(data.X, data.Y)));
 		end
 
-		local description = table.concat(details, "[NEWLINE]");
+		local spoken = {};
+		for _, line in ipairs(details) do
+			if string.sub(line, 1, 3) ~= "---" then table.insert(spoken, line); end	-- drop the "------" separators
+		end
+		local description = table.concat(spoken, "[NEWLINE]");
 		OutputMessageToScreenReader(description);
 	end
 	-- End ScreenReaderAccess mod change
