@@ -214,8 +214,11 @@ end
 local function SRA_OpenList()
 	local title:string = Locale.Lookup("LOC_CIVICS_CHOOSER_CHOOSE_CIVIC");
 	if CanPlayerCivicAnything(Game.GetLocalPlayer()) then title = title .. ", no culture"; end	-- (sic) true when culture is 0
-	if m_currentID ~= nil and m_currentID >= 0 and GameInfo.Civics[m_currentID] ~= nil then
-		title = title .. ", currently " .. Locale.Lookup(GameInfo.Civics[m_currentID].Name);
+	-- the live state, not m_currentID: that is stale right after a civic was completed
+	local culture:table = Players[Game.GetLocalPlayer()]:GetCulture();
+	local currentID:number = culture:GetProgressingCivic();
+	if currentID ~= nil and currentID >= 0 and GameInfo.Civics[currentID] ~= nil and not culture:HasCivic(currentID) then
+		title = title .. ", currently " .. Locale.Lookup(GameInfo.Civics[currentID].Name);
 	end
 	m_srList.Reset();
 	m_srList.Open(title);

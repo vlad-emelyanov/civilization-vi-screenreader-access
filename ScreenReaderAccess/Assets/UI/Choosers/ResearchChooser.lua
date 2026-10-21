@@ -237,8 +237,11 @@ end
 local function SRA_OpenList()
 	local title:string = Locale.Lookup("LOC_RESEARCH_CHOOSER_CHOOSE_RESEARCH");
 	if CanPlayerResearchAnything(Game.GetLocalPlayer()) then title = title .. ", no science"; end	-- (sic) true when science is 0
-	if m_currentID ~= nil and m_currentID >= 0 and GameInfo.Technologies[m_currentID] ~= nil then
-		title = title .. ", currently " .. Locale.Lookup(GameInfo.Technologies[m_currentID].Name);
+	-- the live state, not m_currentID: that is stale right after a tech was completed
+	local techs:table = Players[Game.GetLocalPlayer()]:GetTechs();
+	local currentID:number = techs:GetResearchingTech();
+	if currentID ~= nil and currentID >= 0 and GameInfo.Technologies[currentID] ~= nil and not techs:HasTech(currentID) then
+		title = title .. ", currently " .. Locale.Lookup(GameInfo.Technologies[currentID].Name);
 	end
 	m_srList.Reset();
 	m_srList.Open(title);

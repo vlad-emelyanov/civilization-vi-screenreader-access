@@ -2,6 +2,7 @@
 -- Popup for Natural Wonders
 
 include("PopupManager");
+include("ScreenReader");		-- ScreenReaderAccess mod change
 
 
 -- ===========================================================================
@@ -103,6 +104,9 @@ function ShowPopup( kData:table )
 		Controls.WonderIcon:SetToolTipString( kData.Description );
 	end
 	Controls.QuoteContainer:DoAutoSize();
+
+	-- ScreenReaderAccess mod change
+	OutputMessageToScreenReader("Natural wonder discovered: " .. Locale.Lookup(GameInfo.Features[kData.Feature].Name) .. ((kData.Description ~= nil) and (". " .. kData.Description) or "") .. ". Enter to continue");
 end
 
 -- ===========================================================================
@@ -222,11 +226,11 @@ end
 --	Native Input / ESC support
 -- ===========================================================================
 function KeyHandler( key:number )
-    if key == Keys.VK_ESCAPE then
+    if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then		-- ScreenReaderAccess mod change: Enter too
 		Close();
 		return true;
     end
-    return false;
+    return true;		-- ScreenReaderAccess mod change: modal
 end
 function OnInputHander( pInputStruct:table )
 	local uiMsg :number = pInputStruct:GetMessageType();

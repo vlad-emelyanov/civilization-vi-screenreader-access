@@ -4,6 +4,7 @@
 --
 -- ===========================================================================
 include("SupportFunctions");
+include("ScreenReader");		-- ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	CONSTANS / MEMBERS
@@ -24,6 +25,9 @@ function ShowBoost(queueEntry:table)
 	-- Queue Popup through UI Manager
 	UIManager:QueuePopup( ContextPtr, PopupPriority.Low, { DelayShow = true });
 	m_isOnQueue = true;
+
+	-- ScreenReaderAccess mod change: speak the boost (Enter or Escape continues)
+	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". Enter to continue");
 
 	PlayAnimations();
 end
@@ -328,7 +332,7 @@ function OnInputHandler( input )
 			return true;
 		end
 	end
-	return false;
+	return true;		-- ScreenReaderAccess mod change: modal
 end
 
 -- ===========================================================================

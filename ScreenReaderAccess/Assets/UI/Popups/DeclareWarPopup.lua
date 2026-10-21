@@ -4,6 +4,7 @@ include( "InstanceManager" );
 include( "DiplomacyStatementSupport" );
 include( "SupportFunctions" );				--DarkenLightenColor
 include( "Colors" );
+include( "ScreenReader" );		-- ScreenReaderAccess mod change
 
 
 --	******************************************************************************************************
@@ -22,10 +23,16 @@ local CONSEQUENCE_TYPES = {WARMONGER = 1, DEFENSIVE_PACT = 2, CITY_STATE = 3, TR
 --	******************************************************************************************************
 local m_TargetCivIM:table = InstanceManager:new( "TargetCivilization", "Root", Controls.Targets);
 
+-- ScreenReaderAccess mod change: keyboard answer (Enter = declare war, Escape = cancel) and speech
+local m_srYes = nil;		-- what the Yes button does
+local m_srNames			:table = {};	-- names of the civilizations that would be attacked
+local m_srSpeakIn		:number = -1;	-- seconds until the dialog is read (the expansion adds its text after OnShow)
+
 --	******************************************************************************************************
 --	FUNCTIONS
 --	******************************************************************************************************
 function OnClose()
+	m_srYes = nil;
 	Controls.ConsequencesStack:SetHide(true);
 	Controls.WarmongerContainer:SetHide(true);
 	Controls.DefensivePactContainer:SetHide(true);
@@ -103,6 +110,7 @@ function OnShow(eAttackingPlayer:number, kDefendingPlayers:table, eWarType:numbe
 	-- Populate targets
 	local iWarmongerPoints = -1;
 	m_TargetCivIM:ResetInstances();
+	m_srNames = {};
 	
 --for i=1, 3 do -- DEBUG
 	for i, eDefendingPlayer in ipairs(kDefendingPlayers) do
@@ -121,7 +129,8 @@ function OnShow(eAttackingPlayer:number, kDefendingPlayers:table, eWarType:numbe
 	Controls.WarConfirmAlpha:Play();
 	Controls.WarConfirmSlide:SetToBeginning();
 	Controls.WarConfirmSlide:Play();
-	Controls.Yes:RegisterCallback(Mouse.eLClick, function() confirmCallbackFn(); OnClose(); end);
+	m_srYes = function() confirmCallbackFn(); OnClose(); end;
+	Controls.Yes:RegisterCallback(Mouse.eLClick, m_srYes);
 	Controls.Message:SetText(Locale.Lookup("LOC_DIPLO_WARNING_DECLARE_WAR_FROM_UNIT_ATTACK_INFO_MULTIPLE"));
 
 	-- Populate warmonger consequences
@@ -140,6 +149,7 @@ function OnShow(eAttackingPlayer:number, kDefendingPlayers:table, eWarType:numbe
 	Controls.ConsequencesStack:SetHide(false);
 	ContextPtr:SetHide(false);
 	Resize();
+	m_srSpeakIn = 0.3;		-- ScreenReaderAccess mod change
 end
 
 function PopulateTargetInstance(controls, ePlayer)
@@ -170,6 +180,7 @@ function PopulateTargetInstance(controls, ePlayer)
 	controls.PulseAnim:SetToBeginning();
 	controls.PulseAnim:Play();
 
+	table.insert(m_srNames, Locale.Lookup(playerName));		-- ScreenReaderAccess mod change
 	return playerName;
 end
 
@@ -192,6 +203,13 @@ end
 function KeyHandler( key:number )
 	if key == Keys.VK_ESCAPE then
 		OnClose();
+		OutputMessageToScreenReader("War cancelled");		-- ScreenReaderAccess mod change
+		return true;
+	end
+	-- ScreenReaderAccess mod change: Enter declares war
+	if key == Keys.VK_RETURN and m_srYes ~= nil then
+		OutputMessageToScreenReader("Declaring war on " .. table.concat(m_srNames, " and "));
+		m_srYes();
 		return true;
 	end
 
@@ -199,12 +217,26 @@ function KeyHandler( key:number )
 end
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
-	if uiMsg == KeyEvents.KeyUp then return KeyHandler( pInputStruct:GetKey() ); end;
-	return false;
+	if uiMsg == KeyEvents.KeyUp then KeyHandler( pInputStruct:GetKey() ); end;
+	return true;	-- ScreenReaderAccess mod change: modal, no key reaches the map while the dialog is open
+end
+
+-- ScreenReaderAccess mod change: read the dialog once it is complete
+function OnSRUpdate( deltaTime:number )
+	if m_srSpeakIn < 0 then return; end
+	m_srSpeakIn = m_srSpeakIn - deltaTime;
+	if m_srSpeakIn >= 0 then return; end
+	local parts:table = { Locale.Lookup("LOC_DECLARE_WAR_HEADER"), Controls.Message:GetText(), table.concat(m_srNames, ", ") };
+	for _, item in ipairs(g_ConsequenceItemIM.m_AllocatedInstances) do
+		table.insert(parts, item.Text:GetText());
+	end
+	table.insert(parts, "Enter to declare war, Escape to cancel");
+	OutputMessageToScreenReader(table.concat(parts, ". "));
 end
 
 function Initialize()
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	ContextPtr:SetUpdate( OnSRUpdate );		-- ScreenReaderAccess mod change
 	Controls.No:RegisterCallback( Mouse.eLClick, OnClose );
 	LuaEvents.DiplomacyActionView_ConfirmWarDialog.Add(OnShowSingleTarget);
 	LuaEvents.CityStates_ConfirmWarDialog.Add(OnShowSingleTarget);

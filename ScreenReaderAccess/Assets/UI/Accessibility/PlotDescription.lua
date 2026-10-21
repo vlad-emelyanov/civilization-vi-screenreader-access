@@ -80,26 +80,46 @@ end
 --	Parts of a description
 -- ===========================================================================
 
--- "Warrior" for the local player's units, "Roman Warrior" / "Barbarian Warrior" for the others.
+-- True when the local player may see this unit right now (foreign units can be invisible: submarines, stealth, fog).
+function PlotDescription_IsUnitVisible( unit:table )
+	local localPlayer:number = Game.GetLocalPlayer();
+	if unit == nil or localPlayer == nil or localPlayer == -1 then return false; end
+	if unit:GetOwner() == localPlayer then return true; end
+	local vis:table = PlayersVisibility[localPlayer];
+	if vis == nil then return false; end
+	return vis:IsVisible(unit:GetX(), unit:GetY()) and vis:IsUnitVisible(unit);
+end
+
+-- "Warrior" for the local player's units, "Roman Warrior" / "Barbarian Warrior" for the others. The owner is
+-- not repeated when the unit's own name already starts with it ("Barbarian Horseman").
 function PlotDescription_GetUnitName( unit:table )
 	local text:string = Locale.Lookup(unit:GetName());
 	local owner:number = unit:GetOwner();
 	if owner ~= Game.GetLocalPlayer() then
 		local player:table = Players[owner];
+		local prefix:string;
 		if player ~= nil and player:IsBarbarian() then
-			text = "Barbarian " .. text;
+			prefix = "Barbarian";
 		else
-			text = _CivName(owner) .. " " .. text;
+			prefix = _CivName(owner);
+		end
+		if prefix ~= "" and string.lower(string.sub(text, 1, #prefix)) ~= string.lower(prefix) then
+			text = prefix .. " " .. text;
 		end
 	end
 	return text;
+end
+
+-- Name of a civilization (short form, e.g. "Rome").
+function PlotDescription_GetCivName( playerId:number )
+	return _CivName(playerId);
 end
 
 local function _UnitsText( plot:table, excludeUnitId:number )
 	local parts:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
 	for _, unit in ipairs(Units.GetUnitsInPlot(plot)) do
-		if excludeUnitId == nil or unit:GetID() ~= excludeUnitId or unit:GetOwner() ~= localPlayer then
+		if (excludeUnitId == nil or unit:GetID() ~= excludeUnitId or unit:GetOwner() ~= localPlayer) and PlotDescription_IsUnitVisible(unit) then
 			local text:string = PlotDescription_GetUnitName(unit);
 			local damage:number = unit:GetDamage();
 			if damage > 0 then

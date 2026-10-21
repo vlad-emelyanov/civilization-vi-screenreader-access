@@ -19,6 +19,28 @@ local m_kCurrentData		:table	= nil;
 local m_kPopupData			:table	= {};
 local m_isCivicData			:boolean= false;
 local m_quote_audio:table;
+local m_srGovernmentAction = nil;		-- ScreenReaderAccess mod change: what the "Change policies" / "Government unlocked" button does
+
+-- ScreenReaderAccess mod change: speaks the completed tech or civic, a short list of what it unlocks and the keys.
+local function SRAnnounce( unlockables:table, headerKey:string )
+	local names:table = {};
+	for _, v in ipairs( unlockables or {} ) do
+		local name:string = v[2] ~= nil and Locale.Lookup( v[2] ) or tostring( v[1] );
+		if name ~= nil and name ~= "" then table.insert( names, name ); end
+	end
+	local parts:table = { Locale.Lookup( headerKey ) .. ": " .. Controls.ResearchName:GetText() };
+	if #names > 0 then
+		local shown:table = {};
+		for i = 1, math.min( #names, 5 ) do shown[i] = names[i]; end
+		local text:string = "Unlocks " .. table.concat( shown, ", " );
+		if #names > 5 then text = text .. " and " .. ( #names - 5 ) .. " more"; end
+		table.insert( parts, text );
+	end
+	local keys:string = "Enter to continue";
+	if m_srGovernmentAction ~= nil then keys = keys .. ", G for " .. Controls.ChangeGovernmentButton:GetText(); end
+	table.insert( parts, keys );
+	OutputMessageToScreenReader( table.concat( parts, ". " ) );
+end
 
 
 -- ===========================================================================
@@ -114,7 +136,8 @@ function ShowCivicCompletedPopup( player:number, civic:number, quote:string, aud
 	Controls.ChangeGovernmentButton:SetHide(false);		-- Show Change Government Button	
 
 	-- begin ScreenReader access mod change
-	OutputMessageToScreenReader(Controls.ResearchName:GetText())
+	m_srGovernmentAction = isCivicUnlockGovernmentType and OnChangeGovernment or OnChangePolicy;
+	SRAnnounce( unlockableTypes, "LOC_RESEARCH_COMPLETE_CIVIC_COMPLETE" );
 	-- End ScreenReader access mod change
 end
 
@@ -181,7 +204,8 @@ function ShowTechCompletedPopup( player:number, tech:number, quote:string, audio
 	Controls.ChangeGovernmentButton:SetHide(true);		-- Hide Change Government Button
 
 	-- begin ScreenReader access mod change
-	OutputMessageToScreenReader(Controls.ResearchName:GetText())
+	m_srGovernmentAction = nil;
+	SRAnnounce( GetUnlockablesForTech_Cached( techType, player ), "LOC_RESEARCH_COMPLETE_TECH_COMPLETE" );
 	-- End ScreenReader access mod change
 end
 
@@ -362,8 +386,13 @@ function OnInputHandler( input )
 	local msg = input:GetMessageType();
 	if (msg == KeyEvents.KeyUp) then
 		local key = input:GetKey();
-		if key == Keys.VK_ESCAPE then
+		if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then		-- ScreenReaderAccess mod change: Enter too
 			TryClose();
+			return true;
+		end
+		-- ScreenReaderAccess mod change: G opens the government screen (change policies / new government)
+		if key == Keys.G and m_srGovernmentAction ~= nil then
+			m_srGovernmentAction();
 			return true;
 		end
 	end

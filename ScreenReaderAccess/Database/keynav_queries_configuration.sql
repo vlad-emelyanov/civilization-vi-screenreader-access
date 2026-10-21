@@ -33,3 +33,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavCycleAllUnits','Cycle all units','Sele
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavCycleAllUnits',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_K');
 INSERT INTO "InputActions" VALUES ('KeyNavScanUnits','Scan for units','Move the map cursor to the nearest foreign unit in view, hostile ones first; again: the next one','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavScanUnits',0,'KBMouse','LOC_OPTIONS_KEY_X');
+INSERT INTO "InputActions" VALUES ('KeyNavDiplomacy','Diplomacy','List the civilizations you have met and open the diplomacy screen with one','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavDiplomacy',0,'KBMouse','LOC_OPTIONS_KEY_V');

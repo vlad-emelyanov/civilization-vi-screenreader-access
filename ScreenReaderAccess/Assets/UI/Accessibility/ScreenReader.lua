@@ -73,9 +73,16 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 		-- [COLOR:Red] or [ENDCOLOR] are dropped (text already cleaned by CleanTextForSpeech has none left).
 		message = string.gsub(message, "%[NEWLINE%]", ", ");
 		message = _StripIconMarkup(message);
-		message = string.gsub(message, "%[%u%u[%u%d_]*[:%w_%.%-]*%]", "");
+		-- Only the game's known markup is dropped; anything else in brackets is real text (a player called "[KOS] Bob").
+		message = string.gsub(message, "%[COLOR[:_][^%]]*%]", "");
+		message = string.gsub(message, "%[ENDCOLOR%]", "");
+		message = string.gsub(message, "%[TAB%]", " ");
+		message = string.gsub(message, "%[ENDLINK%]", "");
+		message = string.gsub(message, "%[LINK[^%]]*%]", "");
 		message = string.gsub(message, ",%s*,", ",");
 		message = string.gsub(message, "%s+", " ");
+		message = string.gsub(message, "^[%s,]+", "");
+		message = string.gsub(message, "[%s,]+$", "");
 	else
 		message = _StripIconMarkup(message);
 	end

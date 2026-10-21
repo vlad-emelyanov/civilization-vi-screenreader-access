@@ -2956,6 +2956,8 @@ function OnInputActionTriggered( actionId )
 	-- "Attack" Hotkey is pressed; should only work if combat evaluation is displayed. There is no action for basic attacks, necissitating this special case.
 	if m_combatResults ~= nil and m_AttackHotkeyId ~= nil and (actionId == m_AttackHotkeyId) then
 		MoveUnitToPlot( UI.GetHeadSelectedUnit(), m_locX, m_locY );
+	elseif m_AttackHotkeyId ~= nil and actionId == m_AttackHotkeyId then
+		LuaEvents.SRA_AttackKey();		-- ScreenReaderAccess mod change: no hovered target, the hub opens an attack target mode
 	end
 end
 
@@ -4299,9 +4301,9 @@ local function SRBuildActions()
 	return plain;
 end
 
-function OnSRRequestUnitActions()
+function OnSRRequestUnitActions( refresh:boolean )
 	local unit:table = UI.GetHeadSelectedUnit();
-	if unit ~= nil and g_UnitId == unit:GetID() and g_selectedPlayerId == unit:GetOwner() then
+	if refresh and unit ~= nil and g_UnitId == unit:GetID() and g_selectedPlayerId == unit:GetOwner() then
 		Refresh( g_selectedPlayerId, g_UnitId );	-- the state may have changed since the last refresh
 	end
 	local plain:table = SRBuildActions();
