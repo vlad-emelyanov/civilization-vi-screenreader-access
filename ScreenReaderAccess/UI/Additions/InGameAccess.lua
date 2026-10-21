@@ -158,28 +158,45 @@ local function IsSettler( unit:table )
 	return row ~= nil and row.FoundCity == true;
 end
 
--- The first n reasons of a settle candidate, as ", river, coast, silk" (empty when there are none).
-local function SettleReasons( candidate:table, n:number )
+-- The first n good and m bad reasons of a settle candidate as "river, coast, silk, but floods, poor food" (empty when
+-- there are none).
+local function SettleReasonList( candidate:table, n:number, m:number )
 	local parts:table = {};
 	for i = 1, math.min( n, #candidate.reasons ) do table.insert( parts, candidate.reasons[i] ); end
-	if #parts == 0 then return ""; end
-	return ", " .. table.concat( parts, ", " );
+	local bad:table = {};
+	for i = 1, math.min( m, #candidate.negatives ) do table.insert( bad, candidate.negatives[i] ); end
+	local text:string = table.concat( parts, ", " );
+	if #bad > 0 then text = text .. ( #parts > 0 and ", " or "" ) .. "but " .. table.concat( bad, ", " ); end
+	return text;
+end
+
+-- The same with a leading comma (empty when there are none).
+local function SettleReasons( candidate:table, n:number, m:number )
+	local text:string = SettleReasonList( candidate, n, m or 2 );
+	if text == "" then return ""; end
+	return ", " .. text;
 end
 
 -- One sentence about the settler's plot and the best spot nearby, said when a settler is selected.
+-- The terrain and river of the settler's plot are in the unit announcement already: only "can settle" and what is
+-- wrong with the plot are said about it.
 local function SettleSentence( unit:table )
 	local scan:table = SettleScan_Scan( unit );
 	local here:table, best:table = scan.here, scan.best;
-	if best ~= nil and best.here then
-		return "Here is the best spot nearby" .. ( #best.reasons > 0 and ": " or "" ) .. string.sub( SettleReasons( best, 3 ), 3 ) .. ". B to found.";
-	end
-	local text:string = "Here: ";
+	local text:string;
 	if here ~= nil then
-		text = text .. "can settle" .. SettleReasons( here, 2 );
+		text = "Can settle here" .. SettleReasons( { reasons = {}, negatives = here.negatives }, 0, 2 );
+	elseif scan.hereReason ~= nil and scan.hereReason ~= "" then
+		text = "Cannot settle here: " .. scan.hereReason;
 	else
-		text = text .. "cannot settle: " .. ( scan.hereReason or "not possible" );
+		text = "Cannot settle here";
 	end
 	if best == nil then return text .. ". No spot found nearby."; end
+	if best.here then
+		local list:string = SettleReasonList( best, 3, 2 );
+		return ( here ~= nil and "Can settle here" or text ) .. ", the best spot nearby" .. ( list ~= "" and ( ": " .. list ) or "" )
+			.. ( unit:GetMovesRemaining() > 0 and ". B to found." or ". B to found next turn." );
+	end
 	text = text .. ". Best: " .. best.relative .. ", " .. Plural( best.turns, "turn", "turns" ) .. SettleReasons( best, 3 );
 	if best.recommended then text = text .. ", recommended"; end
 	return text .. ". X to browse.";
@@ -491,8 +508,8 @@ local function DescribeCursorPlot( plot:table )
 		local info:string = TargetInfo( mode, plot, unit );
 		if info ~= nil then text = info .. ". " .. text; end
 	elseif IsSettler( unit ) then
-		local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
-		text = text .. ( ok and ", can settle" or ( ", cannot settle: " .. reason ) );
+		local ok:boolean, reason = SettleScan_CanFound( unit, plot );
+		text = text .. ( ok and ", can settle" or ( ", " .. SettleScan_CannotText( reason ) ) );
 	end
 	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
 	if relative ~= nil then text = text .. ". " .. relative; end
@@ -500,13 +517,18 @@ local function DescribeCursorPlot( plot:table )
 end
 
 -- Puts the cursor on (x, y), moves the camera there and optionally speaks the plot.
-local function SetCursor( x:number, y:number, speak:boolean, interrupt:boolean )
+-- noMouse: the real mouse does not follow (browsing a list of candidates: the mouse must not sit on every one of them).
+local function SetCursor( x:number, y:number, speak:boolean, interrupt:boolean, noMouse:boolean )
 	local plot:table = Map.GetPlot( x, y );
 	if plot == nil then return; end
 	m_cursorPlayer = Game.GetLocalPlayer();
 	m_cursorX, m_cursorY = x, y;
 	UI.LookAtPlotScreenPosition( x, y, 0.5, 0.5 );
-	QueueMouseMove( plot );
+	if noMouse then
+		m_mouseTimer = -1;
+	else
+		QueueMouseMove( plot );
+	end
 	if speak then
 		OutputMessageToScreenReader( DescribeCursorPlot( plot ), not interrupt );
 	end
@@ -723,10 +745,16 @@ local function UnitText( unit:table )
 end
 
 -- The settle sentence for a selected settler (after the unit announcement, so it does not interrupt it).
+local m_lastSettleSpoken:string = nil;	-- unit, plot, turn and moves of the last settle sentence
+
 local function SpeakSettleSentence( unit:table )
 	if not IsSettler( unit ) then return; end
+	-- Next Action reselecting the same settler where it stood this turn: nothing new to say
+	local spokenKey:string = table.concat( { unit:GetID(), unit:GetX(), unit:GetY(), Game.GetCurrentGameTurn(), unit:GetMovesRemaining() }, ":" );
+	if spokenKey == m_lastSettleSpoken then return; end
 	local ok:boolean, sentence = xpcall( function() return SettleSentence( unit ); end, KeyNavErrorHandler );
 	if ok then
+		m_lastSettleSpoken = spokenKey;
 		OutputMessageToScreenReader( sentence, true );
 	else
 		print( "InGameAccess settle scan error: " .. tostring( sentence ) );
@@ -837,6 +865,7 @@ end
 -- A game was loaded or started: forget everything about the previous one.
 local function OnLoadScreenClose()
 	m_lastAnnouncedTurn = "";
+	m_lastSettleSpoken = nil;
 	ResetCursor();
 	m_ready = true;
 	m_movers = {};
@@ -1060,8 +1089,14 @@ end
 local m_settleList:table;
 
 local function CloseSettle( speak:boolean )
+	local wasOpen:boolean = m_settleOpen;
 	m_settleOpen = false;
 	m_settleList.Reset();
+	if wasOpen then
+		-- browsing moved the cursor over the candidates: back to the settler
+		local unit:table = UI.GetHeadSelectedUnit();
+		if unit ~= nil then SetCursor( unit:GetX(), unit:GetY(), false ); end
+	end
 	if speak then OutputMessageToScreenReader( "Closed" ); end
 end
 
@@ -1072,19 +1107,19 @@ end
 -- "2 tiles north-east, 1 turn, river, coast, silk, recommended" / "Here, river, wine"
 local function SettleItemText( c:table )
 	local text:string = c.here and "Here" or ( c.relative .. ", " .. Plural( c.turns, "turn", "turns" ) );
-	text = text .. SettleReasons( c, 3 );
+	text = text .. SettleReasons( c, 3, 2 );
 	if c.recommended then text = text .. ", recommended"; end
 	return text;
 end
 
 local function OpenSettleBrowser( unit:table )
-	local scan:table = SettleScan_Scan( unit );
+	local scan:table = SettleScan_Scan( unit, true );		-- the player asked: look again, the map may have changed
 	m_settleItems = {};
 	for _, c in ipairs( scan.list ) do
 		table.insert( m_settleItems, { key = c.key, text = SettleItemText( c ), detail = c.detail, candidate = c } );
 	end
 	if #m_settleItems == 0 then
-		OutputMessageToScreenReader( "No spot to settle found nearby" .. ( scan.hereReason ~= nil and ( ", here: " .. scan.hereReason ) or "" ) );
+		OutputMessageToScreenReader( "No spot to settle found nearby" .. ( ( scan.hereReason ~= nil and scan.hereReason ~= "" ) and ( ", here: " .. scan.hereReason ) or "" ) );
 		return;
 	end
 	m_settleList.Reset();
@@ -1102,14 +1137,19 @@ local function SettleGo( item:table )
 	end
 	local c:table = item.candidate;
 	local plot:table = Map.GetPlotByIndex( c.plotIndex );
+	local ok:boolean, extra = SettleScan_CanFound( unit, plot );
 	if c.here or ( unit:GetX() == c.x and unit:GetY() == c.y ) then
-		local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
-		SayResult( ok and "B to found the city here" or ( "Cannot settle here: " .. reason ) );
+		if not ok then
+			SayResult( "Cannot settle here" .. ( ( extra ~= nil and extra ~= "" ) and ( ": " .. extra ) or "" ) );
+		elseif extra == true then
+			SayResult( "B to found next turn" );
+		else
+			SayResult( "B to found the city here" );
+		end
 		return;
 	end
-	local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
 	if not ok then
-		SayResult( "Cannot settle there any more: " .. reason );
+		SayResult( "Cannot settle there any more" .. ( ( extra ~= nil and extra ~= "" ) and ( ": " .. extra ) or "" ) );
 		return;
 	end
 	local war:table = WarTargets( unit, plot );
@@ -1126,7 +1166,7 @@ m_settleList = KeyNavList_Create{
 	isActive	= function() return m_settleOpen; end,
 	onActivate	= SettleGo,
 	onClose		= function() CloseSettle( true ); end,
-	onFocus		= function( item ) SetCursor( item.candidate.x, item.candidate.y, false ); end,
+	onFocus		= function( item ) SetCursor( item.candidate.x, item.candidate.y, false, nil, true ); end,
 };
 
 -- X: with a settler selected the spot browser, otherwise the scan for foreign units.
@@ -1249,6 +1289,7 @@ local function ToggleUnitMenu()
 		OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " has no actions" );
 		return;
 	end
+	CloseSettle( false );
 	m_menuOpen = true;
 	m_menu.Open( Locale.Lookup( unit:GetName() ) .. " actions" );
 end
@@ -1308,6 +1349,7 @@ local function ToggleCivMenu()
 		OutputMessageToScreenReader( "You have not met any other civilization" );
 		return;
 	end
+	CloseSettle( false );
 	m_civMenuOpen = true;
 	m_civMenu.Open( "Diplomacy, met civilizations" );
 end
@@ -1533,10 +1575,10 @@ local function OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:n
 		m_movers[ unitID ] = nil;
 		local text:string = "Arrived, " .. MovesText( unit );
 		if IsSettler( unit ) then
-			local ok:boolean, reason:string = SettleScan_CheckPlot( plot );
+			local ok:boolean, extra = SettleScan_CanFound( unit, plot );
 			if not ok then
-				text = text .. ", cannot settle: " .. reason;
-			elseif unit:GetMovesRemaining() > 0 then
+				text = text .. ", " .. SettleScan_CannotText( extra );
+			elseif extra ~= true then
 				text = text .. ", B to found the city";
 			else
 				text = text .. ", can settle, B to found next turn";

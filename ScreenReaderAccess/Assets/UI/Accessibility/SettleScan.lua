@@ -1,18 +1,31 @@
 -- ===========================================================================
 --	SettleScan: where can the selected settler found a city, and where is it best? Pure data, no speech.
 --
---	SettleScan_CheckPlot( plot )          -> canSettle:boolean, reason:string   (the game's found-city rules, tested for any plot)
---	SettleScan_Scan( unit )               -> { here = candidate|nil, hereReason = string|nil, list = { candidates sorted by score },
---	                                           best = candidate|nil }
---	candidate: { key, plotIndex, x, y, distance, turns, score, recommended, reasons = { short phrases, most important
---	             first }, detail = <all reasons as one string for Space>, here = true for the settler's own plot }
+--	SettleScan_CheckPlot( plot, cities )  -> true | false, reason   (the game's found-city rules, tested for any plot;
+--	                                           reason "" = cannot, but nothing visible explains it (a city we have not seen))
+--	SettleScan_CanFound( unit, plot )     -> true [, true when the unit has no moves left] | false, reason
+--	                                           (CheckPlot, plus the engine's own check while the unit has moves)
+--	SettleScan_CannotText( reason )       -> "cannot settle" / "cannot settle: reason"
+--	SettleScan_Scan( unit, force )        -> { here = candidate|nil, hereReason = string|nil, list = { candidates sorted by score },
+--	                                           best = candidate|nil }   (cached per unit + plot + turn + moves; force = rescan)
+--	candidate: { key, plotIndex, x, y, distance, turns, score, recommended, reasons = { good short phrases, most important
+--	             first }, negatives = { bad short phrases }, detail = <all reasons as one string for Space>, here = true for
+--	             the settler's own plot }
 --
 --	Candidates: (a) the game's advisor (GrandStrategicAI:GetSettlementRecommendations, shown as icons by the settler
 --	lens), (b) every revealed plot within SCAN_RADIUS of the settler where a city can be founded.
 --
---	Score (higher is better; only the order matters, tuned by looking at what it picks in a real game):
---	  water       river / lake / oasis (fresh water) +8; coastal +4 (both add up); neither: -4 "no fresh water"
---	  yields      0.4 * ( ring 1 plots + 0.5 * ring 2 plots ) of ( food + 0.7 * production ); unknown plots count as average
+--	Engine check (verified in game): UnitManager.CanStartOperation( unit, FOUND_CITY, plot, false, true ) tests the given
+--	plot (remote plots work, the unit's own plot is irrelevant: a settler inside a city still gets "yes" for far plots),
+--	but answers false for EVERY plot when the unit has no moves left. So CheckPlot decides and the engine only vetoes
+--	while the unit has moves.
+--
+--	Score (higher is better; only the order matters, tuned by looking at what it picks in real games):
+--	  water       river / lake / oasis (fresh water) +6; coastal +3; the two together at most +8; neither: -4
+--	  yields      0.7 * ( ring 1 plots + 0.5 * ring 2 plots ) of ( food + 0.7 * production ); unknown plots count 1.5
+--	  food        average food of the known ring 1-2 plots < 1.3: -4 "poor food"; < 1.8 with production < 0.7: -2
+--	              "poor land"; fewer than 4 workable land plots (no water, no mountain) in rings 1-2: -3 "little land"
+--	  explored    fewer than 8 known plots in rings 1-2: -2 "little explored"
 --	  resources   within 2 tiles: luxury +3, strategic +2, bonus +1; the third ring counts half. The city plot itself: -1
 --	  site        hills +2 (production, defense); mountain next to it +1 each (max 2); natural wonder within 3: +3
 --	  hazards     (Gathering Storm API, when present) flooding river or coastal lowlands on the city plot -3, volcano
@@ -22,7 +35,10 @@
 --	  travel      -1.2 per turn needed to reach it (the settler's own pathfinding); unreachable spots are dropped
 --	  advisor     +6 and "recommended" for the advisor's picks
 --	Candidates within 2 tiles of a better one are dropped (they are the same city site), except the settler's plot and
---	the advisor picks.
+--	the advisor picks. Path finding runs down the list sorted by score until MAX_CANDIDATES distinct sites are reachable.
+--
+--	Speed: per-plot facts (visibility, yields, resource, ...) are read once per scan, the list of cities is cached per
+--	turn and city count (names looked up only when a reason needs one).
 -- ===========================================================================
 
 include( "ScreenReader" );
@@ -30,7 +46,7 @@ include( "PlotDescription" );
 
 local SCAN_RADIUS		:number = 6;
 local MAX_CANDIDATES	:number = 12;
-local PATH_CANDIDATES	:number = 30;	-- path finding is only done for the best of this many by static score
+local MAX_PATHS			:number = 60;	-- path finding calls per scan at most (it runs in order of static score)
 local TURN_COST			:number = 1.2;
 local ADVISOR_BONUS		:number = 6;
 
@@ -54,41 +70,100 @@ local function _MinRange()
 	return 3;
 end
 
--- Plots within `radius` of (x, y) as { plot = , d = } (the centre has d = 0).
-local function _Around( x:number, y:number, radius:number )
-	local width:number, height:number = Map.GetGridSize();
-	local list:table = {};
-	for dy = -radius, radius do
-		local py:number = y + dy;
-		if py >= 0 and py < height then
-			for dx = -radius - 1, radius + 1 do
-				local px:number = x + dx;
-				if Map.IsWrapX() then px = px % width; end
-				if px >= 0 and px < width then
-					local d:number = Map.GetPlotDistance( x, y, px, py );
-					if d <= radius then
-						local plot:table = Map.GetPlot( px, py );
-						if plot ~= nil then table.insert( list, { plot = plot, d = d } ); end
-					end
+-- Hex distances and neighbourhoods are computed here instead of asking the engine (Map.GetPlotDistance is a call
+-- across the Lua bridge, and a scan needs tens of thousands of them). Odd rows are shifted half a plot east.
+local m_gridWidth:number, m_gridHeight:number, m_wrapX:boolean = nil, nil, false;
+
+local function _RefreshGrid()
+	m_gridWidth, m_gridHeight = Map.GetGridSize();
+	m_wrapX = Map.IsWrapX();
+end
+
+local function _DistFlat( x1:number, y1:number, x2:number, y2:number )
+	local q1:number = x1 - ( y1 - ( y1 % 2 ) ) / 2;
+	local q2:number = x2 - ( y2 - ( y2 % 2 ) ) / 2;
+	local dq:number, dr:number = q2 - q1, y2 - y1;
+	return ( math.abs( dq ) + math.abs( dr ) + math.abs( dq + dr ) ) / 2;
+end
+
+local function _Dist( x1:number, y1:number, x2:number, y2:number )
+	local d:number = _DistFlat( x1, y1, x2, y2 );
+	if m_wrapX then
+		d = math.min( d, _DistFlat( x1, y1, x2 + m_gridWidth, y2 ), _DistFlat( x1, y1, x2 - m_gridWidth, y2 ) );
+	end
+	return d;
+end
+
+-- offsets[ radius ][ row parity ] = { { dx, dy, d } ... } of the plots within radius (the centre included, d = 0)
+local m_offsets:table = {};
+local function _Offsets( radius:number, parity:number )
+	local byRadius:table = m_offsets[ radius ];
+	if byRadius == nil then
+		byRadius = {};
+		m_offsets[ radius ] = byRadius;
+		for par = 0, 1 do
+			local list:table = {};
+			for dy = -radius, radius do
+				for dx = -radius - 1, radius + 1 do
+					local d:number = _DistFlat( 10 + par, 10 + par, 10 + par + dx, 10 + par + dy );
+					if d <= radius then table.insert( list, { dx, dy, d } ); end
 				end
 			end
+			byRadius[ par ] = list;
+		end
+	end
+	return byRadius[ parity ];
+end
+
+-- Plots within `radius` of (x, y) as { plot = , d = } (the centre has d = 0). plotAt( x, y ) may cache Map.GetPlot.
+local function _Around( x:number, y:number, radius:number, plotAt )
+	local list:table = {};
+	for _, offset in ipairs( _Offsets( radius, y % 2 ) ) do
+		local px:number, py:number = x + offset[1], y + offset[2];
+		if m_wrapX then px = px % m_gridWidth; end
+		if py >= 0 and py < m_gridHeight and px >= 0 and px < m_gridWidth then
+			local plot:table = plotAt( px, py );
+			if plot ~= nil then table.insert( list, { plot = plot, d = offset[3] } ); end
 		end
 	end
 	return list;
 end
 
--- All cities of all players: { x, y, name, owner }.
+-- All cities of all players: { x, y, owner, id, name = nil until CityName looks it up }. Cached per turn and number of
+-- cities (names are localized strings, looked up only when a reason needs one).
+local m_citiesKey:string = nil;
+local m_cities:table = nil;
+
 local function _AllCities()
+	local counts:table = {};
+	for playerID = 0, 63 do
+		local player:table = Players[ playerID ];
+		if player ~= nil and player:IsAlive() and not player:IsBarbarian() then
+			table.insert( counts, playerID .. "=" .. player:GetCities():GetCount() );
+		end
+	end
+	local key:string = tostring( Game.GetCurrentGameTurn() ) .. ":" .. table.concat( counts, "," );
+	if key == m_citiesKey and m_cities ~= nil then return m_cities; end
 	local cities:table = {};
 	for playerID = 0, 63 do
 		local player:table = Players[ playerID ];
 		if player ~= nil and player:IsAlive() and not player:IsBarbarian() then
 			for _, city in player:GetCities():Members() do
-				table.insert( cities, { x = city:GetX(), y = city:GetY(), name = Locale.Lookup( city:GetName() ), owner = playerID } );
+				table.insert( cities, { x = city:GetX(), y = city:GetY(), owner = playerID, id = city:GetID() } );
 			end
 		end
 	end
+	m_citiesKey, m_cities = key, cities;
 	return cities;
+end
+
+local function _CityName( city:table )
+	if city.name == nil then
+		local player:table = Players[ city.owner ];
+		local real:table = ( player ~= nil ) and player:GetCities():FindID( city.id ) or nil;
+		city.name = ( real ~= nil ) and Locale.Lookup( real:GetName() ) or "a city";
+	end
+	return city.name;
 end
 
 local function _IsHostile( playerID:number )
@@ -141,12 +216,26 @@ local function _IsFreshWater( plot:table )
 	return ok and result == true;
 end
 
+-- "Rome" for civilizations we have met, the game's "Unmet Player" for the others (their name would be a leak).
+local function _OwnerName( owner:number )
+	local localPlayer:number = _LocalPlayer();
+	if localPlayer ~= nil then
+		local diplomacy:table = Players[ localPlayer ]:GetDiplomacy();
+		if diplomacy ~= nil and owner ~= localPlayer and not diplomacy:HasMet( owner ) then
+			return Locale.Lookup( "LOC_DIPLOPANEL_UNMET_PLAYER" );
+		end
+	end
+	return PlotDescription_GetCivName( owner );
+end
+
 -- ===========================================================================
 --	Can a city be founded here? (the game's rules, for any plot)
 -- ===========================================================================
--- Returns true, or false and a short reason ("too close to Rome", "water", "mountain" ...).
+-- Returns true, or false and a short reason ("too close to Rome", "water", "mountain" ...). Cities on plots the player
+-- has not seen are not named ("" = no reason to give: the plot is invalid, that is all we may say).
 function SettleScan_CheckPlot( plot:table, cities:table )
 	if plot == nil then return false, "edge of the map"; end
+	if m_gridWidth == nil or cities == nil then _RefreshGrid(); end
 	if not _IsRevealed( plot ) then return false, "unexplored"; end
 	if plot:IsWater() then
 		if plot:IsLake() then return false, "lake"; end
@@ -159,19 +248,43 @@ function SettleScan_CheckPlot( plot:table, cities:table )
 	local owner:number = plot:GetOwner();
 	local localPlayer:number = _LocalPlayer();
 	if owner ~= nil and owner >= 0 and owner ~= localPlayer then
-		return false, "owned by " .. PlotDescription_GetCivName( owner );
+		return false, "owned by " .. _OwnerName( owner );
 	end
 	local minRange:number = _MinRange();
+	local hidden:boolean = false;
 	for _, city in ipairs( cities or _AllCities() ) do
-		if Map.GetPlotDistance( plot:GetX(), plot:GetY(), city.x, city.y ) <= minRange then
+		if _Dist( plot:GetX(), plot:GetY(), city.x, city.y ) <= minRange then
 			local cityPlot:table = Map.GetPlot( city.x, city.y );
 			if cityPlot ~= nil and _IsRevealed( cityPlot ) then
-				return false, "too close to " .. city.name;
+				return false, "too close to " .. _CityName( city );
 			end
-			return false, "too close to a city";
+			hidden = true;
 		end
 	end
+	if hidden then return false, ""; end
 	return true;
+end
+
+-- The single answer for "can this unit found a city on this plot": true (second value true: no moves left, so the
+-- city can only be founded next turn) or false and a reason (see SettleScan_CheckPlot; "" = none to give).
+function SettleScan_CanFound( unit:table, plot:table, cities:table )
+	local ok:boolean, reason:string = SettleScan_CheckPlot( plot, cities );
+	if not ok then return false, reason; end
+	if unit == nil then return true; end
+	if unit:GetMovesRemaining() <= 0 then return true, true; end		-- the engine says no to everything then
+	local engineOk:boolean, engine = pcall( UnitManager.CanStartOperation, unit, UnitOperationTypes.FOUND_CITY, plot, false, true );
+	if engineOk and engine == false then
+		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+			if other:GetOwner() ~= unit:GetOwner() and PlotDescription_IsUnitVisible( other ) then return false, "occupied by another unit"; end
+		end
+		return false, "the game does not allow a city here";
+	end
+	return true;
+end
+
+function SettleScan_CannotText( reason:string )
+	if reason == nil or reason == "" then return "cannot settle"; end
+	return "cannot settle: " .. reason;
 end
 
 -- ===========================================================================
@@ -205,6 +318,39 @@ local function _AdvisorPicks()
 end
 
 -- ===========================================================================
+--	Per-plot facts, read once per scan
+-- ===========================================================================
+local function _Info( ctx:table, plot:table )
+	local index:number = plot:GetIndex();
+	local info:table = ctx.infos[ index ];
+	if info ~= nil then return info; end
+	info = { revealed = _IsRevealed( plot ), food = 0, prod = 0 };
+	ctx.infos[ index ] = info;
+	if not info.revealed then return info; end
+	info.food = plot:GetYield( ctx.foodIndex );
+	info.prod = plot:GetYield( ctx.prodIndex );
+	info.water = plot:IsWater();
+	info.mountain = plot:IsMountain();
+	info.lake = plot:IsLake();
+	info.wonder = plot:IsNaturalWonder();
+	info.owner = plot:GetOwner();
+	info.resource, info.resourceClass = _Resource( plot );
+	local feature:number = plot:GetFeatureType();
+	if feature ~= nil and feature >= 0 and GameInfo.Features[ feature ] ~= nil then
+		info.feature = GameInfo.Features[ feature ].FeatureType;
+		info.featureName = GameInfo.Features[ feature ].Name;
+	end
+	local improvement:number = plot:GetImprovementType();
+	info.camp = improvement ~= nil and improvement >= 0 and GameInfo.Improvements[ improvement ] ~= nil
+		and GameInfo.Improvements[ improvement ].ImprovementType == "IMPROVEMENT_BARBARIAN_CAMP";
+	if MapFeatureManager ~= nil and MapFeatureManager.CanSufferEruption ~= nil then
+		local ok:boolean, erupts = pcall( MapFeatureManager.CanSufferEruption, plot );
+		info.volcano = ok and erupts == true;
+	end
+	return info;
+end
+
+-- ===========================================================================
 --	Scoring of one site
 -- ===========================================================================
 local function _Score( plot:table, ctx:table )
@@ -216,23 +362,22 @@ local function _Score( plot:table, ctx:table )
 		if text ~= nil then table.insert( items, { weight = weight, text = text, long = long or text } ); end
 	end
 
-	-- water
+	-- water: fresh water and the coast together are worth at most 8 (a coastal river is not twice as good)
 	local waterText:string = nil;
 	if plot:IsRiver() then waterText = "river";
 	else
 		for _, around in ipairs( ctx.GetAround( x, y, 1 ) ) do
-			if around.plot:IsLake() then waterText = "lake"; break; end
-			local feature:number = around.plot:GetFeatureType();
-			if feature ~= nil and feature >= 0 and GameInfo.Features[ feature ] ~= nil and GameInfo.Features[ feature ].FeatureType == "FEATURE_OASIS" then
-				waterText = "oasis";
-				break;
-			end
+			local info:table = _Info( ctx, around.plot );
+			if info.lake then waterText = "lake"; break; end
+			if info.feature == "FEATURE_OASIS" then waterText = "oasis"; break; end
 		end
 		if waterText == nil and _IsFreshWater( plot ) then waterText = "fresh water"; end
 	end
 	local coastal:boolean = plot:IsCoastalLand();
-	if waterText ~= nil then Add( 8, waterText, "fresh water: " .. waterText ); end
-	if coastal then Add( 4, "coast" ); end
+	local water:number = 0;
+	if waterText ~= nil then water = water + 6; Add( 6, waterText, ( waterText == "fresh water" ) and waterText or ( "fresh water: " .. waterText ) ); end
+	if coastal then water = water + 3; Add( 3, "coast" ); end
+	if water > 8 then score = score - ( water - 8 ); end
 	if waterText == nil and not coastal then Add( -4, "no fresh water" ); end
 
 	-- site
@@ -241,7 +386,7 @@ local function _Score( plot:table, ctx:table )
 			or terrain.TerrainType == "TERRAIN_DESERT_HILLS" or terrain.TerrainType == "TERRAIN_TUNDRA_HILLS" or terrain.TerrainType == "TERRAIN_SNOW_HILLS" ) then
 		Add( 2, "hills", "hills: production and defense" );
 	end
-	local centerResource:string = _Resource( plot );
+	local centerResource:string = _Info( ctx, plot ).resource;
 	if centerResource ~= nil then Add( -1, "on " .. string.lower( centerResource ), "the city would sit on " .. centerResource ); end
 
 	-- hazards (Gathering Storm API, absent in the base game)
@@ -258,7 +403,7 @@ local function _Score( plot:table, ctx:table )
 	end
 
 	-- yields of rings 1 and 2, resources, mountains, wonders, hazards and borders around
-	local foodTotal:number, prodTotal:number, known:number, total:number = 0, 0, 0, 0;
+	local foodTotal:number, prodTotal:number, known:number, total:number, land:number = 0, 0, 0, 0, 0;
 	local weighted:number = 0;
 	local mountains:number = 0;
 	local volcano:boolean = false;
@@ -269,59 +414,50 @@ local function _Score( plot:table, ctx:table )
 	for _, around in ipairs( ctx.GetAround( x, y, 3 ) ) do
 		local p:table = around.plot;
 		local d:number = around.d;
+		local info:table = _Info( ctx, p );
 		if d >= 1 and d <= 2 then
 			total = total + 1;
 			local weight:number = ( d == 1 ) and 1 or 0.5;
-			if _IsRevealed( p ) then
-				local food:number = p:GetYield( ctx.foodIndex );
-				local prod:number = p:GetYield( ctx.prodIndex );
+			if info.revealed then
 				known = known + 1;
-				foodTotal = foodTotal + food;
-				prodTotal = prodTotal + prod;
-				weighted = weighted + weight * ( food + 0.7 * prod );
+				foodTotal = foodTotal + info.food;
+				prodTotal = prodTotal + info.prod;
+				weighted = weighted + weight * ( info.food + 0.7 * info.prod );
+				if not info.water and not info.mountain then land = land + 1; end
 			else
-				weighted = weighted + weight * 2.4;		-- unknown: an average plot
+				weighted = weighted + weight * 1.5;		-- unknown: counts as a poor plot, not an average one
 			end
 		end
-		if _IsRevealed( p ) then
+		if info.revealed then
 			if d >= 1 then
-				local name:string, class:string = _Resource( p );
-				if name ~= nil then
-					local near:boolean = d <= 2;
+				if info.resource ~= nil then
+					local class:string = info.resourceClass;
 					local value:number = 1;
 					if class == "luxury" then value = 3; elseif class == "strategic" then value = 2; elseif class == "artifact" then value = 0.5; end
-					if not near then value = value / 2; end
-					table.insert( resources, { name = name, class = class, value = value, d = d } );
+					if d > 2 then value = value / 2; end
+					table.insert( resources, { name = info.resource, class = class, value = value, d = d } );
 				end
-				if d == 1 and p:IsMountain() then mountains = mountains + 1; end
-				if p:IsNaturalWonder() then
-					local feature:table = GameInfo.Features[ p:GetFeatureType() ];
-					wonder = wonder or ( ( feature ~= nil ) and Locale.Lookup( feature.Name ) or "natural wonder" );
+				if d == 1 and info.mountain then mountains = mountains + 1; end
+				if info.wonder then
+					wonder = wonder or ( ( info.featureName ~= nil ) and Locale.Lookup( info.featureName ) or "natural wonder" );
 				end
-				if d <= 2 and MapFeatureManager ~= nil and MapFeatureManager.CanSufferEruption ~= nil then
-					local ok:boolean, erupts = pcall( MapFeatureManager.CanSufferEruption, p );
-					if ok and erupts then volcano = true; end
-				end
-				local improvement:number = p:GetImprovementType();
-				if improvement ~= nil and improvement >= 0 and GameInfo.Improvements[ improvement ] ~= nil
-						and GameInfo.Improvements[ improvement ].ImprovementType == "IMPROVEMENT_BARBARIAN_CAMP" then
-					camp = true;
-				end
+				if d <= 2 and info.volcano then volcano = true; end
+				if info.camp then camp = true; end
 			end
-			local owner:number = p:GetOwner();
-			if d <= 2 and owner ~= nil and owner >= 0 and owner ~= ctx.localPlayer then foreign = foreign + 1; end
+			if d <= 2 and info.owner ~= nil and info.owner >= 0 and info.owner ~= ctx.localPlayer then foreign = foreign + 1; end
 		end
 	end
-	score = score + 0.4 * weighted;
-	if total > 0 then
-		local avgFood:number = ( known > 0 ) and ( foodTotal / known ) or 0;
-		local avgProd:number = ( known > 0 ) and ( prodTotal / known ) or 0;
-		if known >= 8 then
-			if avgFood >= 2.2 then table.insert( items, { weight = 3, text = "good food", long = "good food around" } ); end
-			if avgProd >= 1 then table.insert( items, { weight = 3, text = "good production", long = "good production around" } ); end
-			if avgFood < 1.3 then table.insert( items, { weight = -3, text = "poor food", long = "poor food around" } ); end
-		end
-		if known < 8 then table.insert( items, { weight = -1, text = "little explored", long = "little explored around" } ); end
+	score = score + 0.7 * weighted;
+	if known >= 8 then
+		local avgFood:number = foodTotal / known;
+		local avgProd:number = prodTotal / known;
+		if avgFood >= 2.2 then table.insert( items, { weight = 3, text = "good food", long = "good food around" } ); end
+		if avgProd >= 1 then table.insert( items, { weight = 3, text = "good production", long = "good production around" } ); end
+		if avgFood < 1.3 then Add( -4, "poor food", "poor food around" );
+		elseif avgFood < 1.8 and avgProd < 0.7 then Add( -2, "poor land", "little food and production around" ); end
+		if land < 4 then Add( -3, "little land", "only " .. land .. " workable land tiles within 2 tiles" ); end
+	elseif total > 0 then
+		Add( -2, "little explored", "little explored around" );
 	end
 
 	-- resources: best first, each name once
@@ -343,19 +479,20 @@ local function _Score( plot:table, ctx:table )
 	local nearest:table, nearestD:number = nil, 99;
 	for _, city in ipairs( ctx.cities ) do
 		if city.owner == ctx.localPlayer then
-			local d:number = Map.GetPlotDistance( x, y, city.x, city.y );
+			local d:number = _Dist( x, y, city.x, city.y );
 			if d < nearestD then nearest, nearestD = city, d; end
 		end
 	end
 	if nearest ~= nil and nearestD < 5 then
-		Add( -1.5 * ( 5 - nearestD ), "close to " .. nearest.name, "only " .. nearestD .. " tiles from " .. nearest.name .. ", they share tiles" );
+		local name:string = _CityName( nearest );
+		Add( -1.5 * ( 5 - nearestD ), "close to " .. name, "only " .. nearestD .. " tiles from " .. name .. ", they share tiles" );
 	end
 
 	-- danger
 	local enemies:number = 0;
 	local barbarians:boolean = false;
 	for _, enemy in ipairs( ctx.hostiles ) do
-		if Map.GetPlotDistance( x, y, enemy.x, enemy.y ) <= 3 then
+		if _Dist( x, y, enemy.x, enemy.y ) <= 3 then
 			enemies = enemies + 1;
 			if enemy.barbarian then barbarians = true; end
 		end
@@ -399,25 +536,44 @@ local function _Detail( c:table )
 	return table.concat( parts, ". " );
 end
 
-function SettleScan_Scan( unit:table )
-	local result:table = { list = {} };
-	local localPlayer:number = _LocalPlayer();
-	if unit == nil or localPlayer == nil then return result; end
+local m_scanKey:string = nil;
+local m_scan:table = nil;
 
+function SettleScan_Scan( unit:table, force:boolean )
+	local localPlayer:number = _LocalPlayer();
+	if unit == nil or localPlayer == nil then return { list = {} }; end
+
+	local cities:table = _AllCities();
+	local key:string = table.concat( { localPlayer, unit:GetID(), unit:GetX(), unit:GetY(), Game.GetCurrentGameTurn(), unit:GetMovesRemaining(), m_citiesKey }, ":" );
+	if not force and key == m_scanKey and m_scan ~= nil then return m_scan; end
+
+	_RefreshGrid();
+	local result:table = { list = {} };
+	local plotCache:table = {};
+	local function PlotAt( x:number, y:number )
+		local index:number = y * m_gridWidth + x;
+		local plot:table = plotCache[ index ];
+		if plot == nil then
+			plot = Map.GetPlot( x, y );
+			plotCache[ index ] = plot;
+		end
+		return plot;
+	end
 	local ctx:table = {
 		localPlayer = localPlayer,
-		cities = _AllCities(),
+		cities = cities,
 		hostiles = _HostileUnits(),
+		infos = {},
 		foodIndex = GameInfo.Yields[ "YIELD_FOOD" ].Index,
 		prodIndex = GameInfo.Yields[ "YIELD_PRODUCTION" ].Index,
 	};
 	local aroundCache:table = {};
 	ctx.GetAround = function( x:number, y:number, radius:number )
-		local key:string = x .. "," .. y;
-		local entry:table = aroundCache[ key ];
+		local cacheKey:string = x .. "," .. y;
+		local entry:table = aroundCache[ cacheKey ];
 		if entry == nil then
-			entry = _Around( x, y, 3 );
-			aroundCache[ key ] = entry;
+			entry = _Around( x, y, 3, PlotAt );
+			aroundCache[ cacheKey ] = entry;
 		end
 		if radius >= 3 then return entry; end
 		local list:table = {};
@@ -437,46 +593,59 @@ function SettleScan_Scan( unit:table )
 	local function Consider( plot:table )
 		if plot == nil or seenIndex[ plot:GetIndex() ] then return; end
 		seenIndex[ plot:GetIndex() ] = true;
-		local ok:boolean, reason:string = SettleScan_CheckPlot( plot, ctx.cities );
+		local ok:boolean, reason = SettleScan_CanFound( unit, plot, cities );
 		if plot:GetIndex() == unitIndex then
 			result.hereReason = ( not ok ) and reason or nil;
 		end
 		if not ok then return; end
-		-- the engine can test a remote plot too (it agreed with the rules above everywhere in testing): it has the last word
-		local engineOk:boolean, engine = pcall( UnitManager.CanStartOperation, unit, UnitOperationTypes.FOUND_CITY, plot, false, true );
-		if engineOk and engine == false then return; end
 		local score:number, items:table, totals:table = _Score( plot, ctx );
 		local pick:table = advisor[ plot:GetIndex() ];
 		if pick ~= nil then score = score + ADVISOR_BONUS; end
 		table.insert( candidates, {
 			key = tostring( plot:GetIndex() ), plotIndex = plot:GetIndex(), plot = plot, x = plot:GetX(), y = plot:GetY(),
-			distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), plot:GetX(), plot:GetY() ),
+			distance = _Dist( unit:GetX(), unit:GetY(), plot:GetX(), plot:GetY() ),
 			static = score, score = score, items = items, totals = totals, advisor = pick, recommended = pick ~= nil,
 			here = plot:GetIndex() == unitIndex,
 		} );
 	end
 	for plotIndex, _ in pairs( advisor ) do Consider( Map.GetPlotByIndex( plotIndex ) ); end
-	for _, around in ipairs( _Around( unit:GetX(), unit:GetY(), SCAN_RADIUS ) ) do Consider( around.plot ); end
+	for _, around in ipairs( _Around( unit:GetX(), unit:GetY(), SCAN_RADIUS, PlotAt ) ) do Consider( around.plot ); end
 	if result.hereReason == nil and not seenIndex[ unitIndex ] then
-		local _, reason = SettleScan_CheckPlot( unitPlot, ctx.cities );
+		local _, reason = SettleScan_CheckPlot( unitPlot, cities );
 		result.hereReason = reason;
 	end
 
-	-- travel: path finding only for the best candidates
+	-- travel: path finding down the list sorted by static score until enough distinct sites are reachable (the spots
+	-- of an unreachable landmass must not use up the slots). Plots within 2 tiles of one already tried are the same
+	-- site (and the same landmass): not tried again.
 	table.sort( candidates, function( a, b ) return a.static > b.static; end );
 	local reachable:table = {};
+	local tried:table = {};
+	local sites:number = 0;
 	local pathed:number = 0;
 	for _, c in ipairs( candidates ) do
 		if c.here then
 			c.turns = 0;
 			table.insert( reachable, c );
-		elseif c.recommended or pathed < PATH_CANDIDATES then
-			pathed = pathed + 1;
-			local path:table = UnitManager.GetMoveToPathEx( unit, c.plotIndex );
-			if path ~= nil and path.plots ~= nil and #path.plots >= 2 then
-				c.turns = path.turns[ #path.turns ] or 1;
-				c.score = c.static - TURN_COST * c.turns;
-				table.insert( reachable, c );
+			table.insert( tried, c );
+			sites = sites + 1;
+		elseif c.recommended or ( sites < MAX_CANDIDATES and pathed < MAX_PATHS ) then
+			local duplicate:boolean = false;
+			if not c.recommended then
+				for _, other in ipairs( tried ) do
+					if _Dist( c.x, c.y, other.x, other.y ) <= 2 then duplicate = true; break; end
+				end
+			end
+			if not duplicate then
+				pathed = pathed + 1;
+				table.insert( tried, c );
+				local path:table = UnitManager.GetMoveToPathEx( unit, c.plotIndex );
+				if path ~= nil and path.plots ~= nil and #path.plots >= 2 then
+					c.turns = path.turns[ #path.turns ] or 1;
+					c.score = c.static - TURN_COST * c.turns;
+					table.insert( reachable, c );
+					sites = sites + 1;
+				end
 			end
 		end
 	end
@@ -491,7 +660,7 @@ function SettleScan_Scan( unit:table )
 		local keep:boolean = true;
 		if not c.here and not c.recommended then
 			for _, other in ipairs( chosen ) do
-				if Map.GetPlotDistance( c.x, c.y, other.x, other.y ) <= 2 then keep = false; break; end
+				if _Dist( c.x, c.y, other.x, other.y ) <= 2 then keep = false; break; end
 			end
 		end
 		if keep and ( #chosen < MAX_CANDIDATES or c.here ) then table.insert( chosen, c ); end
@@ -501,13 +670,19 @@ function SettleScan_Scan( unit:table )
 	for _, c in ipairs( chosen ) do
 		c.relative = PlotDescription_GetRelative( origin, c.plot );
 		c.reasons = {};
-		for i, item in ipairs( c.items ) do
-			if i <= 6 then table.insert( c.reasons, item.text ); end
+		c.negatives = {};
+		for _, item in ipairs( c.items ) do
+			if item.weight > 0 then
+				if #c.reasons < 6 then table.insert( c.reasons, item.text ); end
+			elseif item.weight < 0 then
+				if #c.negatives < 3 then table.insert( c.negatives, item.text ); end
+			end
 		end
 		c.detail = _Detail( c );
 		if c.here then result.here = c; end
 	end
 	result.list = chosen;
 	result.best = chosen[1];
+	m_scanKey, m_scan = key, result;
 	return result;
 end
