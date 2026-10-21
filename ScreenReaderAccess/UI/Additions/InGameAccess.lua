@@ -761,8 +761,12 @@ local function ToggleUnitMenu()
 	end
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil then
-		if UI.GetHeadSelectedCity() ~= nil then
-			OutputMessageToScreenReader( "A city is selected. Select a unit for its actions" );
+		local city:table = UI.GetHeadSelectedCity();
+		if city ~= nil and city:GetOwner() == Game.GetLocalPlayer() then
+			-- A city has no action menu; Tab opens its production panel (Tab inside it switches Production / Purchase).
+			LuaEvents.CityPanel_ProductionOpen();
+		elseif city ~= nil then
+			OutputMessageToScreenReader( "Not your city" );
 		else
 			OutputMessageToScreenReader( "No unit selected" );
 		end

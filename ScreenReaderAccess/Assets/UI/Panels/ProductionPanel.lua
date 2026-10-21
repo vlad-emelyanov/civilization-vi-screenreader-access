@@ -113,6 +113,8 @@ local m_pCity:table = nil;
 -- ScreenReaderAccess (must be declared before Open/Close, see the keyboard list section further down)
 local m_srActive:boolean = false;			-- the panel is open (set in Open, cleared in Close)
 local m_srAnnouncePending:boolean = false;	-- announce the panel once the tab is selected
+local m_srData:table = nil;					-- cached GetData() result, set by View, cleared by Open/Close
+local m_srPending:table = nil;				-- outcome of the last Enter still to be announced
 
 -- ===========================================================================
 function toint(n)
@@ -591,6 +593,7 @@ function Close()
 	if (Controls.SlideIn:IsStopped()) then			-- Need to check to make sure that we have not already begun the transition before attempting to close the panel.
 		m_srActive = false;							-- ScreenReaderAccess
 		m_srAnnouncePending = false;				-- ScreenReaderAccess
+		m_srData = nil;								-- ScreenReaderAccess
 		UI.PlaySound("Production_Panel_Closed");
 		Controls.SlideIn:Reverse();	
 		Controls.AlphaIn:Reverse();
@@ -622,6 +625,8 @@ function Open()
 		UI.PlaySound("Production_Panel_Open");
 		m_srActive = true;						-- ScreenReaderAccess
 		m_srAnnouncePending = true;				-- ScreenReaderAccess
+		m_srData = nil;							-- ScreenReaderAccess
+		m_srPending = nil;						-- ScreenReaderAccess
 		LuaEvents.ProductionPanel_Open();
 		UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);
 		Refresh();
@@ -651,6 +656,7 @@ end
 --	Update the layout based on the view model
 -- ===========================================================================
 function View(data)
+	m_srData = data;		-- ScreenReaderAccess
 	local pSelectedCity	= UI.GetHeadSelectedCity();
 
 	-- Get the hashes for the top three recommended items
@@ -2387,6 +2393,7 @@ end
 function OnCityPanelPurchaseFaithOpen()
 	Open();
 	m_tabs.SelectTab(m_faithTab);
+	SRA_AnnounceIfPending();	-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -2396,6 +2403,7 @@ end
 function OnCityPanelPurchaseGoldOpen()
 	Open();
 	m_tabs.SelectTab(m_purchaseTab);
+	SRA_AnnounceIfPending();	-- ScreenReaderAccess
 end
 -- ===========================================================================
 --	LUA Event
@@ -2463,16 +2471,38 @@ function OnGameDebugReturn( context:string, contextTable:table )
 end
 
 -- ===========================================================================
--- Begin ScreenReaderAccess change: keyboard list of the production items (Production and Queue tabs).
--- Items are rebuilt from GetData() at key time, in the order the panel shows them: districts with their
--- buildings, wonders, units, projects. Purchase tabs, corps/armies and queue editing are not covered.
+-- Begin ScreenReaderAccess change: keyboard list of the production items.
+-- Items are rebuilt from the panel's data at key time, in the order the panel shows them for the current tab:
+-- Production/Queue: districts with their buildings, wonders, units, projects; Purchase tabs: districts,
+-- buildings, units. Tab cycles the panel's tabs. Corps/armies and queue editing are not covered.
 -- ===========================================================================
 local m_srList:table = nil;
 
-local function SRA_Reasons( kItem:table )
+-- GetData() is expensive and is called on every key; cache it per Refresh (View sets it, Open/Close clear it).
+local function SRA_Data()
+	if m_srData == nil then m_srData = GetData(); end
+	return m_srData;
+end
+
+local function SRA_IsPurchaseMode( mode:number )
+	return mode == LISTMODE.PURCHASE_GOLD or mode == LISTMODE.PURCHASE_FAITH;
+end
+
+local function SRA_Balance( yield:string )
+	local pPlayer:table = Players[ Game.GetLocalPlayer() ];
+	if pPlayer == nil then return 0; end
+	if yield == "YIELD_GOLD" then return math.floor( pPlayer:GetTreasury():GetGoldBalance() ); end
+	return math.floor( pPlayer:GetReligion():GetFaithBalance() );
+end
+
+-- Red failure lines of a tooltip; skipFunds drops the "not enough gold/faith" lines (spoken separately).
+local function SRA_Reasons( kItem:table, skipFunds:boolean )
 	local reasons:table = {};
+	local funds1:string = CleanTextForSpeech( Locale.Lookup( "LOC_BUILDING_INSUFFICIENT_FUNDS" ) );
+	local funds2:string = CleanTextForSpeech( Locale.Lookup( "LOC_BUILDING_INSUFFICIENT_FAITH" ) );
 	for reason in string.gmatch( kItem.ToolTip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
-		table.insert( reasons, CleanTextForSpeech( reason ) );
+		local text:string = CleanTextForSpeech( reason );
+		if not ( skipFunds and ( text == funds1 or text == funds2 ) ) then table.insert( reasons, text ); end
 	end
 	return table.concat( reasons, ", " );
 end
@@ -2490,7 +2520,7 @@ local function SRA_Item( kItem:table, kind:string, section:string, owner:string 
 	if owner ~= nil then table.insert( parts, "in " .. owner ); end
 	local built:boolean = kind == "district" and kItem.HasBeenBuilt and not kItem.Repair and not kItem.Contaminated
 		and kItem.Progress == 0 and kItem.IsComplete == true and GameInfo.Districts[kItem.Type].OnePerCity == true;
-	local reasons:string = SRA_Reasons( kItem );
+	local reasons:string = SRA_Reasons( kItem, false );
 	local recommended:boolean = m_kRecommendedItems ~= nil and m_kRecommendedItems[kItem.Hash] ~= nil;
 	if built then
 		table.insert( parts, "already built" );
@@ -2500,10 +2530,17 @@ local function SRA_Item( kItem:table, kind:string, section:string, owner:string 
 		if kind == "district" or kind == "wonder" then table.insert( parts, kind ); end
 		local turns:string = SRA_TurnsText( kItem.TurnsLeft );
 		if turns ~= nil then table.insert( parts, turns ); end
-		if kItem.Cost ~= nil and kItem.Cost > 0 then
-			local cost:string = tostring( kItem.Cost );
-			if kItem.Progress ~= nil and kItem.Progress > 0 then cost = kItem.Progress .. " of " .. cost; end
-			table.insert( parts, cost .. " production" );
+		local cost:number = kItem.Cost;
+		if kind == "unit" then
+			-- kItem.Cost is the corps/army cost when those are available; the standard cost is what Enter builds.
+			local city:table = UI.GetHeadSelectedCity();
+			local row:table = GameInfo.Units[ kItem.Type ];
+			if city ~= nil and row ~= nil then cost = city:GetBuildQueue():GetUnitCost( row.Index ); end
+		end
+		if cost ~= nil and cost > 0 then
+			local costText:string = tostring( cost );
+			if kItem.Progress ~= nil and kItem.Progress > 0 then costText = kItem.Progress .. " of " .. costText; end
+			table.insert( parts, costText .. " production" );
 		end
 		if recommended then table.insert( parts, "recommended" ); end
 	end
@@ -2521,10 +2558,63 @@ local function SRA_Item( kItem:table, kind:string, section:string, owner:string 
 	};
 end
 
+-- Purchase tabs: "Archer, 120 gold, can afford" / "can't afford, 30 more needed" / "unavailable: reason".
+local function SRA_PurchaseItem( kItem:table, kind:string, section:string )
+	local name:string = Locale.Lookup( kItem.Name );
+	local isGold:boolean = kItem.Yield == "YIELD_GOLD";
+	local currency:string = isGold and "gold" or "faith";
+	local label:string = kind;
+	if kind == "building" and GameInfo.Buildings[ kItem.Type ] ~= nil and GameInfo.Buildings[ kItem.Type ].IsWonder then label = "wonder"; end
+	local parts:table = { name };
+	if label == "district" or label == "wonder" then table.insert( parts, label ); end
+	table.insert( parts, kItem.Cost .. " " .. currency );
+	local other:string = SRA_Reasons( kItem, true );
+	local missing:number = kItem.Cost - SRA_Balance( kItem.Yield );
+	if not kItem.Disabled then
+		table.insert( parts, "can afford" );
+	elseif kItem.CantAfford then
+		table.insert( parts, "can't afford, " .. math.max( missing, 1 ) .. " more needed" .. ( other ~= "" and ( ", " .. other ) or "" ) );
+	else
+		table.insert( parts, "unavailable" .. ( other ~= "" and ( ": " .. other ) or "" ) );
+	end
+	local detailItem:table = kItem;
+	return {
+		key = "buy:" .. kind .. ":" .. tostring( kItem.Hash ),
+		kind = kind,
+		purchase = true,
+		section = section,
+		text = table.concat( parts, ", " ),
+		data = kItem,
+		choosable = not kItem.Disabled,
+		reason = "Can't buy " .. name .. ( kItem.CantAfford and ( ": not enough " .. currency .. ", " .. math.max( missing, 1 ) .. " more needed" ) or "" )
+			.. ( other ~= "" and ( ": " .. other ) or "" ),
+		detail = function() return CleanTextForSpeech( Locale.Lookup( detailItem.ToolTip ) ); end,
+	};
+end
+
 local function SRA_GetItems()
 	local items:table = {};
-	local data:table = GetData();
+	local data:table = SRA_Data();
 	if data == nil then return items; end
+	local mode:number = m_CurrentListMode;
+
+	if SRA_IsPurchaseMode( mode ) then
+		local yield:string = ( mode == LISTMODE.PURCHASE_GOLD ) and "YIELD_GOLD" or "YIELD_FAITH";
+		local districtsSection:string = Locale.Lookup( "LOC_HUD_DISTRICTS" );
+		for _, kDistrict in ipairs( data.DistrictPurchases ) do
+			if kDistrict.Yield == yield then table.insert( items, SRA_PurchaseItem( kDistrict, "district", districtsSection ) ); end
+		end
+		local buildingsSection:string = Locale.Lookup( "LOC_HUD_BUILDINGS" );
+		for _, kBuilding in ipairs( data.BuildingPurchases ) do
+			if kBuilding.Yield == yield then table.insert( items, SRA_PurchaseItem( kBuilding, "building", buildingsSection ) ); end
+		end
+		local unitsSection:string = Locale.Lookup( "LOC_TECH_FILTER_UNITS" );
+		for _, kUnit in ipairs( data.UnitPurchases ) do
+			if kUnit.Yield == yield then table.insert( items, SRA_PurchaseItem( kUnit, "unit", unitsSection ) ); end
+		end
+		return items;
+	end
+
 	local districtsSection:string = Locale.Lookup( "LOC_HUD_DISTRICTS_BUILDINGS" );
 	for _, kDistrict in ipairs( data.DistrictItems ) do
 		local districtName:string = Locale.Lookup( kDistrict.Name );
@@ -2541,17 +2631,43 @@ local function SRA_GetItems()
 	for _, kBuilding in ipairs( data.BuildingItems ) do
 		if kBuilding.IsWonder then table.insert( items, SRA_Item( kBuilding, "wonder", wondersSection, nil ) ); end
 	end
+	-- Same conditions as PopulateUnits / PopulateProjects: the Queue tab also lists the unit and repeatable
+	-- project that are currently in production.
+	local queueMode:boolean = ( mode == LISTMODE.PROD_QUEUE );
 	local unitsSection:string = Locale.Lookup( "LOC_TECH_FILTER_UNITS" );
 	for _, kUnit in ipairs( data.UnitItems ) do
-		if not kUnit.IsCurrentProduction then table.insert( items, SRA_Item( kUnit, "unit", unitsSection, nil ) ); end
+		if queueMode or not kUnit.IsCurrentProduction then table.insert( items, SRA_Item( kUnit, "unit", unitsSection, nil ) ); end
 	end
 	local projectsSection:string = Locale.Lookup( "LOC_HUD_PROJECTS" );
 	for _, kProject in ipairs( data.ProjectItems ) do
-		if not kProject.IsCurrentProduction or kProject.IsRepeatable then
+		if not kProject.IsCurrentProduction or ( queueMode and kProject.IsRepeatable ) then
 			table.insert( items, SRA_Item( kProject, "project", projectsSection, nil ) );
 		end
 	end
 	return items;
+end
+
+-- Outcome of the last Enter. The game applies requests a moment later, so the announcement is made from the
+-- events that report the change (and at once when the state already changed); nothing is announced if nothing happened.
+local function SRA_ResolvePending( fromEvent:boolean )
+	local pending:table = m_srPending;
+	if pending == nil then return; end
+	local city:table = UI.GetHeadSelectedCity();
+	if pending.kind == "produce" then
+		if city == nil then return; end
+		local queue:table = city:GetBuildQueue();
+		local changed:boolean = fromEvent or queue:GetCurrentProductionTypeHash() ~= pending.hash0 or queue:GetSize() ~= pending.size0;
+		if not changed then return; end
+		m_srPending = nil;
+		local text:string = ( pending.queueMode and "Queued " or "Producing " ) .. pending.name;
+		if pending.turns ~= nil and not pending.queueMode then text = text .. ", " .. pending.turns; end
+		OutputMessageToScreenReader( text );
+	elseif pending.kind == "buy" then
+		local balance:number = SRA_Balance( pending.yield );
+		if balance >= pending.before then return; end
+		m_srPending = nil;
+		OutputMessageToScreenReader( "Bought " .. pending.name .. ", " .. balance .. ( pending.yield == "YIELD_GOLD" and " gold" or " faith" ) .. " left" );
+	end
 end
 
 local function SRA_OnActivate( item:table )
@@ -2559,14 +2675,53 @@ local function SRA_OnActivate( item:table )
 	if city == nil then return; end
 	local kItem:table = item.data;
 	local name:string = Locale.Lookup( kItem.Name );
-	local queueMode:boolean = m_isQueueOpen or m_isManagerOpen;
-	if item.kind == "district" or item.kind == "wonder" then
-		-- The game switches to placement mode and closes the panel; the player then picks a plot (not covered yet).
-		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
-		OutputMessageToScreenReader( "Choose a tile for " .. name );
+	m_srPending = nil;
+
+	if item.purchase then
+		local before:number = SRA_Balance( kItem.Yield );
+		if item.kind == "district" then PurchaseDistrict( city, kItem );
+		elseif item.kind == "building" then PurchaseBuilding( city, kItem );
+		else PurchaseUnit( city, kItem ); end
+		local mode:number = UI.GetInterfaceMode();
+		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
+			-- The game switched to placement mode; picking the tile by keyboard is not supported yet.
+			Close();
+			OutputMessageToScreenReader( name .. " needs a tile. Choosing a tile by keyboard is not supported yet, Escape cancels" );
+			return;
+		end
+		Close();
+		m_srPending = { kind = "buy", name = name, yield = kItem.Yield, before = before };
+		SRA_ResolvePending( false );
 		return;
 	end
-	if item.kind == "unit" then
+
+	local queueMode:boolean = m_isQueueOpen or m_isManagerOpen;
+	-- A selected queue item makes the game's build functions only deselect it (CheckQueueItemSelected).
+	if m_kSelectedQueueItem.Index ~= -1 or m_SelectedManagerIndex ~= -1 then
+		if item.kind == "district" then ZoneDistrict( city, kItem );
+		elseif item.kind == "wonder" or item.kind == "building" then BuildBuilding( city, kItem );
+		elseif item.kind == "unit" then BuildUnit( city, kItem );
+		else AdvanceProject( city, kItem ); end
+		OutputMessageToScreenReader( "Queue selection cleared, choose again" );
+		return;
+	end
+
+	local queue:table = city:GetBuildQueue();
+	m_srPending = {
+		kind = "produce", name = name, queueMode = queueMode, turns = SRA_TurnsText( kItem.TurnsLeft ),
+		hash0 = queue:GetCurrentProductionTypeHash(), size0 = queue:GetSize(),
+	};
+	if item.kind == "district" or item.kind == "wonder" then
+		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
+		local mode:number = UI.GetInterfaceMode();
+		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
+			-- The game switched to placement mode and closed the panel; picking the tile by keyboard is not supported yet.
+			m_srPending = nil;
+			OutputMessageToScreenReader( name .. " needs a tile. Choosing a tile by keyboard is not supported yet, Escape cancels" );
+			return;
+		end
+		-- No placement needed (already placed): it went into the queue.
+	elseif item.kind == "unit" then
 		BuildUnit( city, kItem );
 		CloseAfterNewProduction();
 	elseif item.kind == "building" then
@@ -2575,28 +2730,43 @@ local function SRA_OnActivate( item:table )
 		AdvanceProject( city, kItem );
 		CloseAfterNewProduction();
 	end
-	local text:string = ( queueMode and "Queued " or "Producing " ) .. name;
-	local turns:string = SRA_TurnsText( kItem.TurnsLeft );
-	if turns ~= nil and not queueMode then text = text .. ", " .. turns; end
-	OutputMessageToScreenReader( text );
+	SRA_ResolvePending( false );
 end
 
+-- Escape: what the game's KeyHandler does (deselect the queue item / cancel the manager selection, else close).
 local function SRA_OnClose()
-	Close();
-	OutputMessageToScreenReader( "Production closed" );
+	if m_kSelectedQueueItem.Index ~= -1 then
+		DeselectItem();
+		OutputMessageToScreenReader( "Queue selection cleared" );
+	elseif m_SelectedManagerIndex ~= -1 then
+		LuaEvents.ProductionPanel_CancelManagerSelection();
+		OutputMessageToScreenReader( "Queue selection cleared" );
+	else
+		local willClose:boolean = Controls.SlideIn:IsStopped();
+		Close();
+		if willClose then OutputMessageToScreenReader( "Production closed" ); end
+	end
 end
 
 local function SRA_Announce()
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
-	local title:string = Locale.Lookup( city:GetName() ) .. ", choose production";
-	local queue:table = city:GetBuildQueue();
-	local hash:number = queue ~= nil and queue:GetCurrentProductionTypeHash() or 0;
-	if hash ~= nil and hash ~= 0 then
-		local row:table = GameInfo.Buildings[hash] or GameInfo.Districts[hash] or GameInfo.Units[hash] or GameInfo.Projects[hash];
-		if row ~= nil then title = title .. ", currently " .. Locale.Lookup( row.Name ); end
+	local mode:number = m_CurrentListMode;
+	local title:string = Locale.Lookup( city:GetName() );
+	if mode == LISTMODE.PURCHASE_GOLD then
+		title = title .. ", purchase with gold, " .. SRA_Balance( "YIELD_GOLD" ) .. " gold";
+	elseif mode == LISTMODE.PURCHASE_FAITH then
+		title = title .. ", purchase with faith, " .. SRA_Balance( "YIELD_FAITH" ) .. " faith";
+	else
+		title = title .. ", choose production";
+		local queue:table = city:GetBuildQueue();
+		local hash:number = queue ~= nil and queue:GetCurrentProductionTypeHash() or 0;
+		if hash ~= nil and hash ~= 0 then
+			local row:table = GameInfo.Buildings[hash] or GameInfo.Districts[hash] or GameInfo.Units[hash] or GameInfo.Projects[hash];
+			if row ~= nil then title = title .. ", currently " .. Locale.Lookup( row.Name ); end
+		end
+		if mode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
 	end
-	if m_CurrentListMode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
 	-- Start on the first recommended item that can be built, else the first that can be built.
 	local initialKey = nil;
 	local firstChoosable = nil;
@@ -2610,12 +2780,44 @@ local function SRA_Announce()
 	m_srList.Open( title, initialKey or firstChoosable );
 end
 
+-- Tab: next tab of the panel (Production, Queue, Purchase gold, Purchase faith), like clicking it.
+local function SRA_NextTab()
+	local tabs:table = { { mode = LISTMODE.PRODUCTION, tab = m_productionTab } };
+	if m_queueTab == Controls.QueueTab and not m_isTutorialRunning and not m_tutorialTestMode then
+		table.insert( tabs, { mode = LISTMODE.PROD_QUEUE, tab = m_queueTab } );
+	end
+	if GameCapabilities.HasCapability( "CAPABILITY_GOLD" ) then table.insert( tabs, { mode = LISTMODE.PURCHASE_GOLD, tab = m_purchaseTab } ); end
+	if GameCapabilities.HasCapability( "CAPABILITY_FAITH" ) then table.insert( tabs, { mode = LISTMODE.PURCHASE_FAITH, tab = m_faithTab } ); end
+	local current:number = 1;
+	for i, entry in ipairs( tabs ) do
+		if entry.mode == m_CurrentListMode then current = i; end
+	end
+	local nextEntry:table = tabs[ current % #tabs + 1 ];
+	m_srPending = nil;
+	m_tabs.SelectTab( nextEntry.tab );
+	SRA_Announce();
+end
+
 -- Called by the handlers that open the panel, once they have selected the tab (a SetUpdate callback never ran here).
 function SRA_AnnounceIfPending()
 	if not m_srAnnouncePending then return; end
 	m_srAnnouncePending = false;
 	local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
 	if not ok then print( "ProductionPanel announce error: " .. tostring(err) ); end
+end
+
+-- Events that report the outcome of Enter (see SRA_ResolvePending).
+function SRA_OnProductionChanged()
+	if m_srPending ~= nil and m_srPending.kind == "produce" then
+		local ok:boolean, err = xpcall( function() SRA_ResolvePending( true ); end, KeyNavErrorHandler );
+		if not ok then print( "ProductionPanel pending error: " .. tostring(err) ); end
+	end
+end
+function SRA_OnBalanceChanged()
+	if m_srPending ~= nil and m_srPending.kind == "buy" then
+		local ok:boolean, err = xpcall( function() SRA_ResolvePending( true ); end, KeyNavErrorHandler );
+		if not ok then print( "ProductionPanel pending error: " .. tostring(err) ); end
+	end
 end
 -- End ScreenReaderAccess change
 
@@ -2661,6 +2863,8 @@ end
 --	UI Event
 -- ===========================================================================
 function OnShutdown()
+	Events.TreasuryChanged.Remove( SRA_OnBalanceChanged );		-- ScreenReaderAccess
+	Events.FaithChanged.Remove( SRA_OnBalanceChanged );		-- ScreenReaderAccess
 	LuaEvents.CityBannerManager_ProductionToggle.Remove( OnCityBannerManagerProductionToggle );
 	LuaEvents.CityPanel_ChooseProduction.Remove( OnCityPanelChooseProduction );
 	LuaEvents.CityPanel_ChoosePurchase.Remove( OnCityPanelChoosePurchase );
@@ -3093,6 +3297,7 @@ function OnCityProductionQueueChanged(playerID, cityID, changeType, queueIndex)
 	end
 
 	Refresh();
+	SRA_OnProductionChanged();		-- ScreenReaderAccess
 
 	-- Make sure we show the current production if we're in queue mode and adding the very first production to the city
 	if m_isQueueOpen then
@@ -3156,14 +3361,17 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit  );
 	m_srList = KeyNavList_Create{		-- ScreenReaderAccess
 		build = SRA_GetItems,
-		isActive = function() return m_srActive and not ContextPtr:IsHidden() and (m_CurrentListMode == LISTMODE.PRODUCTION or m_CurrentListMode == LISTMODE.PROD_QUEUE); end,
+		isActive = function() return m_srActive and not ContextPtr:IsHidden() and m_CurrentListMode ~= -1; end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
+		extraKeys = { [Keys.VK_TAB] = SRA_NextTab },
 	};
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
 
 	Events.CityProductionQueueChanged.Add( OnCityProductionQueueChanged );
+	Events.TreasuryChanged.Add( SRA_OnBalanceChanged );		-- ScreenReaderAccess
+	Events.FaithChanged.Add( SRA_OnBalanceChanged );		-- ScreenReaderAccess
 	Events.CitySelectionChanged.Add( OnCitySelectionChanged );
 	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
 	Events.UnitSelectionChanged.Add( OnUnitSelectionChanged );
