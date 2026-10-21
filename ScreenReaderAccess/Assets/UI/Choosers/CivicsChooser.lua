@@ -13,6 +13,8 @@ include("TechAndCivicSupport"); -- Already includes Civ6Common and InstanceManag
 include("AnimSidePanelSupport");
 include("SupportFunctions");
 include("Civ6Common");
+include("ScreenReader");	-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -127,6 +129,86 @@ function View( playerID:number, kData:table )
 	RealizeSize();
 end
 
+
+-- ===========================================================================
+-- Begin ScreenReaderAccess change: keyboard list of the available civics.
+-- Rebuilt from GetData() whenever a key is pressed (the same data View() shows, same order).
+-- ===========================================================================
+local m_srList:table = nil;
+
+local function SRA_GetItems()
+	local items:table = {};
+	local playerID:number = Game.GetLocalPlayer();
+	if playerID < 0 then return items; end
+	local kData:table = GetData();
+	table.sort(kData, function(a, b) return Locale.Compare(a.Name, b.Name) == -1; end);
+	for _, data in ipairs(kData) do
+		if (not (data.IsCurrent or data.IsLastCompleted)) or data.Repeatable then
+			local parts:table = { data.Name };
+			if data.TurnsLeft ~= nil and data.TurnsLeft > 0 then
+				table.insert(parts, data.TurnsLeft .. (data.TurnsLeft == 1 and " turn" or " turns"));
+			end
+			if data.Boostable then
+				if data.BoostTriggered then
+					table.insert(parts, "inspired");
+				else
+					table.insert(parts, "inspiration: " .. CleanTextForSpeech(Locale.Lookup(data.TriggerDesc)));
+				end
+			end
+			local unlockNames:table = {};
+			for _, unlock in ipairs(GetUnlockablesForCivic_Cached(data.CivicType, playerID) or {}) do
+				if unlock[2] ~= nil then table.insert(unlockNames, CleanTextForSpeech(Locale.Lookup(unlock[2]))); end
+			end
+			if #unlockNames > 0 then
+				table.insert(parts, "unlocks: " .. KeyNavList_ShortList(unlockNames, 4));
+			end
+			if data.IsRecommended then table.insert(parts, "recommended"); end
+			local detailData:table = data;
+			table.insert(items, {
+				key = data.Hash,
+				text = table.concat(parts, ", "),
+				data = data,
+				detail = function()
+					local text:string = CleanTextForSpeech(Locale.Lookup(detailData.ToolTip));
+					if detailData.Boostable then
+						text = text .. ". " .. (detailData.BoostTriggered and "Inspired" or "Inspiration") .. ": " .. CleanTextForSpeech(Locale.Lookup(detailData.TriggerDesc));
+					end
+					return text;
+				end,
+			});
+		end
+	end
+	return items;
+end
+
+local function SRA_OnActivate( item:table )
+	if CanPlayerCivicAnything(Game.GetLocalPlayer()) then	-- (sic) true when there is no culture: items are disabled
+		OutputMessageToScreenReader("Can't choose a civic: no culture");
+		return;
+	end
+	local data:table = item.data;
+	OnChooseCivic(data.Hash);
+	local text:string = "Progressing " .. data.Name;
+	if data.TurnsLeft ~= nil and data.TurnsLeft > 0 then
+		text = text .. ", " .. data.TurnsLeft .. (data.TurnsLeft == 1 and " turn" or " turns");
+	end
+	OutputMessageToScreenReader(text);
+end
+
+local function SRA_OnClose()
+	OnClosePanel();
+	OutputMessageToScreenReader("Civics closed");
+end
+
+local function SRA_OpenList()
+	local title:string = Locale.Lookup("LOC_CIVICS_CHOOSER_CHOOSE_CIVIC");
+	if m_currentID ~= nil and m_currentID >= 0 and GameInfo.Civics[m_currentID] ~= nil then
+		title = title .. ", currently " .. Locale.Lookup(GameInfo.Civics[m_currentID].Name);
+	end
+	m_srList.Reset();
+	m_srList.Open(title);
+end
+-- End ScreenReaderAccess change
 
 -- ===========================================================================
 --	Get the latest data and visualize.
@@ -279,6 +361,7 @@ function OnOpenPanel()
     UI.PlaySound("Tech_Tray_Slide_Open");
 	m_isExpanded = true;
 	m_kSlideAnimator.Show();
+	SRA_OpenList();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -383,6 +466,7 @@ end
 --	UI Event
 -- ===========================================================================
 function OnInputHandler( kInputStruct:table )
+	if m_srList ~= nil and m_srList.HandleInput( kInputStruct ) then return true; end		-- ScreenReaderAccess
 	return m_kSlideAnimator.OnInputHandler( kInputStruct );
 end
 
@@ -434,6 +518,14 @@ end
 --	INIT
 -- ===========================================================================
 function Initialize()
+
+	-- ScreenReaderAccess: keyboard list
+	m_srList = KeyNavList_Create{
+		build = SRA_GetItems,
+		isActive = function() return m_kSlideAnimator ~= nil and m_kSlideAnimator.IsVisible(); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnClose,
+	};
 
 	-- Cache frequently used / expensive data
 	m_CachedModifiers = TechAndCivicSupport_BuildCivicModifierCache();
