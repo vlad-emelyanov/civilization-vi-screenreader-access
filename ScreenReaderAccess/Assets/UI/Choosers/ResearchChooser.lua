@@ -196,6 +196,17 @@ local function SRA_GetItems()
 					if detailData.Boostable then
 						text = text .. ". " .. (detailData.BoostTriggered and "Boosted" or "Boost") .. ": " .. CleanTextForSpeech(Locale.Lookup(detailData.TriggerDesc));
 					end
+					-- cost and the player's rate come first (Space only, the list line stays short)
+					local prefix:string = "";
+					if detailData.ResearchCost ~= nil then
+						prefix = "Cost " .. detailData.ResearchCost .. " science";
+						if detailData.Progress ~= nil and detailData.Progress > 0 then
+							prefix = prefix .. ", " .. math.floor(detailData.Progress * detailData.ResearchCost + 0.5) .. " done";
+						end
+						local yield:number = Players[Game.GetLocalPlayer()]:GetTechs():GetScienceYield();
+						prefix = prefix .. ". You make " .. (yield <= 0 and "no science" or (math.floor(yield * 10 + 0.5) / 10 .. " per turn")) .. ". ";
+					end
+					text = prefix .. text;
 					return text;
 				end,
 			});
@@ -225,6 +236,7 @@ end
 
 local function SRA_OpenList()
 	local title:string = Locale.Lookup("LOC_RESEARCH_CHOOSER_CHOOSE_RESEARCH");
+	if CanPlayerResearchAnything(Game.GetLocalPlayer()) then title = title .. ", no science"; end	-- (sic) true when science is 0
 	if m_currentID ~= nil and m_currentID >= 0 and GameInfo.Technologies[m_currentID] ~= nil then
 		title = title .. ", currently " .. Locale.Lookup(GameInfo.Technologies[m_currentID].Name);
 	end

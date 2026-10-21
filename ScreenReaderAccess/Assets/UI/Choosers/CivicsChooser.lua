@@ -173,6 +173,17 @@ local function SRA_GetItems()
 					if detailData.Boostable then
 						text = text .. ". " .. (detailData.BoostTriggered and "Inspired" or "Inspiration") .. ": " .. CleanTextForSpeech(Locale.Lookup(detailData.TriggerDesc));
 					end
+					-- cost and the player's rate come first (Space only, the list line stays short)
+					local prefix:string = "";
+					if detailData.Cost ~= nil then
+						prefix = "Cost " .. detailData.Cost .. " culture";
+						if detailData.Progress ~= nil and detailData.Progress > 0 then
+							prefix = prefix .. ", " .. math.floor(detailData.Progress * detailData.Cost + 0.5) .. " done";
+						end
+						local yield:number = Players[Game.GetLocalPlayer()]:GetCulture():GetCultureYield();
+						prefix = prefix .. ". You make " .. (yield <= 0 and "no culture" or (math.floor(yield * 10 + 0.5) / 10 .. " per turn")) .. ". ";
+					end
+					text = prefix .. text;
 					return text;
 				end,
 			});
@@ -202,6 +213,7 @@ end
 
 local function SRA_OpenList()
 	local title:string = Locale.Lookup("LOC_CIVICS_CHOOSER_CHOOSE_CIVIC");
+	if CanPlayerCivicAnything(Game.GetLocalPlayer()) then title = title .. ", no culture"; end	-- (sic) true when culture is 0
 	if m_currentID ~= nil and m_currentID >= 0 and GameInfo.Civics[m_currentID] ~= nil then
 		title = title .. ", currently " .. Locale.Lookup(GameInfo.Civics[m_currentID].Name);
 	end
