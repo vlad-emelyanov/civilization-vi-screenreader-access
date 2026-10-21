@@ -117,10 +117,20 @@ function KeyNavList_Create( config:table )
 		Speak( items, target, true, false );
 	end
 
+	-- The focused item may have vanished (list rebuilt from the game's state): say so and refocus.
+	local function FocusLost( items:table )
+		if #items == 0 then
+			OutputMessageToScreenReader( "Nothing available" );
+			return;
+		end
+		OutputMessageToScreenReader( "Item no longer available" );
+		Speak( items, 1, false, true );
+	end
+
 	local function Activate()
 		local items:table = Build();
 		local index:number = FindIndex( items );
-		if index == nil then return; end
+		if index == nil then FocusLost( items ); return; end
 		local item:table = items[ index ];
 		if item.choosable == false then
 			OutputMessageToScreenReader( item.reason or "Can't choose this" );
@@ -132,7 +142,7 @@ function KeyNavList_Create( config:table )
 	local function ReadDetail()
 		local items:table = Build();
 		local index:number = FindIndex( items );
-		if index == nil then return; end
+		if index == nil then FocusLost( items ); return; end
 		local detail = items[ index ].detail;
 		if type( detail ) == "function" then detail = detail(); end
 		if detail == nil or detail == "" then detail = "No further details"; end
@@ -141,7 +151,14 @@ function KeyNavList_Create( config:table )
 
 	-- Returns true when the key was consumed.
 	function list.HandleInput( input:table )
-		if config.isActive ~= nil and not config.isActive() then return false; end
+		if config.isActive ~= nil then
+			local ok:boolean, active = xpcall( config.isActive, KeyNavErrorHandler );
+			if not ok then
+				print( "KeyNavList isActive error: " .. tostring(active) );
+				return false;
+			end
+			if not active then return false; end
+		end
 		local msg:number = input:GetMessageType();
 		if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 		if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
