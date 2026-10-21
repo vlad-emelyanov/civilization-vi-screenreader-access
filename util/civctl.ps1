@@ -23,6 +23,8 @@ param(
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
+    [Parameter(Position = 2, ValueFromRemainingArguments)]
+    [string[]]$MoreArgs,   # extra words are joined onto $Arg, so `wait Begin Game` works without quotes
     [int]$Count = 1,
     [int]$Timeout = 120,
     [int]$Settle = 600,
@@ -32,6 +34,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+# cmd.exe breaks a command line with two quoted strings (the quoted path of civctl.cmd plus a quoted argument such as
+# 'Begin Game'; Git Bash does this: "'C:\Users\...\Code' is not recognized"). So pass multi-word arguments unquoted:
+# `civctl.cmd wait Begin Game -Timeout 5`.
+if ($MoreArgs) { $Arg = (@($Arg) + $MoreArgs) -join ' ' }
 
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 $GameExe = "C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization VI\Base\Binaries\Win64Steam\CivilizationVI.exe"

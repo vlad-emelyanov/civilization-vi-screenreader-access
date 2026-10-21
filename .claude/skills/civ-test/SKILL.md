@@ -14,7 +14,7 @@ description: Build the mod, launch Civilization VI and drive it with the keyboar
 | `start [-Timeout 180]` | Starts the console app and the game, skips the intro movie, returns once "Main menu" is announced. |
 | `key <Key> [-Count n] [-Settle ms] [-All]` | Focuses the game, sends the key as a hardware scancode, prints the screen reader lines it caused as `SR> ...`. Lines that arrived after the previous command show as `(earlier) SR> ...`. `-Settle` (default 600) is the wait per press; use 1500-3000 for keys that open screens. Key names are .NET `Keys` names: `Down`, `Up`, `Left`, `Right`, `Enter`, `Escape`, `Space`, `Tab`, `A`, `F1`... Chords: `Shift+E`, `Control+Shift+F` (Shift/Control/Alt + one key). |
 | `sr [-All]` | Prints new screen reader lines (`-All`: every new `Lua.log` line, incl. `#KEYNAV_MOVE`). |
-| `wait <regex> [-Timeout s]` | Blocks until a screen reader line matches (exit 1 on timeout). Use it instead of sleeps, e.g. `wait 'Begin Game' -Timeout 240` during a game load. |
+| `wait <regex> [-Timeout s]` | Blocks until a screen reader line matches (exit 1 on timeout). Use it instead of sleeps, e.g. `wait Begin Game -Timeout 240` (multi-word patterns unquoted: from Git Bash a quoted arg breaks cmd.exe; avoid `|` and `&` in patterns) during a game load. |
 | `shot` | Screenshot of the game window (downscaled to 1280 px), prints the PNG path; view it with the Read tool. |
 | `status` | Is the game / console app running. |
 | `keymap` | Regenerates `keymap.md` (below) from the `#KEYMAP` dump in `Lua.log`. |
@@ -39,7 +39,7 @@ It is generated, not hand-written: `Options.lua` prints a `#KEYMAP` block to `Lu
 
 - Main menu opens with focus on Single Player. `key Enter` opens the submenu (announces Resume Game if a save exists, else Load Game); Down until `Create Game`; `key Enter -Settle 3000` → `CREATE GAME`.
 - On Create Game, Up from the first item wraps to `Start Game`; Down reaches `ADVANCED SETUP`.
-- After Start Game: `wait 'Begin Game' -Timeout 240`, then `key Enter -Settle 3000` begins the game.
+- After Start Game: `wait Begin Game -Timeout 240`, then `key Enter -Settle 3000` begins the game.
 - Exit: Up from Single Player to `Exit to Desktop`, Enter, the popup announces and focuses `OK`, Enter.
 
 ## Tips
