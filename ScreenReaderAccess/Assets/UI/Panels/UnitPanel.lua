@@ -10,6 +10,7 @@ include( "PopupDialog" );
 include( "Civ6Common" );
 include( "EspionageSupport" );
 include("GameCapabilities");
+include("ScreenReader");	-- ScreenReaderAccess mod: CleanTextForSpeech
 
 
 -- ===========================================================================
@@ -60,6 +61,8 @@ local m_primaryColor			:number = UI.GetColorValueFromHexLiteral(0xdeadbeef);
 local m_secondaryColor			:number = UI.GetColorValueFromHexLiteral(0xbaadf00d);
 local m_numIconsInCurrentIconGroup :number = 0;
 local m_kHotkeyActions			:table = {};
+local m_srActions				:table = {};	-- ScreenReaderAccess mod: the actions of the keyboard menu, with their callbacks
+local m_srPromotions			:table = nil;	-- ScreenReaderAccess mod: promotions of the Promote command (random-choice units)
 local m_kHotkeyCV1				:table = {};
 local m_kHotkeyCV2				:table = {};
 local m_kSoundCV1               :table = {};
@@ -299,7 +302,9 @@ function AddActionToTable( actionsTable:table, action:table, disabled:boolean, t
 		CallbackVoid1		= callbackVoid1,
 		CallbackVoid2		= callbackVoid2,
 		IsBestImprovement	= action.IsBestImprovement,
-		Sound				= action.Sound
+		Sound				= action.Sound,
+		HotkeyId			= action.HotkeyId,	-- ScreenReaderAccess mod change
+		SRName				= (action.ImprovementType ~= nil) and Locale.Lookup(action.Name) or nil	-- ScreenReaderAccess mod change
 		});
 
 	-- Hotkey support
@@ -440,6 +445,7 @@ function GetUnitActionsTable( pUnit )
 						local tPromotions		= tResults[UnitCommandResults.PROMOTIONS];						
 						local toolTipString		= Locale.Lookup(commandRow.Description);
 						local callback			= function() ShowPromotionsList(tPromotions); end
+						m_srPromotions			= tPromotions;	-- ScreenReaderAccess mod change
 
 						AddActionToTable( actionsTable, commandRow, isDisabled, toolTipString, actionHash, callback );
 					end
@@ -4217,6 +4223,109 @@ function LateInitialize()
 end
 
 -- ===========================================================================
+--	Begin ScreenReaderAccess mod change
+--	Keyboard menu of the selected unit's actions (InGameAccess hub, Tab). Built from the very table the panel's icons
+--	come from (m_subjectData.Actions). Only plain data goes across LuaEvents; callbacks stay in this context.
+-- ===========================================================================
+local function SRActionName( action:table, tooltip:string )
+	if action.SRName ~= nil then return action.SRName; end
+	local first:string = tooltip or "";
+	local nl:number = string.find( first, "[NEWLINE]", 1, true );
+	if nl ~= nil then first = string.sub( first, 1, nl - 1 ); end
+	return CleanTextForSpeech( first );
+end
+
+local function SRReasons( tooltip:string )
+	local reasons:table = {};
+	for reason in string.gmatch( tooltip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
+		table.insert( reasons, CleanTextForSpeech( reason ) );
+	end
+	return table.concat( reasons, ", " );
+end
+
+local function SRTypeName( hash:number )
+	local row = GameInfo.UnitCommands[hash];
+	if row ~= nil then return row.CommandType; end
+	row = GameInfo.UnitOperations[hash];
+	if row ~= nil then return row.OperationType; end
+	return "";
+end
+
+-- Rebuilds m_srActions (callbacks) and returns the plain list for the hub.
+local function SRBuildActions()
+	m_srActions = {};
+	local plain:table = {};
+	local actions:table = (m_subjectData ~= nil) and m_subjectData.Actions or nil;
+	if actions == nil or actions.displayOrder == nil then return plain; end
+	local order:table = {};
+	for _, category in ipairs( actions.displayOrder.primaryArea ) do table.insert( order, category ); end
+	table.insert( order, "BUILD" );
+	for _, category in ipairs( actions.displayOrder.secondaryArea ) do table.insert( order, category ); end
+	local unit:table = UI.GetHeadSelectedUnit();
+	local seen:table = {};
+	for _, category in ipairs( order ) do
+		if not seen[category] and actions[category] ~= nil then
+			seen[category] = true;
+			for _, action in ipairs( actions[category] ) do
+				local tooltip:string = action.helpString or "";
+				local hotkey:string = "";
+				if action.HotkeyId ~= nil then
+					local actionId = Input.GetActionId( action.HotkeyId );
+					if actionId ~= nil then hotkey = Input.GetGestureDisplayString( actionId, 0 ) or ""; end
+				end
+				table.insert( m_srActions, { action = action } );
+				table.insert( plain, {
+					id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey,
+					disabled = ( action.Disabled == true ), reason = SRReasons( tooltip ),
+					detail = CleanTextForSpeech( tooltip ), category = category,
+					tag = action.userTag, typeName = SRTypeName( action.userTag ) } );
+				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
+				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil
+						and GameInfo.Units[unit:GetUnitType()].NumRandomChoices > 0 then
+					for _, ePromotion in ipairs( m_srPromotions ) do
+						local def = GameInfo.UnitPromotions[ePromotion];
+						if def ~= nil then
+							table.insert( m_srActions, { callback = function() OnPromoteUnit( ePromotion ); end } );
+							table.insert( plain, {
+								id = #m_srActions, name = "Promote to " .. Locale.Lookup( def.Name ), hotkey = "",
+								disabled = false, reason = "", detail = CleanTextForSpeech( Locale.Lookup( def.Description ) ),
+								category = category, tag = ePromotion, typeName = "PROMOTION" } );
+						end
+					end
+				end
+			end
+		end
+	end
+	return plain;
+end
+
+function OnSRRequestUnitActions()
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit ~= nil and g_UnitId == unit:GetID() and g_selectedPlayerId == unit:GetOwner() then
+		Refresh( g_selectedPlayerId, g_UnitId );	-- the state may have changed since the last refresh
+	end
+	local plain:table = SRBuildActions();
+	LuaEvents.SRA_UnitActions( unit ~= nil and unit:GetID() or -1, plain );
+end
+
+function OnSRRunUnitAction( index:number, unitId:number )
+	local unit:table = UI.GetHeadSelectedUnit();
+	local entry:table = m_srActions[index];
+	if entry == nil or unit == nil or unit:GetID() ~= unitId then return; end
+	local ok:boolean, err = pcall( function()
+		if entry.callback ~= nil then
+			entry.callback();
+			return;
+		end
+		local action:table = entry.action;
+		if action.Sound ~= nil and action.Sound ~= "" then UI.PlaySound( action.Sound ); end
+		action.CallbackFunc( action.CallbackVoid1, action.CallbackVoid2 );
+	end );
+	if not ok then print( "UnitPanel SRA_RunUnitAction error: " .. tostring( err ) ); end
+end
+-- End ScreenReaderAccess mod change
+
+-- ===========================================================================
 function Initialize()
 
 	-- Events
@@ -4274,6 +4383,8 @@ function Initialize()
 	LuaEvents.UnitFlagManager_PointerEntered.Add(		OnUnitFlagPointerEntered );
 	LuaEvents.UnitFlagManager_PointerExited.Add(		OnUnitFlagPointerExited );
 	LuaEvents.PlayerChange_Close.Add(					OnPlayerChangeClose );
+	LuaEvents.SRA_RequestUnitActions.Add(				OnSRRequestUnitActions );	-- ScreenReaderAccess mod change
+	LuaEvents.SRA_RunUnitAction.Add(					OnSRRunUnitAction );
 
 	-- Setup settlement water guide colors
 	local FreshWaterColor:number = UI.GetColorValue("COLOR_BREATHTAKING_APPEAL");

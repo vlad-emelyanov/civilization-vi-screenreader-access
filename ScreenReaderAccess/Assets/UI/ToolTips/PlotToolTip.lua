@@ -52,6 +52,7 @@ local m_ttWidth			:number		= 0;		-- Width of the tooltip
 local m_ttHeight		:number		= 0;		-- Height " " "
 local m_touchIdForPoint	:number		= -1;		-- ID of the touch which will act like the mouse
 local m_lastMouseMoveTime			= nil;		-- Last time the mouse moved.
+local m_srLastRealMove		:number		= -100;		-- Screen reader: when the mouse last really moved (not a synthetic move event)
 local m_srSuppressedPlot	:number		= -1;		-- Screen reader: plot the InGameAccess cursor just announced itself
 local m_srSuppressUntil		:number		= 0;		-- ...and until when no plot is read (the camera pans under the resting mouse)
 
@@ -634,8 +635,11 @@ function View( data:table )
 
 	-- Begin ScreenReaderAccess mod change
 	if m_isActive and not m_isOff and (data.Index == m_srSuppressedPlot or UI.GetElapsedTime() < m_srSuppressUntil) then
-		m_srSuppressedPlot = -1;	-- the map cursor already read this plot; the mouse only followed it (or the camera moved under it)
-	elseif m_isActive and not m_isOff then
+		-- the map cursor already read this plot; the mouse only followed it (or the camera moved under it). Stay quiet
+		-- for this plot until the mouse really goes elsewhere: the game refreshes the tooltip several times (PlotInfoUpdate).
+	elseif m_isActive and not m_isOff and UI.GetElapsedTime() - m_srLastRealMove < 0.7 then
+		-- only a mouse that really moved reads (the camera jumping under a resting mouse, e.g. at turn start, does not)
+		m_srSuppressedPlot = -1;
 		local plotHeadline = Controls.PlotName:GetText() ..
 							" (" .. data.X ..
 							" " .. data.Y .. ")";
@@ -918,6 +922,7 @@ function OnInputHandler( pInputStruct:table )
 		end
 
 		m_lastMouseMoveTime = UI.GetElapsedTime();
+		if pInputStruct:GetMouseDX() ~= 0 or pInputStruct:GetMouseDY() ~= 0 then m_srLastRealMove = m_lastMouseMoveTime; end	-- ScreenReaderAccess mod change
 
 		m_isUsingMouse	= true;
 		m_offsetX		= OFFSET_SHOW_AT_MOUSE_X;

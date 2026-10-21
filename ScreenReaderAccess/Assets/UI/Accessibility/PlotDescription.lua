@@ -80,15 +80,27 @@ end
 --	Parts of a description
 -- ===========================================================================
 
+-- "Warrior" for the local player's units, "Roman Warrior" / "Barbarian Warrior" for the others.
+function PlotDescription_GetUnitName( unit:table )
+	local text:string = Locale.Lookup(unit:GetName());
+	local owner:number = unit:GetOwner();
+	if owner ~= Game.GetLocalPlayer() then
+		local player:table = Players[owner];
+		if player ~= nil and player:IsBarbarian() then
+			text = "Barbarian " .. text;
+		else
+			text = _CivName(owner) .. " " .. text;
+		end
+	end
+	return text;
+end
+
 local function _UnitsText( plot:table, excludeUnitId:number )
 	local parts:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
 	for _, unit in ipairs(Units.GetUnitsInPlot(plot)) do
 		if excludeUnitId == nil or unit:GetID() ~= excludeUnitId or unit:GetOwner() ~= localPlayer then
-			local text:string = Locale.Lookup(unit:GetName());
-			if unit:GetOwner() ~= localPlayer then
-				text = _CivName(unit:GetOwner()) .. " " .. text;
-			end
+			local text:string = PlotDescription_GetUnitName(unit);
 			local damage:number = unit:GetDamage();
 			if damage > 0 then
 				text = text .. " " .. (unit:GetMaxDamage() - damage) .. " of " .. unit:GetMaxDamage() .. " health";
@@ -203,6 +215,9 @@ end
 -- ===========================================================================
 -- options.excludeUnitId: leave this (own) unit out of the unit list (the selected unit's own plot).
 -- Order: city, units, terrain/feature, resource, river/coast, improvement/district/wonder, owner, yields, fogged.
+-- Fogged plots: owner, improvement and yields are spoken exactly as the game's own plot tooltip (PlotToolTip.lua)
+-- shows them for revealed plots, so nothing is told that a sighted player would not see; units are only named while
+-- the plot is visible.
 function PlotDescription_GetShort( plot:table, options:table )
 	if plot == nil then return "Edge of the map"; end
 	options = options or {};

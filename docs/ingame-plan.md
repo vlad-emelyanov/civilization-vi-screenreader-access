@@ -22,8 +22,11 @@ Goal: a blind player can play a full game with the keyboard and speech. The turn
 | I | detailed description of the cursor plot |
 | `J` | cursor to the selected unit/city ("where am I") and speak it |
 | N | what's next: speak the current end-turn blocker (what Enter will do) |
-| Tab | selected unit: actions menu (Up/Down, Enter runs, Escape closes) |
-| X | scan: with a settler, the settle-spot browser (later: other units scan for threats/targets) |
+| Tab | selected unit: actions menu (Up/Down, Enter runs, Space reads the tooltip, Escape closes) |
+| K | select your unit/city on the cursor plot (again: next one there) |
+| Control+K | select the next of all your units (also fortified/automated) |
+| X | cursor to the nearest foreign unit in view, hostile first (again: next) |
+| X | scan: foreign units now; with a settler, the settle-spot browser later |
 | Control+Y | top panel region (yields, gold, turn, era, current research/civic) |
 | Control+N | notifications region |
 
@@ -49,3 +52,21 @@ Interaction:
 - X opens the browser: candidates sorted by score (advisor picks marked "recommended"), each spoken as "<direction> <distance> tiles, <turns> turns, <top 3 reasons>, i of n". Up/Down browse, Space reads all reasons (advisor text + resources by name), Enter orders the settler to move there (or found the city if it is the current plot), Shift+Enter only moves the cursor there, Escape closes.
 - The plot description gains "can settle" / "cannot settle: too close to Rome" when a settler is selected.
 - Possible later: earcons (a new console-app prefix that plays a short tone, panned by direction, pitched by quality) for a quick sweep. Speech first.
+
+## Status (updated after Phase 2)
+
+**Phase 1 review fixes (done):** turn announcement keyed on (player, turn); cursor reset on player change and LoadScreenClose (load announces only once the turn is running, with a 3 s fallback); `OutputMessageToScreenReader` turns [NEWLINE] into pauses and strips leftover tags; PlotToolTip drops `-----` lines, stays quiet for a plot the cursor already read, and only speaks for a mouse that really moved (camera jumps at turn start no longer read the plot under the resting mouse); mouse follow-up uses the plot's real screen position when the camera cannot centre it (`UI.GetPlotCoordFromNormalizedScreenPos` takes -1..1, y up; verified: centred plot found at 960,546 on 1920x1080). Fogged plots speak owner/improvement/yields like the game's own tooltip (UI scripts get the player's view); units only when visible.
+
+**Phase 2 (done, verified in game):** `Panels/UnitPanel.lua` override exposes the panel's own action table via `LuaEvents.SRA_RequestUnitActions` / `SRA_UnitActions` / `SRA_RunUnitAction` (plain data only). Tab menu: "Move To, key M, 1 of 6", disabled ones "unavailable: reason", Space = tooltip, Enter runs, results "Fortified", "Sleeping", "Exploring automatically" (from `UnitOperationStarted`, so the game hotkeys speak too), "Farm built, 3 charges left", "Xi'an founded", "Moving, 9 turns left" / "Arrived, 0 of 2 moves". Target modes (M, R, Tab menu or any key): "Move to: choose a tile ..."; Shift+Arrows say "2 turns" / "unreachable" / "attack, 2 turns" (move path via `GetMoveToPathEx`), Enter confirms (MoveUnitToPlot, direct RangeAttack/AirAttack requests, real click for other modes), Escape cancels; Enter is consumed so Next Action does not fire. Enemies: "Barbarian Scout spotted, 3 tiles south-west of Xi'an"; combat "X takes 45 damage, 55 of 100 health", kills via `UnitKilledInCombat(killedPlayer, killedUnit, killerPlayer, killerUnit)`. Next Action edge: when the only ready unit is already selected the game re-selects it without an event, so Enter said nothing; now "Warrior, 2 of 2 moves, needs orders. Tab for its actions".
+
+**Gaps found:**
+- Not seen in game (no hostile in reach): attack/ranged/air confirm, the kill/lost messages, attack preview odds in the target mode (the preview call itself returned "deals 27 damage, target left with 73 of 100, you take 34"), generic-click modes, war-declaration dialog from a move.
+- A move that is blocked (unit stops silently, path interrupted) gives no "Stopped" message; Enter then says "needs orders".
+- Popups still silent or hard to close: Natural Disaster overlay, Historic Moment, Research/Civic completed (only the name, Escape closes), advisor popups. Escape on the map opens the game menu.
+- No keyboard purchase in the production list (gold piles up); settler spots and settle lens (Phase 5); settler left "needs orders" until slept.
+- Auto-explore and the captured-unit flow: sleeping/unescorted builders get captured by barbarians; "Moving, N turns left" repeats every turn of a long move.
+- Promotion tree units (no random list) only open the game's tree screen; Name unit panel and Form army/corps untested.
+- Chinese Empire tooltip text still read when the real mouse hovers.
+- Disabled build actions often have no reason in the tooltip ("Farm, unavailable").
+- `Cursor to selection` is bound to `.` in the user's saved settings (default J); P is taken (online pause).
+
