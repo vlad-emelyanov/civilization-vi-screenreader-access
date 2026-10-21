@@ -53,7 +53,7 @@ Interaction:
 - The plot description gains "can settle" / "cannot settle: too close to Rome" when a settler is selected.
 - Possible later: earcons (a new console-app prefix that plays a short tone, panned by direction, pitched by quality) for a quick sweep. Speech first.
 
-## Status (updated after Phase 2)
+## Status (updated after Phase 3)
 
 **Phase 1 review fixes (done):** turn announcement keyed on (player, turn); cursor reset on player change and LoadScreenClose (load announces only once the turn is running, with a 3 s fallback); `OutputMessageToScreenReader` turns [NEWLINE] into pauses and strips leftover tags; PlotToolTip drops `-----` lines, stays quiet for a plot the cursor already read, and only speaks for a mouse that really moved (camera jumps at turn start no longer read the plot under the resting mouse); mouse follow-up uses the plot's real screen position when the camera cannot centre it (`UI.GetPlotCoordFromNormalizedScreenPos` takes -1..1, y up; verified: centred plot found at 960,546 on 1920x1080). Fogged plots speak owner/improvement/yields like the game's own tooltip (UI scripts get the player's view); units only when visible.
 
@@ -63,10 +63,24 @@ Interaction:
 - Not seen in game (no hostile in reach): attack/ranged/air confirm, the kill/lost messages, attack preview odds in the target mode (the preview call itself returned "deals 27 damage, target left with 73 of 100, you take 34"), generic-click modes, war-declaration dialog from a move.
 - A move that is blocked (unit stops silently, path interrupted) gives no "Stopped" message; Enter then says "needs orders".
 - Popups still silent or hard to close: Natural Disaster overlay, Historic Moment, Research/Civic completed (only the name, Escape closes), advisor popups. Escape on the map opens the game menu.
-- No keyboard purchase in the production list (gold piles up); settler spots and settle lens (Phase 5); settler left "needs orders" until slept.
+- Settler spots and settle lens (Phase 5); settler left "needs orders" until slept.
 - Auto-explore and the captured-unit flow: sleeping/unescorted builders get captured by barbarians; "Moving, N turns left" repeats every turn of a long move.
 - Promotion tree units (no random list) only open the game's tree screen; Name unit panel and Form army/corps untested.
 - Chinese Empire tooltip text still read when the real mouse hovers.
 - Disabled build actions often have no reason in the tooltip ("Farm, unavailable").
 - `Cursor to selection` is bound to `.` in the user's saved settings (default J); P is taken (online pause).
 
+**Phase 3 (done, verified in game unless noted):** `KeyNavList` (Space = detail, Tab/extra keys, announces "Item no longer available" / "Nothing available" instead of staying silent) drives the choosers.
+- Research / Civics choosers (`Choosers/*.lua`): list with turns, boost/inspiration, unlocks, recommended; Space adds cost, progress and your science/culture per turn; "no science/culture" in the title; Enter chooses.
+- Production panel (`Panels/ProductionPanel.lua`): opens from Next Action, or with **Tab on a selected city** (hub: `\` selects the capital, Tab opens the panel). Tab inside cycles Production / Queue / Purchase gold / Purchase faith ("Ottawa, purchase with gold, 120 gold, 6 options"). Production items "Warrior, 7 turns, 40 production, recommended"; purchase items "Scout, 120 gold, can afford" / "can't afford, 30 more needed" / "unavailable: reason"; Enter on a purchase calls the panel's own `PurchaseUnit/Building/District`, result "Bought Scout, 0 gold left" (announced from the treasury/faith event). Production Enter: "Producing X, N turns" / "Queued X", announced from `CityProductionQueueChanged` so nothing is said when nothing happened. Districts and wonders (and purchases that need a tile) enter the game's placement mode and say placement by keyboard is not supported yet; Escape cancels it (nothing is spoken afterwards, Tab on the city reopens the panel). Data is cached per refresh; the unit cost is the standard one (not the corps cost); the Queue tab lists what the panel lists. Enter does not advance the turn (checked).
+- Government screen: Policies / Governments / My Government tabs (Tab switches). Confirm/Unlock only on the policies page, the disabled Confirm says why, a slot chosen for a policy is tracked by slot index, the screen announces when it is really shown, the confirmation popups (confirm policies) are navigable, "Policies confirmed". Enter on a government that cannot be chosen says why (locked / only the turn a civic completes / already changed); the actual government change and the anarchy variant are NOT verified in game (Political Philosophy was not reachable): code only.
+- Pantheon chooser (`Choosers/PantheonChooser.lua`, was a hard blocker of the turn loop): list of beliefs, Enter selects, Enter again confirms.
+- Diplomacy (`DiplomacyActionView.lua`), **code only, no civ was met**: first-contact statement and answers (list active only while the session lasts and no popup is open; popups such as denounce route keys to the popup dialog); the overview (things you can propose, with Discuss / Casus Belli submenus, gold/favor/grievance costs, disabled reasons) is a second `KeyNavList`; in cinema mode Enter ends the scene first (like Escape), then applies the chosen answer ("Scene ended. ..."), Escape alone re-offers the answers; DEAL_MODE only speaks the statement.
+- Combat (Phase 2 target mode, seen in game): `M` then `X` (nearest foreign unit, hostile first) then Enter attacks: preview "attack, 1 turn, deals 45 damage, target left with 2 of 100, you take 20", results "Barbarian Warrior takes 43 damage, 4 of 100 health", "Your Warrior takes 21 damage, 79 of 100 health", "While defending, your Scout was destroyed by ...". `W` (Attack) does not open a target mode for a melee unit.
+
+**Phase 3 gaps:**
+- Tile placement for districts/wonders (next task); after Escape in placement nothing is spoken.
+- No keyboard path from the panel for corps/armies, queue reordering/removal, or the Manager tab.
+- Not verified in game: diplomacy overview and cinema scenes, government change (and its anarchy variant), the war declaration confirm dialog (another context, `DiplomacyActionView_ConfirmWarDialog`), the deal screen (`DiplomacyDealView`, no keys).
+- Civic/tech completed popups (Enter does nothing, Escape closes; "Change Policies" is only reachable with F7), Inspiration/Eureka, Natural Wonder, Historic Moment and advisor popups are silent or only partly spoken; the advisor's "Tell me more" opens the Civilopedia (Escape closes).
+- "Automate Exploration" is unavailable ("Danger") next to barbarians; "Barbarian Barbarian Horseman" (owner prefix repeats the unit name); the research chooser title can say "currently <just completed tech>".
