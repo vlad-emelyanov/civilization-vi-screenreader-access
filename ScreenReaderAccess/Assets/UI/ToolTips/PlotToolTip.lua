@@ -52,6 +52,8 @@ local m_ttWidth			:number		= 0;		-- Width of the tooltip
 local m_ttHeight		:number		= 0;		-- Height " " "
 local m_touchIdForPoint	:number		= -1;		-- ID of the touch which will act like the mouse
 local m_lastMouseMoveTime			= nil;		-- Last time the mouse moved.
+local m_srSuppressedPlot	:number		= -1;		-- Screen reader: plot the InGameAccess cursor just announced itself
+local m_srSuppressUntil		:number		= 0;		-- ...and until when no plot is read (the camera pans under the resting mouse)
 
 -- This is horrible, i'm sorry.
 local TerrainTypeMap :table = {};
@@ -631,7 +633,9 @@ function View( data:table )
 	Controls.TooltipMain:SetHide(false);
 
 	-- Begin ScreenReaderAccess mod change
-	if m_isActive and not m_isOff then
+	if m_isActive and not m_isOff and (data.Index == m_srSuppressedPlot or UI.GetElapsedTime() < m_srSuppressUntil) then
+		m_srSuppressedPlot = -1;	-- the map cursor already read this plot; the mouse only followed it (or the camera moved under it)
+	elseif m_isActive and not m_isOff then
 		local plotHeadline = Controls.PlotName:GetText() ..
 							" (" .. data.X ..
 							" " .. data.Y .. ")";
@@ -1106,5 +1110,6 @@ function Initialize()
 	LuaEvents.WorldInput_DragMapEnd.Add( OnDragMapEnd );
 	LuaEvents.WorldInput_TouchPlotTooltipShow.Add( OnTouchPlotTooltipShow );
 	LuaEvents.WorldInput_TouchPlotTooltipHide.Add( OnTouchPlotTooltipHide );	
+	LuaEvents.SRA_CursorPlot.Add( function( plotIndex:number ) m_srSuppressedPlot = plotIndex; m_srSuppressUntil = UI.GetElapsedTime() + 1.6; end );
 end
 Initialize();

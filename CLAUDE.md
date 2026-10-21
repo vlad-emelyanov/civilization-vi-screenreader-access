@@ -20,7 +20,8 @@ The console app must be running for clicks/mouse moves to happen, and for any an
 
 ## Layout
 
-- `ScreenReaderAccess/Assets/UI/Accessibility/`: mod-only helpers (`ScreenReader.lua`, `KeyboardNavigation.lua`, plot utils, gameplay event handlers). Always read the first two.
+- `ScreenReaderAccess/Assets/UI/Accessibility/`: mod-only helpers (`ScreenReader.lua`, `KeyboardNavigation.lua`, plot utils, `PlotDescription.lua`). Always read the first two.
+- `ScreenReaderAccess/UI/Additions/InGameAccess.{xml,lua}`: the in-game hub context (map cursor, in-game hotkeys, turn/selection announcements); see `docs/ingame-plan.md`.
 - `ScreenReaderAccess/Assets/UI/Frontend/`: front-end screens (MainMenu, AdvancedSetup = Create Game + Advanced Setup, LoadScreen, LoadGameMenu, FrontEndPopup).
 - `ScreenReaderAccess/Assets/UI/{Panels,Popups,ToolTips,Menus}/`, `WorldInput.lua`: in-game UI.
 - `ScreenReaderAccess/Database/*.sql`: input actions / default hotkeys.
