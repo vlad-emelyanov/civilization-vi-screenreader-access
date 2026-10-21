@@ -6,6 +6,7 @@
 --		isActive   = function() return panelIsOpen; end, -- the list only handles keys while this is true
 --		onActivate = function(item) ... end,             -- Enter
 --		onClose    = function() ... end,                 -- optional: Escape (otherwise left to the game's own handler)
+--		extraKeys  = { [Keys.VK_DELETE] = function() ... end },   -- optional: more keys, acted on at KeyUp
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
 --	         spoken by Space>, choosable = <false: Enter says item.reason> }
@@ -71,6 +72,22 @@ function KeyNavList_Create( config:table )
 		if index == nil then index = 1; m_focusKey = items[1].key; end
 		OutputMessageToScreenReader( title .. ", " .. #items .. ( #items == 1 and " option" or " options" ), true );
 		Speak( items, index, false, true );
+	end
+
+	-- Moves the focus to the item with this key and speaks it (e.g. back to a slot after choosing in a sub-list).
+	function list.Focus( key, prefix:string )
+		local items:table = Build();
+		m_focusKey = key;
+		m_lastSection = nil;
+		local index:number = FindIndex( items );
+		if index == nil then index = 1; end
+		if items[ index ] == nil then return; end
+		if prefix ~= nil then OutputMessageToScreenReader( prefix, true ); end
+		Speak( items, index, prefix == nil, true );
+	end
+
+	function list.GetFocusKey()
+		return m_focusKey;
 	end
 
 	function list.Reset()
@@ -140,6 +157,8 @@ function KeyNavList_Create( config:table )
 		elseif key == Keys.VK_SPACE then	if not isDown then action = ReadDetail; end
 		elseif key == Keys.VK_ESCAPE and config.onClose ~= nil then
 			if not isDown then action = config.onClose; end
+		elseif config.extraKeys ~= nil and config.extraKeys[ key ] ~= nil then
+			if not isDown then action = config.extraKeys[ key ]; end
 		else
 			return false;
 		end
