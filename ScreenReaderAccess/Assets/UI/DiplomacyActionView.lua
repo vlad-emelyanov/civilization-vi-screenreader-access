@@ -18,6 +18,9 @@ include( "KeyNavList" );	-- ScreenReaderAccess
 -- ScreenReaderAccess: the leader's answers on the conversation page, as a keyboard list (see SRA_* below).
 local m_srSelections	:table = {};
 local m_srList			:table = nil;
+local m_srOverviewList	:table = nil;	-- the overview (things you can propose) as a keyboard list
+local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" / "war"), nil = top level
+local m_srPendingAnswer	:string = nil;	-- key of the answer chosen while a cinema scene was showing
 
 
 -- ===========================================================================
@@ -671,7 +674,9 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 		local speech:string = Locale.Lookup(leaderDesc) .. " of " .. civName .. " says: " .. CleanTextForSpeech(leaderstr);
 		if reasonStr ~= nil and reasonStr ~= "" then speech = speech .. " " .. CleanTextForSpeech(reasonStr); end
 		m_srList.Reset();
-		if #m_srSelections > 0 then
+		if ms_currentViewMode == DEAL_MODE then
+			OutputMessageToScreenReader( speech, true );	-- the deal screen has no keys here (yet): only say what was said
+		elseif #m_srSelections > 0 then
 			m_srList.Open( speech );
 		else
 			OutputMessageToScreenReader( speech .. " Escape to close.", true );
@@ -1880,6 +1885,7 @@ function SelectPlayer(playerID, mode, refresh, allowDeadPlayer)
 					Controls.AlphaIn:Play();
 					Controls.SlideIn:Play();
 					UI.PlaySound("UI_Diplomacy_Open_Long");
+					SRA_AnnounceOverview();		-- ScreenReaderAccess
 				end
 				ms_currentViewMode = mode;
 			end
@@ -2179,6 +2185,9 @@ function UninitializeView()
 	ms_ActiveSessionID = nil;
 	ms_currentViewMode = -1;
 	m_cinemaMode = false;
+	m_srSelections = {};		-- ScreenReaderAccess
+	m_srPendingAnswer = nil;
+	m_srOverviewSub = nil;
 
 	ms_OtherPlayer = nil;
 	ms_OtherPlayerID = -1;
@@ -2353,6 +2362,7 @@ function ToggleCinemaMode()
 			end
 		end
 		Controls.BlackFadeAnim:Reverse();
+		if not m_cinemaMode then SRA_OnCinemaEnded(); end		-- ScreenReaderAccess
 	end
 end
 Controls.FadeTimerAnim:RegisterEndCallback(ToggleCinemaMode);
@@ -2512,12 +2522,15 @@ function OnDiplomacySessionClosed(sessionID)
 	-- Getting this a little late?
 	if (not ms_bIsViewInitialized) then
 		ms_ActiveSessionID = nil;
+		m_srSelections = {};		-- ScreenReaderAccess
 		return;
 	end
 
 	if (ms_ActiveSessionID ~= nil) then
 		if ( ms_ActiveSessionID == sessionID and not m_isInHotload) then
 			ms_ActiveSessionID = nil;
+			m_srSelections = {};		-- ScreenReaderAccess: the answers belong to the session
+			m_srPendingAnswer = nil;
 
 			if (ms_currentViewMode == DEAL_MODE) then
 				ResetPlayerPanel();
@@ -2762,7 +2775,21 @@ end
 --	Consume all key input so it doens't fall through to world
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
-	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
+	-- Begin ScreenReaderAccess change: the popup dialog (denounce, stop asking) owns the keys while it is open
+	if m_PopupDialog:IsOpen() then
+		if pInputStruct:GetMessageType() == KeyEvents.KeyUp then
+			local popupKey:number = pInputStruct:GetKey();
+			if popupKey == Keys.VK_ESCAPE then
+				KeyHandler( popupKey );		-- CloseFocusedState closes the popup
+			else
+				m_PopupDialog:KeyHandler( popupKey );
+			end
+		end
+		return true;
+	end
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	if m_srOverviewList ~= nil and m_srOverviewList.HandleInput( pInputStruct ) then return true; end
+	-- End ScreenReaderAccess change
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then 
 		KeyHandler( pInputStruct:GetKey() ); 
@@ -3122,19 +3149,191 @@ function LateInitialize()
 end
 
 -- ===========================================================================
+-- Begin ScreenReaderAccess change: keyboard access to the diplomacy overview (the list of things you can
+-- propose, shown when you open diplomacy with a leader or after a conversation) and cinema scenes.
+-- The overview is rebuilt from the same statement data AddStatmentOptions uses, at key time.
+-- ===========================================================================
+function SRA_OverviewEntries()
+	local top:table, discuss:table, war:table = {}, {}, {};
+	if ms_LocalPlayerID == -1 or ms_SelectedPlayerID == -1 or ms_LocalPlayerID == ms_SelectedPlayerID then return top, discuss, war; end
+	local handler = GetStatementHandler( "GREETING" );
+	local parsed = handler.ExtractStatement( handler, "GREETING", "NONE", ms_LocalPlayerID, DiplomacyMoodTypes.ANY, DiplomacyInitiatorTypes.HUMAN );
+	handler.RemoveInvalidSelections( parsed, ms_LocalPlayerID, ms_SelectedPlayerID );
+	DiplomacySupport_RemoveSelectionByKey( parsed, "CHOICE_EXIT" );
+	if parsed == nil or parsed.Selections == nil then return top, discuss, war; end
+
+	local function MakeEntry( selection:table )
+		local key:string = selection.Key;
+		local parts:table = { CleanTextForSpeech( Locale.Lookup( selection.Text ) ) };
+		local cost:number = GetGoldCost( key );
+		if cost > 0 then table.insert( parts, cost .. " gold" ); end
+		if GameInfo.DiplomaticActions_XP2 ~= nil and GameInfo.DiplomaticActions_XP2[ selection.DiplomaticActionType ] ~= nil then
+			local favor = GameInfo.DiplomaticActions_XP2[ selection.DiplomaticActionType ].FavorCost;
+			if favor ~= nil and favor > 0 then table.insert( parts, favor .. " favor" ); end
+		end
+		if IsWarChoice( key ) and GameInfo.DiplomaticActions_XP2 ~= nil then
+			local points = ms_LocalPlayer:GetDiplomacy():ComputeDOWWarmongerPoints( ms_SelectedPlayerID, GetWarType( key ) );
+			table.insert( parts, points .. " grievances" );
+		end
+		local disabled:boolean = selection.IsDisabled == true;
+		local reason:string = nil;
+		if disabled then
+			reason = ( selection.FailureReasons ~= nil and selection.FailureReasons[1] ~= nil ) and CleanTextForSpeech( Locale.Lookup( selection.FailureReasons[1] ) ) or "Not available";
+		elseif not g_bIsLocalPlayerTurn then
+			disabled = true;
+			reason = "Not your turn";
+		end
+		if disabled then table.insert( parts, "unavailable: " .. reason ); end
+		local callback;
+		if IsWarChoice( key ) then
+			callback = function() LuaEvents.DiplomacyActionView_ConfirmWarDialog( ms_LocalPlayerID, ms_SelectedPlayerID, GetWarType( key ) ); end;
+		elseif key == "CHOICE_DENOUNCE" then
+			callback = function()
+				local playerConfig = PlayerConfigurations[ ms_SelectedPlayer:GetID() ];
+				if playerConfig ~= nil then
+					m_PopupDialog:Reset();
+					m_PopupDialog:AddText( Locale.Lookup( "LOC_DENOUNCE_POPUP_BODY", playerConfig:GetCivilizationShortDescription() ) );
+					m_PopupDialog:AddButton( Locale.Lookup( "LOC_CANCEL" ), nil );
+					m_PopupDialog:AddButton( Locale.Lookup( "LOC_DIPLO_CHOICE_DENOUNCE" ), function() OnSelectInitialDiplomacyStatement( key ); end, nil, nil, "PopupButtonInstanceRed" );
+					m_PopupDialog:Open();
+				end
+			end;
+		else
+			callback = function() OnSelectInitialDiplomacyStatement( key ); end;
+		end
+		local detail:string = nil;
+		local actionDef = GameInfo.DiplomaticActions[ selection.DiplomaticActionType ];
+		if actionDef ~= nil and actionDef.Description ~= nil then detail = CleanTextForSpeech( Locale.Lookup( actionDef.Description ) ); end
+		return { key = "o:" .. tostring( key ), text = table.concat( parts, ", " ), choosable = not disabled, reason = reason, detail = detail, callback = callback };
+	end
+
+	for _, selection in ipairs( parsed.Selections ) do
+		local uiGroup = nil;
+		local actionDef = GameInfo.DiplomaticActions[ selection.DiplomaticActionType ];
+		if actionDef ~= nil and actionDef.UIGroup ~= nil then uiGroup = actionDef.UIGroup; end
+		if uiGroup == "DISCUSS" then
+			table.insert( discuss, MakeEntry( selection ) );
+		elseif uiGroup == "FORMALWAR" then
+			table.insert( war, MakeEntry( selection ) );
+		elseif ShouldAddTopLevelStatementOption( uiGroup ) then
+			table.insert( top, MakeEntry( selection ) );
+		end
+	end
+	if #discuss > 0 then
+		table.insert( top, { key = "sub:discuss", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_DISCUSS" ) ) .. ", " .. #discuss .. " options", sub = "discuss" } );
+	end
+	if #war > 0 then
+		table.insert( top, { key = "sub:war", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ) .. ", " .. #war .. " options", sub = "war" } );
+	end
+	return top, discuss, war;
+end
+
+local function SRA_OverviewBuild()
+	local top:table, discuss:table, war:table = SRA_OverviewEntries();
+	if m_srOverviewSub == "discuss" then return discuss; end
+	if m_srOverviewSub == "war" then return war; end
+	return top;
+end
+
+-- Announces the overview: who, relationship, number of options, first option.
+function SRA_AnnounceOverview()
+	if m_srOverviewList == nil or ms_SelectedPlayerID == -1 or ms_SelectedPlayerID == ms_LocalPlayerID or ms_SelectedPlayer == nil then return; end
+	local ok:boolean, err = xpcall( function()
+		m_srOverviewSub = nil;
+		m_srOverviewList.Reset();
+		local config = PlayerConfigurations[ ms_SelectedPlayerID ];
+		local title:string = "Diplomacy with " .. Locale.Lookup( config:GetLeaderName() ) .. " of " .. Locale.Lookup( config:GetCivilizationShortDescription() );
+		local stateIndex = ms_SelectedPlayer:GetDiplomaticAI():GetDiplomaticStateIndex( ms_LocalPlayerID );
+		if stateIndex ~= nil and GameInfo.DiplomaticStates[ stateIndex ] ~= nil then
+			title = title .. ", " .. CleanTextForSpeech( Locale.Lookup( GameInfo.DiplomaticStates[ stateIndex ].Name ) );
+		end
+		m_srOverviewList.Open( title );
+	end, KeyNavErrorHandler );
+	if not ok then print( "DiplomacyActionView overview error: " .. tostring( err ) ); end
+end
+
+-- A cinema scene (voiced leader) has faded out; apply the answer the player chose during it, or offer the answers again.
+function SRA_OnCinemaEnded()
+	local ok:boolean, err = xpcall( function()
+		local pending = m_srPendingAnswer;
+		m_srPendingAnswer = nil;
+		if pending ~= nil then
+			for _, item in ipairs( m_srSelections ) do
+				if item.key == pending then
+					OutputMessageToScreenReader( "Scene ended. " .. item.text, true );
+					item.callback();
+					return;
+				end
+			end
+		end
+		if ms_ActiveSessionID ~= nil and #m_srSelections > 0 then
+			m_srList.Reset();
+			m_srList.Open( "Scene ended, your answer" );
+		end
+	end, KeyNavErrorHandler );
+	if not ok then print( "DiplomacyActionView cinema error: " .. tostring( err ) ); end
+end
+
+local function SRA_ConversationActive()
+	return not ContextPtr:IsHidden() and ms_ActiveSessionID ~= nil and ( ms_currentViewMode == CONVERSATION_MODE or ms_currentViewMode == CINEMA_MODE )
+		and #m_srSelections > 0 and not m_PopupDialog:IsOpen();
+end
+
+local function SRA_OverviewActive()
+	return not ContextPtr:IsHidden() and ms_ActiveSessionID == nil and ms_currentViewMode == OVERVIEW_MODE and not m_PopupDialog:IsOpen()
+		and ms_SelectedPlayerID ~= -1 and ms_SelectedPlayerID ~= ms_LocalPlayerID;
+end
+
+local function SRA_OnConversationActivate( item:table )
+	if ms_currentViewMode == CINEMA_MODE then
+		-- The scene has to end first (like Escape): remember the answer and apply it after the fade.
+		if m_srPendingAnswer ~= nil then
+			OutputMessageToScreenReader( "Ending the scene" );
+		elseif not ( m_cinemaMode and Controls.BlackFadeAnim:IsStopped() ) then
+			OutputMessageToScreenReader( "The scene is starting, try again in a moment" );
+		else
+			m_srPendingAnswer = item.key;
+			CloseFocusedState( false );
+		end
+		return;
+	end
+	item.callback();
+end
+
+local function SRA_OnOverviewActivate( item:table )
+	if item.sub ~= nil then
+		m_srOverviewSub = item.sub;
+		m_srOverviewList.Reset();
+		m_srOverviewList.Open( item.text );
+	else
+		item.callback();
+	end
+end
+
+local function SRA_OnOverviewClose()
+	if m_srOverviewSub ~= nil then
+		local key:string = "sub:" .. m_srOverviewSub;
+		m_srOverviewSub = nil;
+		m_srOverviewList.Focus( key, "Back" );
+	else
+		CloseFocusedState( false );
+	end
+end
+-- End ScreenReaderAccess change
+
+-- ===========================================================================
 function Initialize()
 	-- ScreenReaderAccess: keyboard list of the answers
 	m_srList = KeyNavList_Create{
 		build = function() return m_srSelections; end,
-		isActive = function() return not ContextPtr:IsHidden() and #m_srSelections > 0 and ms_currentViewMode ~= DEAL_MODE; end,
-		onActivate = function( item )
-			-- In cinema mode (voiced leader scenes) the exit choice does nothing; the game ends it like Escape does.
-			if item.isExit and ms_currentViewMode ~= CONVERSATION_MODE then
-				CloseFocusedState(false);
-			else
-				item.callback();
-			end
-		end,
+		isActive = SRA_ConversationActive,
+		onActivate = SRA_OnConversationActivate,
+	};
+	m_srOverviewList = KeyNavList_Create{
+		build = SRA_OverviewBuild,
+		isActive = SRA_OverviewActive,
+		onActivate = SRA_OnOverviewActivate,
+		onClose = SRA_OnOverviewClose,
 	};
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
