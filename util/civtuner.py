@@ -175,7 +175,8 @@ async def run(state: str | None, code: str | None, timeout: float, collect: list
                 return 2
         # REPL behaviour: if the chunk is a single expression, print its value. Not an expression -> syntax error, nothing ran.
         lines, err = await execute(conn, idx, f"local __v = ({code}\n)\nif __v ~= nil then print(tostring(__v)) end", timeout)
-        if err is not None and is_syntax_error(err) and not lines:
+        # A syntax error means nothing ran; stray lines (a #KEYNAV_MOVE print of the mod during the call) must not block the fallback.
+        if err is not None and is_syntax_error(err):
             # Statements: run as a function body, so `return x` works and its value is printed too.
             lines, err = await execute(conn, idx, "\n".join(["local __v = (function()", code, "end)()", "if __v ~= nil then print(tostring(__v)) end"]), timeout)
         for l in lines:
