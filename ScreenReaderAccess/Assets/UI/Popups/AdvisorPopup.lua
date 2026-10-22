@@ -54,8 +54,8 @@ local m_kQueuedPopups		: table	 = {};
 local m_kKeyNavButtons		: table	 = {};	-- Screen reader: { Label, Callback } for each button of the current advisor item
 local m_keyNavFocus			: number = 1;
 local m_keyNavHotkeyFired	: boolean = false;	-- The continue hotkey already activated a button for the key press being released
-local m_keyNavEscapePending	: boolean = false;	-- the last key was Escape (re-read); a second one opens the game menu
-local m_keyNavAnnouncement	: string = "";	-- Title and text of the current item, for re-reading
+local m_keyNavAnnouncement	: string = "";	-- Title and full text of the current item (Space reads it)
+local m_keyNavSummary		: string = "";	-- Condensed announcement spoken when the item is shown
 
 -- ===========================================================================
 --	Screen reader / keyboard navigation
@@ -78,11 +78,31 @@ function KeyNavAnnounceFocus( noInterrupt:boolean )
 	end
 end
 
-function KeyNavAnnouncePopup( noInterrupt:boolean )
-	if m_keyNavAnnouncement ~= "" then
-		OutputMessageToScreenReader( m_keyNavAnnouncement, noInterrupt );
+-- First sentence of a text, cut to about 25 words.
+function KeyNavFirstSentence( text:string )
+	local sentence :string = text;
+	local stop :number = string.find( text, "[%.!%?]%s" );
+	if stop ~= nil then sentence = string.sub( text, 1, stop - 1 ); end
+	sentence = string.gsub( sentence, "[%.!%?]+$", "" );
+	local words :table = {};
+	for word in string.gmatch( sentence, "%S+" ) do table.insert( words, word ); end
+	if #words > 25 then
+		local cut :table = {};
+		for i = 1, 25 do cut[i] = words[i]; end
+		sentence = table.concat( cut, " " ) .. " ...";
 	end
-	KeyNavAnnounceFocus( true );
+	return sentence;
+end
+
+-- Space: the full text, then the buttons.
+function KeyNavAnnouncePopup( noInterrupt:boolean )
+	local parts :table = {};
+	for _, entry in ipairs( m_kKeyNavButtons ) do table.insert( parts, entry.Label ); end
+	local text :string = m_keyNavAnnouncement;
+	if #parts > 0 then text = string.gsub( text, "[%.%s]+$", "" ) .. ". Buttons: " .. table.concat( parts, ", " ); end
+	if text ~= "" then
+		OutputMessageToScreenReader( text, noInterrupt );
+	end
 end
 
 function KeyNavMoveFocus( delta:number )
@@ -120,6 +140,8 @@ function AddAdvisorButton( data:AdvisorItem, text:string, callbackFunc:ifunction
 		end );
 	table.insert( m_kKeyNavButtons, { Label = CleanTextForSpeech( buttonInstance.DialogButton:GetText() ), Callback = 
 		function() 
+			-- Screen reader: short and interrupting, so whatever the next popup says replaces it.
+			OutputMessageToScreenReader( "Closed" );
 			OnHideAdvisorDialog(); 
 			callbackFunc(data); 
 		end } );
@@ -158,8 +180,8 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 	 m_kKeyNavButtons = {};
 	 m_keyNavFocus = 1;
 	 m_keyNavAnnouncement = "";
+	 m_keyNavSummary = "";
 	 m_keyNavHotkeyFired = false;
-	 m_keyNavEscapePending = false;
 
 	if advisorData == nil then
 		UI.DataError("Attempt to show advisor with NIL advisor data.");
@@ -245,10 +267,13 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 
 	-- Screen reader: announce what is being shown (the advisor text, the tutorial callout) and the focused button.
 	local srParts :table = {};
+	local srSummary :string = "";
 	if not bHideAdvisor then
 		local title :string = "Advisor";
 		if advisorData.ShowPortrait then title = CleanTextForSpeech( Controls.TitleText:GetText() ); end
-		table.insert( srParts, title .. ": " .. CleanTextForSpeech( advisorData.ShowPortrait and Controls.InfoString:GetText() or Controls.MetaInfoString:GetText() ) );
+		local body :string = CleanTextForSpeech( advisorData.ShowPortrait and Controls.InfoString:GetText() or Controls.MetaInfoString:GetText() );
+		table.insert( srParts, title .. ": " .. body );
+		srSummary = title .. ": " .. KeyNavFirstSentence( body );
 	end
 	local calloutBody :string = "";
 	if advisorData.CalloutBody ~= nil and advisorData.CalloutBody ~= "" then
@@ -262,10 +287,12 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 		end
 		if calloutHeader ~= "" then calloutHeader = calloutHeader .. ". "; end
 		table.insert( srParts, "Tutorial: " .. calloutHeader .. calloutBody );
+		if srSummary == "" then srSummary = "Tutorial: " .. KeyNavFirstSentence( calloutHeader ~= "" and calloutHeader or calloutBody ); end
 	end
 	m_keyNavAnnouncement = table.concat( srParts, ". " );
-	if m_keyNavAnnouncement ~= "" then
-		KeyNavAnnouncePopup( false );
+	if srSummary ~= "" then
+		m_keyNavSummary = srSummary .. ". Space reads all, Enter closes.";
+		OutputMessageToScreenReader( m_keyNavSummary, false );
 	end
 
 	-- If there are any associated <tutorial> triggers... trigger them.
@@ -316,7 +343,6 @@ function OnHideAdvisorDialog()
 	m_kKeyNavButtons = {};
 	m_keyNavFocus = 1;
 	m_keyNavHotkeyFired = false;
-	m_keyNavEscapePending = false;
 	-- If there are any associated <tutorial> triggers... trigger them.
 	for _,trigger in ipairs(m_currentItem.UITriggers) do	
 		UITutorialManager:HideControlsByID( trigger, false );	
@@ -490,17 +516,13 @@ function KeyHandler( key:number )
 			KeyNavMoveFocus( 1 );
 			return true;
 		elseif key == Keys.VK_ESCAPE then
-			-- Nothing to dismiss (the advisor must be answered): the first Escape reads it again, a second one in a row opens the game menu.
-			if m_keyNavEscapePending then
-				m_keyNavEscapePending = false;
-				LuaEvents.Tutorial_ToggleInGameOptionsMenu();
-			else
-				m_keyNavEscapePending = true;
-				KeyNavAnnouncePopup( false );
-				OutputMessageToScreenReader( "Press Escape again for the menu", true );
-			end
+			-- Close like the first button (Continue / OK); the item cannot be left unanswered.
+			KeyNavActivate( 1 );
 			return true;
-		elseif (key == Keys.VK_RETURN or key == Keys.VK_SPACE) and #m_kKeyNavButtons > 0 then
+		elseif key == Keys.VK_SPACE and #m_kKeyNavButtons > 0 then
+			KeyNavAnnouncePopup( false );
+			return true;
+		elseif key == Keys.VK_RETURN and #m_kKeyNavButtons > 0 then
 			-- The continue hotkey may have activated the button already on key down; otherwise do it now.
 			if m_keyNavHotkeyFired then
 				m_keyNavHotkeyFired = false;
@@ -511,7 +533,6 @@ function KeyHandler( key:number )
 		end
 	end
 	m_keyNavHotkeyFired = false;
-	m_keyNavEscapePending = false;
 
 	if key == Keys.VK_ESCAPE then
 		if m_isDiplomacyUp then return false; end	-- Currently cannot handle ESC if diplomacy is up.
