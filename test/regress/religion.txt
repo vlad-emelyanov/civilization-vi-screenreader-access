@@ -1,0 +1,18 @@
+# UNVERIFIED (written offline, never run). Religion screen overview on medieval-t100: L opens it, Down moves, Space reads details, Escape closes.
+# Whatever the state of that game is (AI played 99 turns: it may or may not have a pantheon / religion), the opening line starts with one of
+# "Religion" (no religion yet, or one religion: "Religion: Buddhism, founded by you ..."), "Found a religion", "Choose" or "Confirm". If the
+# opening line differs, the screen did not open or the hub swallowed L: check `civctl menu` and Lua.log.
+# no-share-load
+load medieval-t100
+clear-advisors
+key L -Settle 2500
+expect ^(Religion|Found a religion|Choose|Confirm|Add a belief)
+key Down -Settle 600
+expect \d+ of \d+$
+key Space -Settle 600
+expect .+
+key Tab -Settle 1500
+expect ^(Tab .+, \d+ of \d+|No other tabs)
+key Escape -Settle 1500
+expect ^Religion closed
+no-lua-errors
