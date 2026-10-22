@@ -1,0 +1,27 @@
+# UNVERIFIED (written without the game): in-game Save Game / Load Game screens speak. Opens them, never saves or loads.
+# Top menu order: Return, Quick Save, Save Game, Load Game (the cursor restarts at Return whenever the menu is shown again).
+# no-share-load
+load early-t60
+clear-advisors
+key Escape -Settle 1500
+expect (?i)^In game menu
+key Down -Settle 600
+key Down -Settle 600
+expect (?i)save game
+key Enter -Settle 2000
+expect (?i)^Save game\. Name: .*, edit box
+key Down -Settle 800
+expect (?i)(, \d+ of \d+$)|(^Cancel)
+key Escape -Settle 1500
+expect (?i)^In game menu
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+expect (?i)load game
+key Enter -Settle 3000
+expect (?i)^(\d+ saves?|No saved games)
+key Escape -Settle 1500
+expect (?i)^In game menu
+key Escape -Settle 1500
+expect (?i)^Menu closed
+no-lua-errors
