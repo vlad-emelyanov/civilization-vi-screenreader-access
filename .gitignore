@@ -408,3 +408,7 @@ FodyWeavers.xsd
 *.civ6suo
 # Local build output
 build_errors.txt
+
+# Offline-check tools and caches
+util/tools/
+.luacheckcache

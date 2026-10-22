@@ -1,0 +1,53 @@
+-- luacheck config for the mod. Run through util/lint.py (it strips Civ's `x:number` annotations first).
+std = "lua51"
+max_line_length = false
+-- globals defined at the top of a file may be used within that file (Civ screens define OnInput etc.)
+allow_defined_top = true
+unused_args = false
+self = false
+-- noise for this code base: unused locals/values/globals, shadowing, whitespace
+ignore = { "21[1-5]", "231", "232", "233", "311", "312", "313", "314", "43[1-3]", "131", "61[1-4]" }
+
+-- Engine globals (read-only)
+read_globals = {
+	"ActivityTypes", "Automation", "Benchmark", "BoostSources", "Calendar", "Challenges", "ChatTargetTypes",
+	"CityCommandResults", "CityCommandTypes", "CityManager", "CityOperationResults", "CityOperationTypes",
+	"Cities", "CivilizationLevelTypes", "CloudNotifyTypes", "CombatManager", "CombatResultParameters",
+	"CombatTypes", "CombatVisType", "ComponentType", "Controls", "ContextPtr", "CursorTypes", "DB", "DealManager",
+	"DefenseTypes", "DiplomacyManager", "DiplomacyMoodTypes", "DiplomacyResponseTypes", "DiplomaticStates",
+	"DirectionTypes", "EffectsManager", "EndTurnBlockingTypes", "Events", "FireWireTypes", "FiraxisLive",
+	"Game", "GameCapabilities", "GameClimate", "GameConfiguration", "GameInfo", "GameStateTypes",
+	"GlobalParameters", "IconManager", "Input", "InstanceManager", "InterfaceModeTypes", "KeyEvents", "Keys",
+	"KickReason", "LuaEvents", "Locale", "MPLobbyTypes", "Map", "MapConfiguration", "MapFeatureManager",
+	"MapLayers", "Matchmaking", "MilitaryFormationTypes", "Modding", "MomentDataTypes", "Mouse", "MouseEvents",
+	"Network", "NetworkPlatform", "NotificationManager", "NotificationTypes", "Options", "PlayerComponentTypes",
+	"PlayerConfigurations", "PlayerManager", "PlayerOperations", "PlayerTypes", "Players", "PlayersVisibility",
+	"PopupDialog", "PopupPriority", "ReportingStatusTypes", "RevealedState", "RiverManager", "SaveFileTypes",
+	"SaveLocationOptions", "SaveLocations", "SaveTypes", "ServerType", "SlotStatus", "TTManager", "TeamTypes",
+	"TerrainManager", "TouchManager", "UI", "UILens", "UIManager", "UITutorialManager", "UnitCommandResults",
+	"UnitCommandTypes", "UnitManager", "UnitOperationResults", "UnitOperationTypes", "Units", "UserConfiguration",
+	-- provided by game files pulled in with include(): ToolTipHelper_PlayerYields, Civ6Common
+	"GetScienceTooltip", "GetCultureTooltip", "GetFaithTooltip", "GetGoldTooltip", "MoveUnitToPlot",
+	"View", "WarTypes", "WorldBuilder", "YieldTypes", "include", "ToolTipHelper", "Cities", "Locale",
+}
+
+-- Globals the mod defines in Assets/UI/Accessibility/*.lua (shared via include()). Keep in sync.
+globals = {
+	"CleanTextForSpeech", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
+	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",
+	"KeyNavEditBox_Cancel", "KeyNavEditBox_Describe", "KeyNavEditBox_HandleInput", "KeyNavEditBox_IsEditing",
+	"KeyNavEditBox_Update", "KeyNavErrorHandler", "KeyNavItems", "KeyNavKeyHandler", "KeyNavLabel",
+	"KeyNavLeftClick", "KeyNavList_Create", "KeyNavList_ShortList", "KeyNavMoveFocus", "KeyNavMoveMouse",
+	"KeyNavMoveMouseToScreen", "KeyNavPageText", "KeyNavScrollIntoView", "KeyNavSetup_BuildParameterItems",
+	"KeyNavSetup_ButtonItem", "KeyNavSetup_GetDriver", "KeyNavSetup_GetOptions", "KeyNavSetup_GetValueByOffset",
+	"KeyNavSetup_IsUsable", "KeyNavSetup_LeaderItem", "KeyNavSetup_MapItem", "KeyNavSetup_NewController",
+	"KeyNavSetup_OpenPicker", "KeyNavSetup_ParameterItem", "KeyNavSetup_PulldownItem", "KeyNavSetup_SectionPrefix",
+	"KeyNavSetup_SortByPosition", "KeyNavToggleDontShow", "KeyNav_Tick", "OutputMessageToScreenReader",
+	"PlacementScan_Blockers", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
+	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_GetDirectionWord",
+	"PlotDescription_GetRelative", "PlotDescription_GetShort", "PlotDescription_GetUnitName",
+	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "PrintKeyMap",
+	"PrintKeyboardNavigationElements", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
+	"SettleScan_CheckPlot", "SettleScan_Scan", "StringifyCity", "StringifyUnit", "TopPanelData_BuildItems",
+	"TopPanelData_Summary",
+}
