@@ -988,6 +988,7 @@ end
 
 -- ===========================================================================
 function Close()
+	SRA_ClearConfirm();		-- ScreenReaderAccess
 
 	m_originCityOwner = -1;
 	m_originCityID = -1;
@@ -1008,6 +1009,7 @@ end
 
 -- ===========================================================================
 function Open()
+	local srWasShown:boolean = not ContextPtr:IsHidden();		-- ScreenReaderAccess: a ReOpen while visible must not re-announce
 	LuaEvents.TradeRouteChooser_SetTradeUnitStatus("LOC_HUD_UNIT_PANEL_CHOOSING_TRADE_ROUTE");
 
 	ContextPtr:SetHide(false);
@@ -1047,7 +1049,7 @@ function Open()
 	LuaEvents.LaunchBar_CheckPopupsOpen();
 
 	Refresh();	
-	SRA_ArmOpen();		-- ScreenReaderAccess
+	if not srWasShown then SRA_ArmOpen(); end		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -1361,6 +1363,10 @@ function SRA_Announce()
 end
 
 -- Called at the end of Open(): the game preselects the last completed route there; announce a moment later.
+function SRA_ClearConfirm()
+	m_srConfirm = nil;
+end
+
 function SRA_ArmOpen()
 	m_srConfirm = nil;
 	m_srList.Reset();

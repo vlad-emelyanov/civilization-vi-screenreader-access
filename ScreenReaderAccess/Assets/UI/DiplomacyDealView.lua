@@ -3362,6 +3362,7 @@ local m_srLeaderText:string = "";			-- what the leader says now (set by SetLeade
 local m_srSpokenLeader:string = "";
 local m_srSpokenSig:string = "";			-- the deal summary as last spoken
 local m_srAcceptTime = nil;					-- when the final Accept was pressed, so the hide says "Deal accepted"
+local m_srStatementTime = nil;				-- UI.GetElapsedTime() when it arrived
 local m_srStatement = nil;					-- what the leader said when the deal was opened (LuaEvents.SRA_DealStatement from DiplomacyActionView)
 
 local function SRA_Say( text:string, nointerrupt:boolean )
@@ -3751,7 +3752,10 @@ local function SRA_Announce()
 	end
 	local summary:string = SRA_Summary();
 	local parts:table = { DealSpeech_Intro( leader, civ, mode ) };
-	if m_srStatement ~= nil and m_srStatement ~= "" then table.insert( parts, m_srStatement ); end
+	-- a statement handed over while nobody opened the deal screen is stale: only use one from the last 3 seconds
+	if m_srStatement ~= nil and m_srStatement ~= "" and m_srStatementTime ~= nil and UI.GetElapsedTime() - m_srStatementTime < 3 then
+		table.insert( parts, m_srStatement );
+	end
 	m_srStatement = nil;
 	if m_srLeaderText ~= "" and m_srLeaderText ~= parts[2] then table.insert( parts, m_srLeaderText ); end
 	table.insert( parts, summary );
@@ -3791,6 +3795,7 @@ end
 
 function SRA_OnStatement( text:string )
 	m_srStatement = text;
+	m_srStatementTime = UI.GetElapsedTime();
 end
 
 -- The other side sent a new version of the deal (or answered it).
