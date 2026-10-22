@@ -24,7 +24,7 @@ checks in a row look at the same lines; the first action step after a check star
 
 Failure handling: a failed expect prints FAIL with the lines it saw and the script goes on. A failed load/scenario
 (non-zero exit) aborts the script, as does civctl exit 5 (game crashed/hung) at any step; exit 6 (lock held by another
-owner) aborts the whole run. After an abort the next script starts with a fresh load. Other non-zero exits of
+owner) and 7 (no owner given) abort the whole run. After an abort the next script starts with a fresh load. Other non-zero exits of
 key/wait/lua count as a failed step and the script goes on.
 
 A script whose checks were all skipped by a shared load is reported as SKIPPED-ALL with a warning (it checked nothing).
@@ -35,9 +35,9 @@ Loads: by default every script does its own `load`, because keys change the game
 `load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script loaded the same fixture and finished without an abort (faster, but state
 drifts: use it for read-only scripts). Scripts are run grouped by their first fixture so shared loads are adjacent.
 
-Env: CIVCTL_OWNER is the lock owner passed to civctl. Run directly the default is 'regress'; through `civctl regress` it is
-the caller's owner (civctl exports it; 'default' when none is set), so the caller's lock lease is reused.
-Exit code: 0 all passed, 1 something failed, 2 usage/parse error.
+Env: CIVCTL_OWNER (or --owner) is the lock owner passed to civctl and is REQUIRED (no default; refused with exit 7 without
+it). Through `civctl regress` it is the caller's owner, so the caller's lock lease is reused.
+Exit code: 0 all passed, 1 something failed, 2 usage/parse error, 7 no owner.
 """
 import argparse
 import glob
@@ -171,7 +171,7 @@ class CivctlRunner:
     def __init__(self, cmd=CIVCTL, owner=None):  # cmd: path of civctl.ps1
         self.cmd = cmd
         self.env = dict(os.environ)
-        self.env["CIVCTL_OWNER"] = owner or os.environ.get("CIVCTL_OWNER") or "regress"
+        self.env["CIVCTL_OWNER"] = owner or os.environ.get("CIVCTL_OWNER") or ""  # main() refuses an empty owner
 
     def run(self, args):
         # powershell.exe -File directly: going through civctl.cmd (%*) loses '^' and quotes in regexes.
@@ -299,7 +299,7 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             rc, presses = 0, 0
             while True:
                 rc, up, lines = advisor_popup_up(runner)
-                if rc == 6:
+                if rc in (6, 7):
                     raise LockedError(chr(10).join(lines))
                 if rc != 0:
                     out("  WARNING line %d: advisor probe failed (exit %d), no Enter pressed: %s" % (s.line, rc, " ".join(l.strip() for l in lines[-2:])))
@@ -311,7 +311,7 @@ def run_script(name, steps, runner, out=print, skip_load=False):
                     break
                 rc, lines = runner.run(["key", "Enter", "-Settle", "1500"])
                 presses += 1
-                if rc == 6:
+                if rc in (6, 7):
                     raise LockedError(chr(10).join(lines))
                 window.extend(parse_sr_lines(lines))
                 if rc != 0:
@@ -345,7 +345,7 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             for l in lines:
                 if l.strip() and not _PREFIX.match(l):
                     out("    " + l.rstrip())
-        if rc == 6:
+        if rc in (6, 7):
             raise LockedError("\n".join(lines))
         if rc == TIMEOUT_RC:
             res.failed += 1
@@ -441,7 +441,7 @@ def main(argv=None):
     ap.add_argument("--share-load", action="store_true", help="skip the load when the previous script loaded the same fixture")
     ap.add_argument("--dry-run", action="store_true", help="parse and list the scripts, do not touch the game")
     ap.add_argument("--list", action="store_true", help="same as --dry-run")
-    ap.add_argument("--owner", help="civctl lock owner (default $CIVCTL_OWNER or 'regress'; civctl regress passes its own owner)")
+    ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
     a = ap.parse_args(argv)
     try:
         scripts = order_scripts(discover(a.names))
@@ -455,7 +455,11 @@ def main(argv=None):
         for n, steps in scripts:
             print("%s: fixture %s, %d steps" % (n, first_fixture(steps) or "-", len(steps)))
         return 0
-    results = run_all(scripts, CivctlRunner(owner=a.owner), a.share_load)
+    owner = a.owner or os.environ.get("CIVCTL_OWNER")
+    if not owner:
+        print("REFUSED: set CIVCTL_OWNER=<your agent name> (or -Owner <name>) before driving the game")
+        return 7
+    results = run_all(scripts, CivctlRunner(owner=owner), a.share_load)
     p = sum(r.passed for r in results)
     f = sum(r.failed for r in results)
     print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (

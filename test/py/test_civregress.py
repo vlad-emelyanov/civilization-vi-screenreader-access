@@ -116,6 +116,19 @@ class FlowTests(unittest.TestCase):
         with self.assertRaises(cr.LockedError):
             cr.run_script("t", cr.parse_script("key A"), r, self.quiet())
 
+    def test_no_owner_raises(self):
+        r = FakeRunner([(["key"], (7, ["REFUSED: set CIVCTL_OWNER=<your agent name>"]))])
+        with self.assertRaises(cr.LockedError):
+            cr.run_script("t", cr.parse_script("key A"), r, self.quiet())
+
+    def test_main_requires_owner(self):
+        old = os.environ.pop("CIVCTL_OWNER", None)
+        try:
+            self.assertEqual(cr.main(["early-turn-announce"]), 7)
+        finally:
+            if old is not None:
+                os.environ["CIVCTL_OWNER"] = old
+
     def test_scenario_missing_aborts(self):
         res = cr.run_script("t", cr.parse_script("scenario no-such-scenario-xyz\nkey A"), FakeRunner(), self.quiet())
         self.assertTrue(res.aborted)

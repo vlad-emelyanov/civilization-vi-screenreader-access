@@ -28,9 +28,11 @@
   .\util\civctl.ps1 scenario governor-title   # run util\scenarios\<name>.lua in GameCore_Tuner (sets up one situation on a loaded fixture)
   .\util\civctl.ps1 unlock                # release the driving lock (see below)
 
-  Lock (owner lease): commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER, default 'default') and
-  keep it between commands. Another owner gets "game in use by X, last used N s ago" (exit 6) while the owner's last use is
-  younger than 10 min; after that the lease is taken over with a warning. `unlock` releases it.
+  Lock (owner lease): commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER) and
+  keep it between commands. No owner = REFUSED (exit 7). Another owner gets "game in use by X, last used N s ago" (exit 6) while
+  the owner's last use is younger than 3 min (long commands refresh it every 30 s); after that the lease is taken over with a
+  warning. `unlock` (no owner needed) releases it and prints whose lease it was.
+  No lock, no owner needed: build, menu, shot, keymap, status, fixtures, states, unlock. `regress` needs an owner (passes it on).
   .\util\civctl.ps1 regress all           # speech regression scripts (python util\civregress.py; extra words are passed on: regress all --share-load)
   Crash / hang: key, wait, sr, lua, save, load print GAME CRASHED / GAME HUNG (with the crash dump path) and exit 5.
 
@@ -55,7 +57,7 @@ param(
     [switch]$NoLint,        # deploy/reload: skip the luacheck pass over the changed .lua files
     [string]$Out,
     [string]$File,          # lua: read the Lua code from this file instead of the command line
-    [string]$Owner,         # name of the agent driving the game (lock file); default $env:CIVCTL_OWNER or 'default'
+    [string]$Owner,         # name of the agent driving the game (lock file); required for commands that drive the game; default $env:CIVCTL_OWNER
     [string]$Purpose,       # save: why this fixture exists (goes into the sidecar)
     [string]$Profile,       # save: game profile it came from (newgame passes it)
     [string]$Save           # autoplay: fixture name to save when it finishes
@@ -79,7 +81,7 @@ $GameProcessNames = @('CivilizationVI', 'CivilizationVI_DX12')
 $ScreenReaderMarker = '#SCREENREADER'
 $FixtureDir = Join-Path $RepoRoot 'test\fixtures'
 $LockFile = Join-Path $StateDir 'lock'
-$LockLeaseMinutes = 10
+$LockLeaseMinutes = 3   # long-running loops refresh the lease every ~30 s (Update-Lock)
 $script:HungSince = $null
 $StopMarker = Join-Path $StateDir 'stopped.txt'   # written by `stop`, removed by `start`: a deliberate stop is not a crash
 
@@ -158,13 +160,21 @@ public static class Native {
 }
 
 # --- lock: only one agent drives the game ---------------------------------------------------------------------------------------------
-function Get-Owner { if ($Owner) { $Owner } elseif ($env:CIVCTL_OWNER) { $env:CIVCTL_OWNER } else { 'default' } }
+function Get-Owner { if ($Owner) { $Owner } elseif ($env:CIVCTL_OWNER) { $env:CIVCTL_OWNER } else { $null } }
+
+function Assert-Owner {
+    if (-not (Get-Owner)) {
+        Write-Output 'REFUSED: set CIVCTL_OWNER=<your agent name> (or -Owner <name>) before driving the game'
+        exit 7
+    }
+}
 
 function Enter-Lock {
     # Owner lease. The lock file holds the owner's name; its LastWriteTime is the last use. It is NOT released when a command ends:
     # the owner keeps it between commands (every command of the owner refreshes it; wait/autoplay refresh it while running) and
     # releases it with `civctl unlock`. Another owner is refused (exit 6) while the lease is fresh (< $LockLeaseMinutes idle);
     # after that the lease is taken over with a warning. Creating the file is atomic (CreateNew).
+    Assert-Owner
     $me = Get-Owner
     for ($try = 0; $try -lt 5; $try++) {
         try {
@@ -179,7 +189,7 @@ function Enter-Lock {
             for ($r = 0; $r -lt 10 -and -not $holder; $r++) { $holder = (Get-Content $LockFile -TotalCount 1 -ErrorAction SilentlyContinue); if (-not $holder) { Start-Sleep -Milliseconds 100 } }
             if (-not $holder -and (Test-Path $LockFile) -and ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalSeconds -lt 5) { continue }
             $idle = ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalSeconds
-            if ($holder -eq $me) { (Get-Item $LockFile).LastWriteTime = Get-Date; $script:LockHeld = $true; return }
+            if ($holder -eq $me) { (Get-Item $LockFile).LastWriteTime = Get-Date; $script:LockTouched = Get-Date; $script:LockHeld = $true; return }
             if ($holder -and $idle -lt $LockLeaseMinutes * 60) {
                 Write-Output ("game in use by {0}, last used {1:N0} s ago (lease {2} min). Ask them to run ``civctl unlock``, wait, or run ``civctl unlock`` yourself if they are gone. You are '{3}'." -f $holder, $idle, $LockLeaseMinutes, $me)
                 exit 6
@@ -193,15 +203,22 @@ function Enter-Lock {
 
 function Quit-Civctl([int]$code) { Exit-Lock; exit $code }   # `exit` skips the finally/cleanup: always leave through here
 
-function Update-Lock { if ($script:LockHeld -and (Test-Path $LockFile)) { try { (Get-Item $LockFile).LastWriteTime = Get-Date } catch { } } }
+# Touches the lease (its LastWriteTime). Throttled to once per 10 s unless -Now, so loops can call it every iteration.
+$script:LockTouched = [datetime]::MinValue
+function Update-Lock([switch]$Now) {
+    if (-not $script:LockHeld) { return }
+    if (-not $Now -and ((Get-Date) - $script:LockTouched).TotalSeconds -lt 10) { return }
+    if (Test-Path $LockFile) { try { (Get-Item $LockFile).LastWriteTime = Get-Date; $script:LockTouched = Get-Date } catch { } }
+}
 
-function Exit-Lock { Update-Lock }   # the lease stays with the owner; only `unlock` releases it
+function Exit-Lock { Update-Lock -Now }   # the lease stays with the owner; only `unlock` releases it
 
 function Invoke-Unlock {
     if (Test-Path $LockFile) {
         $holder = Get-Content $LockFile -TotalCount 1
+        $idle = [int]((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalSeconds
         Remove-Item $LockFile -Force
-        Write-Output "Lock released (was held by '$holder')."
+        Write-Output "Lock released (was held by '$holder', last used $idle s ago)."
     } else { Write-Output 'No lock was held.' }
 }
 
@@ -251,6 +268,7 @@ function Assert-GameHealthy([int]$Grace = 0, [switch]$Block, [switch]$AllowStopp
     if ($HangGrace -gt 0) { $Grace = $HangGrace }
     elseif ($script:DefaultHangGrace -gt $Grace) { $Grace = $script:DefaultHangGrace }
     while ($true) {
+        Update-Lock
         $p.Refresh()
         if ($p.Responding) { $script:HungSince = $null; $script:UnrespSince = $null; return }
         # Hard cap: a frozen window whose Lua.log keeps growing (a print loop) is still a hang after 10 min.
@@ -319,7 +337,8 @@ function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec, [bool]$check =
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     $n = 0
     while ((Get-Date) -lt $deadline) {
-        if ($check -and ($n++ % 12) -eq 0) { Assert-GameHealthy -Grace 25; Update-Lock }
+        Update-Lock
+        if ($check -and ($n++ % 12) -eq 0) { Assert-GameHealthy -Grace 25 }
         $matched = $false
         # Finish the whole batch even after a match: the cursor has already moved past these lines.
         foreach ($l in (Read-NewLogLines)) {
@@ -355,6 +374,7 @@ function Invoke-Start {
     $deadline = $launchTime.AddSeconds($Timeout)
     while ((Get-Date) -lt $deadline) {
         if ((Test-Path $LuaLog) -and (Get-Item $LuaLog).LastWriteTime -gt $launchTime) { break }
+        Update-Lock
         Start-Sleep -Seconds 1
     }
     # The intro movie holds back the main menu until a key is pressed, so keep tapping Escape until it shows.
@@ -613,7 +633,7 @@ function Invoke-Stop {
     Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue | Stop-Process -Force
     # Relaunching while the old process is still tearing down makes the new launch silently exit.
     $deadline = (Get-Date).AddSeconds(30)
-    while ((Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+    while ((Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Update-Lock; Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 3
     [IO.File]::WriteAllText($StopMarker, (Get-Date).ToString('o'))
     Write-Output 'Stopped.'
@@ -756,7 +776,7 @@ function Invoke-LoadOnce([string]$name) {
         if (-not (Get-GameProcess)) {
             Write-Output 'Game process exists but has no window yet (launching): waiting, not starting a second instance.'
             $until = (Get-Date).AddSeconds(120)
-            while (-not (Get-GameProcess) -and (Test-GameLaunching) -and (Get-Date) -lt $until) { Start-Sleep -Seconds 1 }
+            while (-not (Get-GameProcess) -and (Test-GameLaunching) -and (Get-Date) -lt $until) { Update-Lock; Start-Sleep -Seconds 1 }
         }
     } elseif (-not (Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue)) { Invoke-Start }
     Assert-GameHealthy -Grace 8 -Block
@@ -873,7 +893,7 @@ function Invoke-Autoplay([string]$n) {
     $done = $false
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 30
-        Update-Lock
+        Update-Lock -Now
         Assert-GameHealthy -Grace 150 -Block
         $r = Invoke-LuaCapture 'InGame' 'return tostring(AutoplayManager.IsActive()) .. " " .. tostring(Game.GetCurrentGameTurn())'
         $txt = ($r -join ' ').Trim()
@@ -908,7 +928,8 @@ function Show-Status {
 
 $script:LockHeld = $false
 $script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'wait') { 150 } else { 0 }
-$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario')
+$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
+if ($Command -eq 'regress') { Assert-Owner }
 if ($Command -in $LockedCommands) {
     Enter-Lock
 }
