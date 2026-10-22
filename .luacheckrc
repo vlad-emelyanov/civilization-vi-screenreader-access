@@ -47,7 +47,7 @@ globals = {
 	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_GetDirectionWord",
 	"PlotDescription_GetRelative", "PlotDescription_GetShort", "PlotDescription_GetUnitName",
 	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "PrintKeyMap",
-	"PrintKeyboardNavigationElements", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
+	"PrintKeyboardNavigationElements", "SRListen", "SRUnlistenAll", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
 	"SettleScan_CheckPlot", "SettleScan_Scan", "StringifyCity", "StringifyUnit", "TopPanelData_BuildItems",
 	"TopPanelData_Summary",
 }

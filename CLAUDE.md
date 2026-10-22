@@ -52,6 +52,17 @@ util\civctl.cmd shot                 # screenshot path, view only when output is
 - Lua errors land in `Lua.log` as `Runtime Error:`; grep for them after every run. Wrap new input handlers in `xpcall` while developing; an error in an input handler otherwise silently kills the screen's keyboard input.
 - Drive the game by reacting to the `SR>` output, not fixed key counts: menus change (e.g. Resume Game appears once a save exists).
 
+## Offline checks (no game needed)
+
+```
+python util/lint.py [-v] [files...]   # luacheck (fetches util/tools/luacheck.exe on first use; ~1 s). Exit 1 = syntax error anywhere or any warning in mod-only files (Accessibility/, UI/Additions/); 2 = tool problem. -v lists upstream warnings
+python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install lupa on first use), test/lua/test_*.lua with stubs in test/lua/stubs/; <1 s. Exit 1 = failure
+```
+
+- Both read Civ's `local x:number` annotations (stripped before checking). Engine and mod globals are declared in `.luacheckrc`: a new global defined in `Accessibility/` must be added to `globals` there.
+- New pure logic gets a `test/lua/test_*.lua` (`stub("engine")`, `stub("world")` for a fake map, `include("X")` loads `Accessibility/X.lua`, `Spoken()` returns what `OutputMessageToScreenReader` printed, `load_mod_block(path, n)` loads a mod-change block of a game-file copy).
+- Register event listeners with `SRListen` / `SRUnlistenAll()` (`Accessibility/SRListen.lua`, see `docs/keynav-guide.md`).
+
 ## Workflow rules
 
 - **New override of a game file:** first commit the untouched game file alone ("Add X.lua pristine asset"), then commit the mod changes on top. Register it in the `.civ6proj`: a `<File priority="10001">` entry in `FrontEndActionData` and/or `InGameActionData` (which context loads it: verify a print from your copy shows up in `Lua.log`) plus a `<Content Include>` entry. Any `Accessibility/` helper that a front-end screen `include`s must be listed in BOTH `FrontEndActionData` and `InGameActionData`, or it silently fails to load after returning from a game (the screen script aborts).

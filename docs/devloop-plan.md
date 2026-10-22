@@ -171,6 +171,8 @@ Autoplay does not replace blind play-throughs: those stay the way we find UX pro
 
 ## 7. Code checks without the game
 
+**Done (2026-10-22):** `python util/lint.py` (luacheck, strict for mod-only files), `python util/luatest.py` (lupa/Lua 5.1, 6 test files), `Accessibility/SRListen.lua` added and registered. Pending: wiring lint into `civctl deploy`, and adopting `SRListen` in the overrides (needs a game restart).
+
 These let more agents work in parallel, because only work that needs the game waits for it.
 
 1. **Static check:**

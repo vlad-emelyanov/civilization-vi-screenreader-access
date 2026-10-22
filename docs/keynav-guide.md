@@ -33,6 +33,7 @@ Announcement formats: `"<Label>: <value>"` for options, `"<Label>: checked|unche
 - **Suppress hover announcements while you move the mouse** (and while items slide in under the cursor), otherwise you get bursts of announcements. Real mouse hover can still move focus and announce once.
 - **Scroll the focused item into view** in scroll panels before moving the mouse (see `KeyNavFocus` in `AdvancedSetup.lua`).
 - **Clean text for speech:** convert `[NEWLINE]` to `. `, drop `[ICON_*]` and other markup (`CleanForSpeech` in `LoadScreen.lua`).
+- **Register listeners with `SRListen`** (`Accessibility/SRListen.lua`, `include( "SRListen" )`): `SRListen( Events.X, OnX )` does the `Add` and remembers it; call `SRUnlistenAll()` once in the context's shutdown handler (`ContextPtr:SetShutdown( function() SRUnlistenAll(); end )`) and a hot reload or game exit leaves no stale listener behind. Use it for every override you touch (adoption in the existing overrides is pending; they still use hand-written `.Remove` calls). Offline-tested in `test/lua/test_srlisten.lua`.
 
 ## Traps
 
