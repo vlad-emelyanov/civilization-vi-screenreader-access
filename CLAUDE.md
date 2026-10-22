@@ -58,6 +58,7 @@ util\civctl.cmd unlock              # release the lock; set CIVCTL_OWNER=<name> 
 - **Needs a full restart:** new files, `.civ6proj`/`.modinfo` changes (these need `build`), `Database/*.sql` (`deploy` reports them with exit code 3, also files deleted from the repo that are still deployed), probably XML layout changes (untested). If a deploy shows a `Syntax Error`, fix and deploy again.
 - Without a restart you can also `Exit to Main Menu` and `Resume Game` (~25 s) to re-run everything, but hot reload makes that rarely necessary.
 - Tuner: `EnableTuner 1` in `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VI\AppOptions.txt` (`[Debug]`, needs a game restart; disables achievements). `util\civtuner.py` (adapted from civ6-mcp, MIT) speaks the FireTuner protocol on 127.0.0.1:4318; only one tuner connection at a time. Use it to set up scenarios in `GameCore_Tuner` (e.g. `Players[0]:GetTreasury():ChangeGoldBalance(100)`) and to read state; errors print as `ERR:` with exit code 1.
+- In team-lead mode only the verifier/game-owning agent runs `civctl`; fix agents use lint/luatest/regress scripts (see `.claude/skills/team-lead/SKILL.md`).
 - Do not run several `civctl` commands in parallel: they share the log cursor in `%TEMP%\civctl\cursor.txt`.
 - Console app: `dotnet build ScreenreaderAccess.Console` (`civctl start` launches it).
 - Lua errors land in `Lua.log` as `Runtime Error:`; grep for them after every run. Wrap new input handlers in `xpcall` while developing; an error in an input handler otherwise silently kills the screen's keyboard input.
