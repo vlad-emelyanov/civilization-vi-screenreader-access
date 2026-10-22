@@ -7,3 +7,4 @@ clear-advisors
 expect ^Barbarian Warrior spotted, \d+ tiles? (north|south|east|west)
 key X -Settle 1500
 expect ^Barbarian Warrior, .*\d+ tiles? (north|south|east|west)
+no-lua-errors

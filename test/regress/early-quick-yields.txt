@@ -3,4 +3,4 @@ load early-start
 expect ^Turn 1\b
 key Control+G
 expect ^Science [\d.]+\. Culture [\d.]+\. Faith [\d.]+\. Gold \d+
-expect-not (?i)error
+no-lua-errors

@@ -7,4 +7,4 @@ lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units
 key Tab -Settle 1500
 expect ^Builder, \d+ of \d+ moves
 expect ^Builder actions, \d+ options
-key Escape -Settle 1000
+no-lua-errors
