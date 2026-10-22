@@ -84,6 +84,7 @@ local m_srActionPlayer			:number = -1;		-- city-state the action list is open fo
 local m_srOpenPending			:boolean = false;
 local m_srOpenDelay				:number = 0;
 local m_srSingle				:boolean = false;	-- opened on one city-state (city banner click)
+local m_srResult				:table = nil;		-- { wait, check } a levy / peace request whose outcome is spoken once it settled
 -- End ScreenReaderAccess
 
 -- ===========================================================================
@@ -1652,7 +1653,7 @@ end
 local function SRA_MetCityStates()
 	local list:table = {};
 	for _, kCityState in pairs( m_kCityStates ) do
-		if kCityState.isHasMet then table.insert( list, kCityState ); end
+		if kCityState.isHasMet and kCityState.isAlive then table.insert( list, kCityState ); end
 	end
 	table.sort( list, function( a, b ) return a.iPlayer < b.iPlayer; end );
 	return list;
@@ -1799,7 +1800,7 @@ end
 
 local function SRA_AddEnvoy( iPlayer:number )
 	local kCityState:table = m_kCityStates[ iPlayer ];
-	if kCityState == nil or m_uiCityStateRows[ iPlayer ] == nil then return; end
+	if kCityState == nil or m_uiCityStateRows[ iPlayer ] == nil then SRA_Say( "Not available: that city-state is gone" ); return; end
 	local name:string = Locale.Lookup( kCityState.Name );
 	if not m_isLocalPlayerTurn then SRA_Say( "Not your turn" ); return; end
 	if not kCityState.CanReceiveTokensFrom then
@@ -1813,7 +1814,7 @@ end
 
 local function SRA_RemoveEnvoy( iPlayer:number )
 	local kCityState:table = m_kCityStates[ iPlayer ];
-	if kCityState == nil or m_uiCityStateRows[ iPlayer ] == nil then return; end
+	if kCityState == nil or m_uiCityStateRows[ iPlayer ] == nil then SRA_Say( "Not available: that city-state is gone" ); return; end
 	if SRA_Pending( iPlayer ) <= 0 then
 		SRA_Say( "No pending envoys for " .. Locale.Lookup( kCityState.Name ) );
 		return;
@@ -1854,7 +1855,11 @@ end
 -- A: the action list, also while envoys are being sent (Enter adds an envoy there).
 local function SRA_KeyActions()
 	local iPlayer = SRA_FocusedPlayer();
-	if iPlayer ~= nil and m_kCityStates[ iPlayer ] ~= nil then SRA_OpenActions( iPlayer ); end
+	if iPlayer ~= nil and m_kCityStates[ iPlayer ] ~= nil then
+		SRA_OpenActions( iPlayer );
+	else
+		SRA_Say( "No city-state selected" );
+	end
 end
 
 local function SRA_OnListClose()
@@ -1866,15 +1871,15 @@ end
 
 -- Keys that act on the focused city-state in send envoys mode.
 local function SRA_KeyAdd()
-	if not SRA_IsSendMode() then return; end
+	if not SRA_IsSendMode() then SRA_Say( "Not sending envoys. Enter opens the actions" ); return; end
 	local iPlayer = SRA_FocusedPlayer();
-	if iPlayer ~= nil then SRA_AddEnvoy( iPlayer ); end
+	if iPlayer ~= nil then SRA_AddEnvoy( iPlayer ); else SRA_Say( "No city-state selected" ); end
 end
 
 local function SRA_KeyRemove()
-	if not SRA_IsSendMode() then return; end
+	if not SRA_IsSendMode() then SRA_Say( "Not sending envoys. Enter opens the actions" ); return; end
 	local iPlayer = SRA_FocusedPlayer();
-	if iPlayer ~= nil then SRA_RemoveEnvoy( iPlayer ); end
+	if iPlayer ~= nil then SRA_RemoveEnvoy( iPlayer ); else SRA_Say( "No city-state selected" ); end
 end
 
 -- The action list for one city-state (overview mode).
@@ -1915,11 +1920,31 @@ local function SRA_OnActionActivate( item:table )
 		LookAtCityState( kCityState.iPlayer );
 		SRA_Say( "Showing " .. name .. " on the map. The map cursor is there" );
 	elseif item.key == "levy" then
+		local pLocal:table = Players[ Game.GetLocalPlayer() ];
+		local goldBefore:number = pLocal:GetTreasury():GetGoldBalance();
+		local cost:number = kCityState.LevyMilitaryCost;
+		local iPlayer:number = kCityState.iPlayer;
 		OnLevyMilitary( kCityState );
-		SRA_BackToList( "Levying the military of " .. name .. " for " .. kCityState.LevyMilitaryCost .. " gold" );
+		SRA_BackToList( "Levying the military of " .. name .. " for " .. cost .. " gold" );
+		-- the request is answered by the engine a moment later: check the result instead of assuming it
+		m_srResult = { wait = 1.0, check = function()
+			local done:boolean = pLocal:GetTreasury():GetGoldBalance() <= goldBefore - cost + 1;
+			local cs:table = m_kCityStates[ iPlayer ];
+			if not done and cs ~= nil and not cs.CanLevyMilitary then done = true; end
+			SRA_Say( done and ( "Military of " .. name .. " levied" ) or ( "Could not levy the military of " .. name ), true );
+		end };
 	elseif item.key == "peace" then
+		local iPlayer:number = kCityState.iPlayer;
 		OnChangeWarPeaceStatus( kCityState );
 		SRA_BackToList( "Peace with " .. name .. " requested" );
+		m_srResult = { wait = 1.0, check = function()
+			local pLocal:table = Players[ Game.GetLocalPlayer() ];
+			if pLocal ~= nil and pLocal:GetDiplomacy():IsAtWarWith( iPlayer ) then
+				SRA_Say( "Could not make peace with " .. name, true );
+			else
+				SRA_Say( "Peace with " .. name, true );
+			end
+		end };
 	elseif item.key == "send" then
 		m_srActionPlayer = -1;
 		m_srSingle = false;
@@ -1981,6 +2006,15 @@ local function SRA_Announce()
 end
 
 function SRA_OnUpdate( deltaTime:number )
+	if m_srResult ~= nil then
+		m_srResult.wait = m_srResult.wait - deltaTime;
+		if m_srResult.wait <= 0 then
+			local result:table = m_srResult;
+			m_srResult = nil;
+			local ok:boolean, err = xpcall( result.check, KeyNavErrorHandler );
+			if not ok then print( "City-States result error: " .. tostring(err) ); end
+		end
+	end
 	if m_srOpenPending and not ContextPtr:IsHidden() then
 		m_srOpenDelay = m_srOpenDelay - deltaTime;
 		if m_srOpenDelay > 0 then return; end
