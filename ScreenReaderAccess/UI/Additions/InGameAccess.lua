@@ -17,6 +17,7 @@ include( "PlotDescription" );
 include( "KeyNavList" );
 include( "Civ6Common" );		-- MoveUnitToPlot (war declaration check + the right move/attack operation)
 include( "SettleScan" );		-- settler: can settle here, best spots
+include( "PlacementScan" );		-- city: where a district or wonder can go
 include( "TopPanelData" );		-- top panel values as sentences (Control+Y, Control+G)
 
 -- ===========================================================================
@@ -53,6 +54,11 @@ local m_arrivals			:table = {};		-- texts of notifications that arrived and are 
 local m_arrivalTimer		:number = -1;		-- >= 0: seconds until the arrivals are announced together
 local m_lastSelectionSpeech	:number = -100;		-- UI.GetElapsedTime() of the last unit/city selection announcement
 local m_pendingUnit			:number = nil;		-- unit selected while the game was still loading: announced once it is ready
+local m_placeScan			:table = nil;		-- PlacementScan result of the open placement mode (district / wonder browser)
+local m_placeParams			:table = nil;		-- insert-mode parameters read from the interface mode when placement began
+local m_placeConfirm		:number = nil;		-- plot index the placement browser asked "Enter to confirm" for
+local PlacementPlotText;						-- defined with the placement browser: what the cursor plot means there
+local OpenPlacement;
 
 -- ===========================================================================
 --	HELPERS
@@ -366,6 +372,10 @@ local function CanOpenMode()
 		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
 		return false;
 	end
+	if IsModeOpen( "placement" ) then
+		OutputMessageToScreenReader( "Place it, or Escape to cancel first" );
+		return false;
+	end
 	return true;
 end
 
@@ -563,7 +573,10 @@ local function DescribeCursorPlot( plot:table )
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
 	local text:string = PlotDescription_GetShort( plot, options );
 	local mode:number = GetTargetMode();
-	if mode ~= nil then
+	local placement:string = PlacementPlotText( plot );
+	if placement ~= nil then
+		text = placement .. ". " .. text;
+	elseif mode ~= nil then
 		local info:string = TargetInfo( mode, plot, unit );
 		if info ~= nil then text = info .. ". " .. text; end
 	elseif IsSettler( unit ) then
@@ -582,6 +595,7 @@ local function SetCursor( x:number, y:number, speak:boolean, interrupt:boolean, 
 	if plot == nil then return; end
 	m_cursorPlayer = Game.GetLocalPlayer();
 	m_cursorX, m_cursorY = x, y;
+	if m_placeConfirm ~= nil and m_placeConfirm ~= plot:GetIndex() then m_placeConfirm = nil; end		-- moved away from the tile to confirm
 	UI.LookAtPlotScreenPosition( x, y, 0.5, 0.5 );
 	if noMouse then
 		m_mouseTimer = -1;
@@ -954,6 +968,12 @@ end
 local function OnInterfaceModeChanged( oldMode:number, newMode:number )
 	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
 	if m_mode ~= nil and ( m_mode.name == "menu" or m_targetModes[ newMode ] ~= nil ) then CloseMode( false, true ); end
+	-- placing a district or wonder: the placement browser opens; it ends with the mode (placed, cancelled or replaced)
+	if IsModeOpen( "placement" ) then CloseMode( false, true ); end
+	if newMode == InterfaceModeTypes.DISTRICT_PLACEMENT or newMode == InterfaceModeTypes.BUILDING_PLACEMENT then
+		OpenPlacement( newMode );
+		return;
+	end
 	m_enterWatch = -1;
 	if newMode ~= InterfaceModeTypes.MOVE_TO then m_attackIntent = false; end
 	local label:string = m_targetModes[ newMode ];
@@ -1222,6 +1242,302 @@ local function ScanKey()
 		return;
 	end
 	ScanUnits( true );
+end
+
+-- ===========================================================================
+--	PLACEMENT BROWSER: district and wonder placement by keyboard. The game enters DISTRICT_PLACEMENT / BUILDING_PLACEMENT
+--	(ProductionPanel, Purchase tab); the candidate tiles come from PlacementScan. Up/Down browse (the cursor follows without
+--	the real mouse), Shift+Arrows move the cursor freely ("valid, plus 2 Science" / "purchasable, 60 gold" / "can't place
+--	here"), Enter (twice) places on the cursor tile, Space explains, Escape goes back / cancels.
+--	Committing mirrors StrategicView_MapPlacement.ConfirmPlaceDistrict / ConfirmPlaceWonder (without their popup); the
+--	game buys a tile in its own, separate step (PlotInfo.OnClickPurchasePlot), which Enter on a purchasable tile does too.
+-- ===========================================================================
+local m_placeList:table;
+
+local function IsPlacementMode( mode:number )
+	return mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT;
+end
+
+-- "plus 3 Science, removes Woods and Deer, buy tile 60 gold" (the parts that apply, comma separated; empty when none).
+local function PlacementEffects( c:table, withBuy:boolean )
+	local parts:table = {};
+	for _, text in ipairs( c.adjacency ) do table.insert( parts, text ); end
+	if #c.removes > 0 then table.insert( parts, "removes " .. table.concat( c.removes, " and " ) ); end
+	for _, text in ipairs( c.notes ) do table.insert( parts, text ); end
+	if withBuy and not c.owned then table.insert( parts, "buy tile " .. c.tileCost .. " gold" ); end
+	return table.concat( parts, ", " );
+end
+
+-- "2 tiles north-east, plus 3 Science, removes Woods, buy tile 60 gold"
+local function PlacementItemText( c:table )
+	local effects:string = PlacementEffects( c, true );
+	if effects == "" then return c.relative; end
+	return c.relative .. ", " .. effects;
+end
+
+-- What the cursor plot means for the item being placed (nil when no placement is going on).
+PlacementPlotText = function( plot:table )
+	local scan:table = m_placeScan;
+	if scan == nil or not IsModeOpen( "placement" ) then return nil; end
+	local c:table = scan.byIndex[ plot:GetIndex() ];
+	if c == nil then
+		local why:string = PlacementScan_Cannot( scan, plot );
+		return "can't place here" .. ( why ~= "" and ( ": " .. why ) or "" );
+	end
+	local text:string;
+	if c.owned then
+		text = "valid";
+	else
+		text = "purchasable, " .. c.tileCost .. " gold";
+	end
+	local effects:string = PlacementEffects( c, false );
+	if effects ~= "" then text = text .. ", " .. effects; end
+	return text;
+end
+
+local function PlacementDetail( c:table )
+	local text:string = m_placeScan.name .. " at " .. c.relative;
+	if c.explanation ~= "" then
+		text = text .. ". " .. c.explanation;
+	elseif m_placeScan.kind == "district" then
+		text = text .. ". No adjacency bonus";
+	end
+	if #c.removes > 0 then text = text .. ". Removes " .. table.concat( c.removes, " and " ); end
+	for _, note in ipairs( c.notes ) do text = text .. ". " .. note; end
+	if not c.owned then text = text .. ". You do not own this tile yet, buying it costs " .. c.tileCost .. " gold"; end
+	local plot:table = Map.GetPlotByIndex( c.plotIndex );
+	if plot ~= nil then text = text .. ". " .. PlotDescription_GetShort( plot, {} ); end
+	return text;
+end
+
+local function BuildPlacementItems()
+	local items:table = {};
+	if m_placeScan == nil then return items; end
+	for _, c in ipairs( m_placeScan.list ) do
+		table.insert( items, { key = c.key, text = PlacementItemText( c ), candidate = c, detail = function() return PlacementDetail( c ); end } );
+	end
+	return items;
+end
+
+-- Puts the mode away: the cursor goes back to the city. A mode that went stale while the game is still placing leaves
+-- the placement mode, or Enter and Escape would have nothing to act on.
+local function PlacementClosed( quiet:boolean )
+	m_placeScan = nil;
+	m_placeConfirm = nil;
+	if IsPlacementMode( UI.GetInterfaceMode() ) then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
+	local plot:table = GetSelectionPlot();
+	if plot ~= nil then SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
+end
+
+local function PlacementCancel()
+	SayResult( "Placement cancelled" );
+	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );		-- the mode change closes the browser; the game reopens the production panel
+end
+
+-- Escape: back from the confirmation first, then out of the placement.
+local function PlacementEscape()
+	if m_placeConfirm ~= nil then
+		m_placeConfirm = nil;
+		OutputMessageToScreenReader( "Back to the list" );
+		return;
+	end
+	PlacementCancel();
+end
+
+-- Asks the engine again (a tile was bought, or the map changed).
+local function PlacementRescan()
+	local scan:table = m_placeScan;
+	if scan == nil then return nil; end
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil then return nil; end
+	m_placeScan = PlacementScan_Scan( city, scan.kind, scan.hash, scan.purchaseYield );
+	return m_placeScan;
+end
+
+-- The production / purchase that followed the placement, said once the engine has applied it.
+local function PlacementResult( scan:table, before:table, tries:number )
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil or not IsLocalPlayerActive() then return; end
+	if scan.purchaseYield ~= nil then
+		local player:table = Players[ Game.GetLocalPlayer() ];
+		local isGold:boolean = ( scan.purchaseYield == YieldTypes.GOLD );
+		local balance:number = isGold and math.floor( player:GetTreasury():GetGoldBalance() ) or math.floor( player:GetReligion():GetFaithBalance() );
+		if balance < before.balance then
+			SayResult( "Bought " .. scan.name .. ", " .. balance .. ( isGold and " gold" or " faith" ) .. " left" );
+			return;
+		end
+	else
+		local queue:table = city:GetBuildQueue();
+		local hash:number = queue:GetCurrentProductionTypeHash();
+		if hash == scan.hash or queue:GetSize() > before.size then
+			local text:string = ( hash == scan.hash and "Producing " or "Queued " ) .. scan.name;
+			local turns:number = queue:GetTurnsLeft();
+			if hash == scan.hash and turns ~= nil and turns > 0 then text = text .. ", " .. Plural( turns, "turn", "turns" ); end
+			SayResult( text );
+			return;
+		end
+	end
+	if tries < 3 then
+		After( 0.5, function() PlacementResult( scan, before, tries + 1 ); end );
+	else
+		SayResult( "Not placed. Tab to the production panel to check" );
+	end
+end
+
+local function PlacementCommit( c:table )
+	local scan:table = m_placeScan;
+	local city:table = UI.GetHeadSelectedCity();
+	local plot:table = Map.GetPlotByIndex( c.plotIndex );
+	if scan == nil or city == nil or plot == nil then return; end
+	local params:table = {};
+	params[ CityOperationTypes.PARAM_X ] = plot:GetX();
+	params[ CityOperationTypes.PARAM_Y ] = plot:GetY();
+	local purchase:boolean = ( scan.purchaseYield ~= nil );
+	if scan.kind == "district" then
+		params[ CityOperationTypes.PARAM_DISTRICT_TYPE ] = scan.hash;
+		params[ CityCommandTypes.PARAM_YIELD_TYPE ] = scan.purchaseYield;
+	else
+		params[ CityOperationTypes.PARAM_BUILDING_TYPE ] = scan.hash;
+	end
+	for key, value in pairs( m_placeParams or {} ) do params[ key ] = value; end		-- insert mode and queue position
+	local can:boolean;
+	if purchase then
+		can = CityManager.CanStartCommand( city, CityCommandTypes.PURCHASE, params, true );
+	else
+		can = CityManager.CanStartOperation( city, CityOperationTypes.BUILD, params, true );
+	end
+	if not can then
+		SayResult( "Can't place " .. scan.name .. " here any more" );
+		PlacementRescan();
+		return;
+	end
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	local before:table = { size = city:GetBuildQueue():GetSize(), balance = 0 };
+	if purchase then
+		before.balance = ( scan.purchaseYield == YieldTypes.GOLD ) and math.floor( player:GetTreasury():GetGoldBalance() ) or math.floor( player:GetReligion():GetFaithBalance() );
+		CityManager.RequestCommand( city, CityCommandTypes.PURCHASE, params );
+	else
+		CityManager.RequestOperation( city, CityOperationTypes.BUILD, params );
+	end
+	m_lastKeyTime = UI.GetElapsedTime();
+	LuaEvents.SRA_ExitPlacement( false );		-- WorldInput: leave the mode as the game does after placing (closes this mode)
+	After( 0.4, function() PlacementResult( scan, before, 1 ); end );
+end
+
+local function PlacementBuyTile( c:table )
+	local scan:table = m_placeScan;
+	local city:table = UI.GetHeadSelectedCity();
+	if scan == nil or city == nil then return; end
+	local params:table = {};
+	params[ CityCommandTypes.PARAM_PLOT_PURCHASE ] = UI.GetInterfaceModeParameter( CityCommandTypes.PARAM_PLOT_PURCHASE );
+	params[ CityCommandTypes.PARAM_X ] = c.x;
+	params[ CityCommandTypes.PARAM_Y ] = c.y;
+	if not CityManager.CanStartCommand( city, CityCommandTypes.PURCHASE, params ) then
+		SayResult( "Can't buy this tile" );
+		return;
+	end
+	CityManager.RequestCommand( city, CityCommandTypes.PURCHASE, params );
+	m_lastKeyTime = UI.GetElapsedTime();
+	local function Report( tries:number )
+		if not IsModeOpen( "placement" ) then return; end
+		local fresh:table = PlacementRescan();
+		if fresh == nil then return; end
+		local c2:table = fresh.byIndex[ c.plotIndex ];
+		if ( c2 == nil or not c2.owned ) and tries < 2 then
+			After( 1.0, function() Report( tries + 1 ); end );		-- the engine may not have applied the purchase yet
+			return;
+		end
+		if c2 ~= nil and c2.owned then
+			local effects:string = PlacementEffects( c2, false );
+			SayResult( "Tile bought for " .. c.tileCost .. " gold. Valid" .. ( effects ~= "" and ( ", " .. effects ) or "" ) .. ". Enter to place " .. fresh.name .. " here" );
+		else
+			SayResult( "Tile bought, but " .. fresh.name .. " can't go there" );
+		end
+	end
+	After( 0.6, function() Report( 1 ); end );
+end
+
+-- Enter: the tile under the cursor (browsing puts the cursor on the listed tile; Shift+Arrows move it freely). The first
+-- Enter asks, the second one does it.
+local function PlacementEnter( item:table )
+	local scan:table = m_placeScan;
+	if scan == nil then return; end
+	local x:number, y:number = GetCursor();
+	local plot:table = Map.GetPlot( x, y );
+	if plot == nil then return; end
+	local c:table = scan.byIndex[ plot:GetIndex() ];
+	if c == nil then
+		local why:string = PlacementScan_Cannot( scan, plot );
+		SayResult( "Can't place " .. scan.name .. " here" .. ( why ~= "" and ( ": " .. why ) or "" ) );
+		return;
+	end
+	if m_placeConfirm == c.plotIndex then
+		m_placeConfirm = nil;
+		if c.owned then PlacementCommit( c ); else PlacementBuyTile( c ); end
+		return;
+	end
+	m_placeConfirm = c.plotIndex;
+	local effects:string = PlacementEffects( c, false );
+	if c.owned then
+		SayResult( "Place " .. scan.name .. " here?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " Enter to confirm, Escape to go back" );
+	else
+		SayResult( "Buy this tile for " .. c.tileCost .. " gold?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " Enter to confirm, then Enter again to place " .. scan.name .. ". Escape to go back" );
+	end
+end
+
+m_placeList = KeyNavList_Create{
+	build		= BuildPlacementItems,
+	isActive	= function() return IsModeOpen( "placement" ); end,
+	onActivate	= PlacementEnter,
+	onClose		= PlacementEscape,
+	onFocus		= function( item )
+		m_placeConfirm = nil;
+		SetCursor( item.candidate.x, item.candidate.y, false, nil, true );
+	end,
+};
+
+-- The game entered DISTRICT_PLACEMENT / BUILDING_PLACEMENT: scan, open the mode, say what can be done.
+OpenPlacement = function( mode:number )
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil or not IsLocalPlayerActive() then return; end
+	local kind:string, hash:number;
+	local purchaseYield:number = nil;
+	if mode == InterfaceModeTypes.DISTRICT_PLACEMENT then
+		kind = "district";
+		hash = UI.GetInterfaceModeParameter( CityOperationTypes.PARAM_DISTRICT_TYPE );
+		local yield = UI.GetInterfaceModeParameter( CityCommandTypes.PARAM_YIELD_TYPE );
+		if yield ~= nil and ( yield == YieldTypes.GOLD or yield == YieldTypes.FAITH ) then purchaseYield = yield; end
+	else
+		kind = "wonder";
+		hash = UI.GetInterfaceModeParameter( CityOperationTypes.PARAM_BUILDING_TYPE );
+	end
+	m_placeParams = {};		-- read now: leaving the mode forgets them
+	for _, key in ipairs( { CityOperationTypes.PARAM_INSERT_MODE, CityOperationTypes.PARAM_QUEUE_LOCATION,
+			CityOperationTypes.PARAM_QUEUE_SOURCE_LOCATION, CityOperationTypes.PARAM_QUEUE_DESTINATION_LOCATION } ) do
+		m_placeParams[ key ] = UI.GetInterfaceModeParameter( key );
+	end
+	local scan:table = PlacementScan_Scan( city, kind, hash, purchaseYield );
+	if scan.name == nil then return; end
+	-- No owned tile can take it (typically the city has used all its district slots): the game still highlights tiles it
+	-- could buy, but buying one would waste the gold (verified: the bought tile was refused), so they are not offered.
+	if scan.owned == 0 then
+		scan.list, scan.byIndex, scan.best = {}, {}, nil;
+	end
+	if #scan.list == 0 then
+		OutputMessageToScreenReader( "No valid tiles for " .. scan.name );
+		After( 0.1, function() if IsPlacementMode( UI.GetInterfaceMode() ) then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end end );
+		return;
+	end
+	m_placeScan = scan;
+	m_placeConfirm = nil;
+	CloseMode( false, true );
+	m_mode = { name = "placement", list = m_placeList, onClose = PlacementClosed };
+	local best:table = scan.best;
+	m_placeList.Open( "", best.key, true );
+	SetCursor( best.x, best.y, false, nil, true );
+	local text:string = "Place " .. scan.name .. " for " .. scan.cityName .. ( purchaseYield ~= nil and ", bought with " .. ( purchaseYield == YieldTypes.GOLD and "gold" or "faith" ) or "" )
+		.. ", " .. Plural( #scan.list, "tile", "tiles" ) .. ". Best: " .. PlacementItemText( best ) .. ".";
+	OutputMessageToScreenReader( text );
 end
 
 -- ===========================================================================

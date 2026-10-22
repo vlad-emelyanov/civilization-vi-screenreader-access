@@ -4169,6 +4169,14 @@ end
 include ("StrategicView_MapPlacement");	-- handlers for: BUILDING_PLACEMENT, DISTRICT_PLACEMENT
 include ("StrategicView_DebugSupport");	-- the Debug interface mode
 
+-- Begin ScreenReaderAccess mod change
+-- The keyboard placement browser (InGameAccess hub) placed a district or wonder: leave the placement mode like the
+-- game's own confirmation does (isCancelled = false keeps the production panel closed afterwards).
+function OnSRAExitPlacement( isCancelled:boolean )
+	ExitPlacementMode( isCancelled );
+end
+-- End ScreenReaderAccess mod change
+
 -- ===========================================================================
 function Subscribe()
 	Events.UserRequestClose.Add( OnUserRequestClose );
@@ -4199,6 +4207,7 @@ function Subscribe()
 	
 	LuaEvents.Tutorial_AddUnitMoveRestriction.Add( OnTutorial_AddUnitMoveRestriction );
 	LuaEvents.Tutorial_RemoveUnitMoveRestrictions.Add( OnTutorial_RemoveUnitMoveRestrictions );
+	LuaEvents.SRA_ExitPlacement.Add( OnSRAExitPlacement );		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -4231,6 +4240,7 @@ function Unsubscribe()
 	
 	LuaEvents.Tutorial_AddUnitMoveRestriction.Remove( OnTutorial_AddUnitMoveRestriction );
 	LuaEvents.Tutorial_RemoveUnitMoveRestrictions.Remove( OnTutorial_RemoveUnitMoveRestrictions );
+	LuaEvents.SRA_ExitPlacement.Remove( OnSRAExitPlacement );		-- ScreenReaderAccess
 end
 
 -- ===========================================================================

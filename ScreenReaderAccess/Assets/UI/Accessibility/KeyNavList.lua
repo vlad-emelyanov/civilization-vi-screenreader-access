@@ -66,7 +66,7 @@ function KeyNavList_Create( config:table )
 	end
 
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
-	function list.Open( title:string, initialKey )
+	function list.Open( title:string, initialKey, silent:boolean )
 		local items:table = Build();
 		m_lastSection = nil;
 		if initialKey ~= nil then m_focusKey = initialKey; end
@@ -76,6 +76,7 @@ function KeyNavList_Create( config:table )
 			return;
 		end
 		if index == nil then index = 1; m_focusKey = items[1].key; end
+		if silent then return; end		-- the caller speaks (its own opening sentence)
 		OutputMessageToScreenReader( title .. ", " .. #items .. ( #items == 1 and " option" or " options" ), true );
 		Speak( items, index, false, true );
 	end

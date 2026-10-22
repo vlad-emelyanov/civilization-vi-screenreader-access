@@ -2684,9 +2684,8 @@ local function SRA_OnActivate( item:table )
 		else PurchaseUnit( city, kItem ); end
 		local mode:number = UI.GetInterfaceMode();
 		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
-			-- The game switched to placement mode; picking the tile by keyboard is not supported yet.
+			-- The game switched to placement mode: the hub's placement browser (InGameAccess) takes over and speaks.
 			Close();
-			OutputMessageToScreenReader( name .. " needs a tile. Choosing a tile by keyboard is not supported yet, Escape cancels" );
 			return;
 		end
 		Close();
@@ -2715,9 +2714,9 @@ local function SRA_OnActivate( item:table )
 		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
 		local mode:number = UI.GetInterfaceMode();
 		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
-			-- The game switched to placement mode and closed the panel; picking the tile by keyboard is not supported yet.
+			-- The game switched to placement mode and closed the panel: the hub's placement browser (InGameAccess)
+			-- takes over, speaks, and reports the production once the tile is chosen.
 			m_srPending = nil;
-			OutputMessageToScreenReader( name .. " needs a tile. Choosing a tile by keyboard is not supported yet, Escape cancels" );
 			return;
 		end
 		-- No placement needed (already placed): it went into the queue.
