@@ -146,6 +146,8 @@ Autoplay does not replace blind play-throughs: those stay the way we find UX pro
 
 ## 5. Scenario scripts and engine notes
 
+**Done 2026-10-22:** `util/scenarios/` (enemy-at-capital, governor-title, envoys-to-give, builder-by-forest) all verified on `early-t60` with the SR> lines of the situation (governor screen "1 title available", "Send envoys: 3 to give", builder actions, barbarian next to Rome); `civctl scenario <name>`; `docs/engine-notes.md` exists. The guessed calls `ChangeTokensToGive`, `ChangeGovernorPoints`, `Map.GetAdjacentPlot` do exist in `GameCore_Tuner`; the real bug was `Players[i]:IsMinor()` (does not exist).
+
 - `util/scenarios/<name>.lua`: GameCore_Tuner scripts that set up one situation on a loaded fixture. Examples: an enemy next to our city that attacks it, a governor title ready, envoys to give, a builder next to a forest, a city at its district cap, war with a city-state.
 - `civctl scenario <name>` runs one. Each script starts with a comment: which fixture it expects, and what to press afterwards.
 - Only safe calls. The calls that crashed the game are listed as forbidden in the notes:
@@ -162,6 +164,8 @@ Autoplay does not replace blind play-throughs: those stay the way we find UX pro
   `ingame-plan.md` keeps the design and status and links to it.
 
 ## 6. Speech regression scripts
+
+**Done 2026-10-22:** `util/civregress.py` + `civctl regress [name...|all] [--share-load]`; 7 scripts in `test/regress/` (3 on `early-start`, 4 scenario scripts on `early-t60`), all PASS, twice in a row (5 m 52 s each; `--share-load` 5 m 22 s because scenario scripts keep their own load). Extra steps: `clear-advisors`, header `# no-share-load`.
 
 - `test/regress/<name>.txt`, one step per line:
   ```

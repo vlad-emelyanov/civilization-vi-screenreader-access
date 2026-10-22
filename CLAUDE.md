@@ -42,6 +42,10 @@ util\civctl.cmd key Down             # sends a key, prints the resulting "SR> ..
 util/civctl lua InGame 'Game.GetCurrentGameTurn()'   # (Git Bash: `util/civctl`, keeps quotes/spaces; expressions and `return x` are printed) run Lua in a game state via FireTuner (GameCore_Tuner, InGame, InGameAccess, ...); `states` lists them
 util\civctl.cmd autoplay 29 -Save medieval-t100   # AI plays n turns for us (~5-20 s/turn, prints turn numbers every 30 s; run in background), then saves the fixture
 util\civctl.cmd shot                 # screenshot path, view only when output is confusing
+util\civctl.cmd load early-t60       # named fixtures (test\fixtures); also `save <name>`, `newgame <profile>`, `autoplay <n>`
+util\civctl.cmd scenario governor-title   # set up one situation (util\scenarios\*.lua) on a loaded fixture
+util\civctl.cmd regress all [--share-load]   # speech regression scripts (test\regress\*.txt), ~6 min, exit 1 on a failed check
+util\civctl.cmd unlock               # release the owner lease: another $env:CIVCTL_OWNER gets exit 6 until you were idle for 10 min
 util\civctl.cmd status              # game/console/lock + "in game, turn N" or "front end"
 util\civctl.cmd save bug-foo -Purpose "why"   # named save -> test/fixtures/bug-foo.Civ6Save + .txt (turn, civ, commit)
 util\civctl.cmd load early-start    # load a fixture by name (~30-45 s, from in game or main menu; never LoadGame from InGame)

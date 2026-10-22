@@ -65,12 +65,18 @@ Each of these has crashed or wedged the game, or wasted a play session:
 | Pantheon | enough faith; it blocks the turn loop |
 | In-game menu | Escape with nothing open (`civctl menu`) |
 
+## Setup limits
+
+- `CityStateCount` is limited by the map size (`MapSizes.xml`: Tiny max 10, Small 14, Standard 18, Large 22, Huge 24). A larger value reads back fine right after setting it, but the game then creates 0 city-states. The `crowded` profile clamps to the parameter's `Values.MaximumValue`.
+
 ## Recipes
 
 Tuner (`civctl lua <state> ...`; needs `EnableTuner 1` in `AppOptions.txt` and a restart):
 - Spawn a unit: `Players[0]:GetUnits():Create(GameInfo.Units["UNIT_SETTLER"].Index, x, y)`; gold: `Players[0]:GetTreasury():ChangeGoldBalance(100)`.
 - `lua` prints `print()` output; a single expression or `return x` is printed. Read a config value with `(GameConfiguration.GetValue(k))` (the extra parentheses matter: a missing key returns nothing). Only one tuner connection at a time. State indexes change on context reload: use names. The `InGame` state is absent at the front end; `AdvancedSetup` exists only once Create Game was opened.
-- Scenario scripts: `util/scenarios/`.
+- Scenario scripts: `util/scenarios/` (`civctl scenario <name>`). In `GameCore_Tuner` these exist: `Players[i]:GetInfluence():ChangeTokensToGive(n)` / `GetTokensToGive()`, `Players[i]:GetGovernors():ChangeGovernorPoints(n)` / `GetGovernorPoints()` / `GetGovernorPointsSpent()`, `Map.GetAdjacentPlot(x, y, dir)`. `Players[i]:IsMinor()` does NOT exist: a city-state is `PlayerConfigurations[i]:GetCivilizationLevelTypeName() == "CIVILIZATION_LEVEL_CITY_STATE"`.
+- Select a unit for a test (state `InGameAccess`): `for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end`; the selection is announced.
+- `civctl lua` does not print the SR> lines it causes; they show up as `(earlier)` lines in the next `key`/`sr`. Advisor popups (queued after a load, first contact, a governor point, envoys) swallow keys and are not listed by `civctl menu`; Enter closes one at a time (`clear-advisors` in regress scripts).
 
 Save (state `InGame`, works):
 ```lua
