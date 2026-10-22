@@ -158,7 +158,9 @@ local function IsHostile( playerID:number )
 	local player:table = Players[ playerID ];
 	if player == nil or playerID == Game.GetLocalPlayer() then return false; end
 	if player:IsBarbarian() then return true; end
-	local diplomacy:table = Players[ Game.GetLocalPlayer() ]:GetDiplomacy();
+	local localPlayer:table = Players[ Game.GetLocalPlayer() ];
+	if localPlayer == nil then return false; end
+	local diplomacy:table = localPlayer:GetDiplomacy();
 	return diplomacy ~= nil and diplomacy:IsAtWarWith( playerID );
 end
 
