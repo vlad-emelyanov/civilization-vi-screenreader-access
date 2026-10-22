@@ -1,0 +1,7 @@
+turn: 158
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: modern
+purpose: fresh 'modern' game at its start (made by civctl newgame)
+mod commit: 8d13370
+created: 2026-10-22
+size: 517 KB
