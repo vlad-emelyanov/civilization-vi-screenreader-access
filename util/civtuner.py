@@ -5,6 +5,7 @@ Only one tuner connection can exist at a time (do not run this while FireTuner2.
 
 Usage:
   python util/civtuner.py states
+  python util/civtuner.py status     # INGAME <turn> <leader> <civ> or FRONTEND (exit 2: tuner unreachable)
   python util/civtuner.py menu       # is the in-game options menu / a popup open? (exit 4 if so)
   python util/civtuner.py lua <state name or index> "<lua code>"      e.g. lua InGame "print(Game.GetCurrentGameTurn())"
   python util/civtuner.py lua -f script.lua GameCore_Tuner
@@ -213,6 +214,17 @@ return table.concat(lines, "|")
 '''
 
 
+# Is a game loaded? The InGame state may linger after leaving to the main menu, so ask the game itself.
+WHERE_LUA = '''
+local ok, t = pcall(function() return Game.GetCurrentGameTurn() end)
+local p = ok and Game.GetLocalPlayer() or -1
+if ok and t and t > 0 and PlayerConfigurations[p] ~= nil then
+  return "INGAME " .. t .. " " .. tostring(PlayerConfigurations[p]:GetLeaderTypeName()) .. " " .. tostring(PlayerConfigurations[p]:GetCivilizationTypeName())
+end
+return "FRONTEND"
+'''
+
+
 def is_syntax_error(err: str) -> bool:
     return err.startswith("ERR:Syntax Error") or err.startswith("ERR: Syntax Error")
 
@@ -225,7 +237,7 @@ def main() -> int:
         pass
     a = sys.argv[1:]
     timeout = 8.0
-    if not a or a[0] not in ("states", "lua", "menu"):
+    if not a or a[0] not in ("states", "lua", "menu", "status", "where"):
         print(__doc__)
         return 2
     if a[0] == "menu":
@@ -236,6 +248,15 @@ def main() -> int:
             print("\n".join(parts))
             return 4 if any(l.startswith(("MENU: OPEN", "POPUP")) for l in parts) else 0
         return rc
+    if a[0] in ("status", "where"):
+        # "where": prints 'INGAME <turn> <leader>' or 'FRONTEND'; exit 2 when the tuner cannot be reached.
+        out: list[str] = []
+        rc = asyncio.run(run("InGame", WHERE_LUA, timeout, out))
+        if rc == 2:
+            return 2
+        text = "".join(out).strip()
+        print(text if rc == 0 and text.startswith("INGAME") else "FRONTEND")
+        return 0
     if a[0] == "states":
         return asyncio.run(run(None, None, timeout))
     if len(a) >= 4 and a[1] == "-f":

@@ -18,13 +18,23 @@
   .\util\civctl.ps1 wait 'Exit to Desktop' -Timeout 10   # wait for a matching screen reader line
   .\util\civctl.ps1 shot                  # screenshot game window, prints the png path
   .\util\civctl.ps1 stop                  # kill game + console app
+  .\util\civctl.ps1 status                # game / console / lock / front end or in game + turn
+  .\util\civctl.ps1 save bug-foo -Purpose 'why'   # named save of the running game -> test\fixtures\bug-foo.Civ6Save + .txt sidecar
+  .\util\civctl.ps1 load early-start     # load a fixture (leaves the current game first; LoadGame only works from the main menu)
+  .\util\civctl.ps1 fixtures             # list fixtures
+  .\util\civctl.ps1 newgame early        # create a game from util\profiles\early.lua (~45 s), then `save early-start`
+  .\util\civctl.ps1 unlock                # release the driving lock (see below)
+
+  Lock: commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER, default 'default'). Another owner gets
+  "game in use by X" (exit 6) until the lock is released or has been idle for 30 min (then it is taken over with a warning).
+  Crash / hang: key, wait, sr, lua, save, load print GAME CRASHED / GAME HUNG (with the crash dump path) and exit 5.
 
   `key` prints the screen reader lines that the keypress produced (waits -Settle ms for them).
   Use -All with `sr`/`key` to see every new Lua.log line rather than only #SCREENREADER lines.
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -37,7 +47,10 @@ param(
     [switch]$All,
     [switch]$Force,         # build: build even though the game is running
     [string]$Out,
-    [string]$File           # lua: read the Lua code from this file instead of the command line
+    [string]$File,          # lua: read the Lua code from this file instead of the command line
+    [string]$Owner,         # name of the agent driving the game (lock file); default $env:CIVCTL_OWNER or 'default'
+    [string]$Purpose,       # save: why this fixture exists (goes into the sidecar)
+    [string]$Profile        # save: game profile it came from (newgame passes it)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,6 +68,10 @@ $StateDir = Join-Path $env:TEMP 'civctl'
 $CursorFile = Join-Path $StateDir 'cursor.txt'
 $GameProcessNames = @('CivilizationVI', 'CivilizationVI_DX12')
 $ScreenReaderMarker = '#SCREENREADER'
+$FixtureDir = Join-Path $RepoRoot 'test\fixtures'
+$LockFile = Join-Path $StateDir 'lock'
+$LockStaleMinutes = 30
+$script:HungSince = $null
 
 New-Item -ItemType Directory -Force $StateDir | Out-Null
 
@@ -130,6 +147,70 @@ public static class Native {
 '@
 }
 
+# --- lock: only one agent drives the game ---------------------------------------------------------------------------------------------
+function Enter-Lock {
+    $me = if ($Owner) { $Owner } elseif ($env:CIVCTL_OWNER) { $env:CIVCTL_OWNER } else { 'default' }
+    if (Test-Path $LockFile) {
+        $holder = (Get-Content $LockFile -TotalCount 1 -ErrorAction SilentlyContinue)
+        $idle = ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalMinutes
+        if ($holder -and $holder -ne $me) {
+            if ($idle -lt $LockStaleMinutes) {
+                Write-Output ("game in use by '{0}' (last used {1:N0} min ago). Ask them to run ``civctl unlock``, wait, or run ``civctl unlock`` yourself if they are gone. You are '{2}'." -f $holder, $idle, $me)
+                exit 6
+            }
+            Write-Warning ("Taking over the stale lock of '{0}' (idle {1:N0} min)." -f $holder, $idle)
+        }
+    }
+    [IO.File]::WriteAllText($LockFile, $me)
+}
+
+function Invoke-Unlock {
+    if (Test-Path $LockFile) {
+        $holder = Get-Content $LockFile -TotalCount 1
+        Remove-Item $LockFile -Force
+        Write-Output "Lock released (was held by '$holder')."
+    } else { Write-Output 'No lock was held.' }
+}
+
+# --- crash / hang detection -------------------------------------------------------------------------------------------------------
+function Get-CrashDump {
+    $root = Join-Path $env:LOCALAPPDATA "Firaxis Games\Sid Meier's Civilization VI"
+    $f = foreach ($d in 'dumps', 'packagedDumps') {
+        $dir = Join-Path $root $d
+        if (Test-Path $dir) { Get-ChildItem $dir -Recurse -File -ErrorAction SilentlyContinue }
+    }
+    $f | Where-Object { $_.LastWriteTime -gt (Get-Date).AddMinutes(-5) } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+}
+
+# Throws 'CIVCTL5:...' (crashed/hung, exit 5) or 'CIVCTL1:...' (not running). -Grace: seconds an unresponsive window is tolerated;
+# -Block waits for it here, otherwise the unresponsive time is tracked across calls (for polling loops).
+function Assert-GameHealthy([int]$Grace = 0, [switch]$Block, [switch]$AllowStopped) {
+    $rep = Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue
+    $procs = @(Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue)
+    if ($rep -or $procs.Count -eq 0) {
+        $dump = Get-CrashDump
+        if ($rep -or $dump) {
+            $msg = if ($rep) { 'GAME CRASHED (FiraxisBugReporter.exe is running).' } else { 'GAME CRASHED (the game process is gone).' }
+            if ($dump) { $msg += " Crash dump: $($dump.FullName)" }
+            throw "CIVCTL5:$msg Recover: civctl stop; civctl start; civctl load <latest fixture>."
+        }
+        if ($AllowStopped) { return }
+        throw 'CIVCTL1:Game is not running.'
+    }
+    $p = $procs | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+    if (-not $p) { return }   # still starting up / closing
+    while ($true) {
+        $p.Refresh()
+        if ($p.Responding) { $script:HungSince = $null; return }
+        if (-not $script:HungSince) { $script:HungSince = Get-Date }
+        $waited = ((Get-Date) - $script:HungSince).TotalSeconds
+        if ($waited -ge $Grace) { break }
+        if (-not $Block) { return }
+        Start-Sleep -Milliseconds 500
+    }
+    throw "CIVCTL5:GAME HUNG (window not responding for $([int]$waited) s). Take a ``civctl shot``; if it stays frozen: civctl stop; civctl start; civctl load <latest fixture>."
+}
+
 function Get-GameProcess {
     Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 }
@@ -172,9 +253,11 @@ function Format-Lines($lines) {
     }
 }
 
-function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec) {
+function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec, [bool]$check = $true) {
     $deadline = (Get-Date).AddSeconds($timeoutSec)
+    $n = 0
     while ((Get-Date) -lt $deadline) {
+        if ($check -and ($n++ % 12) -eq 0) { Assert-GameHealthy -Grace 25 }
         $matched = $false
         # Finish the whole batch even after a match: the cursor has already moved past these lines.
         foreach ($l in (Read-NewLogLines)) {
@@ -190,6 +273,8 @@ function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec) {
 }
 
 function Invoke-Start {
+    $rep = Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue
+    if ($rep) { $rep | Stop-Process -Force; Write-Output 'Killed leftover FiraxisBugReporter.exe (left by a crash).'; Start-Sleep -Seconds 2 }
     if (-not (Get-ConsoleProcess)) {
         if (-not (Test-Path $ConsoleExe)) { throw "Console app not built: $ConsoleExe (run: dotnet build ScreenreaderAccess.Console)" }
         Start-Process $ConsoleExe -WindowStyle Minimized | Out-Null
@@ -211,7 +296,7 @@ function Invoke-Start {
     }
     # The intro movie holds back the main menu until a key is pressed, so keep tapping Escape until it shows.
     while ((Get-Date) -lt $deadline) {
-        if (Wait-ForScreenReader 'Main menu' 3) {
+        if (Wait-ForScreenReader 'Main menu' 3 $false) {
             Write-Output 'Main menu ready.'
             return
         }
@@ -222,12 +307,21 @@ function Invoke-Start {
     exit 1
 }
 
-function Invoke-Key {
-    if (-not $Arg) { throw 'Usage: civctl.ps1 key <KeyName> [-Count n]' }
+# Keys that JAWS grabs: NumPad +/- toggle the JAWS cursor (arrows, Home, End then stop reaching any window, even after a game restart);
+# the other numpad keys and Insert are JAWS commands too. Divide stays allowed (a game hotkey).
+$JawsReservedKeys = @('Add', 'Subtract', 'Multiply', 'Decimal', 'Insert', 'Clear', 'NumPad0', 'NumPad1', 'NumPad2', 'NumPad3', 'NumPad4', 'NumPad5', 'NumPad6', 'NumPad7', 'NumPad8', 'NumPad9')
+
+function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle = $Settle) {
+    if (-not $KeyArg) { throw 'Usage: civctl.ps1 key <KeyName> [-Count n]' }
+    $parts = @($KeyArg -split '\+')
+    if ($JawsReservedKeys -contains $parts[-1]) {
+        Write-Output "REFUSED: '$($parts[-1])' is a JAWS-reserved key (Add/Subtract toggle the JAWS cursor and break keyboard input system-wide). Use OemPlus / OemMinus for the main keyboard +/-."
+        exit 1
+    }
+    Assert-GameHealthy -Grace 8 -Block
     $game = Get-GameProcess
-    if (-not $game) { throw 'Game is not running.' }
+    if (-not $game) { throw 'CIVCTL1:Game is not running.' }
     # "Shift+E", "Control+Shift+F": modifiers are held around the key. Key names never contain '+' (the + key is OemPlus).
-    $parts = @($Arg -split '\+')
     $mods = [uint32[]]@($parts | Select-Object -SkipLast 1 | ForEach-Object {
         switch -Regex ($_) { '^(ctrl|control)$' { 0xA2 } '^shift$' { 0xA0 } '^(alt|menu)$' { 0xA4 } default { throw "Unknown modifier '$_' (use Shift, Control, Alt)" } }
     })
@@ -240,6 +334,7 @@ function Invoke-Key {
         [CivCtl.Native]::Chord($mods, $vk, $Hold)
         Start-Sleep -Milliseconds $Settle
         Format-Lines (Read-NewLogLines)
+        Assert-GameHealthy -Grace 8 -Block
     }
 }
 
@@ -422,15 +517,19 @@ function Invoke-Tuner {
         $state, $code = $Arg -split '\s+', 2
     }
     if (-not $state -or -not $code) { throw 'Usage: civctl.ps1 lua <state> <code>   (or: lua <state> -File script.lua)' }
+    Assert-GameHealthy -Grace 8 -Block
     # Pass the code through a temp file: quoting Lua (quotes, newlines) through cmd.exe and PowerShell 5.1 argument parsing is unreliable.
     $tmp = Join-Path $StateDir 'tuner.lua'
     [IO.File]::WriteAllText($tmp, $code, (New-Object Text.UTF8Encoding($false)))
-    exit (Invoke-Python @($py, 'lua', '-f', $tmp, $state))
+    $rc = Invoke-Python @($py, 'lua', '-f', $tmp, $state)
+    if ($rc -ne 0) { Assert-GameHealthy -Grace 8 -Block }   # a failed call may mean the game just crashed or froze
+    exit $rc
 }
 
 function Invoke-Stop {
     Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue | Stop-Process -Force
     Get-ConsoleProcess | Stop-Process -Force
+    Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue | Stop-Process -Force
     # Relaunching while the old process is still tearing down makes the new launch silently exit.
     $deadline = (Get-Date).AddSeconds(30)
     while ((Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
@@ -500,6 +599,172 @@ function Invoke-Keymap {
     Write-Output "Wrote $outFile ($($rows.Count) actions, $($unbound.Count) unbound)."
 }
 
+# --- tuner helpers, fixtures, profiles ---------------------------------------------------------------------------------------------
+function Invoke-PythonCapture([string[]]$pyArgs) {
+    $py = Get-PythonCommand
+    $old = [Console]::OutputEncoding
+    [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+    try {
+        $out = & $py[0] @($py | Select-Object -Skip 1) -I @pyArgs
+        $script:PyExit = $LASTEXITCODE
+        return @($out)
+    } finally { [Console]::OutputEncoding = $old }
+}
+
+# Runs Lua in a tuner state; returns the printed lines ($script:PyExit holds the exit code).
+function Invoke-LuaCapture([string]$state, [string]$code) {
+    $tmp = Join-Path $StateDir 'tuner.lua'
+    [IO.File]::WriteAllText($tmp, $code, (New-Object Text.UTF8Encoding($false)))
+    return Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'lua', '-f', $tmp, $state)
+}
+
+# 'INGAME <turn> <leader> <civ>', 'FRONTEND', or $null when the tuner cannot be reached.
+function Get-GameWhere {
+    $o = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'status')
+    if ($script:PyExit -ne 0) { return $null }
+    return ($o -join ' ').Trim()
+}
+
+function Get-SaveDir { Join-Path ([Environment]::GetFolderPath('MyDocuments')) "My Games\Sid Meier's Civilization VI\Saves\Single" }
+
+function Assert-FixtureName([string]$n) {
+    if ($n -notmatch '^[A-Za-z0-9_.-]+$') { throw "Usage: civctl.ps1 <save|load> <name>   (name: letters, digits, _ - . only)" }
+}
+
+function Invoke-Save([string]$name) {
+    Assert-FixtureName $name
+    Assert-GameHealthy -Grace 8 -Block
+    $where = Get-GameWhere
+    if (-not $where -or -not $where.StartsWith('INGAME')) { throw "save needs a game in progress (state: $where)" }
+    $w = $where -split ' '
+    $file = Join-Path (Get-SaveDir) "$name.Civ6Save"
+    $t0 = Get-Date
+    $res = Invoke-LuaCapture 'InGame' ('local s={}; s.Name="' + $name + '"; s.Location=SaveLocations.LOCAL_STORAGE; s.Type=SaveTypes.SINGLE_PLAYER; s.IsAutosave=false; s.IsQuicksave=false; return tostring(Network.SaveGame(s))')
+    if ($script:PyExit -ne 0 -or ($res -join '') -notmatch 'true') { throw "Network.SaveGame failed: $($res -join ' ')" }
+    $ok = $false
+    for ($i = 0; $i -lt 40 -and -not $ok; $i++) {
+        Start-Sleep -Milliseconds 250
+        if ((Test-Path $file) -and (Get-Item $file).LastWriteTime -ge $t0.AddSeconds(-1) -and (Get-Item $file).Length -gt 0) {
+            Start-Sleep -Milliseconds 500   # let the game finish writing
+            $ok = $true
+        }
+    }
+    if (-not $ok) { throw "Save file did not appear within 10 s: $file" }
+    New-Item -ItemType Directory -Force $FixtureDir | Out-Null
+    Copy-Item $file (Join-Path $FixtureDir "$name.Civ6Save") -Force
+    $commit = (& git -C $RepoRoot rev-parse --short HEAD)
+    Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civfix.py'), 'sidecar', $FixtureDir, $name, "--turn=$($w[1])", "--civ=$($w[3]) / $($w[2])",
+        "--profile=$Profile", "--purpose=$Purpose", "--commit=$commit") | Out-Null
+    Write-Output "Saved fixture '$name' (turn $($w[1]), $($w[3]), $([int]((Get-Item $file).Length / 1024)) KB) -> test\fixtures\$name.Civ6Save"
+}
+
+# Leaves a running game for the main menu (Network.LoadGame crashes the game when called from InGame; it only works from MainMenu).
+function Ensure-MainMenu {
+    $where = Get-GameWhere
+    if ($null -eq $where) { throw 'Tuner not reachable (is the game at least at the main menu, with EnableTuner 1?)' }
+    if ($where.StartsWith('INGAME')) {
+        Write-Output 'Leaving the current game...'
+        Invoke-LuaCapture 'InGame' 'Events.ExitToMainMenu()' | Out-Null
+        if (-not (Wait-ForScreenReader 'Single Player' 45)) { throw 'Main menu did not appear after ExitToMainMenu' }
+    }
+}
+
+function Invoke-LoadOnce([string]$name) {
+    if (-not (Get-GameProcess) -and -not (Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue)) { Invoke-Start }
+    Assert-GameHealthy -Grace 8 -Block
+    Ensure-MainMenu
+    $res = Invoke-LuaCapture 'MainMenu' ('local s={}; s.Name="' + $name + '"; s.Location=SaveLocations.LOCAL_STORAGE; s.Type=SaveTypes.SINGLE_PLAYER; s.IsAutosave=false; s.IsQuicksave=false; s.Directory=SaveDirectories.DEFAULT; return tostring(Network.LoadGame(s, ServerType.SERVER_TYPE_NONE))')
+    if ($script:PyExit -ne 0 -or ($res -join '') -notmatch 'true') { throw "Network.LoadGame failed: $($res -join ' ')" }
+    if (-not (Wait-ForScreenReader 'Continue Game' 90)) { throw "'Continue Game' did not show after loading '$name'" }
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
+    $o | ForEach-Object { Write-Output $_ }
+    if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 60)) { throw "No turn announcement after loading '$name'" }
+}
+
+function Invoke-Load([string]$name) {
+    Assert-FixtureName $name
+    $src = Join-Path $FixtureDir "$name.Civ6Save"
+    $dstDir = Get-SaveDir
+    $dst = Join-Path $dstDir "$name.Civ6Save"
+    if (-not (Test-Path $src) -and -not (Test-Path $dst)) { throw "No such fixture: $src" }
+    if ((Test-Path $src) -and (-not (Test-Path $dst) -or (Get-Item $dst).Length -ne (Get-Item $src).Length)) {
+        New-Item -ItemType Directory -Force $dstDir | Out-Null
+        Copy-Item $src $dst -Force
+        Write-Output "Copied fixture into $dstDir"
+    }
+    try { Invoke-LoadOnce $name }
+    catch {
+        if ($_.Exception.Message -notmatch '^CIVCTL5:') { throw }
+        Write-Output ($_.Exception.Message -replace '^CIVCTL5:', '')
+        Write-Output 'Crash while loading: restarting the game and retrying once from the main menu.'
+        Invoke-Stop
+        Invoke-Start
+        Invoke-LoadOnce $name
+    }
+    Write-Output "Loaded '$name'."
+}
+
+function Invoke-Fixtures {
+    exit (Invoke-Python @((Join-Path $PSScriptRoot 'civfix.py'), 'fixtures', $FixtureDir))
+}
+
+function Invoke-NewGame([string]$profileName) {
+    if (-not $profileName) { throw 'Usage: civctl.ps1 newgame <profile>   (util\profiles\<profile>.lua)' }
+    $pf = Join-Path $PSScriptRoot "profiles\$profileName.lua"
+    if (-not (Test-Path $pf)) { throw "No such profile: $pf" }
+    if (-not (Get-GameProcess)) { Invoke-Start }
+    Assert-GameHealthy -Grace 8 -Block
+    Ensure-MainMenu
+    # 1. Single Player -> Create Game (creates the AdvancedSetup state)
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 1200)
+    for ($i = 0; $i -lt 8 -and -not ($o -match 'Create Game'); $i++) { $o = @(Invoke-Key -KeyArg 'Down' -Count 1 -Settle 600) }
+    if (-not ($o -match 'Create Game')) { throw "Could not reach 'Create Game' (last output: $($o -join ' | '))" }
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
+    # 2. Apply the profile in the AdvancedSetup state
+    $res = Invoke-LuaCapture 'AdvancedSetup' ([IO.File]::ReadAllText($pf))
+    $res | ForEach-Object { Write-Output "profile> $_" }
+    if ($script:PyExit -ne 0) { throw "Profile script failed ($($res -join ' '))" }
+    if ($res -match 'WARN') { Write-Warning 'The profile reported WARN lines (see above).' }
+    # 3. Start
+    Start-Sleep -Seconds 2
+    Invoke-LuaCapture 'AdvancedSetup' 'HostGame()' | Out-Null
+    # 4. Load screen -> Begin Game -> first turn
+    if (-not (Wait-ForScreenReader 'Begin Game' 240)) { throw 'Begin Game did not show within 240 s' }
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
+    $o | ForEach-Object { Write-Output $_ }
+    if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 25)) {
+        Write-Output 'No turn announcement yet: skipping a possible intro movie with Escape.'
+        Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | Out-Null
+        if (-not (Wait-ForScreenReader 'Turn \d+,' 40)) { throw 'No turn announcement after Begin Game' }
+    }
+    Start-Sleep -Seconds 2
+    $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
+    if ($m -match 'MENU: OPEN') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1000 | Out-Null }
+    $m | ForEach-Object { Write-Output "menu> $_" }
+    # 5. Fixture
+    $script:Profile = $profileName
+    if (-not $Purpose) { $script:Purpose = "fresh '$profileName' game at its start (made by civctl newgame)" }
+    Invoke-Save "$profileName-start"
+}
+
+function Show-Status {
+    $game = Get-GameProcess
+    "game: $(if ($game) { "running (pid $($game.Id), '$($game.MainWindowTitle)')" } else { 'not running' })"
+    "console app: $(if (Get-ConsoleProcess) { 'running' } else { 'not running' })"
+    "lock: $(if (Test-Path $LockFile) { "held by '$(Get-Content $LockFile -TotalCount 1)', idle $([int]((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalMinutes) min" } else { 'free' })"
+    Assert-GameHealthy -Grace 8 -Block -AllowStopped
+    if ($game) {
+        $where = Get-GameWhere
+        if ($null -eq $where) { 'location: unknown (tuner not reachable)' }
+        elseif ($where.StartsWith('INGAME')) { $w = $where -split ' '; "location: in game, turn $($w[1]) ($($w[3]), $($w[2]))" }
+        else { 'location: front end (main menu / setup screens)' }
+    }
+}
+
+$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame')
+if ($Command -in $LockedCommands) { Enter-Lock }
+
+try {
 switch ($Command) {
     'build' { Invoke-Build }
     'deploy' { Invoke-Deploy }
@@ -509,15 +774,21 @@ switch ($Command) {
     'start' { Invoke-Start }
     'stop' { Invoke-Stop }
     'key' { Invoke-Key }
-    'sr' { Format-Lines (Read-NewLogLines) }
+    'sr' { Assert-GameHealthy -AllowStopped; Format-Lines (Read-NewLogLines) }
+    'save' { Invoke-Save $Arg }
+    'load' { Invoke-Load $Arg }
+    'fixtures' { Invoke-Fixtures }
+    'newgame' { Invoke-NewGame $Arg }
+    'unlock' { Invoke-Unlock }
     'wait' {
         if (-not (Wait-ForScreenReader $Arg $Timeout)) { Write-Output "Timed out waiting for '$Arg'"; exit 1 }
     }
     'shot' { Invoke-Shot }
     'keymap' { Invoke-Keymap }
-    'status' {
-        $game = Get-GameProcess
-        "game: $(if ($game) { "running (pid $($game.Id), '$($game.MainWindowTitle)')" } else { 'not running' })"
-        "console app: $(if (Get-ConsoleProcess) { 'running' } else { 'not running' })"
-    }
+    'status' { Show-Status }
+}
+} catch {
+    # 'CIVCTL<exit code>:<message>' errors come from the crash/hang/not-running checks.
+    if ($_.Exception.Message -match '^CIVCTL(\d+):(.*)') { Write-Output $Matches[2]; exit [int]$Matches[1] }
+    throw
 }
