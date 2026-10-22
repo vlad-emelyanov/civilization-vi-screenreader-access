@@ -2398,7 +2398,7 @@ local function HandleInput( input:table )
 		end
 		return false;
 	end
-	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp then ArmEnterWatch(); end
+	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp and not IsGamePopupOpen() then ArmEnterWatch(); end		-- an open screen (City-States, governors) takes Enter itself
 	return false;
 end
 
@@ -2518,6 +2518,7 @@ function Initialize()
 	Listen( LuaEvents.SRA_NotificationAdded, Safe( "NotificationAdded", OnNotificationAdded ) );
 	Listen( LuaEvents.SRA_NotificationActivated, Safe( "NotificationActivated", OnNotificationActivated ) );
 	Listen( LuaEvents.SRA_AttackKey, Safe( "AttackKey", AttackKey ) );
+	Listen( LuaEvents.SRA_CursorTo, Safe( "CursorTo", function( x:number, y:number ) SetCursor( x, y, false, false, true ); end ) );		-- City-States screen: Show on map
 	AddEvent( "UnitRemovedFromMap",			function() After( 0.3, ResetStaleMode ); end );
 	AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )
 		local player:table = Players[ playerID ];

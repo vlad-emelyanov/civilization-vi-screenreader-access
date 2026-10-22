@@ -11,6 +11,8 @@ include("InstanceManager");
 include("SupportFunctions");
 include("GameCapabilities");
 include("TeamSupport");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -75,6 +77,14 @@ local m_iTurnsOfPeace			:number= Game.GetGameDiplomacy():GetMinPeaceDuration();
 local m_iTurnsOfWar				:number= Game.GetGameDiplomacy():GetMinPeaceDuration();
 
 local m_isLocalPlayerTurn		:boolean = true;
+-- ScreenReaderAccess
+local m_srList					:table;				-- keyboard list of the city-states
+local m_srActions				:table;				-- keyboard list of the actions for one city-state
+local m_srActionPlayer			:number = -1;		-- city-state the action list is open for, -1 = none
+local m_srOpenPending			:boolean = false;
+local m_srOpenDelay				:number = 0;
+local m_srSingle				:boolean = false;	-- opened on one city-state (city banner click)
+-- End ScreenReaderAccess
 
 -- ===========================================================================
 --	FUNCTIONS
@@ -519,6 +529,8 @@ function OpenOverview( iPlayer:number )
 	m_mode = MODE.Overview;
 	m_kScreenSlideAnim.Show();
 	Refresh();
+	m_srSingle = false;		-- ScreenReaderAccess
+	SRA_ArmOpen();			-- ScreenReaderAccess
 end
 
 
@@ -539,6 +551,8 @@ function OnOpenSendEnvoys( iPlayer:number )
 	UI.PlaySound("CityStates_Panel_Open");
 	m_kScreenSlideAnim.Show();
 	Refresh();
+	m_srSingle = false;		-- ScreenReaderAccess
+	SRA_ArmOpen();			-- ScreenReaderAccess
 end
 
 
@@ -569,6 +583,8 @@ function OpenSingleViewCityState( playerID:number )
 	m_kScreenSlideAnim.Show();
 	Refresh();
 	LookAtCityState( playerID );
+	m_srSingle = true;		-- ScreenReaderAccess
+	SRA_ArmOpen();			-- ScreenReaderAccess
 end
 
 
@@ -1614,9 +1630,402 @@ function GetCityStateType( playerID:number )
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	One list item per met city-state (Up/Down/Home/End, Space = bonuses, quests and influence). Send envoys mode:
+--	Enter/Right/Plus adds an envoy, Left/Backspace/Minus removes one, C or the last item confirms, Escape closes.
+--	Overview mode: Enter (A in any mode) opens an action list (show on map, levy military, make peace, send envoys).
+--	Everything is read from the game's own data (m_kCityStates, m_kEnvoyChanges) at key time; envoys are changed
+--	and sent through the game's own functions. Every keyboard event is swallowed while the screen is open.
+-- ===========================================================================
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( text or "" );
+end
+
+local function SRA_Envoys( n:number )
+	return n .. ( n == 1 and " envoy" or " envoys" );
+end
+
+local function SRA_MetCityStates()
+	local list:table = {};
+	for _, kCityState in pairs( m_kCityStates ) do
+		if kCityState.isHasMet then table.insert( list, kCityState ); end
+	end
+	table.sort( list, function( a, b ) return a.iPlayer < b.iPlayer; end );
+	return list;
+end
+
+local function SRA_EnvoysLeft()
+	return ( m_kPlayerData.EnvoyTokens or 0 ) - SumEnvoyChanges();
+end
+
+local function SRA_IsSendMode()
+	return m_mode == MODE.SendEnvoys and not m_srSingle;
+end
+
+local function SRA_Pending( iPlayer:number )
+	return m_kEnvoyChanges[ iPlayer ] or 0;
+end
+
+-- "Anshan, Scientific, you have 2 envoys, plus 1 pending, suzerain Kongo with 3, next bonus at 3"
+local function SRA_CityStateText( kCityState:table )
+	local pending:number = SRA_Pending( kCityState.iPlayer );
+	local text:string = Locale.Lookup( kCityState.Name ) .. ", " .. SRA_Clean( GetTypeName( kCityState ) );
+	if kCityState.Tokens == 0 then
+		text = text .. ", you have no envoys";
+	else
+		text = text .. ", you have " .. SRA_Envoys( kCityState.Tokens );
+	end
+	if pending > 0 then text = text .. ", plus " .. pending .. " pending"; end
+	if kCityState.isBonusSuzerain then
+		text = text .. ", you are suzerain";
+	elseif kCityState.SuzerainID ~= -1 then
+		text = text .. ", suzerain " .. SRA_Clean( kCityState.SuzerainName ) .. " with " .. kCityState.TokensMostReceived;
+	else
+		text = text .. ", no suzerain";
+	end
+	if kCityState.isAtWar then text = text .. ", at war"; end
+	local total:number = kCityState.Tokens + pending;
+	for _, threshold in ipairs( { NUM_ENVOY_TOKENS_FOR_FIRST_BONUS, NUM_ENVOY_TOKENS_FOR_SECOND_BONUS, NUM_ENVOY_TOKENS_FOR_THIRD_BONUS } ) do
+		if total < threshold then
+			text = text .. ", next bonus at " .. threshold;
+			break;
+		end
+	end
+	return text;
+end
+
+local function SRA_PlayerName( iPlayer:number )
+	if iPlayer == Game.GetLocalPlayer() then return "you"; end
+	local localPlayer:table = Players[ Game.GetLocalPlayer() ];
+	if localPlayer ~= nil and localPlayer:GetDiplomacy():HasMet( iPlayer ) then
+		return SRA_Clean( Locale.Lookup( PlayerConfigurations[ iPlayer ]:GetPlayerName() ) );
+	end
+	return "an unknown civilization";
+end
+
+-- Bonus titles end in a colon and descriptions in a period: tidy the joins ("1 Envoy:: +2" -> "1 Envoy: +2").
+local function SRA_Tidy( text:string )
+	for i = 1, 3 do
+		text = string.gsub( text, "%s*[:%.]%s*:", ":" );
+		text = string.gsub( text, "%s*:%s*%.", ":" );
+		text = string.gsub( text, "%(%s+", "(" );
+		text = string.gsub( text, "%.%s*%.", "." );
+		text = string.gsub( text, "%s+([%.,:])", "%1" );
+	end
+	return text;
+end
+
+-- Space: the type bonuses (which we have), the suzerain bonus, the active quests and who has how many envoys.
+local function SRA_CityStateDetail( kCityState:table )
+	local parts:table = {};
+	table.insert( parts, Locale.Lookup( kCityState.Name ) .. ", " .. SRA_Clean( GetTypeName( kCityState ) ) .. ", " .. SRA_Envoys( kCityState.Tokens ) .. " from you" );
+	for _, n in ipairs( { NUM_ENVOY_TOKENS_FOR_FIRST_BONUS, NUM_ENVOY_TOKENS_FOR_SECOND_BONUS, NUM_ENVOY_TOKENS_FOR_THIRD_BONUS } ) do
+		local bonus:table = kCityState.Bonuses[ n ];
+		local state:string = ( kCityState.Tokens >= n ) and "you have it" or "not yet";
+		table.insert( parts, SRA_Envoys( n ) .. ", " .. state .. ": " .. SRA_Clean( bonus.Title ) .. ": " .. SRA_Clean( bonus.Details ) );
+	end
+	local suzerain:string = kCityState.isBonusSuzerain and "you are suzerain" or ( "suzerain needs " .. kCityState.SuzerainTokensNeeded .. " envoys" );
+	table.insert( parts, "Suzerain bonus, " .. suzerain .. ": " .. SRA_Clean( kCityState.Bonuses[ "Suzerain" ].Details ) );
+
+	local quests:table = {};
+	for _, kQuest in pairs( kCityState.Quests ) do
+		table.insert( quests, SRA_Clean( kQuest.Name ) .. ": " .. SRA_Clean( kQuest.Description ) .. " Reward: " .. SRA_Clean( kQuest.Reward ) );
+	end
+	if #quests == 0 then
+		table.insert( parts, "No active quests" );
+	else
+		table.insert( parts, ( #quests == 1 and "1 quest. " or ( #quests .. " quests. " ) ) .. table.concat( quests, ". " ) );
+	end
+
+	local ranking:table = {};
+	for iPlayer, n in pairs( kCityState.Influence ) do
+		table.insert( ranking, { id = iPlayer, n = n } );
+	end
+	table.sort( ranking, function( a, b ) if a.n ~= b.n then return a.n > b.n; end return a.id < b.id; end );
+	local names:table = {};
+	for _, entry in ipairs( ranking ) do
+		table.insert( names, SRA_PlayerName( entry.id ) .. " " .. entry.n );
+	end
+	if #names == 0 then
+		table.insert( parts, "Nobody has sent envoys" );
+	else
+		table.insert( parts, "Envoys: " .. table.concat( names, ", " ) );
+	end
+	return SRA_Tidy( table.concat( parts, ". " ) );
+end
+
+local function SRA_PendingSummary()
+	local parts:table = {};
+	for _, kCityState in ipairs( SRA_MetCityStates() ) do
+		local n:number = SRA_Pending( kCityState.iPlayer );
+		if n > 0 then table.insert( parts, Locale.Lookup( kCityState.Name ) .. " " .. n ); end
+	end
+	return table.concat( parts, ", " );
+end
+
+function SRA_ListItems()
+	local items:table = {};
+	for _, kCityState in ipairs( SRA_MetCityStates() ) do
+		local cs:table = kCityState;
+		table.insert( items, { key = "cs:" .. cs.iPlayer, iPlayer = cs.iPlayer, text = SRA_CityStateText( cs ), detail = function() return SRA_CityStateDetail( cs ); end } );
+	end
+	local sum:number = SumEnvoyChanges();
+	if #items > 0 and SRA_IsSendMode() and sum > 0 then
+		table.insert( items, { key = "confirm", text = "Confirm envoys, " .. SRA_Envoys( sum ) .. " to send",
+			detail = function() return "Sends " .. SRA_PendingSummary() .. ". " .. SRA_Envoys( SRA_EnvoysLeft() ) .. " left to give. Enter or C to confirm"; end } );
+	end
+	return items;
+end
+
+local function SRA_FocusedPlayer()
+	local key = m_srList.GetFocusKey();
+	if type( key ) == "string" and string.sub( key, 1, 3 ) == "cs:" then
+		return tonumber( string.sub( key, 4 ) );
+	end
+	return nil;
+end
+
+local function SRA_PendingText( kCityState:table )
+	local pending:number = SRA_Pending( kCityState.iPlayer );
+	local left:number = SRA_EnvoysLeft();
+	local text:string = Locale.Lookup( kCityState.Name ) .. ", " .. SRA_Envoys( kCityState.Tokens + pending ) .. ", " .. pending .. " pending, " .. left .. " left to give";
+	if left <= 0 then text = text .. ". All envoys placed, C to confirm"; end
+	return text;
+end
+
+local function SRA_AddEnvoy( iPlayer:number )
+	local kCityState:table = m_kCityStates[ iPlayer ];
+	if kCityState == nil or m_uiCityStateRows[ iPlayer ] == nil then return; end
+	local name:string = Locale.Lookup( kCityState.Name );
+	if not m_isLocalPlayerTurn then SRA_Say( "Not your turn" ); return; end
+	if not kCityState.CanReceiveTokensFrom then
+		SRA_Say( "Can't send envoys to " .. name .. ( kCityState.isAtWar and ", at war" or "" ) );
+		return;
+	end
+	if SRA_EnvoysLeft() <= 0 then SRA_Say( "No envoys left" ); return; end
+	OnMoreEnvoyTokens( iPlayer );
+	SRA_Say( SRA_PendingText( kCityState ) );
+end
+
+local function SRA_RemoveEnvoy( iPlayer:number )
+	local kCityState:table = m_kCityStates[ iPlayer ];
+	if kCityState == nil or m_uiCityStateRows[ iPlayer ] == nil then return; end
+	if SRA_Pending( iPlayer ) <= 0 then
+		SRA_Say( "No pending envoys for " .. Locale.Lookup( kCityState.Name ) );
+		return;
+	end
+	OnLessEnvoyTokens( iPlayer );
+	SRA_Say( SRA_PendingText( kCityState ) );
+end
+
+local function SRA_Confirm()
+	if not SRA_IsSendMode() or SumEnvoyChanges() <= 0 then
+		SRA_Say( "No envoys to send" );
+		return;
+	end
+	local summary:string = SRA_PendingSummary();
+	local closes:boolean = SRA_EnvoysLeft() < 1;
+	OnConfirmPlacement();
+	if closes then m_srList.Reset(); end
+	SRA_Say( "Envoys sent: " .. summary .. ( closes and ". City-States closed" or "" ) );
+end
+
+local function SRA_OpenActions( iPlayer:number )
+	m_srActionPlayer = iPlayer;
+	m_srActions.Open( "Actions for " .. Locale.Lookup( m_kCityStates[ iPlayer ].Name ) );
+end
+
+local function SRA_OnListActivate( item:table )
+	if item.key == "confirm" then
+		SRA_Confirm();
+	elseif item.iPlayer ~= nil then
+		if SRA_IsSendMode() then
+			SRA_AddEnvoy( item.iPlayer );
+		else
+			SRA_OpenActions( item.iPlayer );
+		end
+	end
+end
+
+-- A: the action list, also while envoys are being sent (Enter adds an envoy there).
+local function SRA_KeyActions()
+	local iPlayer = SRA_FocusedPlayer();
+	if iPlayer ~= nil and m_kCityStates[ iPlayer ] ~= nil then SRA_OpenActions( iPlayer ); end
+end
+
+local function SRA_OnListClose()
+	local discarded:boolean = SRA_IsSendMode() and SumEnvoyChanges() > 0;
+	OnClose();
+	m_srList.Reset();
+	SRA_Say( ( discarded and "Envoys not sent. " or "" ) .. "City-States closed" );
+end
+
+-- Keys that act on the focused city-state in send envoys mode.
+local function SRA_KeyAdd()
+	if not SRA_IsSendMode() then return; end
+	local iPlayer = SRA_FocusedPlayer();
+	if iPlayer ~= nil then SRA_AddEnvoy( iPlayer ); end
+end
+
+local function SRA_KeyRemove()
+	if not SRA_IsSendMode() then return; end
+	local iPlayer = SRA_FocusedPlayer();
+	if iPlayer ~= nil then SRA_RemoveEnvoy( iPlayer ); end
+end
+
+-- The action list for one city-state (overview mode).
+function SRA_ActionItems()
+	local items:table = {};
+	local kCityState:table = m_kCityStates[ m_srActionPlayer ];
+	if kCityState == nil then return items; end
+	table.insert( items, { key = "map", text = "Show on map" } );
+	if GameCapabilities.HasCapability( "CAPABILITY_MILITARY" ) then
+		if kCityState.CanLevyMilitary then
+			table.insert( items, { key = "levy", text = "Levy military, " .. kCityState.LevyMilitaryCost .. " gold" } );
+		end
+		if kCityState.isAtWar and kCityState.CanMakePeaceWith then
+			table.insert( items, { key = "peace", text = "Make peace" } );
+		end
+	end
+	if ( m_kPlayerData.EnvoyTokens or 0 ) > 0 and not SRA_IsSendMode() then
+		table.insert( items, { key = "send", text = "Send envoys, " .. SRA_Envoys( m_kPlayerData.EnvoyTokens ) .. " to give" } );
+	end
+	return items;
+end
+
+local function SRA_BackToList( prefix:string )
+	m_srActionPlayer = -1;
+	m_srList.Focus( m_srList.GetFocusKey(), prefix );
+end
+
+local function SRA_OnActionActivate( item:table )
+	local kCityState:table = m_kCityStates[ m_srActionPlayer ];
+	if kCityState == nil then SRA_BackToList( "Back" ); return; end
+	local name:string = Locale.Lookup( kCityState.Name );
+	if item.key == "map" then
+		local pCities:table = Players[ kCityState.iPlayer ]:GetCities();
+		for _, pCity in pCities:Members() do
+			LuaEvents.SRA_CursorTo( pCity:GetX(), pCity:GetY() );
+			break;
+		end
+		LookAtCityState( kCityState.iPlayer );
+		SRA_Say( "Showing " .. name .. " on the map. The map cursor is there" );
+	elseif item.key == "levy" then
+		OnLevyMilitary( kCityState );
+		SRA_BackToList( "Levying the military of " .. name .. " for " .. kCityState.LevyMilitaryCost .. " gold" );
+	elseif item.key == "peace" then
+		OnChangeWarPeaceStatus( kCityState );
+		SRA_BackToList( "Peace with " .. name .. " requested" );
+	elseif item.key == "send" then
+		m_srActionPlayer = -1;
+		m_srSingle = false;
+		OnBackClose();
+		SRA_ArmOpen();
+	end
+end
+
+function SRA_CreateLists()
+	local function Active( wantActions:boolean )
+		return function()
+			return not ContextPtr:IsHidden() and ( m_srActionPlayer ~= -1 ) == wantActions;
+		end
+	end
+	local extra:table = {
+		[ Keys.VK_RIGHT ] = SRA_KeyAdd,
+		[ Keys.VK_ADD ] = SRA_KeyAdd,
+		[ Keys.VK_OEM_PLUS ] = SRA_KeyAdd,		-- main keyboard + / = key
+		[ Keys.VK_LEFT ] = SRA_KeyRemove,
+		[ Keys.VK_SUBTRACT ] = SRA_KeyRemove,
+		[ Keys.VK_OEM_MINUS ] = SRA_KeyRemove,	-- main keyboard - key
+		[ Keys.VK_BACK ] = SRA_KeyRemove,		-- Backspace
+		[ Keys.C ] = SRA_Confirm,
+		[ Keys.A ] = SRA_KeyActions,
+	};
+	m_srList = KeyNavList_Create{ build = SRA_ListItems, isActive = Active( false ), onActivate = SRA_OnListActivate, onClose = SRA_OnListClose, extraKeys = extra };
+	m_srActions = KeyNavList_Create{ build = SRA_ActionItems, isActive = Active( true ), onActivate = SRA_OnActionActivate, onClose = function() SRA_BackToList( "Back" ); end };
+end
+
+-- Called when the screen is opened; the announcement comes from the update loop once the data has settled.
+function SRA_ArmOpen()
+	m_srActionPlayer = -1;
+	m_srOpenPending = true;
+	m_srOpenDelay = 0.4;
+end
+
+local function SRA_Announce()
+	m_srActionPlayer = -1;
+	local items:table = SRA_ListItems();
+	local met:number = #SRA_MetCityStates();
+	if met == 0 or #items == 0 then
+		SRA_Say( "No city-states met", true );
+		return;
+	end
+	local initial = nil;
+	if m_srSingle and m_iCurrentCityState ~= -1 then initial = "cs:" .. m_iCurrentCityState; end
+	m_srList.Open( "City-States", initial, true );
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == m_srList.GetFocusKey() then index = i; end
+	end
+	local head:string;
+	if SRA_IsSendMode() then
+		head = "Send envoys: " .. SRA_EnvoysLeft() .. " to give";
+	else
+		head = "City-States, " .. met .. " met";
+	end
+	SRA_Say( head .. ". " .. items[ index ].text .. ", " .. index .. " of " .. #items, true );
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_srOpenPending and not ContextPtr:IsHidden() then
+		m_srOpenDelay = m_srOpenDelay - deltaTime;
+		if m_srOpenDelay > 0 then return; end
+		m_srOpenPending = false;
+		local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+		if not ok then print( "City-States announce error: " .. tostring(err) ); end
+	end
+end
+
+-- Handles the key for the list / action list; every other keyboard event is swallowed while the screen is open.
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end
+	if m_srList.HandleInput( pInputStruct ) or m_srActions.HandleInput( pInputStruct ) then return true; end
+	local msg:number = pInputStruct:GetMessageType();
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+
+-- Hot reload leaves the old instance's listeners registered: remove every one on shutdown.
+function SRA_RemoveListeners()
+	Events.CityLiberated.Remove( OnCityLiberated );
+	Events.DiplomacyDeclareWar.Remove( OnDiplomacyDeclareWar );
+	Events.DiplomacyMakePeace.Remove( OnDiplomacyMakePeace );
+	Events.InfluenceChanged.Remove( OnInfluenceChanged );
+	Events.InfluenceGiven.Remove( OnInfluenceGiven );
+	Events.InterfaceModeChanged.Remove( OnInterfaceModeChanged );
+	Events.QuestChanged.Remove( OnQuestChanged );
+	Events.SystemUpdateUI.Remove( OnUpdateUI );
+	Events.LocalPlayerTurnBegin.Remove( OnLocalPlayerTurnBegin );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	Events.LocalPlayerChanged.Remove( OnClose );
+	LuaEvents.CityBannerManager_RaiseMinorCivPanel.Remove( OnRaiseMinorCivicsPanel );
+	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
+	LuaEvents.NotificationPanel_OpenCityStatesSendEnvoys.Remove( OnOpenSendEnvoys );
+	LuaEvents.PartialScreenHooks_OpenCityStates.Remove( OnOpenCityStates );
+	LuaEvents.PartialScreenHooks_CloseCityStates.Remove( OnCloseCityStates );
+	LuaEvents.PartialScreenHooks_CloseAllExcept.Remove( OnCloseAllExcept );
+	LuaEvents.WorldRankings_CloseCityStates.Remove( OnClose );
+end
+-- End ScreenReaderAccess
+
+-- ===========================================================================
 --	UI EVENT
 -- ===========================================================================
 function OnInputHandler( input:table )
+	if SRA_HandleInput( input ) then return true; end		-- ScreenReaderAccess
 	--if m_mode == MODE.EnvoySent or m_mode == MODE.InfluencedBy or m_mode == MODE.Quests then
 	return m_kScreenSlideAnim.OnInputHandler( input, OnClose );	
 end
@@ -1634,6 +2043,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRA_RemoveListeners();		-- ScreenReaderAccess
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isHidden", ContextPtr:IsHidden());
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "m_mode", m_mode);	
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "m_iCurrentCityState", m_iCurrentCityState);	
@@ -1815,6 +2225,8 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetInputHandler(OnInputHandler, true);
 	ContextPtr:SetShutdown( OnShutdown );
+	ContextPtr:SetUpdate( SRA_OnUpdate );		-- ScreenReaderAccess
+	SRA_CreateLists();							-- ScreenReaderAccess
 
 	-- Game Events
 	Events.CityLiberated.Add( OnCityLiberated );

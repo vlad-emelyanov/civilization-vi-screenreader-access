@@ -40,6 +40,10 @@ description: Build the mod, launch Civilization VI and drive it with the keyboar
 
 It is generated, not hand-written: `Options.lua` prints a `#KEYMAP` block to `Lua.log` whenever the Options screen is shown. To refresh after rebinding keys or editing `Database/*.sql` hotkeys: build, `stop`/`start`, press Down to "Game Options" and Enter (then Escape), then `util\civctl.cmd keymap`. All actions are currently bound (the script lists any unbound ones at the top of the file).
 
+## Never send NumPad + / - (civctl `Add` / `Subtract`)
+
+They are JAWS commands: `Subtract` turns the JAWS cursor on, after which arrow keys, Home, End etc. no longer reach any window (the game never sees them, even from SendInput; it survives a game restart). `Add` (NumPad plus) turns it off again. Use the main keyboard keys `OemPlus` / `OemMinus` instead.
+
 ## Escape and the in-game menu
 
 Escape with no popup or mode open opens the in-game options menu (`In game menu` / `RETURN TO GAME`), and the next Down+Enter then does something real (Quick Save...). Before a key sequence that starts with Escape, run `util/civctl menu`: `MENU: OPEN` means Escape will close it, `closed` means Escape will open it. To back out: `key Escape` once while `MENU: OPEN` (announces `RETURN TO GAME`), then `menu` again to confirm. The `POPUP/SCREEN OPEN` line lists open screens (e.g. `PartialScreens/CityStates`); close those with Escape too.
