@@ -38,7 +38,7 @@ Do not run `civctl` yourself. The user wants that delegated.
 1. Repo path, branch, and the files to read first: `CLAUDE.md`, `.claude/skills/civ-test/SKILL.md`, the relevant sections of `docs/ingame-plan.md`, `docs/keynav-guide.md`, and the reference implementation to copy (e.g. "use the Governor*_SRA.lua overrides as your model").
 2. Game state: running or not, and which fixture is loaded (`civctl fixtures` lists them, `test/fixtures/*.txt` are the sidecars). Name the fixture each item reproduces on (`bug-<name>` from the play report) and the scenario script, if any (`util/scenarios/`).
 3. Each item: the symptom with the exact SR> lines from the report, the required result (exact speech), and a hint where it probably lives. Ask for a regression script (`test/regress/<name>.txt`) per fixed item that has a fixture.
-   - The game owner's name for `CIVCTL_OWNER` / `-Owner` (e.g. `verifier`, `play-agent`). The lock is a lease: another owner is refused for 10 min after the last command. The agent ends with `civctl unlock`.
+   - The game owner's name for `CIVCTL_OWNER` / `-Owner` (e.g. `verifier`, `play-agent`). The lock is a lease: another owner is refused for 3 min after the last command unless the owner runs `civctl unlock`; commands without an owner are refused (exit 7); `unlock` without an owner frees a dead agent's lease. The agent ends with `civctl unlock`.
 4. Known traps:
    - Never call engine operations with hand-made parameters; use the game's own button functions. The forbidden calls are listed in `docs/engine-notes.md`.
    - `Network.LoadGame` only from the main menu (`civctl load` does this right); never save scenario/test setups over a fixture or the play-through chain.

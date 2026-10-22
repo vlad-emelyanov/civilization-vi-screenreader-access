@@ -45,12 +45,12 @@ util\civctl.cmd shot                 # screenshot path, view only when output is
 util\civctl.cmd load early-t60       # named fixtures (test\fixtures); also `save <name>`, `newgame <profile>`, `autoplay <n>`
 util\civctl.cmd scenario governor-title   # set up one situation (util\scenarios\*.lua) on a loaded fixture
 util\civctl.cmd regress all [--share-load]   # speech regression scripts (test\regress\*.txt), ~6 min, exit 1 on a failed check
-util\civctl.cmd unlock               # release the owner lease: another $env:CIVCTL_OWNER gets exit 6 until you were idle for 10 min
+set CIVCTL_OWNER=<your agent name>   # REQUIRED for every command that drives the game (PowerShell: $env:CIVCTL_OWNER='name'; Git Bash: export CIVCTL_OWNER=name); without it: REFUSED, exit 7
 util\civctl.cmd status              # game/console/lock + "in game, turn N" or "front end"
 util\civctl.cmd save bug-foo -Purpose "why"   # named save -> test/fixtures/bug-foo.Civ6Save + .txt (turn, civ, commit)
 util\civctl.cmd load early-start    # load a fixture by name (~30-45 s, from in game or main menu; never LoadGame from InGame)
 util\civctl.cmd fixtures            # list fixtures; util\civctl.cmd newgame <early|crowded|medieval|industrial|modern|modes>  # new game from util/profiles/*.lua (~70 s), saves <profile>-start
-util\civctl.cmd unlock              # release the lock; set CIVCTL_OWNER=<name> (or -Owner) per agent: a second owner gets "game in use by X" (exit 6)
+util\civctl.cmd unlock              # release the lease (no owner needed, frees a dead agent's too). Other owners get "game in use by X" (exit 6) until it is released or idle 3 min
 # exit 5 + "GAME CRASHED/HUNG" (key, wait, sr, lua, save, load): stop guessing, `stop`, `start`, `load` the latest fixture. `key` refuses Add/Subtract/numpad keys (JAWS).
 ```
 

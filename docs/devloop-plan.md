@@ -26,7 +26,7 @@ Target: every finding has a named save from just before it happened. Fixes are v
 - Crash and hang detection: `key`, `wait`, `sr` and `lua` check that the game process is alive and responding, and that no `FiraxisBugReporter.exe` is running. If not, print `GAME CRASHED` (or `GAME HUNG`) with the crash-dump path and exit with a distinct code (e.g. 5). Agents then stop guessing.
 - `key` refuses `Add`, `Subtract` (and other JAWS-reserved numpad keys) with a clear message.
 - `status` reports the front end or the turn number when in game.
-- A lock file (`%TEMP%\civctl\lock`, with the owner's name) prevents two agents driving the game by accident. A second `civctl` call waits or fails with "game in use by <owner>".
+- A lock file (`%TEMP%\civctl\lock`, with the owner's name) prevents two agents driving the game by accident. A second `civctl` call fails with "game in use by <owner>" (exit 6); a missing owner is refused (exit 7); the lease expires after 3 min idle (long commands refresh it) or on `civctl unlock`.
 - Save paths: Documents is redirected to OneDrive on this PC (`C:\Users\vladi\OneDrive\Documents\My Games\Sid Meier's Civilization VI\`; `$USERPROFILE\Documents` does not exist). Resolve the folder with `[Environment]::GetFolderPath('MyDocuments')`, never a hard-coded path.
 - Mod fix found by the autoplay spike: the hub's `IsHostile` (`InGameAccess.lua:161`, called from the `UnitVisibilityChanged` handler) indexes `Players[Game.GetLocalPlayer()]` while the local player is -1 during autoplay (166 caught errors in a 30-turn run). Add a nil guard.
 
