@@ -8,6 +8,8 @@ include("SupportFunctions");
 include("Civ6Common");
 include("ModalScreen_PlayerYieldsHelper");
 include("GovernorSupport");
+include("ScreenReader");	-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -34,6 +36,13 @@ local m_TopPanelConsideredHeight:number = 0;
 -- Player ID and City ID sent by City Banner to be used to auto select a city when opening the assignment chooser
 local m_CityBannerPlayerID:number = -1;
 local m_CityBannerCityID:number = -1;
+
+local m_srList			:table = nil;		-- ScreenReaderAccess: governor list
+local m_srActions		:table = nil;		-- ScreenReaderAccess: actions of one governor
+local m_srActionGov		:number = -1;		-- ScreenReaderAccess: governor index whose actions are open (-1 = governor list)
+local m_srOpenPending	:boolean = false;	-- ScreenReaderAccess
+local m_srOpenDelay		:number = 0;		-- ScreenReaderAccess
+local m_srAppointWait	:number = nil;		-- ScreenReaderAccess: seconds until "the appointment did not happen" is said
 
 -- ===========================================================================
 function Refresh()
@@ -474,6 +483,7 @@ end
 -- Close the Screen. This can happen from the player explicitedly closing the screen or an action that implicitedly closes the screen.
 -- As such, do not mark the player as having considered their governor title options.
 function Close()
+	m_srOpenPending = false;		-- ScreenReaderAccess
 	if Controls.DetailsPanel:IsVisible() then
 		Controls.DetailsPanel:SetHide(true);
 	end
@@ -517,6 +527,9 @@ function Open(playerID:number, cityID:number)
 	
 	LuaEvents.GovernorPanel_Opened();
 	ContextPtr:ChangeParent(ContextPtr:LookUpControl("/InGame/Screens"));
+	m_srActionGov = -1;			-- ScreenReaderAccess
+	m_srOpenPending = true;		-- ScreenReaderAccess: announced from the update loop (Open is often called twice)
+	m_srOpenDelay = 0.5;		-- ScreenReaderAccess: lets a pending assignment settle first
 end
 
 -- ===========================================================================
@@ -524,6 +537,8 @@ function OnGovernorAppointed(playerID, governorID)
 	if ContextPtr:IsVisible() and playerID == Game.GetLocalPlayer() then
 		Refresh();
 		local governorDefinition:table = GameInfo.Governors[governorID];
+		if governorDefinition ~= nil then OutputMessageToScreenReader( Locale.Lookup(governorDefinition.Name) .. " appointed" ); end		-- ScreenReaderAccess
+		m_srAppointWait = nil;		-- ScreenReaderAccess
 		if (governorDefinition ~= nil and not IsCannotAssign(governorDefinition)) then
 			local pPlayer:object = Players[playerID];
 			if (pPlayer == nil) then
@@ -637,6 +652,7 @@ end
 -- =======================================================================================
 function OnShutdown()
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isVisible", ContextPtr:IsVisible());
+	SRA_RemoveListeners();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -656,11 +672,265 @@ function OnGameDebugReturn( context:string, contextTable:table )
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	Governor list (Up/Down/Home/End, Space = abilities, Enter = actions, Escape = close), then a small action list
+--	for the focused governor. Everything is rebuilt from the game's state at key time.
+-- ===========================================================================
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( Locale.Lookup( text or "" ) );
+end
+
+local function SRA_TurnsText( turns:number )
+	return turns .. ( turns == 1 and " turn" or " turns" );
+end
+
+-- Base ability and the promotions (with have / available / locked for an appointed governor).
+local function SRA_GovernorDetail( def:table, governor:table, pg:table )
+	local parts:table = {};
+	for pass = 1, 2 do
+		for set in GameInfo.GovernorPromotionSets() do
+			if set.GovernorType == def.GovernorType then
+				local promo:table = GameInfo.GovernorPromotions[ set.GovernorPromotion ];
+				if ( pass == 1 ) == ( promo.BaseAbility == true ) then
+					local name:string = SRA_Clean( promo.Name );
+					local desc:string = SRA_Clean( promo.Description );
+					if IsPromotionHidden( promo.Hash, Game.GetLocalPlayer(), def.Index ) then
+						name = GetPromotionHiddenName( promo.Hash );
+						desc = GetPromotionHiddenDescription( promo.Hash );
+					end
+					local line:string;
+					if promo.BaseAbility then
+						line = "Base ability: " .. desc;
+					else
+						line = name .. ": " .. desc;
+						if governor ~= nil then
+							if governor:HasPromotion( promo.Hash ) then
+								line = line .. ", have";
+							elseif pg:CanEarnPromotion( def.Hash, promo.Hash ) then
+								line = line .. ", available";
+							else
+								line = line .. ", locked";
+							end
+						end
+					end
+					table.insert( parts, ( string.gsub( line, "[%.%s]+$", "" ) ) );
+				end
+			end
+		end
+	end
+	return table.concat( parts, ". " );
+end
+
+-- Appointed governors first, then the candidates (secret society governors are left out).
+function SRA_GovernorItems()
+	local items:table = {};
+	local pPlayer:table = Players[ Game.GetLocalPlayer() ];
+	if pPlayer == nil then return items; end
+	local pg:table = pPlayer:GetGovernors();
+	if pg == nil then return items; end
+	local canAppoint:boolean = pg:CanAppoint() and not IsReadOnly();
+	local bHas, tList = pg:GetGovernorList();
+	for _, gov in ipairs( tList or {} ) do
+		local def:table = GameInfo.Governors[ gov:GetType() ];
+		if def ~= nil and not IsCannotAssign( def ) then
+			local text:string = SRA_Clean( def.Name ) .. ", " .. SRA_Clean( def.Title );
+			local city:table = gov:GetAssignedCity();
+			local neutral:number = gov:GetNeutralizedTurns();
+			if neutral > 0 then
+				text = text .. ", neutralized for " .. SRA_TurnsText( neutral );
+			elseif city ~= nil then
+				text = text .. ", in " .. SRA_Clean( city:GetName() );
+				if gov:IsEstablished() then
+					text = text .. ", established";
+				else
+					text = text .. ", establishes in " .. SRA_TurnsText( gov:GetTurnsToEstablish() - gov:GetTurnsOnSite() );
+				end
+			else
+				text = text .. ", not assigned";
+			end
+			local hasAll:boolean = true;
+			for set in GameInfo.GovernorPromotionSets() do
+				if set.GovernorType == def.GovernorType and not gov:HasPromotion( GameInfo.GovernorPromotions[ set.GovernorPromotion ].Hash ) then
+					hasAll = false;
+				end
+			end
+			local canPromote:boolean = pg:CanPromoteGovernor( def.Hash ) and not hasAll and not IsReadOnly();
+			if canPromote then text = text .. ", can promote"; end
+			table.insert( items, { key = "gov:" .. def.Index, text = text, def = def, governor = gov, appointed = true, city = city,
+				neutral = neutral > 0, canPromote = canPromote,
+				detail = function() return SRA_Clean( def.Name ) .. ", " .. SRA_Clean( def.Title ) .. ". " .. SRA_GovernorDetail( def, gov, pg ); end } );
+		end
+	end
+	for def in GameInfo.Governors() do
+		if not pg:HasGovernor( def.Hash ) and pg:CanEverAppointGovernor( def.Hash ) and not IsCannotAssign( def ) then
+			local text:string = SRA_Clean( def.Name ) .. ", " .. SRA_Clean( def.Title );
+			if canAppoint then
+				text = text .. ", can appoint";
+			else
+				text = text .. ", needs a governor title";
+			end
+			table.insert( items, { key = "gov:" .. def.Index, text = text, def = def, appointed = false, canAppoint = canAppoint,
+				detail = function() return SRA_Clean( def.Name ) .. ", " .. SRA_Clean( def.Title ) .. ". " .. SRA_GovernorDetail( def, nil, pg ); end } );
+		end
+	end
+	return items;
+end
+
+local function SRA_FindGovernorItem( index:number )
+	for _, item in ipairs( SRA_GovernorItems() ) do
+		if item.def.Index == index then return item; end
+	end
+	return nil;
+end
+
+local function SRA_ActionItems()
+	local gi:table = SRA_FindGovernorItem( m_srActionGov );
+	if gi == nil then return {}; end
+	local section:string = "Actions for " .. SRA_Clean( gi.def.Name );
+	local items:table = {};
+	local function Add( key:string, text:string )
+		table.insert( items, { key = key, text = text, section = section } );
+	end
+	if gi.appointed then
+		if not gi.neutral and not IsReadOnly() then
+			Add( "assign", SRA_Clean( gi.city ~= nil and "LOC_GOVERNORS_SCREEN_BUTTON_REASSIGN_GOVERNOR" or "LOC_GOVERNORS_SCREEN_BUTTON_ASSIGN_GOVERNOR" ) );
+		end
+	elseif gi.canAppoint then
+		Add( "appoint", SRA_Clean( "LOC_GOVERNORS_SCREEN_BUTTON_APPOINT_GOVERNOR" ) );
+	end
+	if gi.canPromote then
+		Add( "promote", SRA_Clean( "LOC_GOVERNORS_SCREEN_PROMOTE" ) );
+	else
+		Add( "promotions", SRA_Clean( "LOC_GOVERNORS_SCREEN_VIEW_PROMOTIONS" ) );
+	end
+	Add( "abilities", "Abilities" );
+	return items;
+end
+
+local function SRA_OnActionActivate( item:table )
+	local index:number = m_srActionGov;
+	local gi:table = SRA_FindGovernorItem( index );
+	if gi == nil then return; end
+	if item.key == "abilities" then
+		SRA_Say( gi.detail() );
+	elseif item.key == "appoint" then
+		m_srActionGov = -1;
+		m_srAppointWait = 3;
+		OnAppointGovernor( index );
+	elseif item.key == "assign" then
+		m_srActionGov = -1;
+		OnAssignButton( index, m_CityBannerPlayerID, m_CityBannerCityID );
+	else
+		OnNameButton( index );
+	end
+end
+
+local function SRA_OnGovernorActivate( item:table )
+	m_srActionGov = item.def.Index;
+	m_srActions.Reset();
+	m_srActions.Focus( nil );
+end
+
+local function SRA_OnActionsClose()
+	m_srActionGov = -1;
+	m_srList.Focus( m_srList.GetFocusKey(), "Back" );
+end
+
+local function SRA_OnListClose()
+	PlayerRequestClose();
+	m_srList.Reset();
+	SRA_Say( "Governors closed" );
+end
+
+function SRA_CreateLists()
+	local function Active( wantActions:boolean )
+		return function()
+			return not ContextPtr:IsHidden() and not Controls.DetailsPanel:IsVisible() and ( m_srActionGov ~= -1 ) == wantActions;
+		end
+	end
+	m_srList = KeyNavList_Create{ build = SRA_GovernorItems, isActive = Active( false ), onActivate = SRA_OnGovernorActivate, onClose = SRA_OnListClose };
+	m_srActions = KeyNavList_Create{ build = SRA_ActionItems, isActive = Active( true ), onActivate = SRA_OnActionActivate, onClose = SRA_OnActionsClose };
+end
+
+-- "Governors. 2 titles available. Magnus, The Steward, not assigned, 1 of 5"
+local function SRA_Announce()
+	m_srActionGov = -1;
+	local pPlayer:table = Players[ Game.GetLocalPlayer() ];
+	local items:table = SRA_GovernorItems();
+	if pPlayer == nil or #items == 0 then
+		SRA_Say( "Governors. Nothing available", true );
+		return;
+	end
+	m_srList.Open( "Governors", m_srList.GetFocusKey(), true );
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == m_srList.GetFocusKey() then index = i; end
+	end
+	local pg:table = pPlayer:GetGovernors();
+	local titles:number = pg:GetGovernorPoints() - pg:GetGovernorPointsSpent();
+	local head:string = ( titles > 0 ) and ( titles .. ( titles == 1 and " title" or " titles" ) .. " available" ) or "No titles available";
+	SRA_Say( "Governors. " .. head .. ". " .. items[ index ].text .. ", " .. index .. " of " .. #items, true );
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_srAppointWait ~= nil then
+		m_srAppointWait = m_srAppointWait - deltaTime;
+		if m_srAppointWait <= 0 then
+			m_srAppointWait = nil;
+			SRA_Say( "The appointment did not happen" );
+		end
+	end
+	if m_srOpenPending and not ContextPtr:IsHidden() then
+		m_srOpenDelay = m_srOpenDelay - deltaTime;
+		if m_srOpenDelay > 0 then return; end
+		m_srOpenPending = false;
+		local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+		if not ok then print( "Governors announce error: " .. tostring(err) ); end
+	end
+end
+
+-- Handles the key for the governor / action list; every other keyboard event is swallowed while the screen is open
+-- (the details child context handles its own keys).
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() or Controls.DetailsPanel:IsVisible() then return false; end
+	if m_srList.HandleInput( pInputStruct ) or m_srActions.HandleInput( pInputStruct ) then return true; end
+	local msg:number = pInputStruct:GetMessageType();
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+
+-- Hot reload leaves the old instance's listeners registered: remove every one on shutdown.
+function SRA_RemoveListeners()
+	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
+	Events.GovernorAppointed.Remove( OnGovernorAppointed );
+	Events.GovernorAssigned.Remove( OnGovernorAssigned );
+	Events.GovernorChanged.Remove( OnGovernorChanged );
+	Events.GovernorPointsChanged.Remove( OnGovernorPointsChanged );
+	Events.GovernorPromoted.Remove( OnGovernorPromoted );
+	Events.NotificationActivated.Remove( OnProcessNotification );
+	Events.LocalPlayerTurnBegin.Remove( OnLocalPlayerTurnBegin );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	LuaEvents.GovernorPanel_Toggle.Remove( OnToggleGovernorPanel );
+	LuaEvents.GovernorPanel_Close.Remove( Close );
+	LuaEvents.GovernorPanel_Open.Remove( Open );
+	LuaEvents.GovernorPanel_CancelAssignment.Remove( Open );
+	LuaEvents.GovernorPanel_ClosedDetails.Remove( Open );
+	LuaEvents.GovernorPanel_AssignDetails.Remove( Close );
+	LuaEvents.ActionPanel_ActivateNotification.Remove( OnProcessTurnBlocker );
+end
+-- End ScreenReaderAccess
+
+-- ===========================================================================
 --	UI Input Event Handler
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 
 	if ContextPtr:IsHidden() then return; end
+
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 
 	local key = pInputStruct:GetKey();
 	local msg = pInputStruct:GetMessageType();
@@ -732,6 +1002,8 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	ContextPtr:SetUpdate( SRA_OnUpdate );		-- ScreenReaderAccess
+	SRA_CreateLists();							-- ScreenReaderAccess
 
 	-- Lua Events
 	LuaEvents.GameDebug_Return.Add( OnGameDebugReturn );

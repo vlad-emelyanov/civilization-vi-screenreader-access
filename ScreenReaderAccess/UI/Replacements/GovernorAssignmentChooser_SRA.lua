@@ -8,6 +8,8 @@ include("SupportFunctions");
 include("GovernorSupport");
 include("PopupDialog");
 include("Colors");
+include("ScreenReader");	-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -31,6 +33,8 @@ local m_SelectedGovernorDef		:table = nil;
 local m_SelectedCityOwner		:number = -1;
 local m_SelectedCityID			:number = -1;
 local m_isLoadComplete          :boolean = false;
+local m_srList					:table = nil;		-- ScreenReaderAccess: city list
+local m_srAssigning				:boolean = false;	-- ScreenReaderAccess: an assignment was requested, speak the result
 
 
 -- ===========================================================================
@@ -241,6 +245,7 @@ function AddCityInstance( city:table, bDisabled:boolean, sFailureText:string )
 	-- Store city ID in instance so we can update selector brace
 	instance.DATA_FIELD_CITY_ID = cityID;
 	instance.DATA_FIELD_OWNER_ID = cityOwner;
+	instance.SRA_FailureText = ( bDisabled == true ) and sFailureText or nil;		-- ScreenReaderAccess
 
 	-- Update name
 	if city:IsCapital() and Players[cityOwner]:IsMajor() then
@@ -381,6 +386,7 @@ function Open()
 	UILens.SetActive("Loyalty");
 
 	Refresh();
+	SRA_Announce();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -395,6 +401,7 @@ end
 
 -- ===========================================================================
 function ConfirmedAssignment()
+	m_srAssigning = true;		-- ScreenReaderAccess
 	-- Request assignment
 	local pLocalPlayer = Players[Game.GetLocalPlayer()];
 	if (pLocalPlayer ~= nil) then
@@ -470,6 +477,7 @@ function OnShutdown()
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "governorID", m_SelectedGovernorID);
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "selectedCityOwner", m_SelectedCityOwner);
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "selectedCityID", m_SelectedCityID);
+	SRA_RemoveListeners();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -503,12 +511,143 @@ function OnGameDebugReturn( context:string, contextTable:table )
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	The city rows the game built (RefreshBottomPanel) as a list: Up/Down/Home/End, Space = details,
+--	Enter = select the city and confirm (OnSelectCity + OnConfirm, as the buttons do), Escape = cancel.
+-- ===========================================================================
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( Locale.Lookup( text or "" ) );
+end
+
+local function SRA_CityItems()
+	local items:table = {};
+	local localPlayerID:number = Game.GetLocalPlayer();
+	local pLocalPlayer:table = Players[ localPlayerID ];
+	if pLocalPlayer == nil then return items; end
+	local pg:table = pLocalPlayer:GetGovernors();
+	for _, instance in ipairs( m_AssignmentChoiceIM.m_AllocatedInstances ) do
+		local owner:number = instance.DATA_FIELD_OWNER_ID;
+		local cityID:number = instance.DATA_FIELD_CITY_ID;
+		local city:table = CityManager.GetCity( owner, cityID );
+		if city ~= nil then
+			local text:string = SRA_Clean( city:GetName() );
+			if owner ~= localPlayerID then
+				local pOwner:table = Players[ owner ];
+				if pOwner ~= nil and pOwner:IsMajor() then
+					text = text .. ", capital of " .. SRA_Clean( PlayerConfigurations[ owner ]:GetCivilizationShortDescription() );
+				else
+					text = text .. ", city-state";
+				end
+			end
+			local current:table = pg and pg:GetAssignedGovernor( city ) or nil;
+			local currentText:string = "no governor";
+			if current ~= nil then
+				local currentDef:table = GameInfo.Governors[ current:GetType() ];
+				currentText = "governor " .. SRA_Clean( currentDef.Name );
+			end
+			text = text .. ", " .. currentText;
+			local disabled:boolean = instance.Button:IsDisabled();
+			local reason:string = nil;
+			if disabled then
+				reason = string.gsub( SRA_Clean( instance.SRA_FailureText or "" ), "^[%.%s]+", "" );
+				if reason == "" then reason = "not possible"; end
+				text = text .. ", unavailable: " .. reason;
+				reason = "Unavailable: " .. reason;
+			end
+			local detail:string = "Establishes in " .. m_SelectedGovernor:GetTurnsToEstablish() .. " turns";
+			table.insert( items, { key = "city:" .. owner .. ":" .. cityID, text = text, owner = owner, cityID = cityID,
+				choosable = not disabled, reason = reason, detail = detail } );
+		end
+	end
+	return items;
+end
+
+local function SRA_OnCityActivate( item:table )
+	OnSelectCity( item.owner, item.cityID );
+	OnConfirm();
+end
+
+local function SRA_OnEscape()
+	SRA_Say( "Cancelled" );
+	OnCancel();
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build = SRA_CityItems,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = SRA_OnCityActivate,
+		onClose = SRA_OnEscape,
+	};
+end
+
+-- "Assign Pingala: choose a city. Rome, no governor, 1 of 5"
+function SRA_Announce()
+	if m_srList == nil or m_SelectedGovernorDef == nil then return; end
+	local name:string = SRA_Clean( m_SelectedGovernorDef.Name );
+	local items:table = SRA_CityItems();
+	if #items == 0 then
+		SRA_Say( "Assign " .. name .. ": no city available", true );
+		return;
+	end
+	m_srList.Reset();
+	m_srList.Open( "", nil, true );
+	SRA_Say( "Assign " .. name .. ": choose a city. " .. items[1].text .. ", 1 of " .. #items, true );
+end
+
+-- Spoken when the game confirms the assignment.
+function SRA_OnGovernorAssigned( cityPlayer:number, cityID:number, ePlayer:number, eGovernor:number )
+	if not m_srAssigning or ePlayer ~= Game.GetLocalPlayer() then return; end
+	m_srAssigning = false;
+	local def:table = GameInfo.Governors[ eGovernor ];
+	local city:table = CityManager.GetCity( cityPlayer, cityID );
+	if def == nil or city == nil then return; end
+	local text:string = SRA_Clean( def.Name ) .. " assigned to " .. SRA_Clean( city:GetName() );
+	local governor:table = GetAppointedGovernor( ePlayer, eGovernor );
+	if governor ~= nil then
+		if governor:IsEstablished() then
+			text = text .. ", established";
+		else
+			local turns:number = governor:GetTurnsToEstablish() - governor:GetTurnsOnSite();
+			text = text .. ", establishes in " .. turns .. ( turns == 1 and " turn" or " turns" );
+		end
+	end
+	SRA_Say( text );
+end
+
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	local msg:number = pInputStruct:GetMessageType();
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+
+-- Hot reload leaves the old instance's listeners registered: remove every one on shutdown.
+function SRA_RemoveListeners()
+	Events.CityAddedToMap.Remove( OnCityAddedToMap );
+	Events.LoadGameViewStateDone.Remove( OnLoadGameViewStateDone );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	Events.GovernorAssigned.Remove( SRA_OnGovernorAssigned );
+	LuaEvents.DiploBasePopup_HideUI.Remove( OnDiploBasePopup_HideUI );
+	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
+	LuaEvents.GovernorAssignmentChooser_RequestAssignment.Remove( OnRequestAssignment );
+	LuaEvents.GovernorAssignmentChooser_Close.Remove( OnClose );
+end
+-- End ScreenReaderAccess
+
+-- ===========================================================================
 --	Input
 --	UI Event Handler
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 
 	if ContextPtr:IsHidden() then return; end
+
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 
 	local key = pInputStruct:GetKey();
 	local msg = pInputStruct:GetMessageType();
@@ -563,6 +702,7 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	SRA_CreateList();		-- ScreenReaderAccess
 
 	-- Control Callbacks
 	Controls.ConfirmButton:RegisterCallback( Mouse.eLClick, OnConfirm );
@@ -574,6 +714,7 @@ function Initialize()
 	Events.CityAddedToMap.Add( OnCityAddedToMap );
 	Events.LoadGameViewStateDone.Add( OnLoadGameViewStateDone );
 	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );	
+	Events.GovernorAssigned.Add( SRA_OnGovernorAssigned );		-- ScreenReaderAccess
 
 	-- Lua Events	
 	LuaEvents.DiploBasePopup_HideUI.Add( OnDiploBasePopup_HideUI );

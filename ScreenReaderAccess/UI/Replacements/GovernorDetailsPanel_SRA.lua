@@ -10,6 +10,8 @@ include("SupportFunctions");
 include("Civ6Common");
 include("ModalScreen_PlayerYieldsHelper");
 include("GovernorSupport");
+include("ScreenReader");	-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -44,6 +46,7 @@ local m_SelectedPromotion:number = -1;
 local m_TopPanelConsideredHeight:number = 0;
 
 local m_isReadOnly : boolean = false;
+local m_srList:table = nil;		-- ScreenReaderAccess: promotion list
 -- ===========================================================================
 function Refresh()
 	local localPlayerID:number = Game.GetLocalPlayer();
@@ -400,6 +403,7 @@ function Open()
 	
 	Refresh();
 	ContextPtr:SetHide(false);
+	SRA_Announce();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -450,12 +454,148 @@ function OnGameDebugReturn( context:string, contextTable:table )
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	The promotions of the governor as a list: Up/Down/Home/End, Space = read again, Enter = promote (select the
+--	promotion and confirm, as the buttons do), Escape = back.
+-- ===========================================================================
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( Locale.Lookup( text or "" ) );
+end
+
+local m_srPromotingName:string = nil;
+
+local function SRA_PromotionItems()
+	local items:table = {};
+	local localPlayerID:number = Game.GetLocalPlayer();
+	if m_GovernorIndex == -1 or localPlayerID == PlayerTypes.NONE or localPlayerID == PlayerTypes.OBSERVER then return items; end
+	local def:table = GameInfo.Governors[ m_GovernorIndex ];
+	local gov:table = GetAppointedGovernor( localPlayerID, m_GovernorIndex );
+	local pg:table = Players[ localPlayerID ]:GetGovernors();
+	local promos:table = {};
+	for set in GameInfo.GovernorPromotionSets() do
+		if set.GovernorType == def.GovernorType then
+			table.insert( promos, GameInfo.GovernorPromotions[ set.GovernorPromotion ] );
+		end
+	end
+	table.sort( promos, function( a, b )
+		if a.Level ~= b.Level then return a.Level < b.Level; end
+		return a.Column < b.Column;
+	end );
+	for _, promo in ipairs( promos ) do
+		local name:string = SRA_Clean( promo.Name );
+		local desc:string = SRA_Clean( promo.Description );
+		if IsPromotionHidden( promo.Hash, localPlayerID, def.Index ) then
+			name = GetPromotionHiddenName( promo.Hash );
+			desc = GetPromotionHiddenDescription( promo.Hash );
+		end
+		local item:table = { key = "promo:" .. promo.Index, promo = promo, name = name };
+		if promo.BaseAbility then
+			item.text = "Base ability: " .. desc;
+			item.choosable = false;
+			item.reason = "This is the base ability";
+		else
+			item.text = name .. ": " .. desc;
+			if gov == nil then
+				item.choosable = false;
+				item.reason = "Appoint this governor first";
+			elseif gov:HasPromotion( promo.Hash ) then
+				item.text = item.text .. ", have";
+				item.choosable = false;
+				item.reason = "Already have this promotion";
+			elseif pg:CanEarnPromotion( def.Hash, promo.Hash ) then
+				if m_isReadOnly then
+					item.text = item.text .. ", available";
+					item.choosable = false;
+					item.reason = "Not possible during the World Congress";
+				elseif pg:CanPromoteGovernor( def.Hash ) then
+					item.text = item.text .. ", available";
+				else
+					item.text = item.text .. ", available, needs a governor title";
+					item.choosable = false;
+					item.reason = "No governor title to promote with";
+				end
+			else
+				local needs:table = {};
+				for row in GameInfo.GovernorPromotionPrereqs() do
+					if row.GovernorPromotionType == promo.GovernorPromotionType then
+						local prereq:table = GameInfo.GovernorPromotions[ row.PrereqGovernorPromotion ];
+						if prereq ~= nil and not gov:HasPromotion( prereq.Hash ) then
+							table.insert( needs, SRA_Clean( prereq.Name ) );
+						end
+					end
+				end
+				item.text = item.text .. ", locked";
+				if #needs > 0 then item.text = item.text .. ": needs " .. table.concat( needs, " and " ); end
+				item.choosable = false;
+				item.reason = "Locked";
+				if #needs > 0 then item.reason = "Locked, needs " .. table.concat( needs, " and " ); end
+			end
+		end
+		item.detail = item.text;
+		table.insert( items, item );
+	end
+	return items;
+end
+
+local function SRA_OnPromotionActivate( item:table )
+	m_srPromotingName = item.name;
+	if m_SelectedPromotion ~= item.promo.Index then
+		OnPromoteGovernor( m_GovernorIndex, item.promo.Index );
+	end
+	OnConfirm();
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build = SRA_PromotionItems,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = SRA_OnPromotionActivate,
+		onClose = OnBack,
+	};
+end
+
+-- "Magnus, The Steward: promotions. Base ability: ..., 1 of 6"
+function SRA_Announce()
+	if m_srList == nil or m_GovernorIndex == -1 then return; end
+	local def:table = GameInfo.Governors[ m_GovernorIndex ];
+	local items:table = SRA_PromotionItems();
+	local head:string = SRA_Clean( def.Name ) .. ", " .. SRA_Clean( def.Title ) .. ": promotions";
+	if #items == 0 then
+		SRA_Say( head .. ", none", true );
+		return;
+	end
+	m_srList.Reset();
+	m_srList.Open( "", nil, true );
+	SRA_Say( head .. ". " .. items[1].text .. ", 1 of " .. #items, true );
+end
+
+function SRA_OnPromoted( ePlayer:number, eGovernor:number, ePromotion:number )
+	if m_srPromotingName == nil or ePlayer ~= Game.GetLocalPlayer() then return; end
+	SRA_Say( "Promoted: " .. m_srPromotingName );
+	m_srPromotingName = nil;
+end
+
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	local msg:number = pInputStruct:GetMessageType();
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+-- End ScreenReaderAccess
+
+-- ===========================================================================
 --	Input
 --	UI Event Handler
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 
 	if ContextPtr:IsHidden() then return; end
+
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 
 	local key = pInputStruct:GetKey();
 	local msg = pInputStruct:GetMessageType();
@@ -487,6 +627,7 @@ function Subscribe()
 	Events.GovernorChanged.Add( Refresh );
 	Events.GovernorPointsChanged.Add( Refresh );
 	Events.GovernorPromoted.Add( Refresh );
+	Events.GovernorPromoted.Add( SRA_OnPromoted );		-- ScreenReaderAccess
 	Events.LocalPlayerTurnBegin.Add( Refresh );	
 	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
 end
@@ -505,6 +646,7 @@ function Unsubscribe()
 	Events.GovernorChanged.Remove( Refresh );
 	Events.GovernorPointsChanged.Remove( Refresh );
 	Events.GovernorPromoted.Remove( Refresh );
+	Events.GovernorPromoted.Remove( SRA_OnPromoted );		-- ScreenReaderAccess
 	Events.LocalPlayerTurnBegin.Remove( Refresh );	
 	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
 end
@@ -518,6 +660,7 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	SRA_CreateList();		-- ScreenReaderAccess
 
 	-- Control Events
 	Controls.ConfirmButton:RegisterCallback( Mouse.eLClick, OnConfirm );
