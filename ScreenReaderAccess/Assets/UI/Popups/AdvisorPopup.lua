@@ -5,6 +5,7 @@ include( "InstanceManager" );
 include( "Civ6Common" ); -- IsTutorialRunning()
 include( "KeyboardNavigation" );
 include( "ScreenReader" );
+include( "SRListen" );	-- ScreenReaderAccess mod: removable listeners
 
 
 -- ===========================================================================
@@ -630,14 +631,8 @@ function OnShutdown()
 		LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "m_currentItem", false );
 	end
 
-	LuaEvents.DiploScene_SceneClosed.Remove( OnDiploSceneClosed );
-	LuaEvents.DiploScene_SceneOpened.Remove( OnDiploSceneOpened );
-	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
-	LuaEvents.TutorialUIRoot_AdvisorRaise.Remove( OnAdvisorRaise );
-	LuaEvents.TutorialUIRoot_AdvisorLower.Remove( OnAdvisorLower );
-	-- ScreenReaderAccess mod change: also drop the two Events listeners (stale instances after a hot reload)
-	Events.InputActionTriggered.Remove( OnInputActionTriggered );
-	Events.UIIdle.Remove( OnUIIdle );
+	-- ScreenReaderAccess mod change: all listeners were added with SRListen (a hot reload re-runs this script, stale instances kept firing)
+	SRUnlistenAll();
 end
 
 
@@ -660,15 +655,15 @@ function Initialize()
 	ContextPtr:SetHideHandler( OnHide );
 
 	-- Events
-	Events.InputActionTriggered.Add( OnInputActionTriggered );
-	Events.UIIdle.Add( OnUIIdle );
+	SRListen( Events.InputActionTriggered, OnInputActionTriggered );
+	SRListen( Events.UIIdle, OnUIIdle );
 
 	-- Lua Events
-	LuaEvents.DiploScene_SceneClosed.Add( OnDiploSceneClosed );
-	LuaEvents.DiploScene_SceneOpened.Add( OnDiploSceneOpened );
-	LuaEvents.GameDebug_Return.Add( OnGameDebugReturn );
-	LuaEvents.TutorialUIRoot_AdvisorRaise.Add( OnAdvisorRaise );
-	LuaEvents.TutorialUIRoot_AdvisorLower.Add( OnAdvisorLower );
+	SRListen( LuaEvents.DiploScene_SceneClosed, OnDiploSceneClosed );
+	SRListen( LuaEvents.DiploScene_SceneOpened, OnDiploSceneOpened );
+	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );
+	SRListen( LuaEvents.TutorialUIRoot_AdvisorRaise, OnAdvisorRaise );
+	SRListen( LuaEvents.TutorialUIRoot_AdvisorLower, OnAdvisorLower );
 
 end
 Initialize();

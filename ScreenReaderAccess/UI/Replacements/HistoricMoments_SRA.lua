@@ -5,6 +5,7 @@ include("InstanceManager");
 include("GameCapabilities");
 include("ModalScreen_PlayerYieldsHelper");
 include("ScreenReader");		-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -601,17 +602,7 @@ end
 -- ===========================================================================
 -- ScreenReaderAccess: hot reload leaves the old instance's listeners registered; remove every one on shutdown.
 function SRA_OnShutdown()
-	Events.SystemUpdateUI.Remove( OnUpdateUI );
-	Events.NotificationActivated.Remove(OnProcessNotification);
-	Events.LocalPlayerTurnBegin.Remove( OnLocalPlayerTurnBegin );
-	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
-	Events.TeamVictory.Remove(OnEndGame);
-	Events.UIIdle.Remove( OnUIIdle );
-	LuaEvents.PrideMoments_ToggleTimeline.Remove(ToggleHistoricMomentsScreen);
-	LuaEvents.Advisor_ToggleTimeline.Remove(ToggleHistoricMomentsScreen);
-	LuaEvents.EndGameMenu_OpenHistoricMoments.Remove(ToggleFromEndGame);
-	LuaEvents.HistoricMoments_Close.Remove( OnClose );
-	LuaEvents.ShowEndGame.Remove(OnEndGame);
+	SRUnlistenAll();
 end
 
 -- ===========================================================================
@@ -624,18 +615,18 @@ function Initialize()
 	Controls.RightClickCloser:RegisterCallback(Mouse.eRClick, OnClose);
 	Controls.TimelineScroller:RegisterScrollCallback(OnScroll);
 
-	Events.SystemUpdateUI.Add( OnUpdateUI );
-	Events.NotificationActivated.Add(OnProcessNotification);
-	Events.LocalPlayerTurnBegin.Add( OnLocalPlayerTurnBegin );
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
-	Events.TeamVictory.Add(OnEndGame);
-	Events.UIIdle.Add( OnUIIdle );
+	SRListen( Events.SystemUpdateUI, OnUpdateUI );
+	SRListen( Events.NotificationActivated, OnProcessNotification );
+	SRListen( Events.LocalPlayerTurnBegin, OnLocalPlayerTurnBegin );
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );
+	SRListen( Events.TeamVictory, OnEndGame );
+	SRListen( Events.UIIdle, OnUIIdle );
 
-	LuaEvents.PrideMoments_ToggleTimeline.Add(ToggleHistoricMomentsScreen);
-	LuaEvents.Advisor_ToggleTimeline.Add(ToggleHistoricMomentsScreen);
-	LuaEvents.EndGameMenu_OpenHistoricMoments.Add(ToggleFromEndGame);
-	LuaEvents.HistoricMoments_Close.Add( OnClose );		-- LaunchBar
-	LuaEvents.ShowEndGame.Add(OnEndGame);
+	SRListen( LuaEvents.PrideMoments_ToggleTimeline, ToggleHistoricMomentsScreen );
+	SRListen( LuaEvents.Advisor_ToggleTimeline, ToggleHistoricMomentsScreen );
+	SRListen( LuaEvents.EndGameMenu_OpenHistoricMoments, ToggleFromEndGame );
+	SRListen( LuaEvents.HistoricMoments_Close, OnClose );		-- LaunchBar
+	SRListen( LuaEvents.ShowEndGame, OnEndGame );
 
 	CacheMomentIllustrations();
 

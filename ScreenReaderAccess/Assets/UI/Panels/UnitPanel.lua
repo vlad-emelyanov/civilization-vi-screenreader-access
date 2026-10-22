@@ -11,6 +11,7 @@ include( "Civ6Common" );
 include( "EspionageSupport" );
 include("GameCapabilities");
 include("ScreenReader");	-- ScreenReaderAccess mod: CleanTextForSpeech
+include("SRListen");	-- ScreenReaderAccess mod: listeners that a hot reload can remove again
 
 
 -- ===========================================================================
@@ -4342,44 +4343,8 @@ end
 
 -- Hot reload: drop the mod's listeners, or the old instance answers next to the new one.
 function SRA_OnShutdown()
-	LuaEvents.SRA_RequestUnitActions.Remove( OnSRRequestUnitActions );
-	LuaEvents.SRA_RunUnitAction.Remove( OnSRRunUnitAction );
-	Events.BeginWonderReveal.Remove( OnBeginWonderReveal );
-	Events.CitySelectionChanged.Remove( OnCitySelectionChanged );
-	Events.CityReligionFollowersChanged.Remove( OnCityReligionFollowersChanged );
-	Events.GovernmentPolicyChanged.Remove( OnGovernmentPolicyChanged );
-	Events.GreatWorkMoved.Remove( OnGreatWorkMoved );
-	Events.InputActionTriggered.Remove( OnInputActionTriggered );
-	Events.InterfaceModeChanged.Remove( OnInterfaceModeChanged );
-	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
-	Events.PantheonFounded.Remove( OnPantheonFounded );
-	Events.PhaseBegin.Remove( OnPhaseBegin );
-	Events.PlayerTurnActivated.Remove( OnPlayerTurnActivated );
-	Events.PlayerTurnDeactivated.Remove( OnPlayerTurnDeactivated );
-	Events.UnitCommandStarted.Remove( OnUnitCommandStarted );
-	Events.UnitDamageChanged.Remove( OnUnitDamageChanged );
-	Events.UnitMoveComplete.Remove( OnUnitMoveComplete );
-	Events.UnitChargesChanged.Remove( OnUnitChargesChanged );
-	Events.UnitPromoted.Remove( OnUnitPromotionChanged );
-	Events.UnitOperationsCleared.Remove( OnUnitOperationsCleared );
-	Events.UnitOperationAdded.Remove( OnUnitOperationAdded );
-	Events.UnitOperationDeactivated.Remove( OnUnitOperationDeactivated );
-	Events.UnitRemovedFromMap.Remove( OnUnitRemovedFromMap );
-	Events.UnitSelectionChanged.Remove( OnUnitSelectionChanged );
-	Events.UnitMovementPointsChanged.Remove( OnUnitMovementPointsChanged );
-	Events.UnitMovementPointsCleared.Remove( OnUnitMovementPointsChanged );
-	Events.UnitMovementPointsRestored.Remove( OnUnitMovementPointsChanged );
-	Events.UnitAbilityLost.Remove( OnUnitAbilityLost );
-	Events.GameConfigChanged.Remove( OnGameConfigChanged_Hotseat_Paused );
-	LuaEvents.TradeOriginChooser_SetTradeUnitStatus.Remove( OnSetTradeUnitStatus );
-	LuaEvents.TradeRouteChooser_SetTradeUnitStatus.Remove( OnSetTradeUnitStatus );
-	LuaEvents.TutorialUIRoot_DisableActions.Remove( OnTutorialDisableActions );
-	LuaEvents.TutorialUIRoot_DisableActionForAll.Remove( OnTutorialDisableActionForAll );
-	LuaEvents.TutorialUIRoot_EnableActions.Remove( OnTutorialEnableActions );
-	LuaEvents.TutorialUIRoot_EnableActionForAll.Remove( OnTutorialEnableActionForAll );
-	LuaEvents.UnitFlagManager_PointerEntered.Remove( OnUnitFlagPointerEntered );
-	LuaEvents.UnitFlagManager_PointerExited.Remove( OnUnitFlagPointerExited );
-	LuaEvents.PlayerChange_Close.Remove( OnPlayerChangeClose );
+	SRUnlistenAll();
+	Events.GameConfigChanged.Remove( OnGameConfigChanged_Hotseat_Paused );	-- added dynamically in OnPlayerChangeClose
 end
 
 function OnSRRequestUnitActions( refresh:boolean )
@@ -4430,44 +4395,44 @@ function Initialize()
 	Controls.ExpandSecondaryActionsButton:RegisterMouseEnterCallback( OnSecondaryActionStackMouseEnter );
 	Controls.ExpandSecondaryActionsButton:RegisterMouseExitCallback( OnSecondaryActionStackMouseExit );
 
-	Events.BeginWonderReveal.Add( OnBeginWonderReveal );
-	Events.CitySelectionChanged.Add( OnCitySelectionChanged );
-	Events.CityReligionFollowersChanged.Add( OnCityReligionFollowersChanged );
-	Events.GovernmentPolicyChanged.Add( OnGovernmentPolicyChanged );
-	Events.GreatWorkMoved.Add( OnGreatWorkMoved );
-	Events.InputActionTriggered.Add( OnInputActionTriggered );
-	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
-	Events.PantheonFounded.Add( OnPantheonFounded );
-	Events.PhaseBegin.Add( OnPhaseBegin );		
-	Events.PlayerTurnActivated.Add( OnPlayerTurnActivated );
-	Events.PlayerTurnDeactivated.Add( OnPlayerTurnDeactivated );
-	Events.UnitCommandStarted.Add( OnUnitCommandStarted );
-	Events.UnitDamageChanged.Add( OnUnitDamageChanged );
-	Events.UnitMoveComplete.Add( OnUnitMoveComplete );
-	Events.UnitChargesChanged.Add( OnUnitChargesChanged );
-	Events.UnitPromoted.Add( OnUnitPromotionChanged );
-	Events.UnitOperationsCleared.Add( OnUnitOperationsCleared );
-	Events.UnitOperationAdded.Add( OnUnitOperationAdded );	
-	Events.UnitOperationDeactivated.Add( OnUnitOperationDeactivated );
-	Events.UnitRemovedFromMap.Add( OnUnitRemovedFromMap );
-	Events.UnitSelectionChanged.Add( OnUnitSelectionChanged );
-	Events.UnitMovementPointsChanged.Add( OnUnitMovementPointsChanged );
-	Events.UnitMovementPointsCleared.Add( OnUnitMovementPointsChanged );
-	Events.UnitMovementPointsRestored.Add( OnUnitMovementPointsChanged );
-	Events.UnitAbilityLost.Add( OnUnitAbilityLost );
+	SRListen( Events.BeginWonderReveal, OnBeginWonderReveal );
+	SRListen( Events.CitySelectionChanged, OnCitySelectionChanged );
+	SRListen( Events.CityReligionFollowersChanged, OnCityReligionFollowersChanged );
+	SRListen( Events.GovernmentPolicyChanged, OnGovernmentPolicyChanged );
+	SRListen( Events.GreatWorkMoved, OnGreatWorkMoved );
+	SRListen( Events.InputActionTriggered, OnInputActionTriggered );
+	SRListen( Events.InterfaceModeChanged, OnInterfaceModeChanged );
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );
+	SRListen( Events.PantheonFounded, OnPantheonFounded );
+	SRListen( Events.PhaseBegin, OnPhaseBegin );		
+	SRListen( Events.PlayerTurnActivated, OnPlayerTurnActivated );
+	SRListen( Events.PlayerTurnDeactivated, OnPlayerTurnDeactivated );
+	SRListen( Events.UnitCommandStarted, OnUnitCommandStarted );
+	SRListen( Events.UnitDamageChanged, OnUnitDamageChanged );
+	SRListen( Events.UnitMoveComplete, OnUnitMoveComplete );
+	SRListen( Events.UnitChargesChanged, OnUnitChargesChanged );
+	SRListen( Events.UnitPromoted, OnUnitPromotionChanged );
+	SRListen( Events.UnitOperationsCleared, OnUnitOperationsCleared );
+	SRListen( Events.UnitOperationAdded, OnUnitOperationAdded );	
+	SRListen( Events.UnitOperationDeactivated, OnUnitOperationDeactivated );
+	SRListen( Events.UnitRemovedFromMap, OnUnitRemovedFromMap );
+	SRListen( Events.UnitSelectionChanged, OnUnitSelectionChanged );
+	SRListen( Events.UnitMovementPointsChanged, OnUnitMovementPointsChanged );
+	SRListen( Events.UnitMovementPointsCleared, OnUnitMovementPointsChanged );
+	SRListen( Events.UnitMovementPointsRestored, OnUnitMovementPointsChanged );
+	SRListen( Events.UnitAbilityLost, OnUnitAbilityLost );
 	
-	LuaEvents.TradeOriginChooser_SetTradeUnitStatus.Add(OnSetTradeUnitStatus );
-	LuaEvents.TradeRouteChooser_SetTradeUnitStatus.Add(	OnSetTradeUnitStatus );
-	LuaEvents.TutorialUIRoot_DisableActions.Add(		OnTutorialDisableActions );
-	LuaEvents.TutorialUIRoot_DisableActionForAll.Add(	OnTutorialDisableActionForAll );
-	LuaEvents.TutorialUIRoot_EnableActions.Add(			OnTutorialEnableActions );
-	LuaEvents.TutorialUIRoot_EnableActionForAll.Add(	OnTutorialEnableActionForAll );	
-	LuaEvents.UnitFlagManager_PointerEntered.Add(		OnUnitFlagPointerEntered );
-	LuaEvents.UnitFlagManager_PointerExited.Add(		OnUnitFlagPointerExited );
-	LuaEvents.PlayerChange_Close.Add(					OnPlayerChangeClose );
-	LuaEvents.SRA_RequestUnitActions.Add(				OnSRRequestUnitActions );	-- ScreenReaderAccess mod change
-	LuaEvents.SRA_RunUnitAction.Add(					OnSRRunUnitAction );
+	SRListen( LuaEvents.TradeOriginChooser_SetTradeUnitStatus, OnSetTradeUnitStatus );
+	SRListen( LuaEvents.TradeRouteChooser_SetTradeUnitStatus, OnSetTradeUnitStatus );
+	SRListen( LuaEvents.TutorialUIRoot_DisableActions, OnTutorialDisableActions );
+	SRListen( LuaEvents.TutorialUIRoot_DisableActionForAll, OnTutorialDisableActionForAll );
+	SRListen( LuaEvents.TutorialUIRoot_EnableActions, OnTutorialEnableActions );
+	SRListen( LuaEvents.TutorialUIRoot_EnableActionForAll, OnTutorialEnableActionForAll );	
+	SRListen( LuaEvents.UnitFlagManager_PointerEntered, OnUnitFlagPointerEntered );
+	SRListen( LuaEvents.UnitFlagManager_PointerExited, OnUnitFlagPointerExited );
+	SRListen( LuaEvents.PlayerChange_Close, OnPlayerChangeClose );
+	SRListen( LuaEvents.SRA_RequestUnitActions, OnSRRequestUnitActions );	-- ScreenReaderAccess mod change
+	SRListen( LuaEvents.SRA_RunUnitAction, OnSRRunUnitAction );
 	ContextPtr:SetShutdown( SRA_OnShutdown );			-- ScreenReaderAccess mod change
 
 	-- Setup settlement water guide colors
