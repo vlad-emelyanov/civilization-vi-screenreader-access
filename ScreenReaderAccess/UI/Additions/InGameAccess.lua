@@ -645,6 +645,8 @@ local function DescribeCursorPlot( plot:table )
 	elseif mode ~= nil then
 		local info:string = TargetInfo( mode, plot, unit );
 		if info ~= nil then text = info .. ". " .. text; end
+		local build:string = ( unit ~= nil and unit:GetOwner() == localPlayer ) and BuilderBuildText( unit, plot ) or nil;		-- builders walking to a tile
+		if build ~= nil then text = text .. ", " .. build; end
 	elseif IsSettler( unit ) then
 		local ok:boolean, reason = SettleScan_CanFound( unit, plot );
 		text = text .. ( ok and ", can settle" or ( ", " .. SettleScan_CannotText( reason ) ) );
@@ -1033,11 +1035,18 @@ local function OnLocalPlayerTurnEnd()
 	m_enterWatch = -1;
 	if GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	-- The event also fires when ending the turn is refused a moment later (a unit that finished exploring asks for
-	-- orders, turn number unchanged): speak only when the turn really ended.
+	-- orders, turn number unchanged). Already inactive at event time: the turn really ended, say it now (a deferred
+	-- line could land after the next "Turn N"). Still active: check again shortly and speak only if the same turn
+	-- is now over; a new turn has announced itself.
 	local turn:number = Game.GetCurrentGameTurn();
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	if player == nil or not player:IsTurnActive() then
+		OutputMessageToScreenReader( "Turn ended", true );
+		return;
+	end
 	After( 0.7, function()
-		local player:table = Players[ Game.GetLocalPlayer() ];
-		if Game.GetCurrentGameTurn() ~= turn or player == nil or not player:IsTurnActive() then
+		local current:table = Players[ Game.GetLocalPlayer() ];
+		if Game.GetCurrentGameTurn() == turn and ( current == nil or not current:IsTurnActive() ) then
 			OutputMessageToScreenReader( "Turn ended", true );
 		end
 	end );
@@ -2248,6 +2257,7 @@ local function OnUnitDamageChanged( playerID:number, unitID:number, newDamage:nu
 			.. who .. " takes " .. ( newDamage - oldDamage ) .. " damage, " .. ( maxDamage - newDamage ) .. " of " .. maxDamage .. " left";
 	end
 	OutputMessageToScreenReader( text, true );
+	LuaEvents.SRA_CombatSpoken();		-- StatusMessagePanel drops its duplicate of this fight
 end
 
 -- (killed player, killed unit, killer player, killer unit): told when the local player is on either side.
@@ -2275,6 +2285,7 @@ local function OnUnitKilledInCombat( killedPlayer:number, killedId:number, kille
 		text = text .. " by " .. killer;
 	end
 	OutputMessageToScreenReader( text, true );
+	LuaEvents.SRA_CombatSpoken();		-- StatusMessagePanel drops its duplicate of this fight
 end
 
 local function OnCityAddedToMap( ownerID:number, cityID:number, x:number, y:number )

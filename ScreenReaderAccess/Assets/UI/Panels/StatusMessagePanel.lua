@@ -31,29 +31,49 @@ local m_kMessages		:table = {};
 
 
 -- Begin ScreenReaderAccess mod change
--- Combat status messages whose content the hub speaks itself ("X attacks Y: Y takes N damage, ...", kills). Others
--- (withdrawals, captures, districts, WMD) stay. The templates are turned into patterns with the placeholders as ".-".
+-- Unit-versus-unit combat status messages whose content the hub speaks itself ("X attacks Y: Y takes N damage, ...",
+-- kills). They are dropped only when the hub really spoke a combat line in the last SR_COMBAT_WINDOW seconds
+-- (LuaEvents.SRA_CombatSpoken). City and district targets are never listed (the hub does not report damage to
+-- cities), nor withdrawals from anti-air, captures, WMD. The templates are turned into patterns with the
+-- placeholders as ".-" and "a"/"an" (LOC_GRAMMAR_A_AN) as "an?".
+local SR_COMBAT_WINDOW:number = 2.0;
 local SR_COVERED_COMBAT_TAGS:table = {
 	"LOC_COMBAT_YOUR_UNIT_WAS_STRAFED_BY_ENEMY", "LOC_COMBAT_YOUR_UNIT_WAS_BOMBARDED_BY_ENEMY", "LOC_COMBAT_YOUR_UNIT_BOMBARDED_ENEMY",
 	"LOC_COMBAT_YOUR_UNIT_BOMBED_ENEMY", "LOC_COMBAT_YOUR_UNIT_STRAFED_ENEMY", "LOC_COMBAT_YOUR_UNIT_DAMAGED_ENEMY",
 	"LOC_COMBAT_YOUR_UNIT_DESTROYED_ENEMY", "LOC_COMBAT_YOUR_UNIT_DIED_ATTACKING", "LOC_COMBAT_YOUR_UNIT_DIED_DEFENDING",
 	"LOC_COMBAT_YOUR_UNIT_DIED_INTERCEPTING", "LOC_COMBAT_YOU_KILLED_ENEMY_UNIT", "LOC_MISC_YOUR_UNIT_DIED_BY_UNKNOWN",
+	"LOC_COMBAT_YOUR_UNIT_WITHDREW", "LOC_COMBAT_ENEMY_UNIT_WITHDREW",
 };
 local m_srCoveredPatterns:table = nil;
+local m_srLastCombatSpoken:number = -100;
+
+function SRCombatSpoken()
+	m_srLastCombatSpoken = UI.GetElapsedTime();
+end
+
+local function SRNormalize( text:string )
+	return string.gsub( string.gsub( text, "^%s+", "" ), "%s+", " " );
+end
 
 function SRIsCoveredCombatMessage( message:string )
-	if message == nil then return false; end
+	if message == nil or UI.GetElapsedTime() - m_srLastCombatSpoken > SR_COMBAT_WINDOW then return false; end
 	if m_srCoveredPatterns == nil then
 		m_srCoveredPatterns = {};
 		for _, tag in ipairs( SR_COVERED_COMBAT_TAGS ) do
-			local template:string = Locale.Lookup( tag, "\1", "\1", "\1", "\1", "\1", "\1" );
+			local template:string = Locale.Lookup( tag, "", "", "", "", "", "" );
 			if template ~= nil and template ~= "" and template ~= tag then
-				table.insert( m_srCoveredPatterns, "^" .. string.gsub( string.gsub( template, "%p", "%%%0" ), "\1", ".-" ) .. "$" );
+				template = SRNormalize( template );
+				template = string.gsub( template, " a ", "  " );		-- {LOC_GRAMMAR_A_AN << adjective}: "a " or "an "
+				template = string.gsub( template, "%p", "%%%0" );
+				template = string.gsub( template, "", "an?" );
+				template = string.gsub( template, "", ".-" );
+				table.insert( m_srCoveredPatterns, "^" .. template .. "$" );
 			end
 		end
 	end
+	local text:string = SRNormalize( message );
 	for _, pattern in ipairs( m_srCoveredPatterns ) do
-		if string.find( message, pattern ) ~= nil then return true; end
+		if string.find( text, pattern ) ~= nil then return true; end
 	end
 	return false;
 end
@@ -408,6 +428,7 @@ end
 function OnShutdown()
 	Events.LocalPlayerTurnEnd.Remove( OnLocalTurnEnd );
 	Events.StatusMessage.Remove( OnStatusMessage );
+	LuaEvents.SRA_CombatSpoken.Remove( SRCombatSpoken );		-- ScreenReaderAccess
 	Events.MultiplayerPlayerConnected.Remove( OnMultplayerPlayerConnected );
 	Events.MultiplayerPrePlayerDisconnected.Remove( OnMultiplayerPrePlayerDisconnected );
 end
@@ -418,6 +439,7 @@ function LateInitialize()
 
 	Events.LocalPlayerTurnEnd.Add( OnLocalTurnEnd );
 	Events.StatusMessage.Add( OnStatusMessage );
+	LuaEvents.SRA_CombatSpoken.Add( SRCombatSpoken );		-- ScreenReaderAccess
 	Events.MultiplayerPlayerConnected.Add( OnMultplayerPlayerConnected );
 	Events.MultiplayerPrePlayerDisconnected.Add( OnMultiplayerPrePlayerDisconnected );
 end
