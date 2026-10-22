@@ -6,7 +6,7 @@
 Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' comments are ignored):
 
   load <fixture>          civctl load <fixture>          (its SR> lines count, e.g. the "Turn 1" announcement)
-  scenario <name>         civctl lua GameCore_Tuner -File util/scenarios/<name>.lua
+  scenario <name>         civctl scenario <name>   (util/scenarios/<name>.lua in GameCore_Tuner)
   key <args>              civctl key <args>              e.g. key Enter -Settle 2000, key Shift+Down
   wait <args>             civctl wait <args>             e.g. wait Turn \\d+ -Timeout 30 (no | or & in the regex: cmd.exe)
   lua <state> <expr>      civctl lua <state> <expr>      (the expression goes through a temp -File: quotes are safe)
@@ -135,7 +135,7 @@ def civctl_args(step):
         path = os.path.join(SCENARIO_DIR, step.arg + ".lua")
         if not os.path.isfile(path):
             raise ScriptError("no such scenario: %s" % path)
-        return ["lua", "GameCore_Tuner", "-File", path], None
+        return ["scenario", step.arg], None
     if k == "lua":
         state, expr = step.arg.split(None, 1)
         if re.search(r"(^|\s)-File\s", " " + expr):

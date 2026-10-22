@@ -1,8 +1,9 @@
--- Scenario: enemy-at-capital. STATUS: unverified (written offline)
--- Fixture: a game with a founded capital of player 0 (none of the committed fixtures has one; see README: early-city).
--- Then press: X (cursor to nearest foreign unit: "Barbarian Warrior ... spotted"), then W to attack; end the turn to
---   let it attack the city (combat line "Barbarian Warrior attacks ..." expected).
--- Notes: barbarian units are at war with everybody. Uses only GetUnits():Create (known to work for player 0).
+-- Scenario: enemy-at-capital. STATUS: verified 2026-10-22
+-- Fixture: early-t60 (capital Rome at 60,33; barbarians on). Any game with a capital of player 0 works.
+-- Then press: X -> "Barbarian Warrior spotted, 1 tile south-east of Rome"; W attacks it with the selected unit
+--   ("Your Warrior attacks Barbarian Warrior: ..."); End Turn lets it attack the city.
+-- Notes: advisor popups of the loaded game can swallow the first keys: close them with Enter first.
+-- Notes: barbarian units are at war with everybody. Uses only GetUnits():Create (known to work).
 local me = Players[0]
 local capital = me:GetCities():GetCapitalCity()
 if not capital then error("scenario enemy-at-capital: player 0 has no capital (load a fixture with a city)") end

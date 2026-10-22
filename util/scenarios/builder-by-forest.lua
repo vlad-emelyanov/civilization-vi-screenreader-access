@@ -1,8 +1,8 @@
--- Scenario: builder-by-forest. STATUS: unverified (written offline)
--- Fixture: a game with a founded capital: early-city. Needs a forest within 3 tiles of the capital on an owned plot.
--- Then press: K / Control+K to select the builder, Tab -> actions menu (Harvest/Remove Forest, Build ...), move the
---   cursor onto the forest: the plot text should end with "Builder can build: ..." or "Builder can build nothing here".
--- Notes: spawns a UNIT_BUILDER (GetUnits():Create, known to work) on a free owned land plot adjacent to the forest.
+-- Scenario: builder-by-forest. STATUS: verified 2026-10-22
+-- Fixture: early-t60 (builder lands at 61,31 next to the forest at 60,31). Needs a capital and an owned forest within 3 tiles.
+-- Then press: Control+K (repeat until "Builder, 2 of 2 moves"), Tab -> "Builder actions, 9 options"; Escape; Shift+Left/Right to
+--   the forest, I -> "... Woods ... Builder can build nothing here" (no improvement possible on woods yet).
+-- Notes: spawns a UNIT_BUILDER (GetUnits():Create, known to work) on a free owned land plot adjacent to the forest; Map.GetAdjacentPlot exists.
 local me = Players[0]
 local capital = me:GetCities():GetCapitalCity()
 if not capital then error("scenario builder-by-forest: player 0 has no capital (load a fixture with a city)") end

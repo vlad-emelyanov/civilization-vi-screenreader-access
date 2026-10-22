@@ -25,6 +25,7 @@
   .\util\civctl.ps1 fixtures             # list fixtures
   .\util\civctl.ps1 newgame early        # create a game from util\profiles\early.lua (~45 s), then `save early-start`
   .\util\civctl.ps1 autoplay 29 -Save medieval-t100   # let the AI play n turns (observing as player 0), poll every 30 s, then save the fixture
+  .\util\civctl.ps1 scenario governor-title   # run util\scenarios\<name>.lua in GameCore_Tuner (sets up one situation on a loaded fixture)
   .\util\civctl.ps1 unlock                # release the driving lock (see below)
 
   Lock (owner lease): commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER, default 'default') and
@@ -38,7 +39,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -889,7 +890,7 @@ function Show-Status {
 
 $script:LockHeld = $false
 $script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'wait') { 150 } else { 0 }
-$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay')
+$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario')
 if ($Command -in $LockedCommands) {
     Enter-Lock
 }
@@ -911,6 +912,12 @@ switch ($Command) {
     'newgame' { Invoke-NewGame $Arg }
     'autoplay' { Invoke-Autoplay $Arg }
     'unlock' { Invoke-Unlock }
+    'scenario' {
+        if ($Arg -notmatch '^[A-Za-z0-9_-]+$') { throw 'Usage: civctl.ps1 scenario <name>   (util\scenarios\<name>.lua, runs in GameCore_Tuner)' }
+        $File = Join-Path $PSScriptRoot "scenarios\$Arg.lua"
+        if (-not (Test-Path $File)) { throw "No such scenario: $File" }
+        $Arg = 'GameCore_Tuner'; Invoke-Tuner
+    }
     'regress' { $env:CIVCTL_OWNER = Get-Owner; Quit-Civctl (Invoke-Python (@('-u', (Join-Path $PSScriptRoot 'civregress.py')) + @(($Arg -split '\s+') | Where-Object { $_ }))) }
     'wait' {
         if (-not (Wait-ForScreenReader $Arg $Timeout)) { Write-Output "Timed out waiting for '$Arg'"; Quit-Civctl 1 }
