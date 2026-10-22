@@ -125,6 +125,8 @@ Notes:
 
 ## 4. Autoplay to later turns
 
+**Done 2026-10-22:** `civctl autoplay <n> [-Save name]` (poll every 30 s, 25 s/turn timeout; hang grace 150 s while `Lua.log` grows); measured 17 s/turn over turns 1-59 (early game, 987 s) and ~16 s/turn over turns 75-92 (medieval, 17 turns in ~4.5 min); fixtures `medieval-t100` (actually turn 99; n turns end at turn start+n-1) and `early-t60` (turn 59); no Runtime Errors from the mod in either run. `SetActive(true)` makes `IsActive()` still read false for a moment: check again after a few seconds.
+
 Verified facts:
 - `AutoplayManager` exists in the `InGame` state (also `InGameAccess`, `WorldInput`), not in `GameCore_Tuner`:
   ```lua

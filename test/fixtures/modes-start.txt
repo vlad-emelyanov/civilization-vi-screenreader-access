@@ -1,0 +1,7 @@
+turn: 71
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: modes
+purpose: fresh 'modes' game at its start (made by civctl newgame)
+mod commit: 228c550
+created: 2026-10-22
+size: 510 KB

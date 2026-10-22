@@ -1,0 +1,7 @@
+turn: 59
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: autoplayed 58 turns from turn 1 (civctl autoplay)
+mod commit: 228c550
+created: 2026-10-22
+size: 1093 KB

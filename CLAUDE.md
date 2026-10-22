@@ -33,13 +33,14 @@ The console app must be running for clicks/mouse moves to happen, and for any an
 Lua changes can only be verified in the real game. Use the harness (details in the `civ-test` skill, `.claude/skills/civ-test/SKILL.md`):
 
 ```
-util\civctl.cmd deploy               # FAST LOOP (~4 s): copy changed mod files into the running game, which hot-reloads the UI context
+util\civctl.cmd deploy               # FAST LOOP (~4 s): lints the changed .lua files (util/lint.py; errors refuse the deploy, -NoLint skips), copies them into the running game, which hot-reloads the UI context
 util\civctl.cmd build                # ModBuddy build + deploy to My Games\...\Mods; must print "1 succeeded"; refuses while the game runs (-Force overrides)
 util\civctl.cmd reload InGameAccess.lua   # force a hot reload of a file without content change
 util\civctl.cmd menu                 # is the in-game options menu / a popup open? (Escape with nothing open opens the menu)
 util\civctl.cmd stop; util\civctl.cmd start -Timeout 180   # full restart (~35 s to main menu, ~65 s back in a game)
 util\civctl.cmd key Down             # sends a key, prints the resulting "SR> ..." lines
 util/civctl lua InGame 'Game.GetCurrentGameTurn()'   # (Git Bash: `util/civctl`, keeps quotes/spaces; expressions and `return x` are printed) run Lua in a game state via FireTuner (GameCore_Tuner, InGame, InGameAccess, ...); `states` lists them
+util\civctl.cmd autoplay 29 -Save medieval-t100   # AI plays n turns for us (~5-20 s/turn, prints turn numbers every 30 s; run in background), then saves the fixture
 util\civctl.cmd shot                 # screenshot path, view only when output is confusing
 util\civctl.cmd status              # game/console/lock + "in game, turn N" or "front end"
 util\civctl.cmd save bug-foo -Purpose "why"   # named save -> test/fixtures/bug-foo.Civ6Save + .txt (turn, civ, commit)
