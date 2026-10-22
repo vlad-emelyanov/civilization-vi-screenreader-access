@@ -1,0 +1,4 @@
+# UNVERIFIED: written offline from docs, not yet run in the game.
+# Fixture early-start (turn 1, Rome/Trajan). Loading announces the running turn ("Turn 1, 4000 BC" style).
+load early-start
+expect ^Turn 1\b

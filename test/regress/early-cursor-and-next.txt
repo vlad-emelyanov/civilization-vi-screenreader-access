@@ -1,0 +1,15 @@
+# UNVERIFIED: written offline from docs/ingame-plan.md, not yet run in the game.
+# Fixture early-start (turn 1, nothing founded yet; the settler is the first unit needing orders).
+load early-start
+# J = cursor to the selected unit, speaks the plot
+key J -Settle 1500
+expect \S
+# Shift+Arrows move the map cursor and speak the new plot (relative to the selected unit)
+key Shift+Down -Settle 1500
+expect (?i)tile|south
+# N = what Enter would do now (the end-turn blocker text)
+key N
+expect \S
+# Enter must not end the turn while a unit needs orders
+key Enter
+expect-not (?i)turn ended

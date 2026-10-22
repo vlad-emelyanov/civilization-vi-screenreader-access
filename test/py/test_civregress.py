@@ -1,0 +1,149 @@
+"""Offline tests for util/civregress.py (parser, expect matching, script flow with a fake civctl)."""
+import os
+import sys
+import unittest
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "util"))
+import civregress as cr  # noqa: E402
+
+
+class FakeRunner:
+    """Maps the first matching (prefix of args) to (rc, lines); records every call."""
+
+    def __init__(self, table=None, default=(0, [])):
+        self.table, self.default, self.calls = table or [], default, []
+
+    def run(self, args):
+        self.calls.append(list(args))
+        for prefix, result in self.table:
+            if args[:len(prefix)] == prefix:
+                if callable(result):
+                    result = result()
+                return result
+        return self.default
+
+
+class ParserTests(unittest.TestCase):
+    def test_parse(self):
+        steps = cr.parse_script("# c\n\nload early-start\nKey Enter -Settle 2000\nexpect ^Turn \\d+\n")
+        self.assertEqual([s.kind for s in steps], ["load", "key", "expect"])
+        self.assertEqual(steps[1].arg, "Enter -Settle 2000")
+        self.assertEqual(steps[2].line, 5)
+
+    def test_errors(self):
+        for bad in ("frobnicate x", "key", "expect (", "lua InGame", "load a b"):
+            with self.assertRaises(cr.ScriptError, msg=bad):
+                cr.parse_script(bad)
+
+    def test_first_fixture(self):
+        self.assertEqual(cr.first_fixture(cr.parse_script("key A\nload x\nload y")), "x")
+        self.assertIsNone(cr.first_fixture(cr.parse_script("key A")))
+
+
+class MatchTests(unittest.TestCase):
+    def test_prefix_stripping(self):
+        lines = cr.parse_sr_lines(["noise", "SR> [NOINTERRUPT] Turn 5, 3600 BC", "(earlier) SR> Hello", "SR> Warrior"])
+        self.assertEqual([t for _, t in lines], ["Turn 5, 3600 BC", "Hello", "Warrior"])
+        ok, hit = cr.check("expect", r"^Turn 5", lines)
+        self.assertTrue(ok)
+        self.assertEqual(hit, "SR> [NOINTERRUPT] Turn 5, 3600 BC")
+
+    def test_expect_not(self):
+        lines = cr.parse_sr_lines(["SR> Turn ended"])
+        self.assertFalse(cr.check("expect-not", "Turn ended", lines)[0])
+        self.assertTrue(cr.check("expect-not", "Closed", lines)[0])
+        self.assertFalse(cr.check("expect", "Closed", lines)[0])
+
+    def test_args(self):
+        args, tmp = cr.civctl_args(cr.Step("key", "Enter -Settle 2000", 1))
+        self.assertEqual(args, ["key", "Enter", "-Settle", "2000"])
+        args, tmp = cr.civctl_args(cr.Step("lua", 'InGame Game.GetCurrentGameTurn("x y")', 1))
+        try:
+            self.assertEqual(args[:3], ["lua", "InGame", "-File"])
+            with open(tmp, encoding="utf-8") as f:
+                self.assertEqual(f.read(), 'Game.GetCurrentGameTurn("x y")')
+        finally:
+            os.remove(tmp)
+
+
+class FlowTests(unittest.TestCase):
+    def quiet(self):
+        self.log = []
+        return self.log.append
+
+    def test_window_and_continue_after_fail(self):
+        r = FakeRunner([(["load"], (0, ["SR> Turn 1, 4000 BC"])), (["key", "Down"], (0, ["SR> Rome"])),
+                        (["key", "Enter"], (0, ["SR> [NOINTERRUPT] Closed"]))])
+        steps = cr.parse_script("load f\nexpect ^Turn 1\nkey Down\nexpect ^Athens\nexpect Rome\nkey Enter\nexpect-not Rome\nexpect Closed")
+        res = cr.run_script("t", steps, r, self.quiet())
+        # pass, fail, pass (same window as the failed check), pass (new window), pass
+        self.assertEqual((res.passed, res.failed), (4, 1))
+        self.assertIsNone(res.aborted)
+        self.assertEqual(res.loaded, "f")
+        self.assertTrue(any("FAIL" in l for l in self.log))
+        self.assertTrue(any("SR> Rome" in l for l in self.log))  # actual lines shown on failure
+
+    def test_accumulates_across_actions(self):
+        r = FakeRunner([(["key", "A"], (0, ["SR> one"])), (["key", "B"], (0, ["SR> two"]))])
+        steps = cr.parse_script("key A\nkey B\nexpect ^one\nexpect ^two")
+        res = cr.run_script("t", steps, r, self.quiet())
+        self.assertEqual((res.passed, res.failed), (2, 0))
+
+    def test_crash_aborts(self):
+        r = FakeRunner([(["key", "B"], (5, ["GAME CRASHED"]))])
+        steps = cr.parse_script("load f\nkey B\nexpect x\nkey C")
+        res = cr.run_script("t", steps, r, self.quiet())
+        self.assertTrue(res.aborted)
+        self.assertIsNone(res.loaded)
+        self.assertEqual(len(r.calls), 2)  # stopped before the next key
+        self.assertFalse(res.ok)
+
+    def test_failed_load_aborts_failed_key_continues(self):
+        r = FakeRunner([(["load"], (1, ["nope"]))])
+        res = cr.run_script("t", cr.parse_script("load f\nkey A"), r, self.quiet())
+        self.assertTrue(res.aborted)
+        r = FakeRunner([(["key"], (1, ["REFUSED"]))])
+        res = cr.run_script("t", cr.parse_script("key Add\nkey A"), r, self.quiet())
+        self.assertIsNone(res.aborted)
+        self.assertEqual(res.failed, 2)
+
+    def test_locked_raises(self):
+        r = FakeRunner([(["key"], (6, ["game in use by 'x'"]))])
+        with self.assertRaises(cr.LockedError):
+            cr.run_script("t", cr.parse_script("key A"), r, self.quiet())
+
+    def test_scenario_missing_aborts(self):
+        res = cr.run_script("t", cr.parse_script("scenario no-such-scenario-xyz\nkey A"), FakeRunner(), self.quiet())
+        self.assertTrue(res.aborted)
+
+
+class OrderTests(unittest.TestCase):
+    def test_grouping_and_share_load(self):
+        mk = lambda t: cr.parse_script(t)  # noqa: E731
+        scripts = [("a", mk("load x\nkey A")), ("b", mk("load y\nkey A")), ("c", mk("load x\nkey A")), ("n", mk("key A"))]
+        ordered = cr.order_scripts(scripts)
+        self.assertEqual([n for n, _ in ordered], ["a", "c", "b", "n"])
+        out = []
+        r = FakeRunner()
+        cr.run_all(ordered, r, share_load=True, out=out.append)
+        loads = [c for c in r.calls if c[0] == "load"]
+        self.assertEqual(loads, [["load", "x"], ["load", "y"]])
+        r = FakeRunner()
+        cr.run_all(ordered, r, share_load=False, out=out.append)
+        self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 3)
+
+    def test_share_load_reloads_after_abort(self):
+        scripts = [("a", cr.parse_script("load x\nkey A")), ("b", cr.parse_script("load x\nkey B"))]
+        r = FakeRunner([(["key", "A"], (5, ["GAME HUNG"]))])
+        cr.run_all(scripts, r, share_load=True, out=lambda s: None)
+        self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 2)
+
+    def test_locked_stops_run(self):
+        scripts = [("a", cr.parse_script("key A")), ("b", cr.parse_script("key B"))]
+        r = FakeRunner([(["key"], (6, ["busy"]))])
+        res = cr.run_all(scripts, r, out=lambda s: None)
+        self.assertEqual(len(res), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()
