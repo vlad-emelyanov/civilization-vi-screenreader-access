@@ -1,0 +1,16 @@
+# UNVERIFIED (written offline, never run). Fixture bug-dedication-blocker: the Make Dedication notification blocks the turn.
+# Next Action (Enter) activates the blocker, which opens the era review popup; Continue leads to the dedication chooser.
+# no-share-load
+load bug-dedication-blocker
+clear-advisors
+key Enter -Settle 2500
+expect ^New era: The world has entered the .+\. You are in an? .+ Age\..*Enter to continue
+key Enter -Settle 2500
+expect ^Choose dedications: \d+ to choose\. .*, 1 of \d+
+key Down -Settle 800
+expect , (not )?selected, 2 of \d+
+key Enter -Settle 800
+expect ^Selected .+\. \d+ left to choose
+key C -Settle 1500
+expect ^Dedication chosen: .+
+no-lua-errors
