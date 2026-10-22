@@ -219,9 +219,11 @@ return table.concat(lines, "|")
 # Is a game loaded? The InGame state may linger after leaving to the main menu, so ask the game itself.
 WHERE_LUA = '''
 local ok, t = pcall(function() return Game.GetCurrentGameTurn() end)
-local p = ok and Game.GetLocalPlayer() or -1
-if ok and t and t > 0 and PlayerConfigurations[p] ~= nil then
-  return "INGAME " .. t .. " " .. tostring(PlayerConfigurations[p]:GetLeaderTypeName()) .. " " .. tostring(PlayerConfigurations[p]:GetCivilizationTypeName())
+if ok and t and t > 0 then
+  local p = Game.GetLocalPlayer()
+  if p == nil or p < 0 then p = 0 end   -- autoplay: no local player while the AI plays our civ
+  local c = PlayerConfigurations[p]
+  return "INGAME " .. t .. " " .. (c and tostring(c:GetLeaderTypeName()) or "?") .. " " .. (c and tostring(c:GetCivilizationTypeName()) or "?")
 end
 return "FRONTEND"
 '''
@@ -254,13 +256,15 @@ def main() -> int:
         # "where": prints 'INGAME <turn> <leader>' or 'FRONTEND'; exit 2 when the tuner cannot be reached.
         out: list[str] = []
         rc = asyncio.run(run("InGame", WHERE_LUA, timeout, out, quiet_missing_state=True))
-        if rc == 2:
-            return 2
-        if rc == 3:  # no InGame Lua state: front end
+        if rc == 3:  # no InGame Lua state at all: front end
             print("FRONTEND")
             return 0
         text = "".join(out).strip()
-        print(text if rc == 0 and text.startswith("INGAME") else "FRONTEND")
+        if rc != 0 or not (text.startswith("INGAME") or text == "FRONTEND"):
+            # Any other failure (timeout while the game is busy, Lua error, no tuner) means "unknown", never "front end".
+            print("UNREACHABLE", file=sys.stderr)
+            return 2
+        print(text)
         return 0
     if a[0] == "states":
         return asyncio.run(run(None, None, timeout))

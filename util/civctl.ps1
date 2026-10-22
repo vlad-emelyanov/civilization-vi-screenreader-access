@@ -24,6 +24,7 @@
   .\util\civctl.ps1 load early-start     # load a fixture (leaves the current game first; LoadGame only works from the main menu)
   .\util\civctl.ps1 fixtures             # list fixtures
   .\util\civctl.ps1 newgame early        # create a game from util\profiles\early.lua (~45 s), then `save early-start`
+  .\util\civctl.ps1 autoplay 29 -Save medieval-t100   # let the AI play n turns (observing as player 0), poll every 30 s, then save the fixture
   .\util\civctl.ps1 unlock                # release the driving lock (see below)
 
   Lock: commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER, default 'default'). Another owner gets
@@ -35,7 +36,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -47,12 +48,14 @@ param(
     [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
     [switch]$Force,         # build: build even though the game is running
+    [int]$HangGrace = 0,    # seconds an unresponsive window (with a silent Lua.log) is tolerated before GAME HUNG; load/newgame/autoplay/wait default to 150
     [switch]$NoLint,        # deploy/reload: skip the luacheck pass over the changed .lua files
     [string]$Out,
     [string]$File,          # lua: read the Lua code from this file instead of the command line
     [string]$Owner,         # name of the agent driving the game (lock file); default $env:CIVCTL_OWNER or 'default'
     [string]$Purpose,       # save: why this fixture exists (goes into the sidecar)
-    [string]$Profile        # save: game profile it came from (newgame passes it)
+    [string]$Profile,       # save: game profile it came from (newgame passes it)
+    [string]$Save           # autoplay: fixture name to save when it finishes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -74,6 +77,7 @@ $FixtureDir = Join-Path $RepoRoot 'test\fixtures'
 $LockFile = Join-Path $StateDir 'lock'
 $LockStaleMinutes = 30
 $script:HungSince = $null
+$StopMarker = Join-Path $StateDir 'stopped.txt'   # written by `stop`, removed by `start`: a deliberate stop is not a crash
 
 New-Item -ItemType Directory -Force $StateDir | Out-Null
 
@@ -151,19 +155,37 @@ public static class Native {
 
 # --- lock: only one agent drives the game ---------------------------------------------------------------------------------------------
 function Enter-Lock {
+    # Atomic check-and-write (CreateNew). The lock is released when the command ends (see the finally at the bottom);
+    # long-running commands (wait, autoplay, load) call Update-Lock to keep the timestamp fresh.
     $me = if ($Owner) { $Owner } elseif ($env:CIVCTL_OWNER) { $env:CIVCTL_OWNER } else { 'default' }
-    if (Test-Path $LockFile) {
-        $holder = (Get-Content $LockFile -TotalCount 1 -ErrorAction SilentlyContinue)
-        $idle = ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalMinutes
-        if ($holder -and $holder -ne $me) {
-            if ($idle -lt $LockStaleMinutes) {
+    for ($try = 0; $try -lt 5; $try++) {
+        try {
+            $fs = [IO.File]::Open($LockFile, 'CreateNew', 'Write', 'Read')
+            try { $b = [Text.Encoding]::UTF8.GetBytes($me); $fs.Write($b, 0, $b.Length) } finally { $fs.Dispose() }
+            $script:LockHeld = $true
+            return
+        } catch [IO.IOException] {
+            if (-not (Test-Path $LockFile)) { continue }
+            $holder = (Get-Content $LockFile -TotalCount 1 -ErrorAction SilentlyContinue)
+            $idle = ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalMinutes
+            if ($holder -eq $me) { (Get-Item $LockFile).LastWriteTime = Get-Date; $script:LockHeld = $true; return }
+            if ($holder -and $idle -lt $LockStaleMinutes) {
                 Write-Output ("game in use by '{0}' (last used {1:N0} min ago). Ask them to run ``civctl unlock``, wait, or run ``civctl unlock`` yourself if they are gone. You are '{2}'." -f $holder, $idle, $me)
                 exit 6
             }
-            Write-Warning ("Taking over the stale lock of '{0}' (idle {1:N0} min)." -f $holder, $idle)
+            if ($holder) { Write-Warning ("Taking over the stale lock of '{0}' (idle {1:N0} min)." -f $holder, $idle) }
+            Remove-Item $LockFile -Force -ErrorAction SilentlyContinue
         }
     }
-    [IO.File]::WriteAllText($LockFile, $me)
+    throw 'Could not take the civctl lock.'
+}
+
+function Quit-Civctl([int]$code) { Exit-Lock; exit $code }   # `exit` skips the finally/cleanup: always leave through here
+
+function Update-Lock { if ($script:LockHeld -and (Test-Path $LockFile)) { try { (Get-Item $LockFile).LastWriteTime = Get-Date } catch { } } }
+
+function Exit-Lock {
+    if ($script:LockHeld) { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue; $script:LockHeld = $false }
 }
 
 function Invoke-Unlock {
@@ -189,8 +211,19 @@ function Get-CrashDump {
 function Assert-GameHealthy([int]$Grace = 0, [switch]$Block, [switch]$AllowStopped) {
     $rep = Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue
     $procs = @(Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue)
+    if ($rep -and $procs.Count -gt 0) {
+        # The reporter also runs next to a healthy game (seen after a fresh build). It means a crash only if a dump is newer than
+        # the game process, or the game window is not responding.
+        $gp = $procs | Select-Object -First 1
+        $d = Get-CrashDump
+        $newer = $false
+        try { $newer = $d -and $d.LastWriteTime -gt $gp.StartTime } catch { }
+        $gp.Refresh()
+        if (-not $newer -and ($gp.MainWindowHandle -eq 0 -or $gp.Responding)) { $rep = $null }
+    }
+    $deliberate = (-not $rep) -and $procs.Count -eq 0 -and (Test-Path $StopMarker)   # `stop` ran, nothing started since
     if ($rep -or $procs.Count -eq 0) {
-        $dump = Get-CrashDump
+        $dump = if ($deliberate) { $null } else { Get-CrashDump }
         if ($rep -or $dump) {
             $msg = if ($rep) { 'GAME CRASHED (FiraxisBugReporter.exe is running).' } else { 'GAME CRASHED (the game process is gone).' }
             if ($dump) { $msg += " Crash dump: $($dump.FullName)" }
@@ -201,9 +234,13 @@ function Assert-GameHealthy([int]$Grace = 0, [switch]$Block, [switch]$AllowStopp
     }
     $p = $procs | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
     if (-not $p) { return }   # still starting up / closing
+    if ($HangGrace -gt 0) { $Grace = $HangGrace }
+    elseif ($script:DefaultHangGrace -gt $Grace) { $Grace = $script:DefaultHangGrace }
     while ($true) {
         $p.Refresh()
         if ($p.Responding) { $script:HungSince = $null; return }
+        # A busy but alive game (long AI turn, load) keeps writing to Lua.log or at least did so recently: not a hang.
+        if ((Test-Path $LuaLog) -and ((Get-Date) - (Get-Item $LuaLog).LastWriteTime).TotalSeconds -lt 20) { $script:HungSince = $null; if (-not $Block) { return }; Start-Sleep -Milliseconds 500; continue }
         if (-not $script:HungSince) { $script:HungSince = Get-Date }
         $waited = ((Get-Date) - $script:HungSince).TotalSeconds
         if ($waited -ge $Grace) { break }
@@ -256,10 +293,11 @@ function Format-Lines($lines) {
 }
 
 function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec, [bool]$check = $true) {
+    Update-Lock
     $deadline = (Get-Date).AddSeconds($timeoutSec)
     $n = 0
     while ((Get-Date) -lt $deadline) {
-        if ($check -and ($n++ % 12) -eq 0) { Assert-GameHealthy -Grace 25 }
+        if ($check -and ($n++ % 12) -eq 0) { Assert-GameHealthy -Grace 25; Update-Lock }
         $matched = $false
         # Finish the whole batch even after a match: the cursor has already moved past these lines.
         foreach ($l in (Read-NewLogLines)) {
@@ -275,6 +313,7 @@ function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec, [bool]$check =
 }
 
 function Invoke-Start {
+    Remove-Item $StopMarker -Force -ErrorAction SilentlyContinue
     $rep = Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue
     if ($rep) { $rep | Stop-Process -Force; Write-Output 'Killed leftover FiraxisBugReporter.exe (left by a crash).'; Start-Sleep -Seconds 2 }
     if (-not (Get-ConsoleProcess)) {
@@ -306,7 +345,7 @@ function Invoke-Start {
         if ($game -and [CivCtl.Native]::Focus($game.MainWindowHandle)) { [CivCtl.Native]::Tap(0x1B, 40) }
     }
     Write-Output "Timed out waiting for main menu after $Timeout s. Try: civctl.ps1 shot"
-    exit 1
+    Quit-Civctl 1
 }
 
 # Keys that JAWS grabs: NumPad +/- toggle the JAWS cursor (arrows, Home, End then stop reaching any window, even after a game restart);
@@ -318,7 +357,7 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
     $parts = @($KeyArg -split '\+')
     if ($JawsReservedKeys -contains $parts[-1]) {
         Write-Output "REFUSED: '$($parts[-1])' is a JAWS-reserved key (Add/Subtract toggle the JAWS cursor and break keyboard input system-wide). Use OemPlus / OemMinus for the main keyboard +/-."
-        exit 1
+        Quit-Civctl 1
     }
     Assert-GameHealthy -Grace 8 -Block
     $game = Get-GameProcess
@@ -369,7 +408,7 @@ function Invoke-Shot {
 function Invoke-Build {
     if ((Get-GameProcess) -and -not $Force) {
         Write-Output "Refusing to build while the game is running: ModBuddy deletes and recreates the deployed mod folder, which kills the game's hot-reload file watcher until the game is restarted. Use ``deploy`` for changes to existing files, or ``stop`` first (or pass -Force if you will restart the game anyway)."
-        exit 1
+        Quit-Civctl 1
     }
     $modBuddy = (Get-Command modbuddy -ErrorAction SilentlyContinue).Source
     if (-not $modBuddy) { $modBuddy = "C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization VI SDK\ModBuddy\ModBuddy.exe" }
@@ -379,11 +418,11 @@ function Invoke-Build {
     if (-not $p.WaitForExit($Timeout * 1000)) {
         $p | Stop-Process -Force
         Write-Output "ModBuddy did not finish within $Timeout s (likely stuck on a dialog). Try: civctl.ps1 shot"
-        exit 1
+        Quit-Civctl 1
     }
     $result = Get-Content $outFile -ErrorAction SilentlyContinue
     $result | Where-Object { $_ -match 'error|warning|Build:' }
-    if (-not ($result -match '1 succeeded')) { exit 1 }
+    if (-not ($result -match '1 succeeded')) { Quit-Civctl 1 }
     if (Get-GameProcess) { Write-Output 'Note: built with -Force while the game runs; it no longer hot-reloads until it is restarted.' }
 }
 
@@ -457,7 +496,7 @@ function Invoke-Deploy([string[]]$touch) {
         if ($lintFiles.Count -gt 0) {
             $lo = Invoke-PythonCapture (@((Join-Path $PSScriptRoot 'lint.py')) + $lintFiles)
             $lo | ForEach-Object { Write-Output "lint> $_" }
-            if ($script:PyExit -eq 1) { Write-Output 'Lint errors: deploy refused (fix them, or pass -NoLint).'; exit 1 }
+            if ($script:PyExit -eq 1) { Write-Output 'Lint errors: deploy refused (fix them, or pass -NoLint).'; Quit-Civctl 1 }
             if ($script:PyExit -ne 0) { Write-Warning "lint.py failed (exit $($script:PyExit)); deploying anyway." }
         }
     }
@@ -484,7 +523,7 @@ function Invoke-Deploy([string[]]$touch) {
         }
     } elseif ($copied -eq 0) {
         Write-Output "No shipped file matches: $($touch -join ' ')"
-        exit 1
+        Quit-Civctl 1
     }
     if ($copied -eq 0 -and $needsBuild.Count -eq 0) { Write-Output 'Nothing changed.' }
     $failed = $false
@@ -504,8 +543,8 @@ function Invoke-Deploy([string[]]$touch) {
         else { Write-Output 'No Lua errors in the 2.5 s after deploy.' }
     }
     foreach ($n in $needsBuild) { Write-Output "needs build + restart: $n" }
-    if ($failed) { exit 1 }
-    if ($needsBuild.Count -gt 0) { exit 3 }
+    if ($failed) { Quit-Civctl 1 }
+    if ($needsBuild.Count -gt 0) { Quit-Civctl 3 }
 }
 
 function Get-PythonCommand {
@@ -529,7 +568,7 @@ function Invoke-Python([string[]]$pyArgs) {
 
 function Invoke-Tuner {
     $py = Join-Path $PSScriptRoot 'civtuner.py'
-    if ($Command -eq 'states') { exit (Invoke-Python @($py, 'states')) }
+    if ($Command -eq 'states') { Quit-Civctl (Invoke-Python @($py, 'states')) }
     $code = $null
     if ($File) { $state = $Arg; $code = [IO.File]::ReadAllText($File) }
     else {
@@ -543,7 +582,7 @@ function Invoke-Tuner {
     [IO.File]::WriteAllText($tmp, $code, (New-Object Text.UTF8Encoding($false)))
     $rc = Invoke-Python @($py, 'lua', '-f', $tmp, $state)
     if ($rc -ne 0) { Assert-GameHealthy -Grace 8 -Block }   # a failed call may mean the game just crashed or froze
-    exit $rc
+    Quit-Civctl $rc
 }
 
 function Invoke-Stop {
@@ -554,6 +593,7 @@ function Invoke-Stop {
     $deadline = (Get-Date).AddSeconds(30)
     while ((Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
     Start-Sleep -Seconds 3
+    [IO.File]::WriteAllText($StopMarker, (Get-Date).ToString('o'))
     Write-Output 'Stopped.'
 }
 
@@ -594,7 +634,7 @@ function Invoke-Keymap {
     }
     if (-not $rows) {
         Write-Output 'No complete #KEYMAP dump in Lua.log. Start the game (civctl start) and open Options from the main menu (Down to "Game Options", Enter), then run this again.'
-        exit 1
+        Quit-Civctl 1
     }
     $md = New-Object System.Collections.Generic.List[string]
     $md.Add('# Civ VI key bindings (generated)')
@@ -707,14 +747,14 @@ function Invoke-Load([string]$name) {
     $dstDir = Get-SaveDir
     $dst = Join-Path $dstDir "$name.Civ6Save"
     if (-not (Test-Path $src) -and -not (Test-Path $dst)) { throw "No such fixture: $src" }
-    if ((Test-Path $src) -and (-not (Test-Path $dst) -or (Get-Item $dst).Length -ne (Get-Item $src).Length)) {
+    if ((Test-Path $src) -and (-not (Test-Path $dst) -or (Get-FileHash $dst -Algorithm MD5).Hash -ne (Get-FileHash $src -Algorithm MD5).Hash)) {
         New-Item -ItemType Directory -Force $dstDir | Out-Null
         Copy-Item $src $dst -Force
         Write-Output "Copied fixture into $dstDir"
     }
     try { Invoke-LoadOnce $name }
     catch {
-        if ($_.Exception.Message -notmatch '^CIVCTL5:') { throw }
+        if ($_.Exception.Message -notmatch '^CIVCTL5:GAME CRASHED') { throw }   # a hang is never retried: the game may just be loading
         Write-Output ($_.Exception.Message -replace '^CIVCTL5:', '')
         Write-Output 'Crash while loading: restarting the game and retrying once from the main menu.'
         Invoke-Stop
@@ -729,7 +769,7 @@ function Invoke-Load([string]$name) {
 }
 
 function Invoke-Fixtures {
-    exit (Invoke-Python @((Join-Path $PSScriptRoot 'civfix.py'), 'fixtures', $FixtureDir))
+    Quit-Civctl (Invoke-Python @((Join-Path $PSScriptRoot 'civfix.py'), 'fixtures', $FixtureDir))
 }
 
 function Invoke-NewGame([string]$profileName) {
@@ -775,6 +815,46 @@ function Invoke-NewGame([string]$profileName) {
     Invoke-Save "$profileName-start"
 }
 
+# AI plays our civ for n turns (InGame state; SetObserveAsPlayer(0), never OBSERVER: that is 3x slower and tears down the UI).
+# Polls IsActive every 30 s (more frequent tuner calls slow the game); gives up after ~25 s per turn.
+function Invoke-Autoplay([string]$n) {
+    if ($n -notmatch '^\d+$' -or [int]$n -lt 1) { throw 'Usage: civctl.ps1 autoplay <turns> [-Save <fixture>]' }
+    $turns = [int]$n
+    Assert-GameHealthy -Grace 8 -Block
+    $where = Get-GameWhere
+    if (-not $where -or -not $where.StartsWith('INGAME')) { throw "autoplay needs a game in progress (state: $where)" }
+    $startTurn = [int](($where -split ' ')[1])
+    $res = Invoke-LuaCapture 'InGame' "AutoplayManager.SetTurns($turns); AutoplayManager.SetReturnAsPlayer(0); AutoplayManager.SetObserveAsPlayer(0); AutoplayManager.SetActive(true); return tostring(AutoplayManager.IsActive())"
+    if ($script:PyExit -ne 0) { throw "Could not start autoplay: $($res -join ' ')" }   # IsActive() still says false right after SetActive(true)
+    Start-Sleep -Seconds 4
+    $chk = Invoke-LuaCapture 'InGame' 'return tostring(AutoplayManager.IsActive())'
+    if (($chk -join '') -notmatch 'true') { throw "Autoplay did not start (IsActive: $($chk -join ' '))" }
+    Write-Output "Autoplay started: $turns turns from turn $startTurn."
+    $t0 = Get-Date
+    $deadline = $t0.AddSeconds(25 * $turns)
+    $lastTurn = $startTurn
+    $done = $false
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 30
+        Update-Lock
+        Assert-GameHealthy -Grace 150 -Block
+        $r = Invoke-LuaCapture 'InGame' 'return tostring(AutoplayManager.IsActive()) .. " " .. tostring(Game.GetCurrentGameTurn())'
+        $txt = ($r -join ' ').Trim()
+        if ($script:PyExit -ne 0 -or $txt -notmatch '^(true|false) (\d+)') { Write-Output ("{0,4:N0}s  tuner busy ({1})" -f ((Get-Date) - $t0).TotalSeconds, $txt); continue }
+        $lastTurn = [int]$Matches[2]
+        Write-Output ("{0,4:N0}s  turn {1} ({2}/{3})" -f ((Get-Date) - $t0).TotalSeconds, $lastTurn, ($lastTurn - $startTurn), $turns)
+        if ($Matches[1] -eq 'false') { $done = $true; break }
+    }
+    $secs = ((Get-Date) - $t0).TotalSeconds
+    if (-not $done) { throw "Autoplay did not finish within $([int]$secs) s (turn $lastTurn)." }
+    Write-Output ("Autoplay finished: turn {0} -> {1} in {2:N0} s ({3:N1} s/turn)." -f $startTurn, $lastTurn, $secs, ($secs / [Math]::Max(1, $lastTurn - $startTurn)))
+    Start-Sleep -Seconds 3
+    if ($Save) {
+        if (-not $Purpose) { $script:Purpose = "autoplayed $($lastTurn - $startTurn) turns from turn $startTurn (civctl autoplay)" }
+        Invoke-Save $Save
+    }
+}
+
 function Show-Status {
     $game = Get-GameProcess
     "game: $(if ($game) { "running (pid $($game.Id), '$($game.MainWindowTitle)')" } else { 'not running' })"
@@ -789,15 +869,19 @@ function Show-Status {
     }
 }
 
-$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame')
-if ($Command -in $LockedCommands) { Enter-Lock }
+$script:LockHeld = $false
+$script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'wait') { 150 } else { 0 }
+$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay')
+if ($Command -in $LockedCommands) {
+    Enter-Lock
+}
 
 try {
 switch ($Command) {
     'build' { Invoke-Build }
     'deploy' { Invoke-Deploy }
     'reload' { if (-not $Arg) { throw 'Usage: civctl.ps1 reload <file...>  (path or name fragment, e.g. InGameAccess.lua)' }; Invoke-Deploy ($Arg -split '\s+') }
-    'menu' { exit (Invoke-Python @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')) }
+    'menu' { Quit-Civctl (Invoke-Python @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')) }
     { $_ -in 'lua', 'states' } { Invoke-Tuner }
     'start' { Invoke-Start }
     'stop' { Invoke-Stop }
@@ -807,9 +891,10 @@ switch ($Command) {
     'load' { Invoke-Load $Arg }
     'fixtures' { Invoke-Fixtures }
     'newgame' { Invoke-NewGame $Arg }
+    'autoplay' { Invoke-Autoplay $Arg }
     'unlock' { Invoke-Unlock }
     'wait' {
-        if (-not (Wait-ForScreenReader $Arg $Timeout)) { Write-Output "Timed out waiting for '$Arg'"; exit 1 }
+        if (-not (Wait-ForScreenReader $Arg $Timeout)) { Write-Output "Timed out waiting for '$Arg'"; Quit-Civctl 1 }
     }
     'shot' { Invoke-Shot }
     'keymap' { Invoke-Keymap }
@@ -817,6 +902,8 @@ switch ($Command) {
 }
 } catch {
     # 'CIVCTL<exit code>:<message>' errors come from the crash/hang/not-running checks.
-    if ($_.Exception.Message -match '^CIVCTL(\d+):(.*)') { Write-Output $Matches[2]; exit [int]$Matches[1] }
+    if ($_.Exception.Message -match '^CIVCTL(\d+):(.*)') { Write-Output $Matches[2]; Exit-Lock; exit [int]$Matches[1] }
+    Exit-Lock
     throw
 }
+Exit-Lock
