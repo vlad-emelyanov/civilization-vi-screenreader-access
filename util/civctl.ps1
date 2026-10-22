@@ -761,7 +761,14 @@ function Invoke-LoadOnce([string]$name) {
     } elseif (-not (Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue)) { Invoke-Start }
     Assert-GameHealthy -Grace 8 -Block
     Ensure-MainMenu
-    $res = Invoke-LuaCapture 'MainMenu' ('local s={}; s.Name="' + $name + '"; s.Location=SaveLocations.LOCAL_STORAGE; s.Type=SaveTypes.SINGLE_PLAYER; s.IsAutosave=false; s.IsQuicksave=false; s.Directory=SaveDirectories.DEFAULT; return tostring(Network.LoadGame(s, ServerType.SERVER_TYPE_NONE))')
+    # The MainMenu tuner state can be missing or silent for a few seconds after Ensure-MainMenu: retry while the tuner gave no answer at all.
+    $loadCode = 'local s={}; s.Name="' + $name + '"; s.Location=SaveLocations.LOCAL_STORAGE; s.Type=SaveTypes.SINGLE_PLAYER; s.IsAutosave=false; s.IsQuicksave=false; s.Directory=SaveDirectories.DEFAULT; return tostring(Network.LoadGame(s, ServerType.SERVER_TYPE_NONE))'
+    for ($try = 1; $try -le 5; $try++) {
+        $res = Invoke-LuaCapture 'MainMenu' $loadCode
+        if ($script:PyExit -eq 0 -and ($res -join '') -match 'true') { break }
+        if ($script:PyExit -eq 0 -and ($res -join '').Trim()) { break }   # the game answered (false, an error): not a missing state
+        Start-Sleep -Seconds 3
+    }
     if ($script:PyExit -ne 0 -or ($res -join '') -notmatch 'true') { throw "Network.LoadGame failed: $($res -join ' ')" }
     if (-not (Wait-ForScreenReader 'Continue Game' 90)) { throw "'Continue Game' did not show after loading '$name'" }
     $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
