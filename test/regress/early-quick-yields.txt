@@ -1,6 +1,6 @@
-# UNVERIFIED: written offline from docs/ingame-plan.md (Control+G quick read), not yet run in the game.
-# Control+G speaks "Science plus 2.5. Culture plus 1.2. Faith 0. Gold 62, plus 6".
+# Verified 2026-10-22 on early-start. Control+G speaks "Science 0. Culture 0. Faith 0. Gold 5".
 load early-start
+expect ^Turn 1\b
 key Control+G
-expect ^Science .*Culture .*Faith .*Gold
+expect ^Science [\d.]+\. Culture [\d.]+\. Faith [\d.]+\. Gold \d+
 expect-not (?i)error

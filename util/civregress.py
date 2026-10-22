@@ -10,6 +10,8 @@ Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' 
   key <args>              civctl key <args>              e.g. key Enter -Settle 2000, key Shift+Down
   wait <args>             civctl wait <args>             e.g. wait Turn \\d+ -Timeout 30 (no | or & in the regex: cmd.exe)
   lua <state> <expr>      civctl lua <state> <expr>      (the expression goes through a temp -File: quotes are safe)
+  clear-advisors          presses Enter until no "ADVISOR:" line is spoken any more (max 12): the advisor popups that a
+                          loaded or tuner-changed game queues swallow keys. Its lines stay in the window.
   expect <regex>          PASS if some SR> line since the last check matches (re.search, case-sensitive, use (?i))
   expect-not <regex>      PASS if no SR> line since the last check matches
 
@@ -22,8 +24,11 @@ Failure handling: a failed expect prints FAIL with the lines it saw and the scri
 owner) aborts the whole run. After an abort the next script starts with a fresh load. Other non-zero exits of
 key/wait/lua count as a failed step and the script goes on.
 
+A script that has a comment line `# no-share-load` always does its own load, and the next script does not share its game
+(use it when the script changes the game: scenario, Enter, F-keys that open screens).
+
 Loads: by default every script does its own `load`, because keys change the game state. --share-load skips the first
-`load` of a script when the previous script loaded the same fixture and finished without an abort (faster, but state
+`load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script loaded the same fixture and finished without an abort (faster, but state
 drifts: use it for read-only scripts). Scripts are run grouped by their first fixture so shared loads are adjacent.
 
 Env: CIVCTL_OWNER is the lock owner passed to civctl (default 'regress').
@@ -44,7 +49,8 @@ CIVCTL = os.path.join(ROOT, "util", "civctl.ps1")
 POWERSHELL = "powershell.exe"
 TIMEOUT_RC = 124
 
-ACTIONS = ("load", "scenario", "key", "wait", "lua")
+ACTIONS = ("load", "scenario", "key", "wait", "lua", "clear-advisors")
+NO_ARG = ("clear-advisors",)
 CHECKS = ("expect", "expect-not")
 STEP_TIMEOUT = 600  # seconds per civctl call (a load is ~45 s, a newgame 70 s)
 
@@ -61,9 +67,14 @@ class Step:
         return "Step(%r, %r, line %d)" % (self.kind, self.arg, self.line)
 
 
+class Steps(list):
+    fresh = False  # '# no-share-load' in the script
+
+
 def parse_script(text, name="script"):
     """Text -> [Step]. Raises ScriptError with file:line for unknown steps, missing arguments and bad regexes."""
-    steps = []
+    steps = Steps()
+    steps.fresh = bool(re.search(r"^#\s*no-share-load", text, re.M))
     for no, raw in enumerate(text.splitlines(), 1):
         line = raw.strip().lstrip("﻿")
         if not line or line.startswith("#"):
@@ -72,7 +83,7 @@ def parse_script(text, name="script"):
         kind, arg = kind.lower(), arg.strip()
         if kind not in ACTIONS + CHECKS:
             raise ScriptError("%s:%d: unknown step '%s'" % (name, no, kind))
-        if not arg:
+        if not arg and kind not in NO_ARG:
             raise ScriptError("%s:%d: '%s' needs an argument" % (name, no, kind))
         if kind in CHECKS:
             try:
@@ -192,8 +203,13 @@ def run_script(name, steps, runner, out=print, skip_load=False):
     window = []         # [(raw, text)] since the last check
     checked = False     # the window has been looked at: the next action starts a new one
     skipped_load = False
+    after_skip = False  # checks right after a skipped load are skipped too
     out("== %s (%d steps)" % (name, len(steps)))
     for i, s in enumerate(steps):
+        if s.kind in CHECKS and after_skip:
+            out("  SKIP line %d: %s %s (shared load)" % (s.line, s.kind, s.arg))
+            continue
+        after_skip = False
         if s.kind in CHECKS:
             checked = True
             ok, hit = check(s.kind, s.arg, window)
@@ -214,11 +230,27 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             continue
         if skip_load and not skipped_load and s.kind == "load":
             skipped_load = True
+            after_skip = True
             res.loaded = s.arg
             out("  SKIP line %d: load %s (shared with the previous script)" % (s.line, s.arg))
             continue
         if checked:
             window, checked = [], False
+        if s.kind == "clear-advisors":
+            out("  > clear-advisors")
+            for _ in range(12):
+                rc, lines = runner.run(["key", "Enter", "-Settle", "1500"])
+                if rc == 6:
+                    raise LockedError(chr(10).join(lines))
+                window.extend(parse_sr_lines(lines))
+                if rc != 0 or not any("ADVISOR:" in l for l in lines):
+                    break
+            if rc == 5 or rc == TIMEOUT_RC:
+                res.failed += 1
+                res.aborted = "game crashed/hung or civctl timed out in clear-advisors (line %d)" % s.line
+                out("  FAIL line %d: %s" % (s.line, res.aborted))
+                break
+            continue
         try:
             args, tmp = civctl_args(s)
         except ScriptError as e:
@@ -266,7 +298,7 @@ def run_script(name, steps, runner, out=print, skip_load=False):
                 break
         elif s.kind == "load":
             res.loaded = s.arg
-    if res.aborted:
+    if res.aborted or getattr(steps, "fresh", False):
         res.loaded = None
     out("   -> %d passed, %d failed%s" % (res.passed, res.failed, ", ABORTED: " + res.aborted if res.aborted else ""))
     return res
@@ -291,7 +323,7 @@ def run_all(scripts, runner, share_load=False, out=print):
     current = None  # fixture the game is in, if known to be clean
     for name, steps in scripts:
         f = first_fixture(steps)
-        skip = share_load and f is not None and f == current
+        skip = share_load and f is not None and f == current and not getattr(steps, "fresh", False)
         try:
             r = run_script(name, steps, runner, out, skip_load=skip)
         except LockedError as e:
