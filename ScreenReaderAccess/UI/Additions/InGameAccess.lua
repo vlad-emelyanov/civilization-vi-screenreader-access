@@ -232,7 +232,7 @@ local function SettleSentence( unit:table )
 	if best == nil then return text .. ". No spot found nearby."; end
 	if best.here then
 		local list:string = SettleReasonList( best, 3, 2 );
-		return ( here ~= nil and "Can settle here" or text ) .. ", the best spot nearby" .. ( list ~= "" and ( ": " .. list ) or "" )
+		return ( here ~= nil and "Can settle here" or text ) .. ", this is the best spot nearby" .. ( list ~= "" and ( ": " .. list ) or "" )
 			.. ( unit:GetMovesRemaining() > 0 and ". B to found." or ". B to found next turn." );
 	end
 	text = text .. ". Best: " .. best.relative .. ", " .. Plural( best.turns, "turn", "turns" ) .. SettleReasons( best, 3 );
@@ -2002,6 +2002,24 @@ local function OnUnitOperationStarted( ownerID:number, unitID:number, operationI
 	if text ~= nil then SayResult( text ); end
 end
 
+-- Automate Exploration starts no operation event (UnitOperationStarted); the game only adds the operation.
+local function OnUnitOperationAdded( ownerID:number, unitID:number, hOperation:number, operationIndex:number )
+	if ownerID ~= Game.GetLocalPlayer() or not m_ready then return; end
+	local row:table = GameInfo.UnitOperations[ operationIndex ];
+	if row == nil or row.OperationType ~= "UNITOPERATION_AUTOMATE_EXPLORE" then return; end
+	SayResult( OPERATION_RESULTS.UNITOPERATION_AUTOMATE_EXPLORE );
+	-- an exploring unit moves at once: one that stays where it is and keeps all its moves has nothing to explore
+	local unit:table = Players[ ownerID ]:GetUnits():FindID( unitID );
+	if unit == nil then return; end
+	local x:number, y:number, moves:number = unit:GetX(), unit:GetY(), unit:GetMovesRemaining();
+	After( 1.0, function()
+		local now:table = Players[ ownerID ]:GetUnits():FindID( unitID );
+		if now ~= nil and now:GetX() == x and now:GetY() == y and moves > 0 and now:GetMovesRemaining() >= moves then
+			SayResult( "It has not moved: nothing to explore, or the way is blocked" );
+		end
+	end );
+end
+
 local function OnUnitCommandStarted( ownerID:number, unitID:number, commandID:number )
 	if ownerID ~= Game.GetLocalPlayer() or not m_ready then return; end
 	local row:table = GameInfo.UnitCommands[ commandID ];
@@ -2062,6 +2080,61 @@ local function OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:n
 	SayResult( text );
 end
 
+-- Who fights whom: the game announces a fight (CombatVisBegin) just before the damage events of both sides.
+local m_combat:table = nil;
+
+-- Spoken name of one side of a fight (unit or city).
+local function CombatSide( data:table )
+	if data == nil or data.playerID == nil or data.playerID < 0 or Players[ data.playerID ] == nil then return nil; end
+	local player:table = Players[ data.playerID ];
+	local side:table = { player = data.playerID, id = data.componentID };
+	if data.componentType == ComponentType.UNIT then
+		local unit:table = player:GetUnits():FindID( data.componentID );
+		if unit == nil then return nil; end
+		side.name = PlotDescription_GetUnitName( unit );
+		side.short = Locale.Lookup( unit:GetName() );
+		side.x, side.y = unit:GetX(), unit:GetY();
+	else
+		local city:table = player:GetCities():FindID( data.componentID );
+		if city == nil then return nil; end
+		side.name = Locale.Lookup( city:GetName() );
+		side.short = side.name;
+		side.x, side.y = city:GetX(), city:GetY();
+	end
+	if data.playerID == Game.GetLocalPlayer() then side.name = "Your " .. side.name; end
+	return side;
+end
+
+local function OnCombatVisBegin( data:table )
+	m_combat = nil;
+	if not m_ready or data == nil then return; end
+	local attacker:table, defender:table = CombatSide( data[ CombatVisType.ATTACKER ] ), CombatSide( data[ CombatVisType.DEFENDER ] );
+	if attacker == nil or defender == nil then return; end
+	m_combat = { attacker = attacker, defender = defender, time = UI.GetElapsedTime(), told = false };
+end
+
+-- "3 tiles north-east of Rome": where a plot is, seen from the nearest own city (else the selected unit).
+local function PlaceFromOwn( x:number, y:number )
+	local localPlayer:number = Game.GetLocalPlayer();
+	local bestDistance:number, bestName:string, bestPlot:table = 99, nil, nil;
+	for _, city in Players[ localPlayer ]:GetCities():Members() do
+		local distance:number = Map.GetPlotDistance( x, y, city:GetX(), city:GetY() );
+		if distance < bestDistance then
+			bestDistance, bestName, bestPlot = distance, Locale.Lookup( city:GetName() ), Map.GetPlot( city:GetX(), city:GetY() );
+		end
+	end
+	if bestName == nil then
+		local selected:table = UI.GetHeadSelectedUnit();
+		if selected ~= nil and selected:GetOwner() == localPlayer then
+			bestName, bestPlot = "your " .. Locale.Lookup( selected:GetName() ), Map.GetPlot( selected:GetX(), selected:GetY() );
+		end
+	end
+	if bestName == nil then return nil; end
+	local relative:string = PlotDescription_GetRelative( bestPlot, Map.GetPlot( x, y ) );
+	if relative == nil then return "at " .. bestName; end
+	return relative .. " of " .. bestName;
+end
+
 local function OnUnitDamageChanged( playerID:number, unitID:number, newDamage:number, oldDamage:number )
 	if not m_ready or newDamage <= oldDamage then return; end
 	local player:table = Players[ playerID ];
@@ -2076,7 +2149,22 @@ local function OnUnitDamageChanged( playerID:number, unitID:number, newDamage:nu
 	if playerID == Game.GetLocalPlayer() then name = "Your " .. name; end
 	local maxDamage:number = unit:GetMaxDamage();
 	if newDamage >= maxDamage then return; end		-- OnUnitKilledInCombat tells it
-	OutputMessageToScreenReader( name .. " takes " .. ( newDamage - oldDamage ) .. " damage, " .. ( maxDamage - newDamage ) .. " of " .. maxDamage .. " health", true );
+	local text:string = name .. " takes " .. ( newDamage - oldDamage ) .. " damage, " .. ( maxDamage - newDamage ) .. " of " .. maxDamage .. " left";
+	-- the first damage line of a fight says who attacked whom (and where, when it is not our fight)
+	local fight:table = m_combat;
+	if fight ~= nil and not fight.told and UI.GetElapsedTime() - fight.time < 10
+			and ( ( fight.attacker.player == playerID and fight.attacker.id == unitID ) or ( fight.defender.player == playerID and fight.defender.id == unitID ) ) then
+		fight.told = true;
+		local localPlayer:number = Game.GetLocalPlayer();
+		local ours:boolean = fight.attacker.player == localPlayer or fight.defender.player == localPlayer;
+		local victim:table = ( fight.defender.player == playerID and fight.defender.id == unitID ) and fight.defender or fight.attacker;
+		local who:string = ( victim.player == localPlayer ) and victim.name or victim.short;
+		local place:string = nil;
+		if not ours then place = PlaceFromOwn( fight.defender.x, fight.defender.y ); end
+		text = fight.attacker.name .. " attacks " .. fight.defender.name .. ( place ~= nil and ( ", " .. place ) or "" ) .. ": "
+			.. who .. " takes " .. ( newDamage - oldDamage ) .. " damage, " .. ( maxDamage - newDamage ) .. " of " .. maxDamage .. " left";
+	end
+	OutputMessageToScreenReader( text, true );
 end
 
 -- (killed player, killed unit, killer player, killer unit): told when the local player is on either side.
@@ -2328,8 +2416,10 @@ function Initialize()
 
 	AddEvent( "InterfaceModeChanged",		OnInterfaceModeChanged );
 	AddEvent( "UnitOperationStarted",		OnUnitOperationStarted );
+	AddEvent( "UnitOperationAdded",			OnUnitOperationAdded );
 	AddEvent( "UnitCommandStarted",			OnUnitCommandStarted );
 	AddEvent( "UnitMoveComplete",			OnUnitMoveComplete );
+	AddEvent( "CombatVisBegin",				OnCombatVisBegin );
 	AddEvent( "UnitDamageChanged",			OnUnitDamageChanged );
 	AddEvent( "CityAddedToMap",				OnCityAddedToMap );
 	AddEvent( "ImprovementAddedToMap",		OnImprovementAddedToMap );

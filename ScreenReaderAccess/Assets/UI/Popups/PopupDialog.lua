@@ -623,16 +623,8 @@ end
 function PopupDialogInGame:Open()
 	LuaEvents.OnRaisePopupInGame(self.ID, self.m_options);
 
-	local screenReaderParts = {};
-	for _, control in ipairs(self.m_options) do
-		if control.Type == "Title" or control.Type == "Text" then
-			local part = CleanTextForSpeech(tostring(control.Content));
-			if part ~= "" then table.insert(screenReaderParts, part); end
-		end
-	end
-
-	OutputMessageToScreenReader("Popup: "..table.concat(screenReaderParts, ". "));
-
+	-- ScreenReaderAccess mod change: no speech here. InGamePopup (PopupDialog:Open) announces the popup; saying it from
+	-- the calling context too made every in-game popup (e.g. found city) speak twice.
 	self.m_options = {};
 end
 

@@ -2948,6 +2948,8 @@ function OnInputActionTriggered( actionId )
             UI.PlaySound(m_kSoundCV1[actionId]);
         end
 		m_kHotkeyActions[actionId](m_kHotkeyCV1[actionId], m_kHotkeyCV2[actionId]);
+	else
+		SRSayBlockedHotkey( actionId );		-- ScreenReaderAccess mod change: a disabled action has no hotkey entry, say why
 	end
     -- "Delete" Hotkey doesn't appear in UnitOperations.xml, we need to hotwire it here
     if m_DeleteHotkeyId ~= nil and (actionId == m_DeleteHotkeyId) then
@@ -4299,6 +4301,27 @@ local function SRBuildActions()
 		end
 	end
 	return plain;
+end
+
+-- The hotkey of an action that is disabled right now does nothing in the game; say "Cannot automate exploration: Danger".
+function SRSayBlockedHotkey( actionId:number )
+	local actions:table = (m_subjectData ~= nil) and m_subjectData.Actions or nil;
+	local unit:table = UI.GetHeadSelectedUnit();
+	if actions == nil or unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	for category, list in pairs( actions ) do
+		if category ~= "displayOrder" and type( list ) == "table" then
+			for _, action in ipairs( list ) do
+				if action.Disabled == true and action.HotkeyId ~= nil and Input.GetActionId( action.HotkeyId ) == actionId then
+					local tooltip:string = action.helpString or "";
+					local name:string = SRActionName( action, tooltip );
+					local reason:string = SRReasons( tooltip );
+					OutputMessageToScreenReader( "Cannot " .. string.lower( name )
+						.. ( reason ~= "" and ( ": " .. reason ) or "" ) );
+					return;
+				end
+			end
+		end
+	end
 end
 
 -- Hot reload: drop the mod's listeners, or the old instance answers next to the new one.
