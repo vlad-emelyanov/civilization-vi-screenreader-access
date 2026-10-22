@@ -272,6 +272,7 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 		local title :string = "Advisor";
 		if advisorData.ShowPortrait then title = CleanTextForSpeech( Controls.TitleText:GetText() ); end
 		local body :string = CleanTextForSpeech( advisorData.ShowPortrait and Controls.InfoString:GetText() or Controls.MetaInfoString:GetText() );
+		body = string.gsub( body, "%.[%s%.]*%.", "." );	-- [NEWLINE][NEWLINE] became ". . "
 		table.insert( srParts, title .. ": " .. body );
 		srSummary = title .. ": " .. KeyNavFirstSentence( body );
 	end
