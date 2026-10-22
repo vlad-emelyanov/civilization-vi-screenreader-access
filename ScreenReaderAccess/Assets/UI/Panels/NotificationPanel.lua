@@ -89,6 +89,10 @@ local m_lastStackSize			: number = 0;
 local m_ActionPanelGearAnim		: table	 = ContextPtr:LookUpControl( "/InGame/ActionPanel/TickerAnim" );
 
 local m_isLoadComplete          : boolean = false;
+-- Begin ScreenReaderAccess mod change
+local m_sraReported				: table = {};		-- "player:id" of the notifications already seen once: re-adds (refresh, player change) are not new
+local m_sraRestoring			: boolean = false;	-- the engine is re-adding the notifications of the (new) local player
+-- End ScreenReaderAccess mod change
 
 g_notificationHandlers = {};
 
@@ -1630,6 +1634,7 @@ end
 -- ===========================================================================
 function OnNotificationDismissed( playerID:number, notificationID:number )
 	if (playerID == Game.GetLocalPlayer()) then -- one of the ones we track?
+		m_sraReported[ playerID .. ":" .. notificationID ] = nil;		-- ScreenReaderAccess: a reused id would be new again
 		-- Don't try and get the Game Core notification object, it might be gone
 		local notificationEntry:NotificationType = GetNotificationEntry( playerID, notificationID );
 		if notificationEntry ~= nil then		
@@ -1797,6 +1802,7 @@ function OnShutdown()
 	LuaEvents.ActionPanel_ActivateNotification.Remove( OnLuaActivateNotification );
 	LuaEvents.EndGameMenu_StartObserverMode.Remove( OnStartObserverMode );
 
+	m_sraReported = {};		-- ScreenReaderAccess
 	ClearNotifications();
 	
 end
@@ -1808,7 +1814,11 @@ function OnLocalPlayerChanged()
 	m_lastStackSize = 0;
 	Controls.RailImage:SetSizeY(100);
 	ClearNotifications();
+	-- Begin ScreenReaderAccess mod change
+	m_sraRestoring = true;		-- the notifications of the new local player come back: they are not arrivals
 	NotificationManager.RestoreVisualState(Game.GetLocalPlayer());	-- Restore the notifications
+	m_sraRestoring = false;
+	-- End ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -1873,10 +1883,16 @@ local function SRA_NotificationTexts( pNotification:table )
 end
 
 -- Told to the hub when a notification that the player can see has been added (after the load only).
+-- The engine re-adds notifications on a refresh, a player change and when the visual state is restored: only the first
+-- sight of an id counts as an arrival. The type name and the end-turn blocking flag let the hub skip what it already says.
 function SRA_NotificationArrived( pNotification:table )
-	if not m_isLoadComplete then return; end
+	local key:string = pNotification:GetPlayerID() .. ":" .. pNotification:GetID();
+	if m_sraReported[ key ] then return; end
+	m_sraReported[ key ] = true;
+	if not m_isLoadComplete or m_sraRestoring then return; end
 	local message:string, summary:string = SRA_NotificationTexts( pNotification );
-	LuaEvents.SRA_NotificationAdded( pNotification:GetID(), message, summary );
+	local blocking:boolean = pNotification:GetEndTurnBlocking() ~= EndTurnBlockingTypes.NO_ENDTURN_BLOCKING;
+	LuaEvents.SRA_NotificationAdded( pNotification:GetID(), message, summary, pNotification:GetTypeName(), blocking );
 end
 
 local function SRA_OnRequestNotifications()
@@ -1905,11 +1921,19 @@ local function SRA_OnRequestNotifications()
 	LuaEvents.SRA_Notifications( list );
 end
 
+-- Answers with SRA_NotificationActivated( id, found, lookOnly ): found = false when the notification is gone or not valid
+-- for the phase; lookOnly = activating it only moves the camera to its plot (no chooser or popup opens).
 local function SRA_OnActivateNotification( id:number )
+	local found:boolean, lookOnly:boolean = false, false;
 	local pNotification:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
 	if pNotification ~= nil and pNotification:IsValidForPhase() then
+		found = true;
+		local activate = GetHandler( pNotification:GetType() ).Activate;
+		lookOnly = ( activate == OnLookAtActivate or activate == OnDefaultActivateNotification )
+			and pNotification:GetEndTurnBlocking() == EndTurnBlockingTypes.NO_ENDTURN_BLOCKING;
 		pNotification:Activate( true );		-- true: the user does it (what OnDefaultTryActivateNotification does)
 	end
+	LuaEvents.SRA_NotificationActivated( id, found, lookOnly );
 end
 
 local function SRA_OnDismissNotification( id:number )

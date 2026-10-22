@@ -31,7 +31,7 @@ local m_actions				:table = {};		-- actionId -> handler
 local m_lastAnnouncedTurn	:string = "";		-- "<local player>:<turn>" of the last turn announcement (hotseat: every player hears their turn)
 local m_cursorPlayer		:number = -1;		-- local player the cursor belongs to
 local m_ready				:boolean = false;	-- a game is loaded (LoadScreenClose seen): event announcements are allowed
-local m_menuOpen			:boolean = false;	-- the unit actions menu is open
+local m_mode				:table = nil;		-- the active keyboard mode { name, list, onClose }, see MODES below; nil: none
 local m_unitActions			:table = {};		-- plain list of the selected unit's actions, sent by UnitPanel (SRA_UnitActions)
 local m_delayed				:table = {};		-- { time = seconds left, fn = function }
 local m_enterWatch			:number = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
@@ -41,17 +41,14 @@ local m_movers				:table = {};		-- unit id -> { dest = plot index, issued = time
 local m_lastKeyTime			:number = -100;		-- UI.GetElapsedTime() of the last key press seen by the input handler
 local m_attackIntent		:boolean = false;	-- the MOVE_TO mode was entered with the Attack key: only enemies are valid targets
 local m_menuItems			:table = {};		-- items of the unit actions menu, fetched when it opens
-local m_civMenuOpen			:boolean = false;	-- the list of met civilizations (V) is open
 local m_unitNames			:table = {};		-- "player:unit" -> spoken name, remembered while the unit is alive (it is gone when its death is reported)
 local m_scanOrigin			:number = nil;		-- plot the X scan started from
 local m_spotted				:table = {};		-- "player:unit" -> turn the enemy was last announced
 local m_spottedTurn			:number = -1;		-- turn m_spottedCount counts
 local m_spottedCount		:number = 0;
-local m_settleOpen			:boolean = false;	-- the settle spot browser (X with a settler selected) is open
 local m_settleItems			:table = {};		-- its items, from the scan made when it opened
-local m_topOpen				:boolean = false;	-- the top panel region (Control+Y) is open
-local m_notifOpen			:boolean = false;	-- the notifications region (Control+N) is open
 local m_notifData			:table = {};		-- notifications sent by NotificationPanel (SRA_Notifications), plain data
+local m_notifAnswered		:boolean = false;	-- NotificationPanel answered the last SRA_RequestNotifications
 local m_arrivals			:table = {};		-- texts of notifications that arrived and are not yet announced
 local m_arrivalTimer		:number = -1;		-- >= 0: seconds until the arrivals are announced together
 local m_lastSelectionSpeech	:number = -100;		-- UI.GetElapsedTime() of the last unit/city selection announcement
@@ -212,6 +209,40 @@ local function AddEvent( name:string, handler )
 end
 
 -- ===========================================================================
+--	MODES: the keyboard lists of the hub (unit actions menu, diplomacy list, settle spot browser, top panel,
+--	notifications). Exactly one can be active: m_mode holds it, opening one closes the one before, and the input handler
+--	gives keys to m_mode.list only. Whatever makes a mode stale (selection change, turn end, load, player change,
+--	entering a target mode) closes it through CloseMode, which also resets the list so that it reopens fresh.
+--	The engine's target modes (move to, attacks ...) are the other kind of state: they are exclusive with m_mode by
+--	CanOpenMode (refuses to open a mode in a target mode) and OnInterfaceModeChanged (entering one closes the mode).
+-- ===========================================================================
+
+local function IsModeOpen( name:string )
+	return m_mode ~= nil and m_mode.name == name;
+end
+
+-- speak: say "Closed" (the player closed it). quiet: closed because it went stale, so a mode's restoring work (the
+-- settle browser puts the cursor back on the settler) is not done.
+local function CloseMode( speak:boolean, quiet:boolean )
+	local mode:table = m_mode;
+	if mode == nil then return; end
+	m_mode = nil;
+	mode.list.Reset();
+	if mode.onClose ~= nil then
+		local ok:boolean, err = xpcall( function() mode.onClose( quiet == true ); end, KeyNavErrorHandler );
+		if not ok then print( "InGameAccess mode close error: " .. tostring( err ) ); end
+	end
+	if speak then OutputMessageToScreenReader( "Closed" ); end
+end
+
+-- Makes the list the active mode (closing the previous one) and announces it.
+local function OpenMode( name:string, list:table, title:string, onClose )
+	CloseMode( false, false );
+	m_mode = { name = name, list = list, onClose = onClose };
+	list.Open( title );
+end
+
+-- ===========================================================================
 --	MAP CURSOR
 -- ===========================================================================
 
@@ -265,6 +296,7 @@ local function ResetCursor()
 	m_cursorX, m_cursorY = nil, nil;
 	m_mouseTimer = -1;
 	m_cursorPlayer = Game.GetLocalPlayer();
+	CloseMode( false, true );		-- another player (hotseat) or a new game: a list of the previous one is stale
 end
 
 local function GetCursor()
@@ -308,6 +340,16 @@ local function GetTargetMode()
 	local label:string = m_targetModes[mode];
 	if label ~= nil then return mode, label; end
 	return nil, nil;
+end
+
+-- A list mode cannot be opened in the middle of a target mode.
+local function CanOpenMode()
+	if not IsLocalPlayerActive() then return false; end
+	if GetTargetMode() ~= nil then
+		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
+		return false;
+	end
+	return true;
 end
 
 -- Modes in which a city or district (not a unit) acts.
@@ -762,11 +804,8 @@ local function SpeakSettleSentence( unit:table )
 end
 
 local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:number, hexJ:number, hexK:number, isSelected:boolean, isEditable:boolean )
-	m_menuOpen = false;
-	m_settleOpen = false;
-	m_topOpen = false;
-	m_notifOpen = false;
 	if playerID ~= Game.GetLocalPlayer() then return; end
+	CloseMode( false, true );
 	if not isSelected then
 		ResetStaleMode();
 		return;
@@ -819,10 +858,9 @@ local function CityGrowthText( city:table )
 end
 
 local function OnCitySelectionChanged( owner:number, cityID:number, i:number, j:number, k:number, isSelected:boolean, isEditable:boolean )
-	m_menuOpen = false;
-	m_topOpen = false;
-	m_notifOpen = false;
-	if owner ~= Game.GetLocalPlayer() or not isSelected then return; end
+	if owner ~= Game.GetLocalPlayer() then return; end
+	CloseMode( false, true );
+	if not isSelected then return; end
 	m_enterWatch = -1;
 	local city:table = Players[owner]:GetCities():FindID( cityID );
 	if city == nil then return; end
@@ -872,8 +910,7 @@ local function OnLoadScreenClose()
 	m_spotted = {};
 	m_arrivals = {};
 	m_arrivalTimer = -1;
-	m_topOpen = false;
-	m_notifOpen = false;
+	CloseMode( false, true );
 	-- The unit that was selected while the game loaded (the turn 1 settler!) was announced into the load screen and
 	-- without the settle sentence: say it again once the turn announcement is out.
 	if m_pendingUnit ~= nil then After( 1.0, function() AnnouncePendingUnit(); end ); end
@@ -888,11 +925,7 @@ local function OnLoadScreenClose()
 end
 
 local function OnLocalPlayerTurnEnd()
-	m_menuOpen = false;
-	m_topOpen = false;
-	m_notifOpen = false;
-	m_civMenuOpen = false;
-	m_settleOpen = false;
+	CloseMode( false, true );
 	m_enterWatch = -1;
 	if GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	OutputMessageToScreenReader( "Turn ended", true );
@@ -902,8 +935,8 @@ end
 --	TARGET MODES: entering, confirming (Enter) and cancelling (Escape)
 -- ===========================================================================
 local function OnInterfaceModeChanged( oldMode:number, newMode:number )
-	m_menuOpen = false;
-	if m_targetModes[ newMode ] ~= nil then m_settleOpen = false; end
+	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
+	if m_mode ~= nil and ( m_mode.name == "menu" or m_targetModes[ newMode ] ~= nil ) then CloseMode( false, true ); end
 	m_enterWatch = -1;
 	if newMode ~= InterfaceModeTypes.MOVE_TO then m_attackIntent = false; end
 	local label:string = m_targetModes[ newMode ];
@@ -1088,16 +1121,11 @@ end
 -- ===========================================================================
 local m_settleList:table;
 
-local function CloseSettle( speak:boolean )
-	local wasOpen:boolean = m_settleOpen;
-	m_settleOpen = false;
-	m_settleList.Reset();
-	if wasOpen then
-		-- browsing moved the cursor over the candidates: back to the settler
-		local unit:table = UI.GetHeadSelectedUnit();
-		if unit ~= nil then SetCursor( unit:GetX(), unit:GetY(), false ); end
-	end
-	if speak then OutputMessageToScreenReader( "Closed" ); end
+-- Browsing moved the cursor over the candidates: back to the settler (not when the mode went stale).
+local function SettleClosed( quiet:boolean )
+	if quiet then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit ~= nil then SetCursor( unit:GetX(), unit:GetY(), false ); end
 end
 
 local function BuildSettleItems()
@@ -1122,15 +1150,13 @@ local function OpenSettleBrowser( unit:table )
 		OutputMessageToScreenReader( "No spot to settle found nearby" .. ( ( scan.hereReason ~= nil and scan.hereReason ~= "" ) and ( ", here: " .. scan.hereReason ) or "" ) );
 		return;
 	end
-	m_settleList.Reset();
-	m_settleOpen = true;
-	m_settleList.Open( "Settle spots" );
+	OpenMode( "settle", m_settleList, "Settle spots", SettleClosed );
 end
 
 -- Enter on a spot: the settler walks there (the same path as the move-to mode), or on the spot it stands on: B founds.
 local function SettleGo( item:table )
 	local unit:table = UI.GetHeadSelectedUnit();
-	CloseSettle( false );
+	CloseMode( false, false );
 	if not IsSettler( unit ) then
 		SayResult( "No settler selected" );
 		return;
@@ -1163,18 +1189,18 @@ end
 
 m_settleList = KeyNavList_Create{
 	build		= BuildSettleItems,
-	isActive	= function() return m_settleOpen; end,
+	isActive	= function() return IsModeOpen( "settle" ); end,
 	onActivate	= SettleGo,
-	onClose		= function() CloseSettle( true ); end,
+	onClose		= function() CloseMode( true, false ); end,
 	onFocus		= function( item ) SetCursor( item.candidate.x, item.candidate.y, false, nil, true ); end,
 };
 
 -- X: with a settler selected the spot browser, otherwise the scan for foreign units.
 local function ScanKey()
 	if not IsLocalPlayerActive() then return; end
-	if m_settleOpen then CloseSettle( true ); return; end
+	if IsModeOpen( "settle" ) then CloseMode( true, false ); return; end
 	local unit:table = UI.GetHeadSelectedUnit();
-	if IsSettler( unit ) and not m_menuOpen and not m_civMenuOpen and GetTargetMode() == nil then
+	if IsSettler( unit ) and GetTargetMode() == nil then
 		OpenSettleBrowser( unit );
 		return;
 	end
@@ -1226,12 +1252,6 @@ end
 
 local m_menu:table;
 
-local function CloseMenu( speak:boolean )
-	m_menuOpen = false;
-	m_menu.Reset();
-	if speak then OutputMessageToScreenReader( "Closed" ); end
-end
-
 local function RunMenuItem( item:table )
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil then return; end
@@ -1241,12 +1261,12 @@ local function RunMenuItem( item:table )
 		if candidate.key == item.key then fresh = candidate; end
 	end
 	if fresh == nil or fresh.choosable == false then
-		CloseMenu( false );
+		CloseMode( false, false );
 		SayResult( ( fresh ~= nil ) and fresh.reason or "No longer available" );
 		return;
 	end
 	item = fresh;
-	CloseMenu( false );
+	CloseMode( false, false );
 	local modeBefore:number = UI.GetInterfaceMode();
 	LuaEvents.SRA_RunUnitAction( item.action.id, unit:GetID() );
 	-- Fortify, sleep ... speak their result from the game's UnitOperationStarted event (so the hotkeys are covered too);
@@ -1259,8 +1279,8 @@ end
 
 local function ToggleUnitMenu()
 	if not IsLocalPlayerActive() then return; end
-	if m_menuOpen then
-		CloseMenu( true );
+	if IsModeOpen( "menu" ) then
+		CloseMode( true, false );
 		return;
 	end
 	local unit:table = UI.GetHeadSelectedUnit();
@@ -1268,6 +1288,7 @@ local function ToggleUnitMenu()
 		local city:table = UI.GetHeadSelectedCity();
 		if city ~= nil and city:GetOwner() == Game.GetLocalPlayer() then
 			-- A city has no action menu; Tab opens its production panel (Tab inside it switches Production / Purchase).
+			CloseMode( false, true );
 			LuaEvents.CityPanel_ProductionOpen();
 		elseif city ~= nil then
 			OutputMessageToScreenReader( "Not your city" );
@@ -1280,25 +1301,20 @@ local function ToggleUnitMenu()
 		OutputMessageToScreenReader( "Not your unit" );
 		return;
 	end
-	if GetTargetMode() ~= nil then
-		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
-		return;
-	end
+	if not CanOpenMode() then return; end
 	m_menuItems = FetchMenuItems( true );
 	if #m_menuItems == 0 then
 		OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " has no actions" );
 		return;
 	end
-	CloseSettle( false );
-	m_menuOpen = true;
-	m_menu.Open( Locale.Lookup( unit:GetName() ) .. " actions" );
+	OpenMode( "menu", m_menu, Locale.Lookup( unit:GetName() ) .. " actions" );
 end
 
 m_menu = KeyNavList_Create{
 	build		= BuildMenuItems,
-	isActive	= function() return m_menuOpen; end,
+	isActive	= function() return IsModeOpen( "menu" ); end,
 	onActivate	= RunMenuItem,
-	onClose		= function() CloseMenu( true ); end,
+	onClose		= function() CloseMode( true, false ); end,
 };
 
 -- ===========================================================================
@@ -1325,33 +1341,25 @@ local function BuildCivItems()
 	return items;
 end
 
-local function CloseCivMenu( speak:boolean )
-	m_civMenuOpen = false;
-	m_civMenu.Reset();
-	if speak then OutputMessageToScreenReader( "Closed" ); end
-end
-
 m_civMenu = KeyNavList_Create{
 	build		= BuildCivItems,
-	isActive	= function() return m_civMenuOpen; end,
+	isActive	= function() return IsModeOpen( "civ" ); end,
 	onActivate	= function( item )
-		CloseCivMenu( false );
+		CloseMode( false, false );
 		LuaEvents.DiplomacyRibbon_OpenDiplomacyActionView( item.civ );
 	end,
-	onClose		= function() CloseCivMenu( true ); end,
+	onClose		= function() CloseMode( true, false ); end,
 };
 
 local function ToggleCivMenu()
 	if not IsLocalPlayerActive() then return; end
-	if m_civMenuOpen then CloseCivMenu( true ); return; end
-	if m_menuOpen or GetTargetMode() ~= nil then return; end
+	if IsModeOpen( "civ" ) then CloseMode( true, false ); return; end
+	if not CanOpenMode() then return; end
 	if #BuildCivItems() == 0 then
 		OutputMessageToScreenReader( "You have not met any other civilization" );
 		return;
 	end
-	CloseSettle( false );
-	m_civMenuOpen = true;
-	m_civMenu.Open( "Diplomacy, met civilizations" );
+	OpenMode( "civ", m_civMenu, "Diplomacy, met civilizations" );
 end
 
 -- ===========================================================================
@@ -1362,56 +1370,28 @@ end
 local m_topList:table;
 local m_notifList:table;
 
-local function CloseTop( speak:boolean )
-	m_topOpen = false;
-	m_topList.Reset();
-	if speak then OutputMessageToScreenReader( "Closed" ); end
-end
-
-local function CloseNotifications( speak:boolean )
-	m_notifOpen = false;
-	m_notifList.Reset();
-	if speak then OutputMessageToScreenReader( "Closed" ); end
-end
-
--- Regions replace the other keyboard menus; they cannot be opened in the middle of a target mode.
-local function PrepareRegion()
-	if not IsLocalPlayerActive() then return false; end
-	if GetTargetMode() ~= nil then
-		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
-		return false;
-	end
-	CloseMenu( false );
-	CloseCivMenu( false );
-	CloseSettle( false );
-	CloseTop( false );
-	CloseNotifications( false );
-	return true;
-end
-
 m_topList = KeyNavList_Create{
 	build		= function() return TopPanelData_BuildItems(); end,
-	isActive	= function() return m_topOpen; end,
+	isActive	= function() return IsModeOpen( "top" ); end,
 	horizontal	= true,
 	onActivate	= function( item )
 		if item.open == "research" then
-			CloseTop( false );
+			CloseMode( false, false );
 			LuaEvents.ActionPanel_OpenChooseResearch();
 		elseif item.open == "civic" then
-			CloseTop( false );
+			CloseMode( false, false );
 			LuaEvents.ActionPanel_OpenChooseCivic();
 		else
 			OutputMessageToScreenReader( "Nothing to open here. Space reads the details" );
 		end
 	end,
-	onClose		= function() CloseTop( true ); end,
+	onClose		= function() CloseMode( true, false ); end,
 };
 
 local function ToggleTopPanel()
-	if m_topOpen then CloseTop( true ); return; end
-	if not PrepareRegion() then return; end
-	m_topOpen = true;
-	m_topList.Open( "Top panel" );
+	if IsModeOpen( "top" ) then CloseMode( true, false ); return; end
+	if not CanOpenMode() then return; end
+	OpenMode( "top", m_topList, "Top panel" );
 end
 
 -- Control+G: the basic yields in one sentence, without entering the region.
@@ -1422,11 +1402,13 @@ end
 
 local function OnNotificationsReceived( list:table )
 	m_notifData = list or {};
+	m_notifAnswered = true;
 end
 
 -- Active notifications, newest first (ids grow with time). Rebuilt from the panel's own list at key time.
 local function BuildNotificationItems()
 	m_notifData = {};
+	m_notifAnswered = false;
 	LuaEvents.SRA_RequestNotifications();
 	table.sort( m_notifData, function( a, b ) return a.id > b.id; end );
 	local items:table = {};
@@ -1448,14 +1430,40 @@ end
 
 -- Enter: what a click on the notification does (the panel's own Activate: look at the plot, select the unit,
 -- open the chooser or screen). When nothing was selected or opened, the cursor goes to its plot and says it.
+local m_activateReply		:table = nil;		-- answer of the panel to the last SRA_ActivateNotification: { found, lookOnly }
+
+local function OnNotificationActivated( id:number, found:boolean, lookOnly:boolean )
+	m_activateReply = { id = id, found = found, lookOnly = lookOnly };
+end
+
 local function ActivateNotification( item:table )
 	local n:table = item.note;
-	CloseNotifications( false );
+	CloseMode( false, false );
 	local started:number = UI.GetElapsedTime();
-	LuaEvents.SRA_ActivateNotification( n.id );
+	m_activateReply = nil;
+	LuaEvents.SRA_ActivateNotification( n.id );		-- answered synchronously through SRA_NotificationActivated
+	local reply:table = m_activateReply;
+	if reply ~= nil and reply.id == n.id and not reply.found then
+		OutputMessageToScreenReader( "Notification no longer available" );
+		return;
+	end
+	local lookOnly:boolean = ( reply ~= nil and reply.lookOnly );
 	After( 0.5, function()
-		if m_lastSelectionSpeech < started and n.x >= 0 and n.y >= 0 and not m_menuOpen then
+		if m_lastSelectionSpeech >= started or m_mode ~= nil then return; end		-- a selection or screen spoke for itself
+		if n.x >= 0 and n.y >= 0 then
 			SetCursor( n.x, n.y, true, false );
+		elseif lookOnly then
+			local title:string = CleanTextForSpeech( n.message );
+			local summary:string = CleanTextForSpeech( n.summary );
+			local text:string = title;
+			if summary ~= "" and summary ~= title then text = text .. ". " .. summary; end
+			text = string.gsub( text, "[%.%s]+$", "" );
+			local gone:boolean = true;
+			for _, other in ipairs( BuildNotificationItems() ) do
+				if other.note.id == n.id then gone = false; end
+			end
+			if gone then text = text .. ". Dismissed"; end
+			OutputMessageToScreenReader( text );
 		end
 	end );
 end
@@ -1480,10 +1488,10 @@ local function DismissNotification()
 	local neighborKey = ( neighbor ~= nil ) and neighbor.key or nil;
 	LuaEvents.SRA_DismissNotification( item.note.id );
 	After( 0.3, function()
-		if not m_notifOpen then return; end
+		if not IsModeOpen( "notifications" ) then return; end
 		local rest:table = BuildNotificationItems();
 		if #rest == 0 then
-			CloseNotifications( false );
+			CloseMode( false, false );
 			OutputMessageToScreenReader( "Dismissed. No more notifications" );
 			return;
 		end
@@ -1499,36 +1507,43 @@ end
 
 m_notifList = KeyNavList_Create{
 	build		= BuildNotificationItems,
-	isActive	= function() return m_notifOpen; end,
+	isActive	= function() return IsModeOpen( "notifications" ); end,
 	onActivate	= ActivateNotification,
-	onClose		= function() CloseNotifications( true ); end,
+	onClose		= function() CloseMode( true, false ); end,
 	extraKeys	= { [Keys.VK_DELETE] = DismissNotification },
 };
 
 local function ToggleNotifications()
-	if m_notifOpen then CloseNotifications( true ); return; end
-	if not PrepareRegion() then return; end
+	if IsModeOpen( "notifications" ) then CloseMode( true, false ); return; end
+	if not CanOpenMode() then return; end
 	if #BuildNotificationItems() == 0 then
-		OutputMessageToScreenReader( "No notifications" );
+		OutputMessageToScreenReader( m_notifAnswered and "No notifications" or "Notifications are not available" );
 		return;
 	end
-	m_notifOpen = true;
-	m_notifList.Open( "Notifications" );
+	OpenMode( "notifications", m_notifList, "Notifications" );
 end
 
 -- New notifications are announced when they arrive, without interrupting; a burst (turn start) becomes one sentence.
-local function OnNotificationAdded( id:number, message:string, summary:string )
+-- "Barbarians sighted" is left out only when the hub itself said "X spotted ..." for a hostile unit around that time
+-- (the notification also covers sightings farther than 4 tiles from our cities and units, and the spotting is capped).
+local m_lastSpotSpeech		:number = -100;		-- UI.GetElapsedTime() of the last "X spotted" announcement
+
+local function OnNotificationAdded( id:number, message:string, summary:string, typeName:string, blocking:boolean )
 	if not m_ready then return; end
 	local text:string = CleanTextForSpeech( message );
 	if text == "" then text = CleanTextForSpeech( summary ); end
 	if text == "" then return; end
-	table.insert( m_arrivals, text );
-	m_arrivalTimer = 0.8;
+	table.insert( m_arrivals, { text = text, time = UI.GetElapsedTime(), spotType = ( typeName == "NOTIFICATION_BARBARIANS_SIGHTED" ) } );
+	if m_arrivalTimer < 0 then m_arrivalTimer = 0.8; end		-- flush 0.8 s after the first one: a trickle must not postpone the burst
 end
 
 local function FlushArrivals()
-	local texts:table = m_arrivals;
+	local entries:table = m_arrivals;
 	m_arrivals = {};
+	local texts:table = {};
+	for _, entry in ipairs( entries ) do
+		if not ( entry.spotType and math.abs( m_lastSpotSpeech - entry.time ) < 3 ) then table.insert( texts, entry.text ); end
+	end
 	if #texts == 0 then return; end
 	if #texts == 1 then
 		OutputMessageToScreenReader( "Notification: " .. texts[1], true );
@@ -1713,6 +1728,7 @@ local function OnUnitVisibilityChanged( playerID:number, unitID:number, visibili
 	local relative:string = PlotDescription_GetRelative( bestPlot, Map.GetPlot( x, y ) );
 	local text:string = PlotDescription_GetUnitName( unit ) .. " spotted";
 	if relative ~= nil then text = text .. ", " .. relative .. " of " .. bestName; else text = text .. " at " .. bestName; end
+	m_lastSpotSpeech = UI.GetElapsedTime();
 	OutputMessageToScreenReader( text, true );
 end
 
@@ -1750,11 +1766,7 @@ local function HandleInput( input:table )
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 	m_lastKeyTime = UI.GetElapsedTime();
-	if m_menuOpen then return m_menu.HandleInput( input ); end
-	if m_civMenuOpen then return m_civMenu.HandleInput( input ); end
-	if m_settleOpen then return m_settleList.HandleInput( input ); end
-	if m_topOpen then return m_topList.HandleInput( input ); end
-	if m_notifOpen then return m_notifList.HandleInput( input ); end
+	if m_mode ~= nil then return m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
 	if GetTargetMode() ~= nil then
@@ -1881,6 +1893,7 @@ function Initialize()
 	LuaEvents.SRA_UnitActions.Add( OnUnitActionsReceived );
 	LuaEvents.SRA_Notifications.Add( OnNotificationsReceived );
 	LuaEvents.SRA_NotificationAdded.Add( Safe( "NotificationAdded", OnNotificationAdded ) );
+	LuaEvents.SRA_NotificationActivated.Add( Safe( "NotificationActivated", OnNotificationActivated ) );
 	LuaEvents.SRA_AttackKey.Add( Safe( "AttackKey", AttackKey ) );
 	AddEvent( "UnitRemovedFromMap",			function() After( 0.3, ResetStaleMode ); end );
 	AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )
