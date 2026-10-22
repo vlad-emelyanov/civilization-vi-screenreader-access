@@ -10,11 +10,20 @@ if not capital then error("scenario trader-in-capital: player 0 has no capital (
 local traderInfo = GameInfo.Units["UNIT_TRADER"]
 if not traderInfo then error("scenario trader-in-capital: UNIT_TRADER not found in GameInfo.Units") end
 local cx, cy = capital:GetX(), capital:GetY()
+-- Route capacity is often 1/1 with the fixture's own trader busy on its route (then Make Trade Route is "unavailable"): remove
+-- traders that are not in the capital so that the spawned one has a free slot.
+local doomed = {}
+for _, unit in me:GetUnits():Members() do
+	if unit:GetType() == traderInfo.Index and not (unit:GetX() == cx and unit:GetY() == cy) then table.insert(doomed, unit) end
+end
+for _, unit in ipairs(doomed) do me:GetUnits():Destroy(unit) end
 for _, unit in me:GetUnits():Members() do
 	if unit:GetType() == traderInfo.Index and unit:GetX() == cx and unit:GetY() == cy then
+		UnitManager.RestoreMovement(unit)
 		print("scenario trader-in-capital: a trader is already in the capital at " .. cx .. "," .. cy)
 		return
 	end
 end
-me:GetUnits():Create(traderInfo.Index, cx, cy)
+local newUnit = me:GetUnits():Create(traderInfo.Index, cx, cy)
+if newUnit then UnitManager.RestoreMovement(newUnit) end	-- a fresh unit has 0 moves, and a trader without moves does not open the chooser
 print("scenario trader-in-capital: trader created in the capital at " .. cx .. "," .. cy)
