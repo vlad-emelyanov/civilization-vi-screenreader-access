@@ -4280,11 +4280,14 @@ local function SRBuildActions()
 				table.insert( m_srActions, { action = action } );
 					local reason = SRReasons( tooltip );
 					local detail = CleanTextForSpeech( tooltip );
-					if action.Disabled == true and reason == "" and action.SRName ~= nil and unit ~= nil then
-						-- an improvement the engine refuses without giving a reason
+					if action.Disabled == true and reason == "" and unit ~= nil
+							and ( action.SRName ~= nil or category == "BUILD" or unit:GetBuildCharges() > 0 ) then
+						-- a builder action (improvement, Remove Feature, harvest ...) the engine refuses without giving a reason
 						local plot = Map.GetPlot( unit:GetX(), unit:GetY() );
-						local row = GameInfo.Improvements[ action.CallbackVoid1 ];
-						if plot ~= nil and row ~= nil and plot:GetImprovementType() == row.Index then
+						local row = (action.SRName ~= nil) and GameInfo.Improvements[ action.CallbackVoid1 ] or nil;
+						if unit:GetMovesRemaining() <= 0 then
+							reason = "no moves left";
+						elseif plot ~= nil and row ~= nil and plot:GetImprovementType() == row.Index then
 							reason = "already built here";
 						else
 							reason = "not possible on this tile";
@@ -4367,6 +4370,7 @@ function SRA_OnShutdown()
 	Events.UnitMovementPointsCleared.Remove( OnUnitMovementPointsChanged );
 	Events.UnitMovementPointsRestored.Remove( OnUnitMovementPointsChanged );
 	Events.UnitAbilityLost.Remove( OnUnitAbilityLost );
+	Events.GameConfigChanged.Remove( OnGameConfigChanged_Hotseat_Paused );
 	LuaEvents.TradeOriginChooser_SetTradeUnitStatus.Remove( OnSetTradeUnitStatus );
 	LuaEvents.TradeRouteChooser_SetTradeUnitStatus.Remove( OnSetTradeUnitStatus );
 	LuaEvents.TutorialUIRoot_DisableActions.Remove( OnTutorialDisableActions );
