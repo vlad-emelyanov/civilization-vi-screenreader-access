@@ -54,6 +54,10 @@ class MatchTests(unittest.TestCase):
         self.assertTrue(cr.check("expect-not", "Closed", lines)[0])
         self.assertFalse(cr.check("expect", "Closed", lines)[0])
 
+    def test_wait_args_joined(self):
+        args, _ = cr.civctl_args(cr.Step("wait", r"^Turn \d+ now -Timeout 30", 1))
+        self.assertEqual(args, ["wait", r"^Turn \d+ now", "-Timeout", "30"])
+
     def test_args(self):
         args, tmp = cr.civctl_args(cr.Step("key", "Enter -Settle 2000", 1))
         self.assertEqual(args, ["key", "Enter", "-Settle", "2000"])

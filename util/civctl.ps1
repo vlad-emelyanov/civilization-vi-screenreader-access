@@ -61,6 +61,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)   # speech lines can hold non-ASCII; the regress runner decodes UTF-8
 
 # cmd.exe breaks a command line with two quoted strings (the quoted path of civctl.cmd plus a quoted argument such as
 # 'Begin Game'; Git Bash does this: "'C:\Users\...\Code' is not recognized"). So pass multi-word arguments unquoted:
@@ -172,7 +173,10 @@ function Enter-Lock {
             return
         } catch [IO.IOException] {
             if (-not (Test-Path $LockFile)) { continue }
-            $holder = (Get-Content $LockFile -TotalCount 1 -ErrorAction SilentlyContinue)
+            # An empty file is a lock being written right now (create and write are two steps): read again before judging.
+            $holder = $null
+            for ($r = 0; $r -lt 10 -and -not $holder; $r++) { $holder = (Get-Content $LockFile -TotalCount 1 -ErrorAction SilentlyContinue); if (-not $holder) { Start-Sleep -Milliseconds 100 } }
+            if (-not $holder -and (Test-Path $LockFile) -and ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalSeconds -lt 5) { continue }
             $idle = ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalSeconds
             if ($holder -eq $me) { (Get-Item $LockFile).LastWriteTime = Get-Date; $script:LockHeld = $true; return }
             if ($holder -and $idle -lt $LockLeaseMinutes * 60) {
@@ -215,21 +219,26 @@ function Get-CrashDump {
 function Assert-GameHealthy([int]$Grace = 0, [switch]$Block, [switch]$AllowStopped) {
     $rep = Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue
     $procs = @(Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue)
+    if ($procs.Count -gt 0 -and (Test-Path $StopMarker)) {
+        # A game that started after the last `stop` (launched by hand or by Steam) makes the marker obsolete.
+        $mt = (Get-Item $StopMarker).LastWriteTime
+        try { if ($procs[0].StartTime -gt $mt) { Remove-Item $StopMarker -Force -ErrorAction SilentlyContinue } } catch { }
+    }
     if ($rep -and $procs.Count -gt 0) {
-        # The reporter also runs next to a healthy game (seen after a fresh build). It means a crash only if a dump is newer than
-        # the game process, or the game window is not responding.
+        # The reporter also runs next to a healthy game (seen after a fresh build) and while a long load makes the window
+        # briefly "not responding". With a live game process it is a crash only if a dump is newer than the game process;
+        # otherwise the hang logic below decides.
         $gp = $procs | Select-Object -First 1
         $d = Get-CrashDump
         $newer = $false
         try { $newer = $d -and $d.LastWriteTime -gt $gp.StartTime } catch { }
-        $gp.Refresh()
-        if (-not $newer -and ($gp.MainWindowHandle -eq 0 -or $gp.Responding)) { $rep = $null }
+        if (-not $newer) { $rep = $null }
     }
     $deliberate = (-not $rep) -and $procs.Count -eq 0 -and (Test-Path $StopMarker)   # `stop` ran, nothing started since
     if ($rep -or $procs.Count -eq 0) {
         $dump = if ($deliberate) { $null } else { Get-CrashDump }
         if ($rep -or $dump) {
-            $msg = if ($rep) { 'GAME CRASHED (FiraxisBugReporter.exe is running).' } else { 'GAME CRASHED (the game process is gone).' }
+            $msg = if ($procs.Count -gt 0) { 'GAME CRASHED (a fresh crash dump exists and FiraxisBugReporter.exe is running).' } elseif ($rep) { 'GAME CRASHED (FiraxisBugReporter.exe is running, the game process is gone).' } else { 'GAME CRASHED (the game process is gone).' }
             if ($dump) { $msg += " Crash dump: $($dump.FullName)" }
             throw "CIVCTL5:$msg Recover: civctl stop; civctl start; civctl load <latest fixture>."
         }
@@ -242,7 +251,10 @@ function Assert-GameHealthy([int]$Grace = 0, [switch]$Block, [switch]$AllowStopp
     elseif ($script:DefaultHangGrace -gt $Grace) { $Grace = $script:DefaultHangGrace }
     while ($true) {
         $p.Refresh()
-        if ($p.Responding) { $script:HungSince = $null; return }
+        if ($p.Responding) { $script:HungSince = $null; $script:UnrespSince = $null; return }
+        # Hard cap: a frozen window whose Lua.log keeps growing (a print loop) is still a hang after 10 min.
+        if (-not $script:UnrespSince) { $script:UnrespSince = Get-Date }
+        if (((Get-Date) - $script:UnrespSince).TotalSeconds -ge 600) { throw "CIVCTL5:GAME HUNG (window not responding for 10 min although Lua.log still grows). Take a ``civctl shot``; if it stays frozen: civctl stop; civctl start; civctl load <latest fixture>." }
         # A busy but alive game (long AI turn, load) keeps writing to Lua.log or at least did so recently: not a hang.
         if ((Test-Path $LuaLog) -and ((Get-Date) - (Get-Item $LuaLog).LastWriteTime).TotalSeconds -lt 20) { $script:HungSince = $null; if (-not $Block) { return }; Start-Sleep -Milliseconds 500; continue }
         if (-not $script:HungSince) { $script:HungSince = Get-Date }
@@ -831,8 +843,10 @@ function Invoke-Autoplay([string]$n) {
     $res = Invoke-LuaCapture 'InGame' "AutoplayManager.SetTurns($turns); AutoplayManager.SetReturnAsPlayer(0); AutoplayManager.SetObserveAsPlayer(0); AutoplayManager.SetActive(true); return tostring(AutoplayManager.IsActive())"
     if ($script:PyExit -ne 0) { throw "Could not start autoplay: $($res -join ' ')" }   # IsActive() still says false right after SetActive(true)
     Start-Sleep -Seconds 4
-    $chk = Invoke-LuaCapture 'InGame' 'return tostring(AutoplayManager.IsActive())'
-    if (($chk -join '') -notmatch 'true') { throw "Autoplay did not start (IsActive: $($chk -join ' '))" }
+    $chk = Invoke-LuaCapture 'InGame' 'return tostring(AutoplayManager.IsActive()) .. " " .. tostring(Game.GetCurrentGameTurn())'
+    if (($chk -join ' ') -notmatch '^\s*(true|false) (\d+)') { throw "Autoplay status unreadable: $($chk -join ' ')" }
+    # Small n can be done within the 4 s: not active any more is fine if the turn advanced.
+    if ($Matches[1] -eq 'false' -and [int]$Matches[2] -le $startTurn) { throw "Autoplay did not start (IsActive: false, turn still $($Matches[2]))" }
     Write-Output "Autoplay started: $turns turns from turn $startTurn."
     $t0 = Get-Date
     $deadline = $t0.AddSeconds(25 * $turns)

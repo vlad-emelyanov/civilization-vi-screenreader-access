@@ -19,9 +19,17 @@ SHA256 = "0f1c69c4d09f1ebb4d8df14c215e4553e2e639bd4cb7bf3c639b0daa6198317b"
 STRICT = ("ScreenReaderAccess/Assets/UI/Accessibility/", "ScreenReaderAccess/UI/Additions/")
 
 
+def _sha(path):
+    with open(path, "rb") as fh:
+        return hashlib.sha256(fh.read()).hexdigest()
+
+
 def ensure_tool():
     if os.path.exists(EXE):
-        return
+        if _sha(EXE) == SHA256:
+            return
+        print("luacheck.exe has the wrong sha256: downloading it again ...", file=sys.stderr)
+        os.remove(EXE)
     os.makedirs(TOOLS, exist_ok=True)
     print("downloading luacheck.exe ...", file=sys.stderr)
     urllib.request.urlretrieve(URL, EXE + ".part")

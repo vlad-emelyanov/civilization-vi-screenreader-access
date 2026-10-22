@@ -40,7 +40,9 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGRESS_DIR = os.path.join(ROOT, "test", "regress")
 SCENARIO_DIR = os.path.join(ROOT, "util", "scenarios")
-CIVCTL = os.path.join(ROOT, "util", "civctl.cmd")
+CIVCTL = os.path.join(ROOT, "util", "civctl.ps1")
+POWERSHELL = "powershell.exe"
+TIMEOUT_RC = 124
 
 ACTIONS = ("load", "scenario", "key", "wait", "lua")
 CHECKS = ("expect", "expect-not")
@@ -113,13 +115,22 @@ def check(kind, pattern, sr_lines):
     return (hit is not None if kind == "expect" else hit is None), hit
 
 
+def join_positional(arg):
+    r"""'Turn \d+ -Timeout 30' -> ['Turn \d+', '-Timeout', '30']: the words before the first -Flag are one argument."""
+    words = arg.split()
+    i = 0
+    while i < len(words) and not re.match(r"^-[A-Za-z]", words[i]):
+        i += 1
+    return ([" ".join(words[:i])] if i else []) + words[i:]
+
+
 def civctl_args(step):
     """Step -> (argument list for civctl, temp file to delete or None)."""
     k = step.kind
     if k == "load":
         return ["load", step.arg], None
     if k in ("key", "wait"):
-        return [k] + step.arg.split(), None
+        return [k] + join_positional(step.arg), None
     if k == "scenario":
         path = os.path.join(SCENARIO_DIR, step.arg + ".lua")
         if not os.path.isfile(path):
@@ -139,18 +150,23 @@ def civctl_args(step):
 class CivctlRunner:
     """Runs util/civctl.cmd; run(args) -> (exit code, output lines)."""
 
-    def __init__(self, cmd=CIVCTL, owner=None):
+    def __init__(self, cmd=CIVCTL, owner=None):  # cmd: path of civctl.ps1
         self.cmd = cmd
         self.env = dict(os.environ)
         self.env["CIVCTL_OWNER"] = owner or os.environ.get("CIVCTL_OWNER") or "regress"
 
     def run(self, args):
+        # powershell.exe -File directly: going through civctl.cmd (%*) loses '^' and quotes in regexes.
+        cmd = [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.cmd] + args
+        p = subprocess.Popen(cmd, cwd=ROOT, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         try:
-            p = subprocess.run([self.cmd] + args, cwd=ROOT, env=self.env, capture_output=True, timeout=STEP_TIMEOUT)
+            stdout, _ = p.communicate(timeout=STEP_TIMEOUT)
         except subprocess.TimeoutExpired:
-            return 5, ["civctl timed out after %d s" % STEP_TIMEOUT]
-        out = (p.stdout + p.stderr).decode("utf-8", errors="replace").splitlines()
-        return p.returncode, out
+            # kill the whole tree: the child powershell would keep driving the game and holding the lock
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
+            p.communicate()
+            return TIMEOUT_RC, ["civctl timed out after %d s (process tree killed)" % STEP_TIMEOUT]
+        return p.returncode, stdout.decode("utf-8", errors="replace").splitlines()
 
 
 class LockedError(Exception):
@@ -228,6 +244,11 @@ def run_script(name, steps, runner, out=print, skip_load=False):
                     out("    " + l.rstrip())
         if rc == 6:
             raise LockedError("\n".join(lines))
+        if rc == TIMEOUT_RC:
+            res.failed += 1
+            res.aborted = "civctl timed out at line %d" % s.line
+            out("  FAIL line %d: %s" % (s.line, lines[0]))
+            break
         if rc == 5:
             res.failed += 1
             res.aborted = "game crashed or hung (civctl exit 5) at line %d" % s.line
