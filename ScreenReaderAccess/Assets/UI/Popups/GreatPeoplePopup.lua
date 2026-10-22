@@ -8,6 +8,9 @@ include("SupportFunctions");
 include("Civ6Common"); --DifferentiateCiv
 include("ModalScreen_PlayerYieldsHelper");
 include("GameCapabilities");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");			-- ScreenReaderAccess
+include("GreatPeopleText");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -820,6 +823,7 @@ end
 
 -- =======================================================================================
 function Open()
+	local srWasHidden:boolean = ContextPtr:IsHidden();		-- ScreenReaderAccess
 	if (Game.GetLocalPlayer() == -1) then
 		return
 	end
@@ -846,10 +850,12 @@ function Open()
 	Controls.ScreenAnimIn:Play();
 
 	LuaEvents.GreatPeople_OpenGreatPeople();
+	SRA_OnOpened( srWasHidden );		-- ScreenReaderAccess
 end
 
 -- =======================================================================================
 function Close()
+	SRA_ResetState();		-- ScreenReaderAccess
 	if not ContextPtr:IsHidden() then
 		UI.PlaySound("UI_Screen_Close");
 	end
@@ -1026,6 +1032,7 @@ end
 --	Tab callback
 -- ===========================================================================
 function OnGreatPeopleClick( uiSelectedButton:table )
+	SRA_SetPast( false );		-- ScreenReaderAccess
 	ResetTabButtons();
 	SetTabButtonsSelected(uiSelectedButton);
 	Refresh(RefreshCurrentGreatPeople);
@@ -1035,6 +1042,7 @@ end
 --	Tab callback
 -- ===========================================================================
 function OnPreviousRecruitedClick( uiSelectedButton:table )
+	SRA_SetPast( true );		-- ScreenReaderAccess
 	ResetTabButtons();
 	SetTabButtonsSelected(uiSelectedButton);
 	Refresh(RefreshPreviousGreatPeople);
@@ -1069,7 +1077,266 @@ function KeyHandler( key:number )
     end
     return false;
 end
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	Two views like the tabs: the available great people (one item per class, Enter = "Actions for X" with the game's
+--	own Recruit / Pass / Patronize buttons) and the previously recruited ones (read-only). Tab switches the view,
+--	Escape = back from the actions / close. Every other key is swallowed while the popup is shown.
+-- ===========================================================================
+local m_srList			:table = nil;
+local m_srPast			:boolean = false;
+local m_srOpen			:boolean = false;
+local m_srActionsFor	:number = nil;		-- individual id while the actions of a person are shown
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( Locale.Lookup( text or "" ) );
+end
+
+function SRA_SetPast( past:boolean )
+	m_srPast = past;
+	m_srActionsFor = nil;
+end
+
+function SRA_ResetState()
+	m_srOpen = false;
+	m_srActionsFor = nil;
+end
+
+local function SRA_Abilities( kPerson:table )
+	local list:table = {};
+	if kPerson.PassiveNameText ~= nil and kPerson.PassiveNameText ~= "" then
+		table.insert( list, SRA_Clean( kPerson.PassiveNameText ) .. ": " .. SRA_Clean( kPerson.PassiveEffectText ) );
+	end
+	if kPerson.ActionNameText ~= nil and kPerson.ActionNameText ~= "" then
+		local text:string = SRA_Clean( kPerson.ActionNameText );
+		if kPerson.ActionCharges ~= nil and kPerson.ActionCharges > 0 then
+			text = text .. " (" .. SRA_Clean( Locale.Lookup( "LOC_GREATPERSON_ACTION_CHARGES", kPerson.ActionCharges ) ) .. ")";
+		end
+		text = text .. ": " .. SRA_Clean( kPerson.ActionEffectText );
+		if kPerson.ActionUsageText ~= nil and kPerson.ActionUsageText ~= "" then text = text .. ". " .. SRA_Clean( kPerson.ActionUsageText ); end
+		table.insert( list, text );
+	end
+	return list;
+end
+
+local function SRA_ClassName( kPerson:table )
+	if kPerson.ClassID ~= nil and GameInfo.GreatPersonClasses[ kPerson.ClassID ] ~= nil then
+		return SRA_Clean( GameInfo.GreatPersonClasses[ kPerson.ClassID ].Name );
+	end
+	return "Great person";
+end
+
+local function SRA_EraName( kPerson:table )
+	if kPerson.EraID ~= nil and GameInfo.Eras[ kPerson.EraID ] ~= nil then return SRA_Clean( GameInfo.Eras[ kPerson.EraID ].Name ); end
+	return "";
+end
+
+-- The data of the patronage button as the game decides it (AddRecruit): shown, cost, enabled, what we have.
+local function SRA_Patronage( kPerson:table, capability:string, cost:number, can:boolean, have:number, yieldType:string )
+	local opt:table = { shown = false, cost = cost, can = can and not IsReadOnly(), have = have };
+	if HasCapability( capability ) and not kPerson.CanRecruit and not kPerson.CanReject and cost ~= nil and cost < 1000000 then
+		opt.shown = true;
+	end
+	local ok:boolean, off = pcall( function()
+		return Players[ GetDisplayPlayerID() ]:GetGreatPeoplePoints():IsNoPatronageWith( GameInfo.Yields[ yieldType ].Index );
+	end );
+	opt.off = ok and off == true;
+	if opt.off then opt.can = false; end
+	return opt;
+end
+
+local function SRA_CurrentPerson( kPerson:table, data:table )
+	local p:table = { className = SRA_ClassName( kPerson ) };
+	if kPerson.IndividualID == nil then p.none = true; return p; end
+	local playerID:number = GetDisplayPlayerID();
+	p.id = kPerson.IndividualID;
+	p.name = SRA_Clean( kPerson.Name );
+	p.eraName = SRA_EraName( kPerson );
+	p.cost = kPerson.RecruitCost;
+	p.points = 0;
+	p.perTurn = 0;
+	p.standings = {};
+	for _, s in ipairs( data.PointsByClass[ kPerson.ClassID ] or {} ) do
+		table.insert( p.standings, { name = s.PlayerName, points = s.PointsTotal, perTurn = s.PointsPerTurn, isPlayer = s.IsPlayer } );
+		if s.IsPlayer then
+			p.points = s.PointsTotal;
+			p.perTurn = s.PointsPerTurn;
+		elseif p.leaderPoints == nil or s.PointsTotal > p.leaderPoints then
+			p.leaderName = s.PlayerName;
+			p.leaderPoints = s.PointsTotal;
+		end
+	end
+	table.sort( p.standings, function( a, b ) return a.points > b.points; end );
+	p.abilities = SRA_Abilities( kPerson );
+	if kPerson.EarnConditions ~= nil and kPerson.EarnConditions ~= "" then p.earnConditions = SRA_Clean( kPerson.EarnConditions ); end
+	p.readOnly = IsReadOnly();
+	p.canRecruit = kPerson.CanRecruit and HasCapability( "CAPABILITY_GREAT_PEOPLE_CAN_RECRUIT" ) and kPerson.RecruitCost ~= nil;
+	p.recruitCost = kPerson.RecruitCost;
+	p.canReject = kPerson.CanReject and HasCapability( "CAPABILITY_GREAT_PEOPLE_CAN_REJECT" ) and kPerson.RejectCost ~= nil;
+	p.rejectCost = kPerson.RejectCost;
+	local gold:number = 0;
+	local faith:number = 0;
+	if Players[ playerID ] ~= nil then
+		gold = math.floor( Players[ playerID ]:GetTreasury():GetGoldBalance() );
+		faith = math.floor( Players[ playerID ]:GetReligion():GetFaithBalance() );
+	end
+	p.gold = SRA_Patronage( kPerson, "CAPABILITY_GREAT_PEOPLE_RECRUIT_WITH_GOLD", kPerson.PatronizeWithGoldCost, kPerson.CanPatronizeWithGold, gold, "YIELD_GOLD" );
+	p.faith = SRA_Patronage( kPerson, "CAPABILITY_GREAT_PEOPLE_RECRUIT_WITH_FAITH", kPerson.PatronizeWithFaithCost, kPerson.CanPatronizeWithFaith, faith, "YIELD_FAITH" );
+	return p;
+end
+
+local function SRA_PastPerson( kPerson:table )
+	local p:table = { className = SRA_ClassName( kPerson ), name = SRA_Clean( kPerson.Name ), eraName = SRA_EraName( kPerson ),
+		abilities = SRA_Abilities( kPerson ) };
+	if kPerson.TurnGranted ~= nil then p.date = Calendar.MakeYearStr( kPerson.TurnGranted ); end
+	local localPlayerID:number = Game.GetLocalPlayer();
+	if kPerson.ClaimantID ~= nil then
+		local localPlayer:table = Players[ localPlayerID ];
+		if kPerson.ClaimantID == localPlayerID then
+			p.claimant = "you";
+		elseif Game.GetLocalObserver() == PlayerTypes.OBSERVER
+				or ( localPlayer ~= nil and localPlayer:GetDiplomacy() ~= nil and localPlayer:GetDiplomacy():HasMet( kPerson.ClaimantID ) ) then
+			p.claimant = SRA_Clean( kPerson.ClaimantName );
+		else
+			p.claimant = "an unknown civilization";
+		end
+	end
+	return p;
+end
+
+-- The person with this individual id from the current data, or nil.
+local function SRA_FindPerson( individualID:number )
+	if m_kData == nil then return nil; end
+	for _, kPerson in ipairs( m_kData.Timeline ) do
+		if kPerson.IndividualID == individualID then return SRA_CurrentPerson( kPerson, m_kData ), kPerson; end
+	end
+	return nil;
+end
+
+local function SRA_Items()
+	local items:table = {};
+	if m_kData == nil then return items; end
+	if m_srActionsFor ~= nil then
+		local p:table = SRA_FindPerson( m_srActionsFor );
+		if p == nil then return items; end
+		for _, action in ipairs( GreatPeopleText_Actions( p ) ) do
+			table.insert( items, { key = "a:" .. action.key, text = action.text, action = action, person = p,
+				choosable = action.enabled, reason = action.reason } );
+		end
+		return items;
+	end
+	for i, kPerson in ipairs( m_kData.Timeline ) do
+		if m_srPast then
+			local p:table = SRA_PastPerson( kPerson );
+			table.insert( items, { key = "h:" .. i, text = GreatPeopleText_PastItem( p ), detail = GreatPeopleText_PastDetail( p ),
+				choosable = false, reason = "Read only" } );
+		else
+			local p:table = SRA_CurrentPerson( kPerson, m_kData );
+			table.insert( items, { key = p.id ~= nil and ( "p:" .. p.id ) or ( "n:" .. i ), text = GreatPeopleText_Item( p ),
+				detail = GreatPeopleText_Detail( p ), choosable = not p.none, reason = "Every great person of this kind has been claimed",
+				person = p } );
+		end
+	end
+	return items;
+end
+
+local function SRA_AnnounceView()
+	m_srActionsFor = nil;
+	if m_srList == nil then return; end
+	local items:table = SRA_Items();
+	local count:number = #items;
+	if not m_srPast then
+		count = 0;
+		for _, item in ipairs( items ) do
+			if item.choosable then count = count + 1; end
+		end
+	end
+	m_srList.Reset();
+	m_srList.Open( "", items[1] ~= nil and items[1].key or nil, true );
+	OutputMessageToScreenReader( GreatPeopleText_Opening( m_srPast, count, items[1] ~= nil and items[1].text or nil, 1, #items ), true );
+end
+
+function SRA_OnOpened( wasHidden:boolean )
+	if m_srOpen and not wasHidden then return; end
+	m_srOpen = true;
+	SRA_AnnounceView();
+end
+
+local function SRA_OpenActions( item:table )
+	local p:table = item.person;
+	if p == nil or p.none then OutputMessageToScreenReader( item.reason or "Nothing to do" ); return; end
+	m_srActionsFor = p.id;
+	local actions:table = SRA_Items();
+	m_srList.Reset();
+	m_srList.Open( "", actions[1] ~= nil and actions[1].key or nil, true );
+	OutputMessageToScreenReader( GreatPeopleText_ActionsTitle( p ) .. ". " .. ( actions[1] ~= nil and ( actions[1].text .. ", 1 of " .. #actions ) or "" ), true );
+end
+
+local function SRA_BackToList()
+	local id:number = m_srActionsFor;
+	m_srActionsFor = nil;
+	m_srList.Reset();
+	m_srList.Focus( id ~= nil and ( "p:" .. id ) or nil, "Back" );
+end
+
+local function SRA_OnActivate( item:table )
+	if m_srPast then return; end
+	if m_srActionsFor == nil then SRA_OpenActions( item ); return; end
+	local action:table = item.action;
+	local p:table = item.person;
+	if action.run == "back" then SRA_BackToList(); return; end
+	-- the game's own button callbacks; each of them closes the popup
+	if action.run == "recruit" then
+		OnRecruitButtonClick( p.id );
+		OutputMessageToScreenReader( "Recruited " .. p.name );
+	elseif action.run == "reject" then
+		OnRejectButtonClick( p.id );
+		OutputMessageToScreenReader( "Passed on " .. p.name );
+	elseif action.run == "gold" then
+		OnGoldButtonClick( p.id );
+		OutputMessageToScreenReader( "Patronized " .. p.name .. " with " .. GreatPeopleText_Num( p.gold.cost ) .. " gold" );
+	elseif action.run == "faith" then
+		OnFaithButtonClick( p.id );
+		OutputMessageToScreenReader( "Patronized " .. p.name .. " with " .. GreatPeopleText_Num( p.faith.cost ) .. " faith" );
+	end
+end
+
+local function SRA_OnEscape()
+	if m_srActionsFor ~= nil then SRA_BackToList(); return; end
+	Close();
+	OutputMessageToScreenReader( "Great People closed" );
+end
+
+local function SRA_OnTab()
+	if m_pGreatPeopleTabInstance == nil or m_pPrevRecruitedTabInstance == nil then return; end
+	if m_srPast then
+		SelectTab( m_pGreatPeopleTabInstance.Button );
+	else
+		SelectTab( m_pPrevRecruitedTabInstance.Button );
+	end
+	SRA_AnnounceView();
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return m_srOpen and not ContextPtr:IsHidden(); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnEscape,
+		extraKeys = { [Keys.VK_TAB] = SRA_OnTab },
+	};
+end
+
+function SRA_HandleInput( pInputStruct:table )
+	if not m_srOpen or ContextPtr:IsHidden() then return false; end
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	local msg:number = pInputStruct:GetMessageType();
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+-- End ScreenReaderAccess
+
 function OnInputHandler( pInputStruct:table )
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if (uiMsg == KeyEvents.KeyUp) then return KeyHandler( pInputStruct:GetKey() ); end;
 	return false;
@@ -1201,6 +1468,8 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
+	SRA_CreateList();		-- ScreenReaderAccess
+	print( "GreatPeoplePopup: ScreenReaderAccess copy loaded" );		-- ScreenReaderAccess
 
 	-- UI Controls
 	-- We use a separate BG within the PeopleScroller control since it needs to scroll with the contents

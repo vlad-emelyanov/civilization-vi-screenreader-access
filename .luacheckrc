@@ -51,5 +51,10 @@ globals = {
 	"PrintKeyboardNavigationElements", "SRListen", "SRUnlistenAll", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
 	"SettleScan_CheckPlot", "SettleScan_Scan", "StringifyCity", "StringifyUnit", "TopPanelData_BuildItems",
 	"TopPanelData_Summary",
+	"GreatPeopleText_Actions", "GreatPeopleText_ActionsTitle", "GreatPeopleText_Afford", "GreatPeopleText_Detail",
+	"GreatPeopleText_Item", "GreatPeopleText_Num", "GreatPeopleText_Opening", "GreatPeopleText_PastDetail",
+	"GreatPeopleText_PastItem", "GreatPeopleText_PatronageReason",
+	"PromotionText_Detail", "PromotionText_Done", "PromotionText_Item", "PromotionText_Opening",
+	"PromotionText_Reason", "PromotionText_State",
 	"TradeText_Detail", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
 }

@@ -2,6 +2,10 @@
 
 include("Civ6Common");
 include("InstanceManager");
+include("ScreenReader");	-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
+include("PromotionText");	-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
 	
 -- ===========================================================================
 --	CONSTANTS
@@ -302,6 +306,7 @@ function OnPromoteUnitPopup()
 
 	Controls.PromotionScrollPanel:CalculateSize();
 	UIManager:QueuePopup(ContextPtr, PopupPriority.Low)
+	SRA_Announce();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -322,7 +327,132 @@ function OnPromotionContainerSizeChanged()
 end
 
 -- ===========================================================================
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	The promotions of the unit's class as a list (tier, then column): Up/Down/Home/End, Space = full text, Enter = take
+--	the promotion (what clicking its slot does: OnPromoteUnit), Escape = Close. Every other key is swallowed while shown.
+-- ===========================================================================
+local m_srList			:table = nil;
+local m_srPendingName	:string = nil;		-- promotion requested, the result is spoken from Events.UnitPromoted
+local m_srPendingUnit	:number = nil;
+local m_srPendingTime	:number = 0;
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( Locale.Lookup( text or "" ) );
+end
+
+local function SRA_Items()
+	local items:table = {};
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return items; end
+	local bCanStart:boolean, tResults:table = UnitManager.CanStartCommand( unit, UnitCommandTypes.PROMOTE, true, true );
+	local available:table = {};
+	if tResults ~= nil and tResults[UnitCommandResults.PROMOTIONS] ~= nil then
+		for _, index in ipairs( tResults[UnitCommandResults.PROMOTIONS] ) do available[ index ] = true; end
+	end
+	local have:table = {};
+	for _, index in pairs( unit:GetExperience():GetPromotions() ) do have[ index ] = true; end
+	local promotionClass = GameInfo.Units[ unit:GetUnitType() ].PromotionClass;
+	local rows:table = {};
+	for row in GameInfo.UnitPromotions() do
+		if row.PromotionClass == promotionClass then table.insert( rows, row ); end
+	end
+	table.sort( rows, function( a, b )
+		if a.Level ~= b.Level then return a.Level < b.Level; end
+		return a.Column < b.Column;
+	end );
+	for _, row in ipairs( rows ) do
+		local p:table = { name = SRA_Clean( row.Name ), desc = SRA_Clean( row.Description ), tier = row.Level, needs = {} };
+		local prereqs:table = {};
+		local prereqMet:boolean = false;
+		for prereq in GameInfo.UnitPromotionPrereqs() do
+			if prereq.UnitPromotion == row.UnitPromotionType then
+				local prereqRow:table = GameInfo.UnitPromotions[ prereq.PrereqUnitPromotion ];
+				if prereqRow ~= nil then
+					table.insert( prereqs, SRA_Clean( prereqRow.Name ) );
+					if have[ prereqRow.Index ] then prereqMet = true; end
+				end
+			end
+		end
+		if have[ row.Index ] then
+			p.state = "have";
+		elseif available[ row.Index ] then
+			p.state = "available";
+		elseif #prereqs > 0 and not prereqMet then
+			p.state = "locked";
+			p.needs = prereqs;
+		else
+			p.state = "unavailable";
+		end
+		table.insert( items, { key = row.Index, text = PromotionText_Item( p ), detail = PromotionText_Detail( p ),
+			choosable = ( p.state == "available" ), reason = PromotionText_Reason( p ), p = p, name = p.name } );
+	end
+	return items;
+end
+
+local function SRA_OnActivate( item:table )
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return; end
+	m_srPendingName = item.name;
+	m_srPendingUnit = unit:GetID();
+	m_srPendingTime = 0;
+	OnPromoteUnit( item.key, unit:GetID() );		-- what a click on the promotion slot does
+end
+
+local function SRA_OnEscape()
+	Close();
+	OutputMessageToScreenReader( "Closed" );
+end
+
+-- "Promote Swordsman: 2 available. Battlecry: +7 combat strength vs melee, tier 1, available, 1 of 5"
+function SRA_Announce()
+	m_srPendingName = nil;
+	if m_srList == nil then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return; end
+	local items:table = SRA_Items();
+	local count:number = 0;
+	local first:number = 1;
+	for i, item in ipairs( items ) do
+		if item.choosable then
+			count = count + 1;
+			if count == 1 then first = i; end
+		end
+	end
+	m_srList.Reset();
+	m_srList.Open( "", items[ first ] ~= nil and items[ first ].key or nil, true );
+	local unitName:string = SRA_Clean( GameInfo.Units[ unit:GetUnitType() ].Name );
+	OutputMessageToScreenReader( PromotionText_Opening( unitName, count, items[ first ] ~= nil and items[ first ].text or nil, first, #items ), true );
+end
+
+function SRA_OnUnitPromoted( playerID:number, unitID:number )
+	if m_srPendingName == nil or playerID ~= Game.GetLocalPlayer() then return; end
+	if m_srPendingUnit ~= nil and unitID ~= m_srPendingUnit then return; end
+	OutputMessageToScreenReader( PromotionText_Done( m_srPendingName ) );
+	m_srPendingName = nil;
+	Close();
+end
+
+-- The request had no effect: say so instead of staying silent.
+function SRA_OnUpdate( deltaTime:number )
+	if m_srPendingName == nil then return; end
+	m_srPendingTime = m_srPendingTime + deltaTime;
+	if m_srPendingTime > 2 then
+		OutputMessageToScreenReader( "Promotion failed: " .. m_srPendingName );
+		m_srPendingName = nil;
+	end
+end
+
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	local msg:number = pInputStruct:GetMessageType();
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+-- End ScreenReaderAccess
+
 function OnInputHandler( pInputStruct:table )
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then
 		if pInputStruct:GetKey() == Keys.VK_ESCAPE then
@@ -340,6 +470,7 @@ end
 
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess
 	Events.CitySelectionChanged.Remove( OnCitySelectionChanged );
 
 	LuaEvents.UnitPanel_PromoteUnit.Remove(OnPromoteUnitPopup);
@@ -364,6 +495,7 @@ function LateInitialize()
 	Controls.PromotionContainer:RegisterSizeChanged( OnPromotionContainerSizeChanged );
 
 	Events.CitySelectionChanged.Add( OnCitySelectionChanged );
+	SRListen( Events.UnitPromoted, SRA_OnUnitPromoted );		-- ScreenReaderAccess
 
 	LuaEvents.UnitPanel_PromoteUnit.Add(OnPromoteUnitPopup);
 	LuaEvents.UnitPanel_HideUnitPromotion.Add(OnClose);
@@ -374,5 +506,14 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	-- ScreenReaderAccess
+	print( "UnitPromotionPopup: ScreenReaderAccess copy loaded" );
+	ContextPtr:SetUpdate( SRA_OnUpdate );
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnEscape,
+	};
 end
 Initialize();

@@ -1,0 +1,17 @@
+# UNVERIFIED (written offline, never run in the game). O opens the Great People popup on medieval-t100 (GreatPeoplePopup.lua override).
+# no-share-load
+load medieval-t100
+clear-advisors
+key O -Settle 2500
+expect ^Great People, \d+ available\. .+, 1 of \d+
+key Down -Settle 800
+expect , 2 of \d+$
+key Space -Settle 800
+expect Points: .*\(you\)
+key Enter -Settle 800
+expect ^Actions for .+, 1 of \d+
+key Escape -Settle 800
+expect ^Back
+key Escape -Settle 1500
+expect ^Great People closed
+no-lua-errors
