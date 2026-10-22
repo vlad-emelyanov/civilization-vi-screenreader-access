@@ -231,7 +231,8 @@ function OnSaveGame()
 end
 
 -- ===========================================================================
-function CloseImmediately()	
+function CloseImmediately()
+	m_saveAnnouncePending = false;
 	if UIManager:IsInPopupQueue( ContextPtr ) then
 		LuaEvents.InGameTopOptionsMenu_Close();
 		UIManager:DequeuePopup( ContextPtr );
@@ -248,6 +249,7 @@ function Close()
 	end
 	
 	m_isClosing = true;
+	m_saveAnnouncePending = false;
 	OutputMessageToScreenReader("Menu closed");
 	
 	EffectsManager:ResumeAllEffects();	-- Resume any continous particle effects.
@@ -757,10 +759,14 @@ function OnUpdate( fDeltaTime:number )
 	KeyNav_Tick(fDeltaTime);
 	-- Fallback when Events.SaveComplete does not fire for a quick save.
 	if m_saveAnnouncePending then
-		m_saveAnnounceTimer = m_saveAnnounceTimer + fDeltaTime;
-		if m_saveAnnounceTimer > 4 then
+		if ContextPtr:IsHidden() then
 			m_saveAnnouncePending = false;
-			OutputMessageToScreenReader("Game saved");
+		else
+			m_saveAnnounceTimer = m_saveAnnounceTimer + fDeltaTime;
+			if m_saveAnnounceTimer > 4 then
+				m_saveAnnouncePending = false;
+				OutputMessageToScreenReader("Save requested");	-- no SaveComplete seen: success is not confirmed
+			end
 		end
 	end
 end

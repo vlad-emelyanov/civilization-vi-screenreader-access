@@ -2664,12 +2664,13 @@ local function SRA_ResolvePending( fromEvent:boolean )
 		m_srPending = nil;
 		local text:string = ( pending.queueMode and "Queued " or "Producing " ) .. pending.name;
 		if pending.turns ~= nil and not pending.queueMode then text = text .. ", " .. pending.turns; end
+		if not m_srActive then text = text .. ". Production closed"; end		-- the panel closed itself (units, projects)
 		OutputMessageToScreenReader( text );
 	elseif pending.kind == "buy" then
 		local balance:number = SRA_Balance( pending.yield );
 		if balance >= pending.before then return; end
 		m_srPending = nil;
-		OutputMessageToScreenReader( "Bought " .. pending.name .. ", " .. balance .. ( pending.yield == "YIELD_GOLD" and " gold" or " faith" ) .. " left" );
+		OutputMessageToScreenReader( "Bought " .. pending.name .. ", " .. balance .. ( pending.yield == "YIELD_GOLD" and " gold" or " faith" ) .. " left" .. ( m_srActive and "" or ". Production closed" ) );
 	end
 end
 

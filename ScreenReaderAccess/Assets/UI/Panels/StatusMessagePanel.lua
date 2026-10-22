@@ -30,7 +30,36 @@ local m_kMessages		:table = {};
 -- =========================================================================== 
 
 
--- =========================================================================== 
+-- Begin ScreenReaderAccess mod change
+-- Combat status messages whose content the hub speaks itself ("X attacks Y: Y takes N damage, ...", kills). Others
+-- (withdrawals, captures, districts, WMD) stay. The templates are turned into patterns with the placeholders as ".-".
+local SR_COVERED_COMBAT_TAGS:table = {
+	"LOC_COMBAT_YOUR_UNIT_WAS_STRAFED_BY_ENEMY", "LOC_COMBAT_YOUR_UNIT_WAS_BOMBARDED_BY_ENEMY", "LOC_COMBAT_YOUR_UNIT_BOMBARDED_ENEMY",
+	"LOC_COMBAT_YOUR_UNIT_BOMBED_ENEMY", "LOC_COMBAT_YOUR_UNIT_STRAFED_ENEMY", "LOC_COMBAT_YOUR_UNIT_DAMAGED_ENEMY",
+	"LOC_COMBAT_YOUR_UNIT_DESTROYED_ENEMY", "LOC_COMBAT_YOUR_UNIT_DIED_ATTACKING", "LOC_COMBAT_YOUR_UNIT_DIED_DEFENDING",
+	"LOC_COMBAT_YOUR_UNIT_DIED_INTERCEPTING", "LOC_COMBAT_YOU_KILLED_ENEMY_UNIT", "LOC_MISC_YOUR_UNIT_DIED_BY_UNKNOWN",
+};
+local m_srCoveredPatterns:table = nil;
+
+function SRIsCoveredCombatMessage( message:string )
+	if message == nil then return false; end
+	if m_srCoveredPatterns == nil then
+		m_srCoveredPatterns = {};
+		for _, tag in ipairs( SR_COVERED_COMBAT_TAGS ) do
+			local template:string = Locale.Lookup( tag, "\1", "\1", "\1", "\1", "\1", "\1" );
+			if template ~= nil and template ~= "" and template ~= tag then
+				table.insert( m_srCoveredPatterns, "^" .. string.gsub( string.gsub( template, "%p", "%%%0" ), "\1", ".-" ) .. "$" );
+			end
+		end
+	end
+	for _, pattern in ipairs( m_srCoveredPatterns ) do
+		if string.find( message, pattern ) ~= nil then return true; end
+	end
+	return false;
+end
+-- End ScreenReaderAccess mod change
+
+-- ===========================================================================
 --	EVENT
 --	subType	when gossip it's the db enum for the gossip type
 -- =========================================================================== 
@@ -44,7 +73,10 @@ function OnStatusMessage( message:string, displayTime:number, type:number, subTy
 	end
 
 	-- Begin ScreenReaderAccess mod change
-	OutputMessageToScreenReader(message, true);
+	-- unit-versus-unit damage and kill messages are already spoken by the InGameAccess hub (CombatVisBegin + damage events)
+	if not SRIsCoveredCombatMessage(message) then
+		OutputMessageToScreenReader(message, true);
+	end
 	-- End ScreenReaderAccess mod change
 
 	RealizeMainAreaPosition();
