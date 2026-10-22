@@ -27,8 +27,10 @@
   .\util\civctl.ps1 autoplay 29 -Save medieval-t100   # let the AI play n turns (observing as player 0), poll every 30 s, then save the fixture
   .\util\civctl.ps1 unlock                # release the driving lock (see below)
 
-  Lock: commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER, default 'default'). Another owner gets
-  "game in use by X" (exit 6) until the lock is released or has been idle for 30 min (then it is taken over with a warning).
+  Lock (owner lease): commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER, default 'default') and
+  keep it between commands. Another owner gets "game in use by X, last used N s ago" (exit 6) while the owner's last use is
+  younger than 10 min; after that the lease is taken over with a warning. `unlock` releases it.
+  .\util\civctl.ps1 regress all           # speech regression scripts (python util\civregress.py; extra words are passed on: regress all --share-load)
   Crash / hang: key, wait, sr, lua, save, load print GAME CRASHED / GAME HUNG (with the crash dump path) and exit 5.
 
   `key` prints the screen reader lines that the keypress produced (waits -Settle ms for them).
@@ -36,7 +38,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -75,7 +77,7 @@ $GameProcessNames = @('CivilizationVI', 'CivilizationVI_DX12')
 $ScreenReaderMarker = '#SCREENREADER'
 $FixtureDir = Join-Path $RepoRoot 'test\fixtures'
 $LockFile = Join-Path $StateDir 'lock'
-$LockStaleMinutes = 30
+$LockLeaseMinutes = 10
 $script:HungSince = $null
 $StopMarker = Join-Path $StateDir 'stopped.txt'   # written by `stop`, removed by `start`: a deliberate stop is not a crash
 
@@ -154,10 +156,14 @@ public static class Native {
 }
 
 # --- lock: only one agent drives the game ---------------------------------------------------------------------------------------------
+function Get-Owner { if ($Owner) { $Owner } elseif ($env:CIVCTL_OWNER) { $env:CIVCTL_OWNER } else { 'default' } }
+
 function Enter-Lock {
-    # Atomic check-and-write (CreateNew). The lock is released when the command ends (see the finally at the bottom);
-    # long-running commands (wait, autoplay, load) call Update-Lock to keep the timestamp fresh.
-    $me = if ($Owner) { $Owner } elseif ($env:CIVCTL_OWNER) { $env:CIVCTL_OWNER } else { 'default' }
+    # Owner lease. The lock file holds the owner's name; its LastWriteTime is the last use. It is NOT released when a command ends:
+    # the owner keeps it between commands (every command of the owner refreshes it; wait/autoplay refresh it while running) and
+    # releases it with `civctl unlock`. Another owner is refused (exit 6) while the lease is fresh (< $LockLeaseMinutes idle);
+    # after that the lease is taken over with a warning. Creating the file is atomic (CreateNew).
+    $me = Get-Owner
     for ($try = 0; $try -lt 5; $try++) {
         try {
             $fs = [IO.File]::Open($LockFile, 'CreateNew', 'Write', 'Read')
@@ -167,13 +173,13 @@ function Enter-Lock {
         } catch [IO.IOException] {
             if (-not (Test-Path $LockFile)) { continue }
             $holder = (Get-Content $LockFile -TotalCount 1 -ErrorAction SilentlyContinue)
-            $idle = ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalMinutes
+            $idle = ((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalSeconds
             if ($holder -eq $me) { (Get-Item $LockFile).LastWriteTime = Get-Date; $script:LockHeld = $true; return }
-            if ($holder -and $idle -lt $LockStaleMinutes) {
-                Write-Output ("game in use by '{0}' (last used {1:N0} min ago). Ask them to run ``civctl unlock``, wait, or run ``civctl unlock`` yourself if they are gone. You are '{2}'." -f $holder, $idle, $me)
+            if ($holder -and $idle -lt $LockLeaseMinutes * 60) {
+                Write-Output ("game in use by {0}, last used {1:N0} s ago (lease {2} min). Ask them to run ``civctl unlock``, wait, or run ``civctl unlock`` yourself if they are gone. You are '{3}'." -f $holder, $idle, $LockLeaseMinutes, $me)
                 exit 6
             }
-            if ($holder) { Write-Warning ("Taking over the stale lock of '{0}' (idle {1:N0} min)." -f $holder, $idle) }
+            if ($holder) { Write-Warning ("Taking over the expired lease of '{0}' (idle {1:N0} s)." -f $holder, $idle) }
             Remove-Item $LockFile -Force -ErrorAction SilentlyContinue
         }
     }
@@ -184,9 +190,7 @@ function Quit-Civctl([int]$code) { Exit-Lock; exit $code }   # `exit` skips the 
 
 function Update-Lock { if ($script:LockHeld -and (Test-Path $LockFile)) { try { (Get-Item $LockFile).LastWriteTime = Get-Date } catch { } } }
 
-function Exit-Lock {
-    if ($script:LockHeld) { Remove-Item $LockFile -Force -ErrorAction SilentlyContinue; $script:LockHeld = $false }
-}
+function Exit-Lock { Update-Lock }   # the lease stays with the owner; only `unlock` releases it
 
 function Invoke-Unlock {
     if (Test-Path $LockFile) {
@@ -859,7 +863,7 @@ function Show-Status {
     $game = Get-GameProcess
     "game: $(if ($game) { "running (pid $($game.Id), '$($game.MainWindowTitle)')" } else { 'not running' })"
     "console app: $(if (Get-ConsoleProcess) { 'running' } else { 'not running' })"
-    "lock: $(if (Test-Path $LockFile) { "held by '$(Get-Content $LockFile -TotalCount 1)', idle $([int]((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalMinutes) min" } else { 'free' })"
+    "lock: $(if (Test-Path $LockFile) { "held by '$(Get-Content $LockFile -TotalCount 1)', last used $([int]((Get-Date) - (Get-Item $LockFile).LastWriteTime).TotalSeconds) s ago" } else { 'free' })"
     Assert-GameHealthy -Grace 8 -Block -AllowStopped
     if ($game) {
         $where = Get-GameWhere
@@ -893,6 +897,7 @@ switch ($Command) {
     'newgame' { Invoke-NewGame $Arg }
     'autoplay' { Invoke-Autoplay $Arg }
     'unlock' { Invoke-Unlock }
+    'regress' { $env:CIVCTL_OWNER = Get-Owner; Quit-Civctl (Invoke-Python (@('-u', (Join-Path $PSScriptRoot 'civregress.py')) + @(($Arg -split '\s+') | Where-Object { $_ }))) }
     'wait' {
         if (-not (Wait-ForScreenReader $Arg $Timeout)) { Write-Output "Timed out waiting for '$Arg'"; Quit-Civctl 1 }
     }
