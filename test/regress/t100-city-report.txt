@@ -1,0 +1,20 @@
+# UNVERIFIED (written offline, never run in the game). medieval-t100: Backslash selects the capital, Control+I opens the city report.
+# no-share-load
+load medieval-t100
+clear-advisors
+key OemPipe -Settle 1500
+expect ^\S.*, Population \d+
+key Control+I -Settle 2500
+expect ^.+ report, \d+ options
+expect Yields: food (plus|minus)? ?\d+.*production \d+.*gold.*science.*culture.*faith.*, 1 of \d+
+key Down -Settle 800
+expect ^Population \d+.*housing \d+ of \d+.*, 2 of \d+
+key Down -Settle 800
+expect ^Amenities \d+ of \d+.*, 3 of \d+
+key Down -Settle 800
+expect ., 4 of \d+
+key Space -Settle 1500
+expect .{10,}
+key Escape -Settle 1500
+expect ^Closed
+no-lua-errors

@@ -5,7 +5,7 @@
 --	  - the in-game hotkeys (I plot details, J cursor to selection, N what is next, Tab unit actions),
 --	  - the unit actions menu and the target modes (move to, attack ...), which take over Up/Down/Enter/Escape and
 --	    Shift+Arrows through this context's input handler (see the bottom of the file),
---	  - the regions: top panel (Control+Y) and notifications (Control+N), with arrivals announced,
+--	  - the regions: top panel (Control+Y), notifications (Control+N) and the city report (Control+I), with arrivals announced,
 --	  - event announcements: unit/city selected, new turn, end of turn, unit results, enemies spotted.
 --	Input order (verified, see docs/ingame-plan.md): this context's input handler runs before WorldInput and
 --	ActionPanel; a key it consumes (KeyDown and KeyUp) also never becomes an input action.
@@ -19,6 +19,13 @@ include( "Civ6Common" );		-- MoveUnitToPlot (war declaration check + the right m
 include( "SettleScan" );		-- settler: can settle here, best spots
 include( "PlacementScan" );		-- city: where a district or wonder can go
 include( "TopPanelData" );		-- top panel values as sentences (Control+Y, Control+G)
+-- City report (Control+I): CityReportGather includes the game's CitySupport (GetCityData), which is heavy and may fail in
+-- a ruleset: a failure here only loses the report, never the rest of the hub.
+local m_cityReportLoaded:boolean = pcall( function()
+	include( "CityReportData" );
+	include( "CityReportGather" );
+end );
+if not m_cityReportLoaded then print( "InGameAccess: the city report files did not load" ); end
 
 -- ===========================================================================
 --	MEMBERS
@@ -1922,6 +1929,55 @@ local function SpeakYields()
 	OutputMessageToScreenReader( TopPanelData_Summary() );
 end
 
+-- Control+I: the city report region (yields, growth and housing, amenities, loyalty, defense, production, districts,
+-- citizens, religion ...). Data: CityReportGather (the game's GetCityData), text: CityReportData. About the selected city,
+-- else your city on the map cursor plot. The city is remembered by id, the items are rebuilt at every key.
+local m_reportCity:table = nil;		-- { owner, id } of the city the open report is about
+local m_reportList:table;
+
+local function GetReportCity()
+	if m_reportCity == nil then return nil; end
+	local player:table = Players[ m_reportCity.owner ];
+	if player == nil then return nil; end
+	return player:GetCities():FindID( m_reportCity.id );
+end
+
+m_reportList = KeyNavList_Create{
+	build		= function()
+		local city:table = GetReportCity();
+		if city == nil then return {}; end
+		local data:table = CityReport_Gather( city );
+		if data == nil then return {}; end
+		return CityReport_BuildItems( data );
+	end,
+	isActive	= function() return IsModeOpen( "cityreport" ); end,
+	onActivate	= function() OutputMessageToScreenReader( "Nothing to open here. Space reads the details" ); end,
+	onClose		= function() CloseMode( true, false ); end,
+};
+
+local function ToggleCityReport()
+	if IsModeOpen( "cityreport" ) then CloseMode( true, false ); return; end
+	if not CanOpenMode() then return; end
+	if not m_cityReportLoaded or CityReport_Gather == nil or CityReport_BuildItems == nil then
+		OutputMessageToScreenReader( "The city report is not available" );
+		return;
+	end
+	local localPlayer:number = Game.GetLocalPlayer();
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil or city:GetOwner() ~= localPlayer then
+		city = nil;
+		local x:number, y:number = GetCursor();
+		local atCursor:table = Cities.GetCityInPlot( x, y );
+		if atCursor ~= nil and atCursor:GetOwner() == localPlayer then city = atCursor; end
+	end
+	if city == nil then
+		OutputMessageToScreenReader( "No city selected. Backslash selects the capital" );
+		return;
+	end
+	m_reportCity = { owner = city:GetOwner(), id = city:GetID() };
+	OpenMode( "cityreport", m_reportList, Locale.Lookup( city:GetName() ) .. " report", function() m_reportCity = nil; end );
+end
+
 local function OnNotificationsReceived( list:table )
 	m_notifData = list or {};
 	m_notifAnswered = true;
@@ -2542,6 +2598,7 @@ function Initialize()
 	RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
 	RegisterAction( "KeyNavNotifications",		ToggleNotifications );
 	RegisterAction( "KeyNavYields",				SpeakYields );
+	RegisterAction( "KeyNavCityReport",			ToggleCityReport );
 	Listen( Events.InputActionTriggered, OnInputActionTriggered );
 
 	Listen( Events.UnitSelectionChanged, Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
@@ -2560,7 +2617,7 @@ function Initialize()
 	AddEvent( "CityAddedToMap",				OnCityAddedToMap );
 	AddEvent( "ImprovementAddedToMap",		OnImprovementAddedToMap );
 	AddEvent( "UnitVisibilityChanged",		OnUnitVisibilityChanged );
-	AddEvent( "UnitPromoted",				function( player:number ) if player == Game.GetLocalPlayer() and m_ready then SayResult( "Promoted" ); end end );
+	-- "Promoted: X" is spoken by the UnitPromotionPopup override (the only keyboard way to promote)
 	AddEvent( "UnitUpgraded",				function( player:number, unitID:number, unitType:number )
 		local row:table = GameInfo.Units[ unitType ];
 		if player == Game.GetLocalPlayer() and m_ready and row ~= nil then SayResult( "Upgraded to " .. Locale.Lookup( row.Name ) ); end

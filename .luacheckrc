@@ -27,7 +27,7 @@ read_globals = {
 	"TerrainManager", "TouchManager", "UI", "UILens", "UIManager", "UITutorialManager", "UnitCommandResults",
 	"UnitCommandTypes", "UnitManager", "UnitOperationResults", "UnitOperationTypes", "Units", "UserConfiguration",
 	-- provided by game files pulled in with include(): ToolTipHelper_PlayerYields, Civ6Common
-	"GetScienceTooltip", "GetCultureTooltip", "GetFaithTooltip", "GetGoldTooltip", "MoveUnitToPlot",
+	"Round", "Clamp", "GetCityData", "DATA_DOMINANT_RELIGION", "YIELD_STATE", "GetScienceTooltip", "GetCultureTooltip", "GetFaithTooltip", "GetGoldTooltip", "MoveUnitToPlot",
 	"View", "WarTypes", "WorldBuilder", "YieldTypes", "include", "ToolTipHelper", "Cities", "Locale",
 }
 
@@ -57,4 +57,5 @@ globals = {
 	"PromotionText_Detail", "PromotionText_Done", "PromotionText_Item", "PromotionText_Opening",
 	"PromotionText_Reason", "PromotionText_State",
 	"TradeText_Detail", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
+	"CityReport_BuildItems", "CityReport_Gather", "TXT_NO_PRODUCTION", "SIZE_PRODUCTION_ICON",
 }
