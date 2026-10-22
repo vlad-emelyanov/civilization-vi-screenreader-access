@@ -1,0 +1,7 @@
+turn: 71
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: medieval
+purpose: fresh 'medieval' game at its start (made by civctl newgame)
+mod commit: 568356c
+created: 2026-10-22
+size: 505 KB

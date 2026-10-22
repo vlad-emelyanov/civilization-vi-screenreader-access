@@ -145,7 +145,7 @@ async def execute(conn: Conn, idx: int, code: str, timeout: float) -> tuple[list
     return lines, f"ERR: no completion within {timeout:g}s"
 
 
-async def run(state: str | None, code: str | None, timeout: float, collect: list | None = None) -> int:
+async def run(state: str | None, code: str | None, timeout: float, collect: list | None = None, quiet_missing_state: bool = False) -> int:
     try:
         reader, writer = await asyncio.wait_for(asyncio.open_connection(HOST, PORT), 5.0)
     except (OSError, asyncio.TimeoutError):
@@ -169,6 +169,8 @@ async def run(state: str | None, code: str | None, timeout: float, collect: list
         else:
             idx = next((i for i, n in sorted(states.items()) if n == state), None)
             if idx is None:
+                if quiet_missing_state:
+                    return 3
                 print(f"No Lua state named '{state}'. States: " + ", ".join(f"{i}:{n}" for i, n in sorted(states.items())), file=sys.stderr)
                 return 2
         # REPL behaviour: if the chunk is a single expression, print its value. Not an expression -> syntax error, nothing ran.
@@ -251,9 +253,12 @@ def main() -> int:
     if a[0] in ("status", "where"):
         # "where": prints 'INGAME <turn> <leader>' or 'FRONTEND'; exit 2 when the tuner cannot be reached.
         out: list[str] = []
-        rc = asyncio.run(run("InGame", WHERE_LUA, timeout, out))
+        rc = asyncio.run(run("InGame", WHERE_LUA, timeout, out, quiet_missing_state=True))
         if rc == 2:
             return 2
+        if rc == 3:  # no InGame Lua state: front end
+            print("FRONTEND")
+            return 0
         text = "".join(out).strip()
         print(text if rc == 0 and text.startswith("INGAME") else "FRONTEND")
         return 0

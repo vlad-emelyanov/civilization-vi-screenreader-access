@@ -1,0 +1,7 @@
+turn: 1
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: early
+purpose: fresh 'early' game at its start (made by civctl newgame)
+mod commit: 568356c
+created: 2026-10-22
+size: 531 KB

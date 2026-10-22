@@ -20,6 +20,8 @@ Target: every finding has a named save from just before it happened. Fixes are v
 
 ## 1. civctl hardening (small, do first)
 
+**Done 2026-10-22:** `civctl.ps1` has the lock (`-Owner`/`CIVCTL_OWNER`, `unlock`, exit 6), crash/hang detection (exit 5, tested with a fake `FiraxisBugReporter.exe`), JAWS key refusal, reporter kill in `start`/`stop`, `status` with turn; `IsHostile` nil guard deployed without Lua errors.
+
 - `start`: kill a leftover `FiraxisBugReporter.exe` before launching, and say so. It also appears after every crash and blocks the tuner and keys until it is killed.
 - Crash and hang detection: `key`, `wait`, `sr` and `lua` check that the game process is alive and responding, and that no `FiraxisBugReporter.exe` is running. If not, print `GAME CRASHED` (or `GAME HUNG`) with the crash-dump path and exit with a distinct code (e.g. 5). Agents then stop guessing.
 - `key` refuses `Add`, `Subtract` (and other JAWS-reserved numpad keys) with a clear message.
@@ -29,6 +31,8 @@ Target: every finding has a named save from just before it happened. Fixes are v
 - Mod fix found by the autoplay spike: the hub's `IsHostile` (`InGameAccess.lua:161`, called from the `UnitVisibilityChanged` handler) indexes `Players[Game.GetLocalPlayer()]` while the local player is -1 during autoplay (166 caught errors in a 30-turn run). Add a nil guard.
 
 ## 2. Save fixtures (named saves, load by name)
+
+**Done 2026-10-22:** `civctl save|load|fixtures`; `load` verified from in game (43 s) and from the main menu (30 s); fixtures `early-start`, `medieval-start`, `crowded-start` in `test/fixtures/`; policy is in the civ-test skill.
 
 Verified facts:
 - **Saving works from the `InGame` state** (`GameCore_Tuner` has no `Network`):
@@ -61,6 +65,8 @@ Policy (goes into the civ-test and team-lead skills):
 - After a crash: `civctl load` the latest fixture, not the autosave.
 
 ## 3. Playtest game setups (profiles) and a new-game command
+
+**Done 2026-10-22:** `util/profiles/*.lua` and `civctl newgame <profile>` (~70 s incl. save); run for `early`, `medieval`, `crowded`. `industrial`, `modern`, `modes` are written but not run yet. Engine facts: a turn-1 save shows the Gathering Storm intro again after loading (Escape); `civtuner.py status` has to ask the game (`Game.GetCurrentGameTurn`), the `InGame` state is absent at the front end.
 
 Setup parameters (ids as used by the Advanced Setup parameter system, verified):
 

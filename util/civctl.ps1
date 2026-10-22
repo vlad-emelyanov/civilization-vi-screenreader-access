@@ -701,6 +701,10 @@ function Invoke-Load([string]$name) {
         Invoke-Start
         Invoke-LoadOnce $name
     }
+    # A turn-1 save shows the Gathering Storm intro again after loading: close it.
+    Start-Sleep -Seconds 2
+    $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
+    if ($m -match 'ExpansionIntro') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | ForEach-Object { Write-Output $_ } }
     Write-Output "Loaded '$name'."
 }
 
@@ -738,9 +742,13 @@ function Invoke-NewGame([string]$profileName) {
         if (-not (Wait-ForScreenReader 'Turn \d+,' 40)) { throw 'No turn announcement after Begin Game' }
     }
     Start-Sleep -Seconds 2
-    $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
-    if ($m -match 'MENU: OPEN') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1000 | Out-Null }
-    $m | ForEach-Object { Write-Output "menu> $_" }
+    # A fresh profile shows the Gathering Storm intro and advisor popups: Escape closes them (up to 4 tries).
+    for ($i = 0; $i -lt 4; $i++) {
+        $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
+        $m | ForEach-Object { Write-Output "menu> $_" }
+        if ($script:PyExit -ne 4) { break }
+        Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | ForEach-Object { Write-Output $_ }
+    }
     # 5. Fixture
     $script:Profile = $profileName
     if (-not $Purpose) { $script:Purpose = "fresh '$profileName' game at its start (made by civctl newgame)" }

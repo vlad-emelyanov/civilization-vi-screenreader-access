@@ -21,8 +21,27 @@ description: Build the mod, launch Civilization VI and drive it with the keyboar
 | `lua <state> <code>` / `lua <state> -File f.lua` | Runs Lua in a Lua state via FireTuner (needs `EnableTuner 1` + game restart). States: `civctl states`; useful: `GameCore_Tuner` (gameplay DB/players: set up scenarios, read units), `InGame`, `InGameAccess` (the hub's own state). Prints `print()` output; a single expression or a `return x` is printed like a REPL (`lua InGame 'Game.GetCurrentGameTurn()'`). `ERR:` + exit 1 on Lua errors, and `ERR: no completion within 8s` (exit 1) if the state hangs. State may be a name or an index (state indexes change when the game reloads contexts; prefer names). **Quoting:** from Git Bash use `util/civctl lua ...` (no `.cmd`), which keeps spaces and quotes intact; `civctl.cmd` loses double quotes inside arguments from PowerShell and breaks on quoted arguments from Git Bash, so with `.cmd` use single-quoted Lua strings, or `-File` for anything non-trivial. |
 | `menu` | Is the in-game options menu or a popup/screen open? Prints `MENU: OPEN/closed` and `POPUP/SCREEN OPEN: ...`; exit 4 if either is open. |
 | `states` | Lists tuner Lua states. |
-| `status` | Is the game / console app running. |
+| `status` | Game / console app running, lock holder, and `location: in game, turn N (civ, leader)` or `front end`. Reports a crash/hang (exit 5). |
+| `save <name> [-Purpose "..."] [-Profile p]` | Named save of the running game (`Network.SaveGame` in `InGame`), copied to `test/fixtures/<name>.Civ6Save` with a sidecar `<name>.txt` (turn, civ, profile, purpose, mod commit). ~3 s. |
+| `load <name>` | Loads a fixture (copies it into `Saves\Single` if needed). From in game it first runs `Events.ExitToMainMenu()`, then `Network.LoadGame` from the `MainMenu` state (calling it from `InGame` crashes the game), Enter at "Continue Game", waits for `Turn N`, closes the Gathering Storm intro of turn-1 saves. ~30-45 s. On a crash it restarts the game and retries once. |
+| `fixtures` | Lists the fixtures with their sidecar data. |
+| `newgame <profile>` | Creates a game from `util/profiles/<profile>.lua` (`early`, `crowded`, `medieval`, `industrial`, `modern`, `modes`; each fixes leader Trajan and both seeds, so the start is identical every time): Create Game, apply the profile in the `AdvancedSetup` state, `HostGame()`, Begin Game, Escape on intro/popups, then `save <profile>-start`. ~70 s. |
+| `unlock` | Releases the lock file. Every command that drives the game takes `%TEMP%\civctl\lock` for `-Owner` / `$env:CIVCTL_OWNER` (default `default`). Another owner gets `game in use by 'X'` (exit 6); a lock idle for 30 min is taken over with a warning. Release it when you finish. |
 | `keymap` | Regenerates `keymap.md` (below) from the `#KEYMAP` dump in `Lua.log`. |
+
+## Crashes, hangs and exit codes
+
+`key`, `wait`, `sr`, `lua`, `save`, `load` check the game: a missing game process after a recent crash dump, or a running `FiraxisBugReporter.exe`, prints `GAME CRASHED` (with the dump path under `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VI\dumps`) and exits 5; a window not responding for 8-25 s prints `GAME HUNG` (exit 5). Then: `stop`, `start` (kills a leftover reporter and says so), `load <latest fixture>`. Exit 6 = lock held by another owner. `key` refuses `Add`, `Subtract`, `Multiply`, `Decimal`, `Insert`, `Clear` and `NumPad0-9` (JAWS keys).
+
+## Save fixtures: policy
+
+Fixtures are named saves in `test/fixtures/` (committed; each ~0.5-1 MB; sidecar `.txt` has the mod commit; regenerate one when it stops loading, e.g. `newgame <profile>`).
+
+- A play agent that hits a bug runs `civctl save bug-<short-name> -Purpose "..."` right away (before working around it) and names the fixture in its report.
+- A fix agent first loads that fixture and reproduces the bug, then verifies the fix by loading it again. "Verified by a direct call" is the exception.
+- Test setup (tuner spawns, declared wars) happens in a game loaded from a fixture and is never saved over the play-through chain. The play-through keeps its own names: `pt-t10`, `pt-t20`, ...
+- After a crash: `civctl load` the latest fixture, not the autosave.
+- Never call `Network.LoadGame` from the `InGame` state (crash); `civctl load` does it right. Documents is OneDrive-redirected on this PC: civctl resolves it with `[Environment]::GetFolderPath('MyDocuments')`.
 
 ## Workflow
 

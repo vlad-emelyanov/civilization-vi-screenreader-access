@@ -41,6 +41,12 @@ util\civctl.cmd stop; util\civctl.cmd start -Timeout 180   # full restart (~35 s
 util\civctl.cmd key Down             # sends a key, prints the resulting "SR> ..." lines
 util/civctl lua InGame 'Game.GetCurrentGameTurn()'   # (Git Bash: `util/civctl`, keeps quotes/spaces; expressions and `return x` are printed) run Lua in a game state via FireTuner (GameCore_Tuner, InGame, InGameAccess, ...); `states` lists them
 util\civctl.cmd shot                 # screenshot path, view only when output is confusing
+util\civctl.cmd status              # game/console/lock + "in game, turn N" or "front end"
+util\civctl.cmd save bug-foo -Purpose "why"   # named save -> test/fixtures/bug-foo.Civ6Save + .txt (turn, civ, commit)
+util\civctl.cmd load early-start    # load a fixture by name (~30-45 s, from in game or main menu; never LoadGame from InGame)
+util\civctl.cmd fixtures            # list fixtures; util\civctl.cmd newgame <early|crowded|medieval|industrial|modern|modes>  # new game from util/profiles/*.lua (~70 s), saves <profile>-start
+util\civctl.cmd unlock              # release the lock; set CIVCTL_OWNER=<name> (or -Owner) per agent: a second owner gets "game in use by X" (exit 6)
+# exit 5 + "GAME CRASHED/HUNG" (key, wait, sr, lua, save, load): stop guessing, `stop`, `start`, `load` the latest fixture. `key` refuses Add/Subtract/numpad keys (JAWS).
 ```
 
 - **Hot reload (verified):** the game watches the deployed mod folder and re-initialises a UI context ~1 s after one of its Lua files is rewritten in place. It works for the hub (`InGameAccess.lua`), game-file overrides (`NotificationPanel.lua`, `UnitPanel.lua`) and front-end files (`MainMenu.lua`), with or without `EnableTuner`. Use `civctl deploy` (it copies repo -> deployed folder in place and reports Lua errors from the following 2.5 s). Do NOT run `build` in between: ModBuddy deletes and recreates the whole deployed folder, and the game's file watcher is dead until the game is restarted (edits then silently do nothing). So: `build` once before `start`, then only `deploy` while the game runs. A reload resets that context's state (e.g. the map cursor); the first key after a front-end reload may be swallowed.
