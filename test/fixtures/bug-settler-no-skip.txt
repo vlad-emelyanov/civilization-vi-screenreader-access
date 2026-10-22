@@ -1,0 +1,7 @@
+turn: 106
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn 106 Settler in Rome under barbarian siege: Tab shows only Move To and Delete, Space/Z/D silent, Enter loops on the settler
+mod commit: e7b6684
+created: 2026-10-22
+size: 977 KB

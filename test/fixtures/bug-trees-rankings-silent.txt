@@ -1,0 +1,7 @@
+turn: 101
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: T tech tree, C civics tree, F1 rankings, F3 espionage all open silent
+mod commit: e7b6684
+created: 2026-10-22
+size: 949 KB

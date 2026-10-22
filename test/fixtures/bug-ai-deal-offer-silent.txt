@@ -1,0 +1,7 @@
+turn: 112
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn 112 end: Dido proposes a deal (open borders + 6 gold per turn for my 26 favor), only Dido of Phoenicia says: is spoken, Accept/Refuse buttons not reachable
+mod commit: e7b6684
+created: 2026-10-22
+size: 1003 KB

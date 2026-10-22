@@ -1,0 +1,7 @@
+turn: 109
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn 109 Pikeman promotion tree screen (Tab -> Promotion Available) silent, 6 promotions + Hold the line
+mod commit: e7b6684
+created: 2026-10-22
+size: 987 KB

@@ -1,0 +1,7 @@
+turn: 101
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn 101 Make Dedication blocker: Control+N Enter opens silent era popup, Enter ignored, Escape closes; dedication choice unreachable
+mod commit: e7b6684
+created: 2026-10-22
+size: 949 KB

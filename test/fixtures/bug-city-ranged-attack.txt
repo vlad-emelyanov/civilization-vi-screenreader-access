@@ -1,0 +1,7 @@
+turn: 103
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn 103 barbarian archers on Rome tiles, City Ranged Attack notification; backslash selects Rome, R/W silent, notification Enter silent
+mod commit: e7b6684
+created: 2026-10-22
+size: 962 KB

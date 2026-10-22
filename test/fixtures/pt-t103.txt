@@ -1,0 +1,7 @@
+turn: 103
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: x
+mod commit: e7b6684
+created: 2026-10-22
+size: 962 KB

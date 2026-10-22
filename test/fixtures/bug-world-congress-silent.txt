@@ -1,0 +1,7 @@
+turn: 110
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn 111 World Congress intro (Begin Voting) silent; Enter closes advisor then screen appears
+mod commit: e7b6684
+created: 2026-10-22
+size: 988 KB

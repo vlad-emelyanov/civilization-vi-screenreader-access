@@ -1,0 +1,7 @@
+turn: 107
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn 107: V, Enter on Dido, Make Deal: deal table with inventory spoken only as Dido says (blank), no keyboard items
+mod commit: e7b6684
+created: 2026-10-22
+size: 983 KB
