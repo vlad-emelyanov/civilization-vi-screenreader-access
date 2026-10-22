@@ -50,4 +50,5 @@ globals = {
 	"PrintKeyboardNavigationElements", "SRListen", "SRUnlistenAll", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
 	"SettleScan_CheckPlot", "SettleScan_Scan", "StringifyCity", "StringifyUnit", "TopPanelData_BuildItems",
 	"TopPanelData_Summary",
+	"TradeText_Detail", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
 }

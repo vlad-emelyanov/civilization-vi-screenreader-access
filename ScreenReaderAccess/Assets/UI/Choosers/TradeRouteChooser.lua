@@ -6,6 +6,9 @@ include("InstanceManager");
 include("SupportFunctions");
 include("Colors");
 include("TradeSupport");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");			-- ScreenReaderAccess
+include("TradeText");			-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -1044,6 +1047,7 @@ function Open()
 	LuaEvents.LaunchBar_CheckPopupsOpen();
 
 	Refresh();	
+	SRA_ArmOpen();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -1097,6 +1101,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRA_RemoveListeners();		-- ScreenReaderAccess
 	-- Cache values for hotloading...
 	LuaEvents.GameDebug_AddValue("TradeRouteChooser", "filterIndex", m_filterSelected );
 	LuaEvents.GameDebug_AddValue("TradeRouteChooser", "destinationCityOwner", m_destinationCityOwner );
@@ -1186,6 +1191,7 @@ function KeyHandler( key:number )
 end
 
 function OnInputHandler( pInputStruct:table )
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 
 	if uiMsg == KeyEvents.KeyUp then 
@@ -1225,6 +1231,252 @@ end
 
 
 -- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	Opens 0.4 s after Open() with "Trade route from Rome: 7 destinations. <best route>". One list item per entry of
+--	m_unfilteredDestinations (the filter pulldown is ignored), rebuilt from the game's tables at every key (owner and id
+--	are kept, never the city objects), best first (TradeText_SortRoutes). Up/Down/Home/End move, Space reads the
+--	route's tooltip, what the destination gets and the path length. Enter selects the route through the game's own
+--	OnTradeRouteSelected and asks "Start trade route to X?"; a second Enter calls the game's RequestTradeRoute, Escape
+--	goes back to the list (ClearSelection). Escape in the list is the game's OnClose. Every key event is swallowed
+--	while the chooser is shown. The outcome is told by the hub (LuaEvents.SRA_TradeResult): this context hides when
+--	the route starts, and a hidden context gets no update loop.
+-- ===========================================================================
+local m_srList				:table = nil;
+local m_srConfirm			:table = nil;		-- { owner, id, name } while "Start trade route to X?" is asked
+local m_srOpenPending		:boolean = false;
+local m_srOpenDelay			:number = 0;
+local m_srPrevKey			:string = nil;		-- the route the game preselected in Open() (the last completed one)
+local SRA_OPEN_DELAY		:number = 0.4;
+
+local function SRA_Key( owner:number, id:number )
+	return owner .. ":" .. id;
+end
+
+local function SRA_OwnerText( owner:number )
+	if owner == Game.GetLocalPlayer() then return "yours"; end
+	local player:table = Players[ owner ];
+	if player ~= nil and player:GetInfluence():CanReceiveInfluence() then return "city-state"; end
+	local config:table = PlayerConfigurations[ owner ];
+	if config == nil then return "unknown"; end
+	return Locale.Lookup( config:GetCivilizationShortDescription() );
+end
+
+-- { { name, amount } } of the non-zero yields of a GetYieldsForRoute result
+local function SRA_YieldList( kRouteInfo:table )
+	local list:table = {};
+	for yieldIndex = 1, #kRouteInfo.kYieldValues do
+		local value = kRouteInfo.kYieldValues[ yieldIndex ];
+		local yieldInfo = GameInfo.Yields[ yieldIndex - 1 ];
+		if value ~= 0 and yieldInfo ~= nil then
+			table.insert( list, { name = Locale.Lookup( yieldInfo.Name ), amount = value } );
+		end
+	end
+	return list;
+end
+
+local function SRA_Pressure( kRouteInfo:table )
+	if kRouteInfo.MajorityReligion > 0 and kRouteInfo.ReligionPressure > 0 then
+		local religionInfo = GameInfo.Religions[ kRouteInfo.MajorityReligion ];
+		if religionInfo ~= nil then
+			return { name = Locale.Lookup( Game.GetReligion():GetName( religionInfo.Index ) ), amount = math.floor( kRouteInfo.ReligionPressure + 0.5 ) };
+		end
+	end
+	return nil;
+end
+
+-- The same test as AddCityToDestinationStack: an active "send a trade route" quest from the city's owner.
+local function SRA_HasQuest( cityOwner:number )
+	local questsManager:table = Game.GetQuestsManager();
+	if questsManager ~= nil and Game.GetLocalPlayer() ~= nil then
+		local info:table = GameInfo.Quests["QUEST_SEND_TRADE_ROUTE"];
+		if info ~= nil then
+			return questsManager:HasActiveQuestFromPlayer( Game.GetLocalPlayer(), cityOwner, info.Index ) == true;
+		end
+	end
+	return false;
+end
+
+function SRA_BuildItems()
+	local items:table = {};
+	local originCity = GetOriginCity();
+	if originCity == nil then return items; end
+	local routes:table = {};
+	for _, entry in ipairs( m_unfilteredDestinations ) do
+		local city = CityManager.GetCity( entry.owner, entry.id );
+		if city ~= nil and entry.pathPlots ~= nil and table.count( entry.pathPlots ) > 0 then
+			local kRouteInfo:table = GetYieldsForRoute( originCity, city );
+			local key:string = SRA_Key( entry.owner, entry.id );
+			table.insert( routes, {
+				key = key, ownerId = entry.owner, id = entry.id,
+				name = Locale.Lookup( city:GetName() ),
+				owner = SRA_OwnerText( entry.owner ),		-- TradeText_Route reads the owner as text
+				distance = Map.GetPlotDistance( originCity:GetX(), originCity:GetY(), city:GetX(), city:GetY() ),
+				yields = SRA_YieldList( kRouteInfo ),
+				pressure = SRA_Pressure( kRouteInfo ),
+				tradingPost = city:GetTrade():HasActiveTradingPost( originCity:GetOwner() ),
+				quest = SRA_HasQuest( entry.owner ),
+				previous = ( key == m_srPrevKey ),
+				tooltip = CleanTextForSpeech( kRouteInfo.TooltipText ),
+				pathLength = table.count( entry.pathPlots ),
+			} );
+		end
+	end
+	TradeText_SortRoutes( routes );
+	for _, route in ipairs( routes ) do
+		local ownerID:number, cityID:number = route.ownerId, route.id;
+		table.insert( items, {
+			key = route.key, owner = ownerID, id = cityID, name = route.name,
+			text = TradeText_Route( route ),
+			detail = function()
+				local origin = GetOriginCity();
+				local city = CityManager.GetCity( ownerID, cityID );
+				local theirs:table = {};
+				if origin ~= nil and city ~= nil then theirs = SRA_YieldList( GetYieldsForRoute( origin, city, true ) ); end
+				return TradeText_Detail{ tooltip = route.tooltip, theirName = route.name, theirYields = theirs, pathLength = route.pathLength };
+			end,
+		} );
+	end
+	return items;
+end
+
+local function SRA_Plural( n:number, word:string )
+	return n .. " " .. word .. ( n == 1 and "" or "s" );
+end
+
+function SRA_Announce()
+	local originCity = GetOriginCity();
+	if originCity == nil then return; end
+	local items:table = SRA_BuildItems();
+	local head:string = "Trade route from " .. Locale.Lookup( originCity:GetName() );
+	if #items == 0 then
+		OutputMessageToScreenReader( head .. ": no destinations. Escape to cancel", true );
+		return;
+	end
+	m_srList.Open( head, m_srPrevKey, true );
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == m_srList.GetFocusKey() then index = i; end
+	end
+	OutputMessageToScreenReader( head .. ": " .. SRA_Plural( #items, "destination" ) .. ". " .. items[ index ].text .. ", " .. index .. " of " .. #items, true );
+end
+
+-- Called at the end of Open(): the game preselects the last completed route there; announce a moment later.
+function SRA_ArmOpen()
+	m_srConfirm = nil;
+	m_srList.Reset();
+	m_srPrevKey = ( m_destinationCityOwner ~= -1 ) and SRA_Key( m_destinationCityOwner, m_destinationCityID ) or nil;
+	m_srOpenPending = true;
+	m_srOpenDelay = SRA_OPEN_DELAY;
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if not m_srOpenPending then return; end
+	if ContextPtr:IsHidden() then m_srOpenPending = false; return; end
+	m_srOpenDelay = m_srOpenDelay - deltaTime;
+	if m_srOpenDelay > 0 then return; end
+	m_srOpenPending = false;
+	local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+	if not ok then print( "TradeRouteChooser announce error: " .. tostring( err ) ); end
+end
+
+local function SRA_Ask( name:string )
+	OutputMessageToScreenReader( "Start trade route to " .. name .. "? Enter to confirm, Escape to go back" );
+end
+
+-- Enter on a route: select it like the button does, then ask.
+local function SRA_Select( item:table )
+	OnTradeRouteSelected( item.owner, item.id );
+	local destination = GetDestinationCity();
+	if destination == nil or destination:GetOwner() ~= item.owner or destination:GetID() ~= item.id then
+		OutputMessageToScreenReader( "That route is no longer available" );
+		return;
+	end
+	m_srConfirm = { owner = item.owner, id = item.id, name = item.name };
+	SRA_Ask( item.name );
+end
+
+local function SRA_Confirm()
+	local pending:table = m_srConfirm;
+	local unit = UI.GetHeadSelectedUnit();
+	local destination = GetDestinationCity();
+	if unit == nil or destination == nil or destination:GetOwner() ~= pending.owner or destination:GetID() ~= pending.id then
+		m_srConfirm = nil;
+		OutputMessageToScreenReader( "That route is no longer available. Back to the list" );
+		return;
+	end
+	if not CheckTradeRoute( unit, destination ) then
+		OutputMessageToScreenReader( "Can't start the trade route to " .. pending.name .. ". Escape to go back" );
+		return;
+	end
+	m_srConfirm = nil;
+	local unitID:number, originOwner:number, originID:number = unit:GetID(), m_originCityOwner, m_originCityID;
+	if RequestTradeRoute() then		-- also leaves the interface mode, which closes this chooser
+		LuaEvents.SRA_TradeResult( "route", unitID, originOwner, originID, pending.name );
+	else
+		OutputMessageToScreenReader( "Trade route not started" );
+	end
+end
+
+local function SRA_Back()
+	local pending:table = m_srConfirm;
+	m_srConfirm = nil;
+	ClearSelection();
+	m_srList.Focus( SRA_Key( pending.owner, pending.id ), "Back to the list" );
+end
+
+local function SRA_Cancel()
+	OnClose();
+	OutputMessageToScreenReader( "Trade route cancelled" );
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build		= SRA_BuildItems,
+		isActive	= function() return m_srConfirm == nil and not ContextPtr:IsHidden(); end,
+		onActivate	= SRA_Select,
+		onClose		= SRA_Cancel,
+	};
+end
+
+-- Every keyboard event is swallowed while the chooser is shown (the hub and WorldInput must not act).
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end
+	local msg:number = pInputStruct:GetMessageType();
+	if m_srConfirm ~= nil and msg == KeyEvents.KeyUp then
+		local key:number = pInputStruct:GetKey();
+		local action = nil;
+		if key == Keys.VK_RETURN then action = SRA_Confirm;
+		elseif key == Keys.VK_ESCAPE then action = SRA_Back;
+		elseif key == Keys.VK_SPACE then action = function() SRA_Ask( m_srConfirm.name ); end
+		end
+		if action ~= nil then
+			local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
+			if not ok then print( "TradeRouteChooser error: " .. tostring( err ) ); end
+		end
+		return true;
+	end
+	if m_srConfirm == nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+
+-- Hot reload leaves the old instance's listeners registered: remove every one on shutdown.
+function SRA_RemoveListeners()
+	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
+	LuaEvents.TradeOverview_SelectRouteFromOverview.Remove( OnSelectRouteFromOverview );
+	LuaEvents.TradeRouteChooser_CloseIfPopups.Remove( OnClose );
+	LuaEvents.TradeRouteChooser_ReOpen.Remove( Open );
+	LuaEvents.WorldInput_MakeTradeRouteDestination.Remove( OnWorldInputMakeTradeRoute );
+	Events.InterfaceModeChanged.Remove( OnInterfaceModeChanged );
+	Events.CitySelectionChanged.Remove( OnCitySelectionChanged );
+	Events.UnitSelectionChanged.Remove( OnUnitSelectionChanged );
+	Events.UnitActivityChanged.Remove( OnUnitActivityChanged );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	Events.GovernmentPolicyChanged.Remove( OnPolicyChanged );
+	Events.GovernmentPolicyObsoleted.Remove( OnPolicyChanged );
+end
+-- End ScreenReaderAccess
+
+-- ===========================================================================
 --	Setup
 -- ===========================================================================
 function Initialize()
@@ -1232,6 +1484,8 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	ContextPtr:SetUpdate( SRA_OnUpdate );		-- ScreenReaderAccess
+	SRA_CreateList();							-- ScreenReaderAccess
 
 	-- Lua Events
 	LuaEvents.GameDebug_Return.Add( OnGameDebugReturn );

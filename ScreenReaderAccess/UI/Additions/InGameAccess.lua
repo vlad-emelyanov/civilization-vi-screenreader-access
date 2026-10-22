@@ -416,7 +416,7 @@ do
 		MOVE_TO = "Move to", RANGE_ATTACK = "Ranged attack", AIR_ATTACK = "Air attack", CITY_RANGE_ATTACK = "City ranged attack",
 		DISTRICT_RANGE_ATTACK = "District ranged attack", WMD_STRIKE = "Nuclear strike", ICBM_STRIKE = "Missile strike",
 		COASTAL_RAID = "Coastal raid", DEPLOY = "Deploy", REBASE = "Rebase", AIRLIFT = "Airlift", FORM_CORPS = "Form corps",
-		FORM_ARMY = "Form army", TELEPORT_TO_CITY = "Teleport to city", MAKE_TRADE_ROUTE = "Make trade route",
+		FORM_ARMY = "Form army",
 		NAVAL_GOLD_RAID = "Naval raid", SACRIFICE_SELECTION = "Sacrifice", KILL_WEAKER_UNIT = "Kill weaker unit",
 		TRANSFORM_UNIT = "Transform unit", RESTORE_UNIT_MOVES = "Restore moves", PRIORITY_TARGET = "Priority target",
 	};
@@ -424,6 +424,14 @@ do
 		local mode = InterfaceModeTypes[name];
 		if mode ~= nil then m_targetModes[mode] = label; end
 	end
+end
+
+-- Not target modes although the game wants a choice in them: the trade chooser panels (Choosers/TradeRouteChooser.lua,
+-- TradeOriginChooser.lua) own these two modes with their own keyboard lists, speech, Enter and Escape. The hub stays
+-- silent and lets every key through (as in the production panel); it only closes its unit menu when one starts.
+local m_chooserModes:table = {};
+for _, name in ipairs( { "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY" } ) do
+	if InterfaceModeTypes[name] ~= nil then m_chooserModes[ InterfaceModeTypes[name] ] = true; end
 end
 
 local function GetTargetMode()
@@ -1059,7 +1067,7 @@ end
 -- ===========================================================================
 local function OnInterfaceModeChanged( oldMode:number, newMode:number )
 	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
-	if m_mode ~= nil and ( m_mode.name == "menu" or m_targetModes[ newMode ] ~= nil ) then CloseMode( false, true ); end
+	if m_mode ~= nil and ( m_mode.name == "menu" or m_targetModes[ newMode ] ~= nil or m_chooserModes[ newMode ] ) then CloseMode( false, true ); end
 	-- placing a district or wonder: the placement browser opens; it ends with the mode (placed, cancelled or replaced)
 	if IsModeOpen( "placement" ) then
 		m_placeReplaced = ( newMode == InterfaceModeTypes.DISTRICT_PLACEMENT or newMode == InterfaceModeTypes.BUILDING_PLACEMENT );
@@ -2107,6 +2115,38 @@ local function OnUnitCommandStarted( ownerID:number, unitID:number, commandID:nu
 	if text ~= nil then SayResult( text ); end
 end
 
+-- The trade choosers hide their contexts (and so stop their update loops) when they close; they ask the hub to tell the
+-- outcome a moment later. kind "route": a trade route was requested (unit, origin city owner and id, destination name);
+-- kind "move": a trader was moved to another city (unit, plot it left, city name).
+local function OnTradeResult( kind:string, unitID:number, a, b, c, d )
+	local owner:number = Game.GetLocalPlayer();
+	if kind == "route" then
+		After( 1.0, function()
+			local origin:table = CityManager.GetCity( a, b );
+			local started:boolean = false;
+			if origin ~= nil then
+				for _, route in ipairs( origin:GetTrade():GetOutgoingRoutes() ) do
+					if route.TraderUnitID == unitID then started = true; end
+				end
+			end
+			if started then
+				SayResult( "Trade route to " .. c .. " started" );
+			else
+				SayResult( "Trade route to " .. c .. " requested, but the trader has no route yet" );
+			end
+		end );
+	elseif kind == "move" then
+		After( 0.5, function()
+			local unit:table = Players[ owner ]:GetUnits():FindID( unitID );
+			if unit ~= nil and ( unit:GetX() ~= a or unit:GetY() ~= b ) then
+				SayResult( "Trader moved to " .. c );
+			else
+				SayResult( "Trader not moved" );
+			end
+		end );
+	end
+end
+
 local function MovesText( unit:table )
 	return FormatNumber( unit:GetMovesRemaining() ) .. " of " .. FormatNumber( unit:GetMaxMoves() ) .. " moves";
 end
@@ -2531,6 +2571,7 @@ function Initialize()
 	Listen( LuaEvents.SRA_NotificationAdded, Safe( "NotificationAdded", OnNotificationAdded ) );
 	Listen( LuaEvents.SRA_NotificationActivated, Safe( "NotificationActivated", OnNotificationActivated ) );
 	Listen( LuaEvents.SRA_AttackKey, Safe( "AttackKey", AttackKey ) );
+	Listen( LuaEvents.SRA_TradeResult, Safe( "TradeResult", OnTradeResult ) );		-- trade choosers: outcome of the route / move
 	Listen( LuaEvents.SRA_CursorTo, Safe( "CursorTo", function( x:number, y:number ) SetCursor( x, y, false, false, true ); end ) );		-- City-States screen: Show on map
 	AddEvent( "UnitRemovedFromMap",			function() After( 0.3, ResetStaleMode ); end );
 	AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )

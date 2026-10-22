@@ -25,6 +25,13 @@ Each of these has crashed or wedged the game, or wasted a play session:
 - A mouse resting on a slider eats arrow keys (the context stops receiving them).
 - The Lua sandbox has no `debug` table (`xpcall` handlers must not call `debug.traceback`) and no `%f` frontier patterns.
 
+## Trade choosers (unverified, read from the game files)
+
+- Selecting a trader with moves in a city makes `TradeRouteChooser` open by itself (`OnUnitSelectionChanged` -> `CheckNeedsToOpen` -> interface mode MAKE_TRADE_ROUTE); the Tab menu entry is just another way in. `RequestTradeRoute()` starts the operation and sets the interface mode back to SELECTION in the same call, which runs `Close()` (context hidden). A hidden context gets no `SetUpdate`, so anything that must be said after the request has to be timed by a context that stays shown (the hub: `LuaEvents.SRA_TradeResult`).
+- `TradeOriginChooser`'s own Escape (`AnimSidePanelSupport` OnInputHandler) only hides the panel; the interface mode TELEPORT_TO_CITY stays until something else changes it.
+- Both are contexts of `InGame.xml` listed after ActionPanel / ProductionPanel, so they get keys before them (the hub, added last, before everything).
+- Trade route data: destinations in `m_unfilteredDestinations` (`owner`, `id`, `pathPlots`), yields `GetYieldsForRoute(origin, city[, true for the destination's side])` in `TradeSupport.lua` (`kYieldValues` indexed from 1 = `GameInfo.Yields[i - 1]`, `TooltipText`, `MajorityReligion`, `ReligionPressure`), a started route shows in `city:GetTrade():GetOutgoingRoutes()` (`TraderUnitID`).
+
 ## Events: what fires for which action
 
 - Unit orders: `UnitOperationStarted` for most actions (fortify, sleep, build improvement, found city). Automate Exploration and Fortify Until Healed fire only `UnitOperationAdded`. The game re-adds the operation for already automated units, so only trust it within ~2 s of a key press.

@@ -39,3 +39,4 @@ them). Never save a scenario-modified game over a fixture.
 | `governor-title` | `early-t60` | 1 governor title ready | `F10` |
 | `envoys-to-give` | `early-t60` | 3 envoy tokens, all city-states met | `F2` |
 | `builder-by-forest` | `early-t60` | builder on an owned tile next to a forest | `Tab` on the builder / `I` on the forest |
+| `trader-in-capital` (unverified) | `medieval-t100` | a Trader in the capital | select it: the game opens its trade route chooser by itself (see `t100-trade-route`) |

@@ -5,6 +5,9 @@
 -- ===========================================================================
 include("InstanceManager");
 include("AnimSidePanelSupport");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");			-- ScreenReaderAccess
+include("TradeText");			-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -138,6 +141,7 @@ function Open()
 	LuaEvents.TradeOriginChooser_SetTradeUnitStatus("LOC_HUD_UNIT_PANEL_CHOOSING_ORIGIN_CITY");
 	m_AnimSupport:Show();
 	Refresh();
+	SRA_ArmOpen();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -165,6 +169,7 @@ function OnInit(isReload:boolean)
 	end
 end
 function OnShutdown()
+	SRA_RemoveListeners();		-- ScreenReaderAccess
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isVisible", m_AnimSupport:IsVisible());
 end
 function OnGameDebugReturn(context:string, contextTable:table)
@@ -172,6 +177,127 @@ function OnGameDebugReturn(context:string, contextTable:table)
 		OnOpen();
 	end
 end
+
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	Opens 0.4 s after Open() with "Move trader to which city? 3 cities. Florence, 5 tiles, 1 of 3". One item per city that
+--	passes CanTeleportToCity (nearest first), rebuilt at every key. Enter calls the game's own TeleportToCity (what the
+--	button does); the hub tells the outcome a moment later (LuaEvents.SRA_TradeResult: this context hides when the
+--	trader moves). Escape closes the panel and leaves the interface mode (the game's own Escape only hid the panel).
+--	Every key event is swallowed while the panel is shown.
+-- ===========================================================================
+local m_srList				:table = nil;
+local m_srOpenPending		:boolean = false;
+local m_srOpenDelay			:number = 0;
+local SRA_OPEN_DELAY		:number = 0.4;
+
+function SRA_BuildItems()
+	local items:table = {};
+	local unit = UI.GetHeadSelectedUnit();
+	if unit == nil then return items; end
+	local originCity = Cities.GetCityInPlot( unit:GetX(), unit:GetY() );
+	if originCity == nil then return items; end
+	local localPlayer = Players[ Game.GetLocalPlayer() ];
+	local cities:table = {};
+	for _, city in localPlayer:GetCities():Members() do
+		if city:GetID() ~= originCity:GetID() and CanTeleportToCity( city ) then
+			table.insert( cities, {
+				id = city:GetID(), name = Locale.Lookup( city:GetName() ),
+				distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), city:GetX(), city:GetY() ),
+			} );
+		end
+	end
+	table.sort( cities, function( a, b )
+		if a.distance ~= b.distance then return a.distance < b.distance; end
+		return a.name < b.name;
+	end );
+	for _, city in ipairs( cities ) do
+		table.insert( items, { key = "c:" .. city.id, id = city.id, name = city.name, text = TradeText_Origin( city ) } );
+	end
+	return items;
+end
+
+function SRA_Announce()
+	local items:table = SRA_BuildItems();
+	local head:string = "Move trader to which city?";
+	if #items == 0 then
+		OutputMessageToScreenReader( head .. " No cities available. Escape to cancel", true );
+		return;
+	end
+	m_srList.Open( head, nil, true );
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == m_srList.GetFocusKey() then index = i; end
+	end
+	OutputMessageToScreenReader( head .. " " .. #items .. ( #items == 1 and " city. " or " cities. " ) .. items[ index ].text .. ", " .. index .. " of " .. #items, true );
+end
+
+-- Called at the end of Open().
+function SRA_ArmOpen()
+	m_srList.Reset();
+	m_srOpenPending = true;
+	m_srOpenDelay = SRA_OPEN_DELAY;
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if not m_srOpenPending then return; end
+	if ContextPtr:IsHidden() then m_srOpenPending = false; return; end
+	m_srOpenDelay = m_srOpenDelay - deltaTime;
+	if m_srOpenDelay > 0 then return; end
+	m_srOpenPending = false;
+	local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+	if not ok then print( "TradeOriginChooser announce error: " .. tostring( err ) ); end
+end
+
+local function SRA_Teleport( item:table )
+	local unit = UI.GetHeadSelectedUnit();
+	local city = CityManager.GetCity( Game.GetLocalPlayer(), item.id );
+	if unit == nil or city == nil then
+		OutputMessageToScreenReader( "That city is no longer available" );
+		return;
+	end
+	local unitID:number, x:number, y:number = unit:GetID(), unit:GetX(), unit:GetY();
+	TeleportToCity( city );		-- closes the panel and leaves the interface mode when the move is allowed
+	LuaEvents.SRA_TradeResult( "move", unitID, x, y, item.name );
+end
+
+local function SRA_Cancel()
+	Close();
+	if UI.GetInterfaceMode() == InterfaceModeTypes.TELEPORT_TO_CITY then
+		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+	end
+	OutputMessageToScreenReader( "Cancelled" );
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build		= SRA_BuildItems,
+		isActive	= function() return m_AnimSupport:IsVisible(); end,
+		onActivate	= SRA_Teleport,
+		onClose		= SRA_Cancel,
+	};
+end
+
+-- Every keyboard event is swallowed while the panel is shown.
+function SRA_OnInput( pInputStruct:table )
+	if m_AnimSupport:IsVisible() then
+		if m_srList.HandleInput( pInputStruct ) then return true; end
+		local msg:number = pInputStruct:GetMessageType();
+		if msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp then return true; end
+	end
+	return m_AnimSupport.OnInputHandler( pInputStruct );
+end
+
+-- Hot reload leaves the old instance's listeners registered: remove every one on shutdown.
+function SRA_RemoveListeners()
+	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
+	Events.InterfaceModeChanged.Remove( OnInterfaceModeChanged );
+	Events.CitySelectionChanged.Remove( OnCitySelectionChanged );
+	Events.UnitSelectionChanged.Remove( OnUnitSelectionChanged );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	Events.SystemUpdateUI.Remove( m_AnimSupport.OnUpdateUI );
+end
+-- End ScreenReaderAccess
 
 -- ===========================================================================
 --	INIT
@@ -196,7 +322,9 @@ function Initialize()
 
 	-- Animation controller events
 	Events.SystemUpdateUI.Add(m_AnimSupport.OnUpdateUI);
-	ContextPtr:SetInputHandler(m_AnimSupport.OnInputHandler, true);
+	ContextPtr:SetInputHandler(SRA_OnInput, true);		-- ScreenReaderAccess (was m_AnimSupport.OnInputHandler)
+	ContextPtr:SetUpdate(SRA_OnUpdate);					-- ScreenReaderAccess
+	SRA_CreateList();									-- ScreenReaderAccess
 
 	-- Control Events
 	Controls.CloseButton:RegisterCallback(Mouse.eLClick, OnClose);

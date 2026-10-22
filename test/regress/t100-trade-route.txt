@@ -1,0 +1,15 @@
+# UNVERIFIED (written without running the game). Scenario trader-in-capital on medieval-t100: a Trader in the capital.
+# Selecting a trader with moves makes the game open its TradeRouteChooser by itself (interface mode MAKE_TRADE_ROUTE), so the
+# Tab menu -> Make Trade Route path is not needed (Tab is swallowed by the chooser while it is open).
+# no-share-load
+load medieval-t100
+scenario trader-in-capital
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_TRADER" then UI.SelectUnit(u) break end end
+wait Trade route from -Timeout 15
+expect ^Trade route from .+: (\d+ destinations?\.|no destinations)
+key Down -Settle 1000
+expect (\d+ of \d+$|^Nothing available)
+key Escape -Settle 1000
+expect ^Trade route cancelled
+no-lua-errors
