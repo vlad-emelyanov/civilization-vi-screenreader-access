@@ -1,0 +1,5 @@
+#!/bin/sh
+# Git Bash / POSIX entry point for civctl. Unlike civctl.cmd, arguments with spaces and quotes survive:
+#   util/civctl lua InGame 'print("a b")'
+dir=$(cd "$(dirname "$0")" && pwd -W 2>/dev/null || pwd)
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$dir/civctl.ps1" "$@"

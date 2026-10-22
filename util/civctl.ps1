@@ -3,10 +3,12 @@
   Agent/dev harness for driving Civilization VI with the ScreenReaderAccess mod.
 
 .EXAMPLE
-  .\util\civctl.ps1 build                 # build + deploy the mod with ModBuddy (restart the game to pick up changes; kills hot reload until then)
+  .\util\civctl.ps1 build                 # build + deploy the mod with ModBuddy (refuses while the game runs unless -Force; kills hot reload until a restart)
   .\util\civctl.ps1 deploy                # copy changed mod files straight into the running game's deployed mod folder: hot reload, no restart
   .\util\civctl.ps1 lua InGame 'print(Game.GetCurrentGameTurn())'   # run Lua in a game Lua state via FireTuner (needs EnableTuner 1)
   .\util\civctl.ps1 states                # list the tuner's Lua states
+  .\util\civctl.ps1 reload InGameAccess.lua   # force a hot reload of a deployed file even if unchanged
+  .\util\civctl.ps1 menu                  # is the in-game options menu / a popup open? (exit 4 if so)
   .\util\civctl.ps1 start                 # launch game + console app, wait for main menu
   .\util\civctl.ps1 sr                    # print new screen reader lines since last call
   .\util\civctl.ps1 key Down              # press a key (Down, Up, Enter, Escape, Tab, A, F1, ...)
@@ -22,7 +24,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'lua', 'states', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -33,6 +35,7 @@ param(
     [int]$Settle = 600,
     [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
+    [switch]$Force,         # build: build even though the game is running
     [string]$Out,
     [string]$File           # lua: read the Lua code from this file instead of the command line
 )
@@ -267,6 +270,10 @@ function Invoke-Shot {
 }
 
 function Invoke-Build {
+    if ((Get-GameProcess) -and -not $Force) {
+        Write-Output "Refusing to build while the game is running: ModBuddy deletes and recreates the deployed mod folder, which kills the game's hot-reload file watcher until the game is restarted. Use ``deploy`` for changes to existing files, or ``stop`` first (or pass -Force if you will restart the game anyway)."
+        exit 1
+    }
     $modBuddy = (Get-Command modbuddy -ErrorAction SilentlyContinue).Source
     if (-not $modBuddy) { $modBuddy = "C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization VI SDK\ModBuddy\ModBuddy.exe" }
     $outFile = Join-Path $StateDir 'build.txt'
@@ -280,8 +287,7 @@ function Invoke-Build {
     $result = Get-Content $outFile -ErrorAction SilentlyContinue
     $result | Where-Object { $_ -match 'error|warning|Build:' }
     if (-not ($result -match '1 succeeded')) { exit 1 }
-    # ModBuddy deletes and recreates the whole deployed mod folder, which silently kills the game's hot-reload file watcher.
-    if (Get-GameProcess) { Write-Output 'Note: the running game no longer hot-reloads until it is restarted (use `deploy` instead of `build` for Lua-only changes).' }
+    if (Get-GameProcess) { Write-Output 'Note: built with -Force while the game runs; it no longer hot-reloads until it is restarted.' }
 }
 
 function Get-DeployedModDir {
@@ -289,44 +295,126 @@ function Get-DeployedModDir {
     Join-Path ([Environment]::GetFolderPath('MyDocuments')) "My Games\Sid Meier's Civilization VI\Mods\ScreenReaderAccess"
 }
 
-function Invoke-Deploy {
-    # Copies changed files from the repo's ScreenReaderAccess\ folder into the deployed mod folder, rewriting each file IN PLACE
-    # (not delete+create) so the game's file watcher notices; the game then re-initialises the affected UI context within ~1 s.
+# Content types the project ships (see the <Content Include> list in the .civ6proj); other files in the folder are ignored.
+$ShippedExtensions = @('.lua', '.xml', '.sql', '.artdef', '.dds', '.png', '.gr2', '.ffx', '.fxh')
+
+function Get-ShippedFiles([string]$root) {
+    if (-not (Test-Path $root)) { return @() }
+    Get-ChildItem $root -Recurse -File | Where-Object { $_.Extension -in $ShippedExtensions -and $_.FullName -notlike '*\.vs\*' }
+}
+
+function Read-LogSince([long]$pos) {
+    # Lua.log lines after byte offset $pos (from 0 when the log is now shorter, i.e. recreated). Empty when there is no log.
+    if (-not (Test-Path $LuaLog)) { return @() }
+    $fs = [IO.File]::Open($LuaLog, 'Open', 'Read', 'ReadWrite')
+    try {
+        if ($pos -gt $fs.Length) { $pos = 0 }
+        $fs.Seek($pos, 'Begin') | Out-Null
+        return @((New-Object IO.StreamReader($fs)).ReadToEnd() -split "`r?`n")
+    } finally { $fs.Dispose() }
+}
+
+function Write-InPlace([string]$target, [byte[]]$bytes) {
+    # Rewrites the file in place (not delete+create) so the game's file watcher notices. When the file shrinks, the new content is
+    # first padded with newlines to the old length, so a watcher that reads in between never sees new content + stale tail
+    # (a spurious syntax error); then the file is cut to size.
+    $fs = [IO.File]::Open($target, 'Open', 'Write', 'ReadWrite')
+    try {
+        $old = $fs.Length
+        if ($old -gt $bytes.Length) {
+            $padded = New-Object byte[] $old
+            [Array]::Copy($bytes, $padded, $bytes.Length)
+            for ($i = $bytes.Length; $i -lt $old; $i++) { $padded[$i] = 10 }
+            $fs.Write($padded, 0, $old); $fs.Flush()
+            $fs.SetLength($bytes.Length); $fs.Flush()
+        } else {
+            $fs.Write($bytes, 0, $bytes.Length); $fs.Flush()
+        }
+    } finally { $fs.Dispose() }
+}
+
+function Invoke-Deploy([string[]]$touch) {
+    # Copies changed files from the repo's ScreenReaderAccess\ folder into the deployed mod folder; the game re-initialises the
+    # affected UI context within ~1 s. With $touch (the `reload` command): rewrites the matching files even if unchanged.
+    # Exit codes: 0 ok, 1 Lua errors or failure, 3 a build + restart is needed (new/deleted files, Database changes).
     $src = Join-Path $RepoRoot 'ScreenReaderAccess'
     $dst = Get-DeployedModDir
     if (-not (Test-Path $dst)) { throw "Deployed mod folder not found: $dst (run: civctl.ps1 build)" }
     $logLen = if (Test-Path $LuaLog) { (Get-Item $LuaLog).Length } else { 0 }
     $copied = 0
+    $shrunk = @()
     $needsBuild = @()
     $sha = [Security.Cryptography.SHA1]::Create()
-    $files = Get-ChildItem $src -Recurse -File | Where-Object { $_.FullName -notlike '*\.vs\*' -and $_.Extension -notin '.civ6proj', '.suo' }
-    foreach ($f in $files) {
+    $repoRels = @{}
+    foreach ($f in (Get-ShippedFiles $src)) {
         $rel = $f.FullName.Substring($src.Length).TrimStart('\')
+        $repoRels[$rel.ToLowerInvariant()] = $true
         $target = Join-Path $dst $rel
+        $force = $false
+        if ($touch) { $force = [bool]($touch | Where-Object { $rel -like "*$_*" }); if (-not $force) { continue } }
         if (-not (Test-Path $target)) { $needsBuild += "$rel (new file)"; continue }
         $bytes = [IO.File]::ReadAllBytes($f.FullName)
-        if ([BitConverter]::ToString($sha.ComputeHash($bytes)) -eq [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($target)))) { continue }
-        $fs = [IO.File]::Open($target, 'Open', 'Write', 'ReadWrite')
-        try { $fs.Write($bytes, 0, $bytes.Length); $fs.SetLength($bytes.Length) } finally { $fs.Dispose() }
+        $same = [BitConverter]::ToString($sha.ComputeHash($bytes)) -eq [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($target)))
+        if ($same -and -not $force) { continue }
+        if ((Get-Item $target).Length -gt $bytes.Length) { $shrunk += , @($target, $bytes) }
+        Write-InPlace $target $bytes
         $copied++
-        Write-Output "deployed $rel"
+        Write-Output "$(if ($same) { 'reloaded' } else { 'deployed' }) $rel"
         if ($rel -like 'Database\*') { $needsBuild += "$rel (database changes need a full restart)" }
     }
-    if ($copied -eq 0) { Write-Output 'Nothing changed.' }
-    foreach ($n in $needsBuild) { Write-Output "needs build + restart: $n" }
-    if ($copied -gt 0 -and (Get-GameProcess)) {
-        Start-Sleep -Milliseconds 2500
-        $fs = [IO.File]::Open($LuaLog, 'Open', 'Read', 'ReadWrite')
-        try { $fs.Seek([Math]::Min($logLen, $fs.Length), 'Begin') | Out-Null; $new = (New-Object IO.StreamReader($fs)).ReadToEnd() -split "`r?`n" } finally { $fs.Dispose() }
-        $errs = @($new | Where-Object { $_ -match 'Runtime Error|Syntax Error|Error loading file|empty file' })
-        if ($errs) { $errs | ForEach-Object { Write-Output "LUA ERROR> $_" }; exit 1 }
-        Write-Output 'No Lua errors in the 2.5 s after deploy.'
+    if (-not $touch) {
+        foreach ($f in (Get-ShippedFiles $dst)) {
+            $rel = $f.FullName.Substring($dst.Length).TrimStart('\')
+            if (-not $repoRels.ContainsKey($rel.ToLowerInvariant())) { $needsBuild += "$rel (deleted from the repo but still deployed)" }
+        }
+    } elseif ($copied -eq 0) {
+        Write-Output "No shipped file matches: $($touch -join ' ')"
+        exit 1
     }
+    if ($copied -eq 0 -and $needsBuild.Count -eq 0) { Write-Output 'Nothing changed.' }
+    $failed = $false
+    if ($copied -gt 0 -and (Get-GameProcess)) {
+        $pattern = 'Runtime Error|Syntax Error|Error loading file|empty file'
+        Start-Sleep -Milliseconds 2500
+        $errs = @(Read-LogSince $logLen | Where-Object { $_ -match $pattern })
+        if ($errs -and $shrunk) {
+            # A watcher may still have caught a shrinking file mid-write: rewrite those once and look again.
+            Write-Output 'Errors after shrinking a file; rewriting it once and rescanning...'
+            $logLen = if (Test-Path $LuaLog) { (Get-Item $LuaLog).Length } else { 0 }
+            foreach ($s in $shrunk) { Write-InPlace $s[0] $s[1] }
+            Start-Sleep -Milliseconds 2500
+            $errs = @(Read-LogSince $logLen | Where-Object { $_ -match $pattern })
+        }
+        if ($errs) { $errs | ForEach-Object { Write-Output "LUA ERROR> $_" }; $failed = $true }
+        else { Write-Output 'No Lua errors in the 2.5 s after deploy.' }
+    }
+    foreach ($n in $needsBuild) { Write-Output "needs build + restart: $n" }
+    if ($failed) { exit 1 }
+    if ($needsBuild.Count -gt 0) { exit 3 }
+}
+
+function Get-PythonCommand {
+    foreach ($c in @(@('python'), @('py', '-3'))) {
+        $exe = Get-Command $c[0] -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        # The Microsoft Store stub (WindowsApps\python.exe) exists on PATH but only prints an install hint.
+        if ($exe -and $exe.Source -notlike '*\WindowsApps\python*.exe') { return , (@($exe.Source) + @($c | Select-Object -Skip 1)) }
+    }
+    throw 'Python 3 was not found on PATH (tried `python` and `py -3`). The lua/states/menu commands need it: install Python 3 from python.org.'
+}
+
+function Invoke-Python([string[]]$pyArgs) {
+    $py = Get-PythonCommand
+    $old = [Console]::OutputEncoding
+    [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)   # civtuner.py writes UTF-8
+    try {
+        & $py[0] @($py | Select-Object -Skip 1) -I @pyArgs | Out-Host
+        return $LASTEXITCODE
+    } finally { [Console]::OutputEncoding = $old }
 }
 
 function Invoke-Tuner {
     $py = Join-Path $PSScriptRoot 'civtuner.py'
-    if ($Command -eq 'states') { & python -I $py states; exit $LASTEXITCODE }
+    if ($Command -eq 'states') { exit (Invoke-Python @($py, 'states')) }
     $code = $null
     if ($File) { $state = $Arg; $code = [IO.File]::ReadAllText($File) }
     else {
@@ -337,8 +425,7 @@ function Invoke-Tuner {
     # Pass the code through a temp file: quoting Lua (quotes, newlines) through cmd.exe and PowerShell 5.1 argument parsing is unreliable.
     $tmp = Join-Path $StateDir 'tuner.lua'
     [IO.File]::WriteAllText($tmp, $code, (New-Object Text.UTF8Encoding($false)))
-    & python -I $py lua -f $tmp $state
-    exit $LASTEXITCODE
+    exit (Invoke-Python @($py, 'lua', '-f', $tmp, $state))
 }
 
 function Invoke-Stop {
@@ -416,6 +503,8 @@ function Invoke-Keymap {
 switch ($Command) {
     'build' { Invoke-Build }
     'deploy' { Invoke-Deploy }
+    'reload' { if (-not $Arg) { throw 'Usage: civctl.ps1 reload <file...>  (path or name fragment, e.g. InGameAccess.lua)' }; Invoke-Deploy ($Arg -split '\s+') }
+    'menu' { exit (Invoke-Python @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')) }
     { $_ -in 'lua', 'states' } { Invoke-Tuner }
     'start' { Invoke-Start }
     'stop' { Invoke-Stop }
