@@ -29,6 +29,7 @@ local PROMOTION_NAME_TRUNCATE_WIDTH = 195;
 --	VARIABLES
 -- ===========================================================================
 
+local m_srPromotingName:string = nil;		-- ScreenReaderAccess: promotion requested, speak the result
 local m_PromotionTreeIM:table = InstanceManager:new("PromotionTreeInstance", "TopGrid", Controls.PromotionAnchor);
 local m_SecretPromotionTreeIM:table = InstanceManager:new("SecretSocietyPromotionTreeInstance", "TopGrid", Controls.PromotionAnchor);
 
@@ -385,6 +386,7 @@ end
 
 -- ===========================================================================
 function OnBack()
+	m_srPromotingName = nil;		-- ScreenReaderAccess
 	Close();
 	LuaEvents.GovernorPanel_ClosedDetails();
 end
@@ -465,8 +467,6 @@ end
 local function SRA_Clean( text:string )
 	return CleanTextForSpeech( Locale.Lookup( text or "" ) );
 end
-
-local m_srPromotingName:string = nil;
 
 local function SRA_PromotionItems()
 	local items:table = {};

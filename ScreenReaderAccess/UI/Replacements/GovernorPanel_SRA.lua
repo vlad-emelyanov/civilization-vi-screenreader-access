@@ -43,6 +43,7 @@ local m_srActionGov		:number = -1;		-- ScreenReaderAccess: governor index whose 
 local m_srOpenPending	:boolean = false;	-- ScreenReaderAccess
 local m_srOpenDelay		:number = 0;		-- ScreenReaderAccess
 local m_srAppointWait	:number = nil;		-- ScreenReaderAccess: seconds until "the appointment did not happen" is said
+local m_srAppointHash	:number = nil;		-- ScreenReaderAccess: governor hash the appointment waits for
 
 -- ===========================================================================
 function Refresh()
@@ -484,6 +485,7 @@ end
 -- As such, do not mark the player as having considered their governor title options.
 function Close()
 	m_srOpenPending = false;		-- ScreenReaderAccess
+	m_srAppointWait = nil;		-- ScreenReaderAccess
 	if Controls.DetailsPanel:IsVisible() then
 		Controls.DetailsPanel:SetHide(true);
 	end
@@ -820,6 +822,7 @@ local function SRA_OnActionActivate( item:table )
 	elseif item.key == "appoint" then
 		m_srActionGov = -1;
 		m_srAppointWait = 3;
+		m_srAppointHash = gi.def.Hash;
 		OnAppointGovernor( index );
 	elseif item.key == "assign" then
 		m_srActionGov = -1;
@@ -881,7 +884,11 @@ function SRA_OnUpdate( deltaTime:number )
 		m_srAppointWait = m_srAppointWait - deltaTime;
 		if m_srAppointWait <= 0 then
 			m_srAppointWait = nil;
-			SRA_Say( "The appointment did not happen" );
+			-- only when the governor really is not appointed (the event may have been missed, or the screen closed)
+			local pPlayer:table = Players[ Game.GetLocalPlayer() ];
+			if m_srAppointHash ~= nil and pPlayer ~= nil and not pPlayer:GetGovernors():HasGovernor( m_srAppointHash ) then
+				SRA_Say( "The appointment did not happen" );
+			end
 		end
 	end
 	if m_srOpenPending and not ContextPtr:IsHidden() then
@@ -943,6 +950,7 @@ end
 
 -- ===========================================================================
 function OnLocalPlayerTurnEnd()
+	m_srAppointWait = nil;		-- ScreenReaderAccess
 	if GameConfiguration.IsHotseat() and ContextPtr:IsVisible() then
 		Close();
 	end

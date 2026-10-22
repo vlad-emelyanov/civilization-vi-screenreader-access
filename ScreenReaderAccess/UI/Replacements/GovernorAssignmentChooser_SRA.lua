@@ -35,6 +35,7 @@ local m_SelectedCityID			:number = -1;
 local m_isLoadComplete          :boolean = false;
 local m_srList					:table = nil;		-- ScreenReaderAccess: city list
 local m_srAssigning				:boolean = false;	-- ScreenReaderAccess: an assignment was requested, speak the result
+local m_srReopens				:boolean = false;	-- ScreenReaderAccess: the replace-confirmation path reopens the governor panel afterwards
 
 
 -- ===========================================================================
@@ -426,7 +427,7 @@ function OnConfirm()
 			if (pAssignedGovernor:GetOwner() == localPlayerID) then
 				-- If this city already has an assigned governor popup a popup dialog to confirm the replacement
 				local popup:table = PopupDialogInGame:new( "GovernorAssignmentReplaceConfirm" );
-				popup:ShowYesNoDialog( Locale.Lookup("LOC_GOVERNOR_ASSIGNMENT_CONFIRM_REPLACEMENT"), function() ConfirmedAssignment(); LuaEvents.GovernorPanel_Open(); end );
+				popup:ShowYesNoDialog( Locale.Lookup("LOC_GOVERNOR_ASSIGNMENT_CONFIRM_REPLACEMENT"), function() m_srReopens = true; ConfirmedAssignment(); LuaEvents.GovernorPanel_Open(); end );
 			else
 				ConfirmedAssignment();
 				LuaEvents.GovernorPanel_Close();
@@ -441,6 +442,7 @@ end
 -- ===========================================================================
 function OnCancel()
 	Close();
+	m_srAssigning = false;		-- ScreenReaderAccess: cancelled, no result to speak
 
 	LuaEvents.GovernorPanel_CancelAssignment();
 end
@@ -448,6 +450,7 @@ end
 -- ===========================================================================
 function OnClose()
 	Close();
+	if not m_srReopens then m_srAssigning = false; end		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -603,6 +606,8 @@ end
 function SRA_OnGovernorAssigned( cityPlayer:number, cityID:number, ePlayer:number, eGovernor:number )
 	if not m_srAssigning or ePlayer ~= Game.GetLocalPlayer() then return; end
 	m_srAssigning = false;
+	local reopens:boolean = m_srReopens;
+	m_srReopens = false;
 	local def:table = GameInfo.Governors[ eGovernor ];
 	local city:table = CityManager.GetCity( cityPlayer, cityID );
 	if def == nil or city == nil then return; end
@@ -616,6 +621,7 @@ function SRA_OnGovernorAssigned( cityPlayer:number, cityID:number, ePlayer:numbe
 			text = text .. ", establishes in " .. turns .. ( turns == 1 and " turn" or " turns" );
 		end
 	end
+	if not reopens then text = text .. ". Governors closed"; end		-- the screens close after a successful assignment
 	SRA_Say( text );
 end
 
