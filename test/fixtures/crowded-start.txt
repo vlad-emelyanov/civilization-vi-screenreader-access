@@ -1,7 +1,7 @@
 turn: 1
 civ: CIVILIZATION_ROME / LEADER_TRAJAN
 profile: crowded
-purpose: fresh 'crowded' game at its start (made by civctl newgame)
-mod commit: 568356c
+purpose: crowded: Tiny map, 10 city-states (the Tiny maximum), contact and diplomacy tests
+mod commit: ba83d0f
 created: 2026-10-22
-size: 277 KB
+size: 470 KB
