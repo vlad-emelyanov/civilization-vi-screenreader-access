@@ -33,7 +33,8 @@ read_globals = {
 
 -- Globals the mod defines in Assets/UI/Accessibility/*.lua (shared via include()). Keep in sync.
 globals = {
-	"CleanTextForSpeech", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
+	"CleanTextForSpeech", "DealSpeech_AvailableText", "DealSpeech_ChangeText", "DealSpeech_DealItemText", "DealSpeech_Intro",
+	"DealSpeech_ItemText", "DealSpeech_Summary", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
 	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",
 	"KeyNavEditBox_Cancel", "KeyNavEditBox_Describe", "KeyNavEditBox_HandleInput", "KeyNavEditBox_IsEditing",
 	"KeyNavEditBox_Update", "KeyNavErrorHandler", "KeyNavItems", "KeyNavKeyHandler", "KeyNavLabel",

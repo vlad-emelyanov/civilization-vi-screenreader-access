@@ -675,7 +675,10 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 		if reasonStr ~= nil and reasonStr ~= "" then speech = speech .. " " .. CleanTextForSpeech(reasonStr); end
 		m_srList.Reset();
 		if ms_currentViewMode == DEAL_MODE then
-			OutputMessageToScreenReader( speech, true );	-- the deal screen has no keys here (yet): only say what was said
+			-- the deal screen (DiplomacyDealView.lua) announces itself a moment after it opens: hand it the statement
+			local statement:string = CleanTextForSpeech(leaderstr);
+			if reasonStr ~= nil and reasonStr ~= "" then statement = statement .. " " .. CleanTextForSpeech(reasonStr); end
+			LuaEvents.SRA_DealStatement( statement );
 		elseif #m_srSelections > 0 then
 			m_srList.Open( speech );
 		else

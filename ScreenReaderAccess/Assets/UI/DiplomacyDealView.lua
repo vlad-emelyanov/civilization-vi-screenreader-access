@@ -9,6 +9,10 @@ include( "PopupDialog" );
 include( "ToolTipHelper_PlayerYields" );
 include( "CivilizationIcon" );
 include( "GreatWorksSupport" );
+include( "ScreenReader" );		-- ScreenReaderAccess
+include( "KeyNavList" );		-- ScreenReaderAccess
+include( "DealSpeech" );		-- ScreenReaderAccess
+include( "SRListen" );		-- ScreenReaderAccess
 
 
 -- ===========================================================================
@@ -41,6 +45,36 @@ local ms_MinimizedSectionIM :table		= InstanceManager:new( "MinimizedSection","M
 
 local OTHER_PLAYER = 0;
 local LOCAL_PLAYER = 1;
+
+-- Begin ScreenReaderAccess change: the available items as plain records, filled by the Populate* functions
+-- below (one record per icon, with the callback its button registers); the keyboard lists at the end of the
+-- file are built from them. Cleared in OnShow.
+local m_srAvail:table = { [OTHER_PLAYER] = {}, [LOCAL_PLAYER] = {} };	-- by player type
+local m_srOptions:table = {};	-- the entries of the agreement option popup (alliance type, war target ...)
+
+local function SRA_AddAvail( player:table, rec:table )
+	table.insert( m_srAvail[ GetPlayerType( player ) ], rec );
+end
+
+-- The game gives no text for an agreement / city / great work that cannot be added: name the validation result.
+local function SRA_InvalidReason( entry:table )
+	local result = entry.ValidationResult;
+	if result ~= nil and DealValidationResult ~= nil then
+		local ok:boolean, name = pcall( function()
+			for n, v in pairs( DealValidationResult ) do
+				if v == result then return n; end
+			end
+			return nil;
+		end );
+		if ok and name ~= nil then return string.lower( ( string.gsub( tostring( name ), "_", " " ) ) ); end
+	end
+	return "not possible right now";
+end
+
+local function SRA_IsAvailableDisabled( entry:table )
+	return not entry.IsValid and entry.ValidationResult ~= DealValidationResult.MISSING_DEPENDENCY;
+end
+-- End ScreenReaderAccess change
 
 ms_OtherPlayerID =	-1;
 local ms_OtherPlayerIsHuman = false;
@@ -1252,6 +1286,9 @@ function PopulateAvailableGold(player : table, iconList : table)
 					uiIcon.StopAskingButton:SetHide(true);
 					uiIcon.Icon:SetColor(1,1,1);
 					availableItemCount = availableItemCount + 1;
+					SRA_AddAvail( player, { key = "gold:0", kind = "gold", amount = goldBalance, duration = 0,		-- ScreenReaderAccess
+						hint = "Enter adds " .. ms_DefaultOneTimeGoldAmount .. " gold. Change the amount in the Deal section with Left and Right",
+						callback = function() OnClickAvailableOneTimeGold(player, ms_DefaultOneTimeGoldAmount); end } );
 				end
 			else
 				-- Multi-turn gold
@@ -1268,6 +1305,9 @@ function PopulateAvailableGold(player : table, iconList : table)
 				iconList.ListStack:CalculateSize();
 
 				availableItemCount = availableItemCount + 1;
+				SRA_AddAvail( player, { key = "gold:" .. tostring( entry.Duration ), kind = "gold", amount = ( ( entry.MaxAmount or 0 ) > 0 ) and entry.MaxAmount or nil, duration = entry.Duration,		-- ScreenReaderAccess
+					hint = "Enter adds " .. ms_DefaultMultiTurnGoldAmount .. " gold per turn for " .. ms_DefaultMultiTurnGoldDuration .. " turns. Change the amount in the Deal section with Left and Right",
+					callback = function() OnClickAvailableMultiTurnGold(player, ms_DefaultMultiTurnGoldAmount, ms_DefaultMultiTurnGoldDuration); end } );
 			end
 		end
 	end
@@ -1430,6 +1470,7 @@ function ShowAgreementOptionPopup(agreementType, agreementTurns, fromPlayerId)
 
 	-- Hide/show everything for AGREEMENTS options
 	ms_AgreementOptionIM:ResetInstances();
+	m_srOptions = {};		-- ScreenReaderAccess
 	Controls.ValueEditIconGrid:SetHide(true);
 	Controls.ValueAmountEditBoxContainer:SetHide(true);
 
@@ -1500,6 +1541,10 @@ function ShowAgreementOptionPopup(agreementType, agreementTurns, fromPlayerId)
 			instance.AgreementOptionButton:RegisterCallback(Mouse.eLClick, function()
 				OnSelectAgreementOption(agreementType, agreementTurns, agreementValueType, agreementParameters, fromPlayerId);
 			end);
+			-- Begin ScreenReaderAccess change
+			table.insert( m_srOptions, { key = "opt:" .. tostring( i ), text = szDisplayName, tooltip = ( agreementType == DealAgreementTypes.ALLIANCE ) and instance.AgreementOptionButton:GetToolTipString() or nil,
+				callback = function() OnSelectAgreementOption(agreementType, agreementTurns, agreementValueType, agreementParameters, fromPlayerId); end } );
+			-- End ScreenReaderAccess change
 
 			Controls.ValueEditButton:RegisterCallback( Mouse.eLClick, OnAgreementBackButton );
 		end
@@ -1748,6 +1793,20 @@ function PopulateAvailableResources(player : table, iconList : table, className 
 						uiIcon.Icon:SetColor(0.5, 0.5, 0.5);
 					end
 
+					-- Begin ScreenReaderAccess change
+					local srRec:table = { key = "res:" .. resourceType, kind = "resource", name = Locale.Lookup( resourceDesc.Name ), amount = entry.MaxAmount,
+						class = ( className == "RESOURCECLASS_LUXURY" ) and "Luxury" or ( ( className == "RESOURCECLASS_STRATEGIC" ) and "Strategic" or nil ),
+						enabled = entry.IsValid, callback = function() OnClickAvailableResource(player, resourceType); end };
+					if not entry.IsValid then
+						srRec.reason = Locale.Lookup( ( player:GetID() ~= g_LocalPlayer:GetID() ) and "LOC_DEAL_PLAYER_HAS_NO_CAP_ROOM" or "LOC_DEAL_AI_HAS_NO_CAP_ROOM" );
+					end
+					local pOtherResources:table = GetOtherPlayer( player ):GetResources();
+					if pOtherResources ~= nil and pOtherResources:GetResourceAmount( resourceType ) <= 0 then
+						srRec.otherNone = ( player:GetID() == g_LocalPlayer:GetID() ) and "they" or "you";
+					end
+					SRA_AddAvail( player, srRec );
+					-- End ScreenReaderAccess change
+
 					availableItemCount = availableItemCount + 1;
 				end
 			end
@@ -1826,6 +1885,13 @@ function PopulateAvailableAgreements(player : table, iconList : table)
 				uiIcon.SelectButton:SetToolTipString(nil);
 			end
 			uiMinimizedIcon.SelectButton:SetToolTipString(szTooltip);
+
+			-- Begin ScreenReaderAccess change
+			local srDisabled:boolean = SRA_IsAvailableDisabled( entry );
+			SRA_AddAvail( player, { key = "agr:" .. agreementType, kind = "agreement", name = Locale.Lookup( entry.SubTypeName ), duration = agreementDuration,
+				enabled = not srDisabled, reason = srDisabled and SRA_InvalidReason( entry ) or nil, tooltip = szTooltip,
+				callback = function() OnClickAvailableAgreement(player, agreementType, agreementDuration); end } );
+			-- End ScreenReaderAccess change
 
 			availableItemCount = availableItemCount + 1;
 		end
@@ -1948,6 +2014,14 @@ function PopulateAvailableCities(player : table, iconList : table)
 				uiMinimizedIcon.SelectButton:SetToolTipString(Locale.Lookup(entry.ForTypeName).."[NEWLINE]"..MakeCityToolTip(player, type ));
 			end
 
+			-- Begin ScreenReaderAccess change
+			local srDisabled:boolean = SRA_IsAvailableDisabled( entry );
+			SRA_AddAvail( player, { key = "city:" .. type .. ":" .. subType, kind = "city", name = Locale.Lookup( entry.ForTypeName ),
+				enabled = not srDisabled, reason = srDisabled and SRA_InvalidReason( entry ) or nil,
+				tooltip = function() return MakeCityToolTip( ( subType == 1 ) and GetOtherPlayer( player ) or player, type ); end,
+				callback = function() OnClickAvailableCity(player, type, subType); end } );
+			-- End ScreenReaderAccess change
+
 			availableItemCount = availableItemCount + 1;
 		end
 
@@ -2028,6 +2102,13 @@ function PopulateAvailableGreatWorks(player : table, iconList : table)
 				local minimizedTooltip : string = Locale.Lookup(entry.ForTypeName) .. "[NEWLINE]"..greatWorkTooltip;
 				uiMinimizedIcon.SelectButton:SetToolTipString(minimizedTooltip);
 
+				-- Begin ScreenReaderAccess change
+				local srDisabled:boolean = SRA_IsAvailableDisabled( entry );
+				SRA_AddAvail( player, { key = "gw:" .. type, kind = "greatwork", name = Locale.Lookup( entry.ForTypeName ),
+					enabled = not srDisabled, reason = srDisabled and SRA_InvalidReason( entry ) or nil, tooltip = greatWorkTooltip,
+					callback = function() OnClickAvailableGreatWork(player, type, entry.ForTypeDescriptionID); end } );
+				-- End ScreenReaderAccess change
+
 				availableItemCount = availableItemCount + 1;
 			end
 		end
@@ -2086,6 +2167,13 @@ function PopulateAvailableCaptives(player : table, iconList : table)
 			uiMinimizedIcon.SelectButton:RegisterCallback( Mouse.eLClick, function() OnClickAvailableCaptive(player, type); end );
 
 			uiIcon.SelectButton:SetToolTipString(nil);		-- We recycle the entries, so make sure this is clear.
+
+			-- Begin ScreenReaderAccess change
+			local srDisabled:boolean = SRA_IsAvailableDisabled( entry );
+			SRA_AddAvail( player, { key = "cap:" .. type, kind = "captive", name = ( entry.ForTypeName ~= nil ) and Locale.Lookup( entry.ForTypeName ) or "Captive",
+				enabled = not srDisabled, reason = srDisabled and SRA_InvalidReason( entry ) or nil,
+				callback = function() OnClickAvailableCaptive(player, type); end } );
+			-- End ScreenReaderAccess change
 
 			availableItemCount = availableItemCount + 1;
 		end
@@ -2752,6 +2840,7 @@ end
 
 -- ===========================================================================
 function InputHandler( pInputStruct:table )
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then 
 		return KeyHandler( pInputStruct:GetKey() ); 
@@ -2776,7 +2865,7 @@ function OnShowMakeDeal(otherPlayerID)
 	ms_bIsDemand = false;
 	ContextPtr:SetHide( false );
 end
-LuaEvents.DiploPopup_ShowMakeDeal.Add(OnShowMakeDeal);
+SRListen( LuaEvents.DiploPopup_ShowMakeDeal, OnShowMakeDeal );		-- ScreenReaderAccess: was .Add(), see SRListen.lua
 
 -- ===========================================================================
 --	Handle a request to be shown, this should only be called by
@@ -2788,7 +2877,7 @@ function OnShowMakeDemand(otherPlayerID)
 	ms_bIsDemand = true;
 	ContextPtr:SetHide( false );
 end
-LuaEvents.DiploPopup_ShowMakeDemand.Add(OnShowMakeDemand);
+SRListen( LuaEvents.DiploPopup_ShowMakeDemand, OnShowMakeDemand );		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	Handle a request to be hidden, this should only be called by
@@ -2798,7 +2887,7 @@ LuaEvents.DiploPopup_ShowMakeDemand.Add(OnShowMakeDemand);
 function OnHideDeal(otherPlayerID)
 	OnContinue();
 end
-LuaEvents.DiploPopup_HideDeal.Add(OnHideDeal);
+SRListen( LuaEvents.DiploPopup_HideDeal, OnHideDeal );		-- ScreenReaderAccess
 
 -- ===========================================================================
 -- The other player has updated the deal
@@ -2815,10 +2904,11 @@ function OnDiplomacyIncomingDeal(eFromPlayer, eToPlayer, eAction)
 			PopulatePlayerDealPanel(g_uiTheirOffers, g_OtherPlayer);
 			PopulatePlayerDealPanel(g_uiMyOffers, g_LocalPlayer);
 			UpdateDealStatus();
+			SRA_NoteIncoming( eAction );		-- ScreenReaderAccess
 		end
 	end
 end
-Events.DiplomacyIncomingDeal.Add(OnDiplomacyIncomingDeal);
+SRListen( Events.DiplomacyIncomingDeal, OnDiplomacyIncomingDeal );		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	Handle a deal changing, usually from an incoming statement.
@@ -2834,10 +2924,11 @@ function OnDealUpdated(otherPlayerID, eAction, szText)
 		OnDiplomacyIncomingDeal( otherPlayerID, Game.GetLocalPlayer(), eAction); 
 	end
 end
-LuaEvents.DiploPopup_DealUpdated.Add(OnDealUpdated);
+SRListen( LuaEvents.DiploPopup_DealUpdated, OnDealUpdated );		-- ScreenReaderAccess
 
 -- ===========================================================================
 function SetLeaderDialog(leaderDialog:string, leaderEffect:string)
+	SRA_NoteLeader( leaderDialog, leaderEffect );		-- ScreenReaderAccess
 	-- Update dialog
 	Controls.LeaderDialog:LocalizeAndSetText(leaderDialog);
 
@@ -2999,6 +3090,8 @@ function OnShow()
 	g_IconOnlyIM:ResetInstances();
 	g_IconAndTextIM:ResetInstances();
 	ms_MinimizedSectionIM:ResetInstances();
+	m_srAvail = { [OTHER_PLAYER] = {}, [LOCAL_PLAYER] = {} };		-- ScreenReaderAccess
+	m_srOptions = {};												-- ScreenReaderAccess
 
 	--Reset the cityDetails states to closed
 	m_kCollapsedCityDetails = {};
@@ -3090,11 +3183,14 @@ function OnShow()
 	TTManager:ClearCurrent();	-- Clear any tool tips raised;
 
 	Controls.DealOptionsStack:CalculateSize();
+
+	SRA_ArmOpen();		-- ScreenReaderAccess
 end
 
-----------------------------------------------------------------    
+----------------------------------------------------------------
 function OnHide()
 	LuaEvents.DiploBasePopup_HideUI(false);
+	SRA_OnHide();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -3113,7 +3209,7 @@ end
 --	Not called when screen is dismissed, only if the whole context is removed!
 -- ===========================================================================
 function OnShutdown()
-
+	SRUnlistenAll();		-- ScreenReaderAccess: a hot reload must not leave this instance's listeners behind
 end
 
 -- ===========================================================================
@@ -3181,12 +3277,15 @@ function Initialize()
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetShowHandler( OnShow );
 	ContextPtr:SetHideHandler( OnHide );
+	SRA_CreateLists();										-- ScreenReaderAccess
+	ContextPtr:SetUpdate( SRA_OnUpdate );					-- ScreenReaderAccess
 
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
-	Events.PlayerDefeat.Add( OnPlayerDefeat );
-	Events.TeamVictory.Add( OnTeamVictory );
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );		-- ScreenReaderAccess: SRListen instead of .Add()
+	SRListen( Events.PlayerDefeat, OnPlayerDefeat );
+	SRListen( Events.TeamVictory, OnTeamVictory );
 
-	Events.UserRequestClose.Add( OnUserRequestClose );
+	SRListen( Events.UserRequestClose, OnUserRequestClose );
+	SRListen( LuaEvents.SRA_DealStatement, SRA_OnStatement );		-- ScreenReaderAccess
 
 	m_kPopupDialog = PopupDialog:new( "DiplomacyDealView" );
 
@@ -3228,5 +3327,622 @@ end
 -- functions from this file. If you're implementing a new "DiplomacyDealView_" file DO NOT include this file.
 include("DiplomacyDealView_", true);
 
+-- ===========================================================================
+-- Begin ScreenReaderAccess change: keyboard navigation and speech for the deal screen
+-- (docs/ingame-plan.md, "Deal screen"). Four sections, Tab / Shift+Tab cycle through them:
+--   1 Deal         what is in the deal (Enter or Delete removes an item, Left/Right change an amount)
+--   2 Your items   what you can add (the records the Populate* functions keep in m_srAvail)
+--   3 Their items  the same for the other side
+--   4 Actions      the visible buttons (Propose / Accept, What would it take?, Never mind ...)
+-- Each section is a KeyNavList rebuilt from the game's state at key time; Enter runs the callback of the icon or
+-- button itself. The agreement option popup (alliance type, war target ...) is a fifth list that owns the keys
+-- while it is open. The AI's answers (leader text, changed deal) are spoken from the update loop once things have
+-- settled. Every keyboard event is swallowed while the screen is shown.
+-- ===========================================================================
+local SRA_SECTIONS:table = { "Deal", "Your items", "Their items", "Actions" };
+local SRA_ACTION_BUTTONS:table = { "AcceptDeal", "DemandDeal", "EqualizeDeal", "ResumeGame", "RefuseDeal" };
+local SRA_ACTION_HELP:table = {
+	AcceptDeal = "Sends your proposal to the other side, or accepts the deal when they have agreed to it",
+	DemandDeal = "Makes your demand",
+	EqualizeDeal = "Asks the other side what they would want, or give, to make the deal work",
+	ResumeGame = "Closes the deal screen and goes back to the game, the deal stays pending",
+	RefuseDeal = "Leaves the deal, or refuses the offer",
+};
+local SRA_AVAILABLE_SECTION:table = { agreement = "Agreements", city = "Cities", greatwork = "Great works", captive = "Captives" };
+
+local m_srLists:table = {};
+local m_srOptList:table = nil;
+local m_srSection:number = 1;
+local m_srShown:boolean = false;			-- OnShow ran (so OnHide may speak)
+local m_srAnnounced:boolean = false;		-- the opening announcement was spoken (changes may be spoken now)
+local m_srOpenWait:number = -1;				-- seconds until the opening announcement, -1 = none pending
+local m_srFlushWait:number = -1;			-- seconds until changes are spoken, -1 = none pending
+local m_srIncomingAction = nil;				-- the last DealProposalAction the other side sent, until spoken
+local m_srLeaderText:string = "";			-- what the leader says now (set by SetLeaderDialog)
+local m_srSpokenLeader:string = "";
+local m_srSpokenSig:string = "";			-- the deal summary as last spoken
+local m_srAcceptTime = nil;					-- when the final Accept was pressed, so the hide says "Deal accepted"
+local m_srStatement = nil;					-- what the leader said when the deal was opened (LuaEvents.SRA_DealStatement from DiplomacyActionView)
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( text or "" );
+end
+
+local function SRA_Plural( n:number, word:string )
+	return n .. " " .. word .. ( n == 1 and "" or "s" );
+end
+
+local function SRA_LookupText( id )
+	if id == nil then return nil; end
+	return SRA_Clean( Locale.Lookup( id ) );
+end
+
+-- A demand made to us cannot be edited; a gift or demand from the other side cannot get new items.
+local function SRA_IsDemandToUs()
+	return ms_bIsDemand == true and ms_InitiatedByPlayerID == ms_OtherPlayerID;
+end
+
+local function SRA_CannotAdd()
+	return ( ms_bIsDemand == true or ms_bIsGift == true ) and ms_InitiatedByPlayerID == ms_OtherPlayerID;
+end
+
+-- ---------------------------------------------------------------------------
+--	The deal as plain records
+-- ---------------------------------------------------------------------------
+local function SRA_WorkingDeal()
+	if g_LocalPlayer == nil or g_OtherPlayer == nil then return nil; end
+	return DealManager.GetWorkingDeal( DealDirection.OUTGOING, g_LocalPlayer:GetID(), g_OtherPlayer:GetID() );
+end
+
+local function SRA_ItemRecord( pDeal:table, pDealItem:table )
+	local itemType:number = pDealItem:GetType();
+	local rec:table = { id = pDealItem:GetID(), from = pDealItem:GetFromPlayerID(), amount = pDealItem:GetAmount(), duration = pDealItem:GetDuration() };
+	if itemType == DealItemTypes.GOLD then
+		rec.kind = "gold";
+	elseif DealItemTypes.FAVOR ~= nil and itemType == DealItemTypes.FAVOR then
+		rec.kind = "favor";
+	elseif itemType == DealItemTypes.RESOURCES then
+		rec.kind = "resource";
+		local desc:table = GameInfo.Resources[ pDealItem:GetValueType() ];
+		rec.name = ( desc ~= nil ) and Locale.Lookup( desc.Name ) or SRA_LookupText( pDealItem:GetValueTypeNameID() );
+	elseif itemType == DealItemTypes.AGREEMENTS then
+		rec.kind = "agreement";
+		rec.name = SRA_LookupText( pDealItem:GetSubTypeNameID() );
+		rec.detail = SRA_LookupText( pDealItem:GetValueTypeNameID() );
+	elseif itemType == DealItemTypes.CITIES then
+		rec.kind = "city";
+		rec.name = SRA_LookupText( pDealItem:GetValueTypeNameID() );
+	elseif itemType == DealItemTypes.GREATWORK then
+		rec.kind = "greatwork";
+		rec.name = SRA_LookupText( pDealItem:GetValueTypeNameID() );
+	elseif itemType == DealItemTypes.CAPTIVE then
+		rec.kind = "captive";
+		rec.name = SRA_LookupText( pDealItem:GetValueTypeNameID() );
+	else
+		rec.kind = "other";
+		rec.name = SRA_LookupText( pDealItem:GetValueTypeNameID() ) or SRA_LookupText( pDealItem:GetSubTypeNameID() );
+	end
+	-- the identity of an item across repopulates (the game re-creates an item when its amount changes: the ID changes)
+	rec.key = rec.from .. ":" .. itemType .. ":" .. tostring( pDealItem:GetSubType() ) .. ":" .. tostring( pDealItem:GetValueType() ) .. ":" .. rec.duration;
+	rec.locked = pDealItem:IsLocked();
+	rec.unacceptable = pDealItem:IsUnacceptable();
+	rec.hasParent = pDeal:GetItemParent( pDealItem ) ~= nil;
+	rec.editable = IsItemValueEditable( itemType ) and not rec.locked and not rec.hasParent;
+	if rec.editable then rec.max = pDealItem:GetMaxAmount(); end
+	return rec;
+end
+
+-- What you give, what they give.
+local function SRA_DealRecords()
+	local give:table, get:table = {}, {};
+	local pDeal:table = SRA_WorkingDeal();
+	if pDeal == nil then return give, get; end
+	local localID:number = g_LocalPlayer:GetID();
+	for pDealItem in pDeal:Items() do
+		local rec:table = SRA_ItemRecord( pDeal, pDealItem );
+		if rec.from == localID then table.insert( give, rec ); else table.insert( get, rec ); end
+	end
+	return give, get;
+end
+
+local function SRA_DealTexts()
+	local texts:table = {};
+	local give:table, get:table = SRA_DealRecords();
+	for _, rec in ipairs( give ) do table.insert( texts, DealSpeech_DealItemText( rec, true ) ); end
+	for _, rec in ipairs( get ) do table.insert( texts, DealSpeech_DealItemText( rec, false ) ); end
+	return texts;
+end
+
+local function SRA_Summary()
+	local give:table, get:table = SRA_DealRecords();
+	return DealSpeech_Summary( give, get );
+end
+
+-- Says what a click or key changed in the deal, then the whole deal; remembers the deal as spoken.
+local function SRA_SpeakChange( before:table, fallback:string )
+	local change = DealSpeech_ChangeText( before, SRA_DealTexts() );
+	local summary:string = SRA_Summary();
+	m_srSpokenSig = summary;
+	SRA_Say( ( change or fallback or "Nothing changed" ) .. ". " .. summary );
+end
+
+-- ---------------------------------------------------------------------------
+--	Section 1: the deal
+-- ---------------------------------------------------------------------------
+local function SRA_DealItemDetail( rec:table, mine:boolean )
+	local parts:table = { DealSpeech_DealItemText( rec, mine ) };
+	if rec.locked then
+		table.insert( parts, "Locked, it can't be removed" );
+	elseif rec.hasParent then
+		table.insert( parts, "Comes with a city in the deal and goes when the city is removed" );
+	elseif SRA_IsDemandToUs() then
+		table.insert( parts, "Part of the demand made to you, you can't change it" );
+	else
+		if rec.editable then
+			table.insert( parts, "Left and Right change the amount by 1, with Shift by 10" .. ( rec.max ~= nil and ( ", up to " .. rec.max ) or "" ) );
+		end
+		table.insert( parts, "Enter or Delete removes it" );
+	end
+	if rec.unacceptable then table.insert( parts, "The other side has marked this unacceptable" ); end
+	return table.concat( parts, ". " );
+end
+
+local function SRA_DealItems()
+	local items:table = {};
+	local give:table, get:table = SRA_DealRecords();
+	local function Add( rec:table, mine:boolean )
+		local text:string = DealSpeech_DealItemText( rec, mine );
+		if rec.locked then text = text .. ", locked"; end
+		if rec.hasParent then text = text .. ", comes with a city"; end
+		if rec.unacceptable then text = text .. ", unacceptable"; end
+		table.insert( items, { key = "d:" .. rec.key, text = text, rec = rec, detail = function() return SRA_DealItemDetail( rec, mine ); end } );
+	end
+	for _, rec in ipairs( give ) do Add( rec, true ); end
+	for _, rec in ipairs( get ) do Add( rec, false ); end
+	if #items == 0 then
+		items[1] = { key = "empty", empty = true, text = "Deal is empty", choosable = false, reason = "Deal is empty. Add items from Your items or Their items",
+			detail = "Tab switches to Your items and Their items, Enter on an item adds it to the deal" };
+	end
+	return items;
+end
+
+local function SRA_RemoveItem( item:table )
+	if item == nil or item.rec == nil then SRA_Say( "Nothing to remove" ); return; end
+	local rec:table = item.rec;
+	if SRA_IsDemandToUs() then SRA_Say( "Can't remove it, this is a demand made to you" ); return; end
+	if rec.locked then SRA_Say( "Can't remove it, it is locked in by the agreement" ); return; end
+	if rec.hasParent then SRA_Say( "Can't remove it, it comes with a city. Remove the city instead" ); return; end
+	local before:table = SRA_DealTexts();
+	local player:table = ( rec.from == g_LocalPlayer:GetID() ) and g_LocalPlayer or g_OtherPlayer;
+	OnRemoveDealItem( player, rec.id );
+	m_srLists[1].Reset();
+	SRA_SpeakChange( before, "Could not remove it" );
+end
+
+local function SRA_FocusedItem( section:number )
+	local key = m_srLists[ section ].GetFocusKey();
+	if key == nil then return nil; end
+	local items:table = ( section == 1 ) and SRA_DealItems() or nil;
+	for _, item in ipairs( items or {} ) do
+		if item.key == key then return item; end
+	end
+	return nil;
+end
+
+local function SRA_KeyDelete()
+	SRA_RemoveItem( SRA_FocusedItem( 1 ) );
+end
+
+-- Left / Right in the deal section: the amount of a gold, resource or favor item, through the game's own
+-- value edit (the edit box text and OnValueEditButton, what the popup's OK button does).
+local function SRA_ChangeAmount( delta:number )
+	local item:table = SRA_FocusedItem( 1 );
+	if item == nil or item.rec == nil then SRA_Say( "Select an item first" ); return; end
+	local rec:table = item.rec;
+	if SRA_IsDemandToUs() then SRA_Say( "You can't change a demand made to you" ); return; end
+	if not rec.editable then SRA_Say( "This item has no amount to change" ); return; end
+	local pDeal:table = SRA_WorkingDeal();
+	local pDealItem:table = ( pDeal ~= nil ) and pDeal:FindItemByID( rec.id ) or nil;
+	if pDealItem == nil then SRA_Say( "Item no longer available" ); return; end
+	local current:number = pDealItem:GetAmount();
+	local target:number = clip( current + delta, 1, pDealItem:GetMaxAmount() );
+	if target == current then
+		SRA_Say( ( delta > 0 and "Already at the maximum, " or "Already at the minimum, " ) .. DealSpeech_ItemText( rec ) );
+		return;
+	end
+	Controls.ValueAmountEditBox:SetText( tostring( target ) );
+	OnValueEditButton( rec.id );
+	-- the game re-created the item (new ID): find it again by its identity
+	local give:table, get:table = SRA_DealRecords();
+	m_srSpokenSig = DealSpeech_Summary( give, get );
+	for _, list in ipairs( { give, get } ) do
+		for _, newRec in ipairs( list ) do
+			if newRec.key == rec.key then
+				SRA_Say( DealSpeech_ItemText( newRec ) .. ( ( newRec.amount ~= target ) and ", the most possible" or "" ) );
+				return;
+			end
+		end
+	end
+	SRA_Say( m_srSpokenSig );
+end
+
+-- ---------------------------------------------------------------------------
+--	Sections 2 and 3: the items that can be added
+-- ---------------------------------------------------------------------------
+local function SRA_AvailableDetail( rec:table )
+	local parts:table = { DealSpeech_AvailableText( rec ) };
+	local tip = rec.tooltip;
+	if type( tip ) == "function" then tip = tip(); end
+	if tip ~= nil and tip ~= "" then table.insert( parts, SRA_Clean( tip ) ); end
+	if rec.hint ~= nil then table.insert( parts, rec.hint ); end
+	return table.concat( parts, ". " );
+end
+
+local function SRA_AvailableItems( playerType:number )
+	local items:table = {};
+	for _, rec in ipairs( m_srAvail[ playerType ] ) do
+		table.insert( items, { key = "a:" .. rec.key, text = DealSpeech_AvailableText( rec ), section = SRA_AVAILABLE_SECTION[ rec.kind ], rec = rec,
+			choosable = ( rec.enabled ~= false ), reason = ( rec.reason ~= nil ) and ( "Unavailable: " .. rec.reason ) or "Unavailable",
+			detail = function() return SRA_AvailableDetail( rec ); end } );
+	end
+	return items;
+end
+
+local function SRA_OptionsOpen()
+	return #m_srOptions > 0 and not Controls.ValueEditPopupBackground:IsHidden();
+end
+
+local function SRA_OptionItems()
+	local items:table = {};
+	for _, opt in ipairs( m_srOptions ) do
+		local text:string = SRA_Clean( ( string.gsub( opt.text or "", "%[[nN][eE][wW][lL][iI][nN][eE]%]", ", " ) ) );
+		table.insert( items, { key = opt.key, text = text, opt = opt, detail = ( opt.tooltip ~= nil and opt.tooltip ~= "" ) and SRA_Clean( opt.tooltip ) or nil } );
+	end
+	return items;
+end
+
+local m_srBeforeOption:table = {};		-- the deal as it was when an option popup opened
+
+local function SRA_OpenOptions()
+	m_srOptList.Reset();
+	local header:string = SRA_Clean( Controls.ValueEditHeaderLabel:GetText() );
+	m_srOptList.Open( header ~= "" and header or "Choose an option" );
+end
+
+local function SRA_OnAvailableActivate( item:table )
+	if SRA_CannotAdd() then SRA_Say( "You can't add to this offer" ); return; end
+	local before:table = SRA_DealTexts();
+	m_srBeforeOption = before;
+	item.rec.callback();
+	if SRA_OptionsOpen() then SRA_OpenOptions(); return; end
+	SRA_SpeakChange( before, "Nothing added, it is already in the deal or not possible" );
+end
+
+local function SRA_OnOptionActivate( item:table )
+	item.opt.callback();
+	m_srOptions = {};
+	SRA_SpeakChange( m_srBeforeOption, "Nothing added" );
+end
+
+local function SRA_OnOptionsClose()
+	OnAgreementBackButton();
+	m_srOptions = {};
+	SRA_Say( "Back" );
+end
+
+-- ---------------------------------------------------------------------------
+--	Section 4: the buttons
+-- ---------------------------------------------------------------------------
+local function SRA_ButtonLabel( ctl:table )
+	local ok:boolean, label = pcall( function() return ctl:GetTextControl():GetText(); end );
+	if ok and label ~= nil then return SRA_Clean( label ); end
+	return "";
+end
+
+local function SRA_ActionItems()
+	local items:table = {};
+	for _, id in ipairs( SRA_ACTION_BUTTONS ) do
+		local ctl:table = Controls[ id ];
+		if ctl ~= nil and not ctl:IsHidden() then
+			local label:string = SRA_ButtonLabel( ctl );
+			if label == "" then label = id; end
+			local disabled:boolean = ctl:IsDisabled();
+			local ok:boolean, tip = pcall( function() return ctl:GetToolTipString(); end );
+			local detail:string = SRA_ACTION_HELP[ id ] or label;
+			if ok and tip ~= nil and tip ~= "" then detail = SRA_Clean( tip ) .. ". " .. detail; end
+			table.insert( items, { key = "act:" .. id, id = id, label = label, text = label .. ( disabled and ", unavailable" or "" ),
+				choosable = not disabled, reason = label .. " is unavailable", detail = detail } );
+		end
+	end
+	return items;
+end
+
+local function SRA_ActionNames()
+	local names:table = {};
+	for _, item in ipairs( SRA_ActionItems() ) do table.insert( names, item.text ); end
+	return table.concat( names, ", " );
+end
+
+function SRA_Touch()
+	m_srFlushWait = 0.45;
+end
+
+local function SRA_OnActionActivate( item:table )
+	local id:string = item.id;
+	SRA_Say( item.label );
+	m_srAcceptTime = nil;
+	if id == "AcceptDeal" or id == "DemandDeal" then
+		-- the final accept (the deal is equal on both sides) closes the screen: remember it for the hide
+		local act = ms_LastIncomingDealProposalAction;
+		if id == "AcceptDeal" and ( act == DealProposalAction.ACCEPTED or act == DealProposalAction.PROPOSED or act == DealProposalAction.ADJUSTED )
+				and DealManager.AreWorkingDealsEqual( g_LocalPlayer:GetID(), g_OtherPlayer:GetID() ) then
+			m_srAcceptTime = UI.GetElapsedTime();
+		end
+		OnProposeOrAcceptDeal();
+	elseif id == "EqualizeDeal" then
+		OnEqualizeDeal();
+	elseif id == "RefuseDeal" then
+		OnRefuseDeal();
+	elseif id == "ResumeGame" then
+		OnResumeGame();
+	end
+	SRA_Touch();
+end
+
+-- ---------------------------------------------------------------------------
+--	Sections, opening announcement, answers of the other side
+-- ---------------------------------------------------------------------------
+local function SRA_BuildSection( n:number )
+	if n == 1 then return SRA_DealItems(); end
+	if n == 2 then return SRA_AvailableItems( LOCAL_PLAYER ); end
+	if n == 3 then return SRA_AvailableItems( OTHER_PLAYER ); end
+	return SRA_ActionItems();
+end
+
+local function SRA_EnterSection( n:number )
+	m_srSection = n;
+	local items:table = SRA_BuildSection( n );
+	local count:number = #items;
+	if n == 1 and count == 1 and items[1].empty then count = 0; end
+	local name:string = SRA_SECTIONS[ n ];
+	if n == 1 and count == 0 then
+		SRA_Say( "Deal, empty. Tab to Your items or Their items to add something" );
+		return;
+	end
+	if count == 0 then
+		SRA_Say( name .. ", nothing available" );
+		return;
+	end
+	SRA_Say( name .. ", " .. SRA_Plural( count, "item" ) );
+	m_srLists[ n ].Focus( m_srLists[ n ].GetFocusKey(), "" );		-- the list speaks the focused item after the section name
+end
+
+local function SRA_CycleSection( delta:number )
+	SRA_EnterSection( ( ( m_srSection - 1 + delta ) % 4 ) + 1 );
+end
+
+local function SRA_SpeakStatus()
+	local summary:string = SRA_Summary();
+	local parts:table = { summary };
+	if m_srLeaderText ~= "" then table.insert( parts, m_srLeaderText ); end
+	local actions:string = SRA_ActionNames();
+	if actions ~= "" then table.insert( parts, "Actions: " .. actions ); end
+	m_srSpokenSig = summary;
+	m_srSpokenLeader = m_srLeaderText;
+	SRA_Say( table.concat( parts, " " ) );
+end
+
+local function SRA_Announce()
+	m_srAnnounced = true;
+	if g_OtherPlayer == nil or g_LocalPlayer == nil then return; end
+	local config:table = PlayerConfigurations[ g_OtherPlayer:GetID() ];
+	local leader:string = Locale.Lookup( config:GetLeaderName() );
+	local civ:string = Locale.Lookup( config:GetCivilizationShortDescription() );
+	local theirs:boolean = ( ms_InitiatedByPlayerID == ms_OtherPlayerID );
+	local mode:string = "make";
+	if theirs then
+		mode = ms_bIsDemand and "theirdemand" or ( ms_bIsGift and "theirgift" or "theirdeal" );
+	elseif ms_bIsDemand then
+		mode = "demand";
+	end
+	local summary:string = SRA_Summary();
+	local parts:table = { DealSpeech_Intro( leader, civ, mode ) };
+	if m_srStatement ~= nil and m_srStatement ~= "" then table.insert( parts, m_srStatement ); end
+	m_srStatement = nil;
+	if m_srLeaderText ~= "" and m_srLeaderText ~= parts[2] then table.insert( parts, m_srLeaderText ); end
+	table.insert( parts, summary );
+	if theirs then
+		local actions:string = SRA_ActionNames();
+		if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
+	end
+	table.insert( parts, "Tab switches sections: Deal, Your items, Their items, Actions. S reads the summary." );
+	m_srSpokenLeader = m_srLeaderText;
+	m_srSpokenSig = summary;
+	SRA_Say( table.concat( parts, " " ), true );
+end
+
+-- Called by OnShow: the announcement comes from the update loop once the screen has settled.
+function SRA_ArmOpen()
+	m_srShown = true;
+	m_srAnnounced = false;
+	m_srOpenWait = 0.4;
+	m_srFlushWait = -1;
+	m_srIncomingAction = nil;
+	m_srAcceptTime = nil;
+	m_srSection = ( ms_InitiatedByPlayerID == ms_OtherPlayerID ) and 4 or 1;
+	for _, list in ipairs( m_srLists ) do list.Reset(); end
+	if m_srOptList ~= nil then m_srOptList.Reset(); end
+end
+
+-- SetLeaderDialog was called: remember what the leader says (spoken by the next flush when it changed).
+function SRA_NoteLeader( dialog:string, effect:string )
+	local text:string = SRA_Clean( Locale.Lookup( dialog or "" ) );
+	if effect ~= nil and effect ~= "" then
+		local effectText:string = SRA_Clean( Locale.Lookup( effect ) );
+		if effectText ~= "" then text = text .. ". " .. effectText; end
+	end
+	m_srLeaderText = text;
+	SRA_Touch();
+end
+
+function SRA_OnStatement( text:string )
+	m_srStatement = text;
+end
+
+-- The other side sent a new version of the deal (or answered it).
+function SRA_NoteIncoming( eAction )
+	if ContextPtr:IsHidden() then return; end
+	m_srIncomingAction = eAction;
+	SRA_Touch();
+end
+
+-- Speaks the answer of the other side and every change of the leader's text or the deal that nobody has spoken yet.
+local function SRA_Flush()
+	if not m_srAnnounced or ContextPtr:IsHidden() then return; end
+	local parts:table = {};
+	local action = m_srIncomingAction;
+	m_srIncomingAction = nil;
+	if action == DealProposalAction.ACCEPTED then
+		table.insert( parts, "They accept the deal." );
+	elseif action == DealProposalAction.REJECTED or action == DealProposalAction.REJECTED_PERMANENT then
+		table.insert( parts, "They reject the deal." );
+	elseif action == DealProposalAction.EQUALIZE_FAILED then
+		table.insert( parts, "They can't find a way to make it work." );
+	end
+	if m_srLeaderText ~= "" and m_srLeaderText ~= m_srSpokenLeader then
+		table.insert( parts, m_srLeaderText );
+		m_srSpokenLeader = m_srLeaderText;
+	end
+	local summary:string = SRA_Summary();
+	if summary ~= m_srSpokenSig then
+		table.insert( parts, "Deal changed. " .. summary );
+		m_srSpokenSig = summary;
+	end
+	if #parts > 0 then
+		if action ~= nil then
+			local actions:string = SRA_ActionNames();
+			if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
+		end
+		SRA_Say( table.concat( parts, " " ), true );
+	end
+end
+
+function SRA_OnHide()
+	if not m_srShown then return; end
+	m_srShown = false;
+	m_srAnnounced = false;
+	m_srStatement = nil;
+	m_srOpenWait = -1;
+	m_srFlushWait = -1;
+	local accepted:boolean = ( m_srAcceptTime ~= nil and UI.GetElapsedTime() - m_srAcceptTime < 5 );
+	m_srAcceptTime = nil;
+	SRA_Say( accepted and "Deal accepted" or "Deal closed", true );
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_srOpenWait >= 0 then
+		m_srOpenWait = m_srOpenWait - deltaTime;
+		if m_srOpenWait < 0 then
+			m_srOpenWait = -1;
+			local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+			if not ok then print( "DiplomacyDealView announce error: " .. tostring( err ) ); end
+		end
+		return;
+	end
+	if m_srFlushWait >= 0 then
+		m_srFlushWait = m_srFlushWait - deltaTime;
+		if m_srFlushWait < 0 then
+			m_srFlushWait = -1;
+			local ok:boolean, err = xpcall( SRA_Flush, KeyNavErrorHandler );
+			if not ok then print( "DiplomacyDealView flush error: " .. tostring( err ) ); end
+		end
+	end
+end
+
+-- ---------------------------------------------------------------------------
+--	Input
+-- ---------------------------------------------------------------------------
+local function SRA_Escape()
+	HandleESC();
+end
+
+local function SRA_HandleKey( input:table, key:number, isUp:boolean )
+	if m_kPopupDialog:IsOpen() then
+		-- the game's own popup (nothing to trade, stop asking, quit): same keys as the diplomacy screen's popups
+		if isUp then
+			if key == Keys.VK_ESCAPE then m_kPopupDialog:Close(); else m_kPopupDialog:KeyHandler( key ); end
+		end
+		return;
+	end
+	if SRA_OptionsOpen() then
+		m_srOptList.HandleInput( input );
+		return;
+	end
+	if key == Keys.VK_TAB then
+		if isUp then SRA_CycleSection( input:IsShiftDown() and -1 or 1 ); end
+		return;
+	end
+	if key == Keys.S and not input:IsShiftDown() and not input:IsControlDown() and not input:IsAltDown() then
+		if isUp then SRA_SpeakStatus(); end
+		return;
+	end
+	if m_srSection == 1 and ( key == Keys.VK_LEFT or key == Keys.VK_RIGHT ) then
+		if isUp then
+			local step:number = input:IsShiftDown() and 10 or 1;
+			SRA_ChangeAmount( ( key == Keys.VK_RIGHT ) and step or -step );
+		end
+		return;
+	end
+	m_srLists[ m_srSection ].HandleInput( input );
+end
+
+-- Every keyboard event is swallowed while the screen is shown (nothing may reach the hub, the world or the
+-- diplomacy screen behind); mouse events pass on.
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() or m_srLists[1] == nil then return false; end
+	local msg:number = pInputStruct:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+	local key:number = pInputStruct:GetKey();
+	local ok:boolean, err = xpcall( function() SRA_HandleKey( pInputStruct, key, isUp ); end, KeyNavErrorHandler );
+	if not ok then print( "DiplomacyDealView input error: " .. tostring( err ) ); end
+	return true;
+end
+
+function SRA_CreateLists()
+	local function Active( section:number )
+		return function()
+			return not ContextPtr:IsHidden() and m_srSection == section and not SRA_OptionsOpen() and not m_kPopupDialog:IsOpen();
+		end
+	end
+	m_srLists[1] = KeyNavList_Create{ build = SRA_DealItems, isActive = Active( 1 ), onActivate = SRA_RemoveItem, onClose = SRA_Escape,
+		extraKeys = { [ Keys.VK_DELETE ] = SRA_KeyDelete } };
+	m_srLists[2] = KeyNavList_Create{ build = function() return SRA_AvailableItems( LOCAL_PLAYER ); end, isActive = Active( 2 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
+	m_srLists[3] = KeyNavList_Create{ build = function() return SRA_AvailableItems( OTHER_PLAYER ); end, isActive = Active( 3 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
+	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };
+	m_srOptList = KeyNavList_Create{ build = SRA_OptionItems, isActive = function() return not ContextPtr:IsHidden() and SRA_OptionsOpen() and not m_kPopupDialog:IsOpen(); end,
+		onActivate = SRA_OnOptionActivate, onClose = SRA_OnOptionsClose };
+end
+
+-- Gathering Storm adds diplomatic favor (PopulateAvailableFavor lives in DiplomacyDealView_Expansion2.lua, included
+-- above): wrap it to record the favor icon too.
+if PopulateAvailableFavor ~= nil and OnClickAvailableOneTimeFavor ~= nil then
+	local SRA_PopulateAvailableFavor = PopulateAvailableFavor;
+	function PopulateAvailableFavor( player:table, iconList:table )
+		local count:number = SRA_PopulateAvailableFavor( player, iconList );
+		if count > 0 then
+			SRA_AddAvail( player, { key = "favor", kind = "favor", amount = player:GetFavor(),
+				hint = "Enter adds 1 diplomatic favor. Change the amount in the Deal section with Left and Right",
+				callback = function() OnClickAvailableOneTimeFavor( player, 1 ); end } );
+		end
+		return count;
+	end
+end
+print( "ScreenReaderAccess: DiplomacyDealView copy loaded" );		-- the verifier looks for this line in Lua.log
+-- End ScreenReaderAccess change
 
 Initialize();

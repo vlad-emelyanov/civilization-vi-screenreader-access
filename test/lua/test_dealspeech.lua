@@ -1,0 +1,57 @@
+-- DealSpeech.lua: spoken text of deal items, the summary and the click diff
+stub("engine")
+include("DealSpeech")
+
+test("gold, one time and per turn", function()
+	eq(DealSpeech_ItemText({ kind = "gold", amount = 50, duration = 0 }), "50 gold")
+	eq(DealSpeech_ItemText({ kind = "gold", amount = 5, duration = 30 }), "5 gold per turn for 30 turns")
+	eq(DealSpeech_ItemText({ kind = "gold", amount = 5, duration = 1 }), "5 gold per turn for 1 turn")
+end)
+
+test("resources, agreements, cities", function()
+	eq(DealSpeech_ItemText({ kind = "resource", name = "Silk", amount = 1, duration = 0 }), "Silk, 1")
+	eq(DealSpeech_ItemText({ kind = "resource", name = "Silk", amount = 2, duration = 30 }), "Silk, 2, 30 turns")
+	eq(DealSpeech_ItemText({ kind = "agreement", name = "Open Borders", duration = 30 }), "Open Borders, 30 turns")
+	eq(DealSpeech_ItemText({ kind = "agreement", name = "Joint War", detail = "Egypt", duration = 0 }), "Joint War, Egypt")
+	eq(DealSpeech_ItemText({ kind = "city", name = "Rome" }), "City: Rome")
+	eq(DealSpeech_ItemText({ kind = "greatwork", name = "Hymn" }), "Great work: Hymn")
+	eq(DealSpeech_ItemText({ kind = "favor", amount = 3 }), "3 diplomatic favor")
+end)
+
+test("deal item and summary", function()
+	eq(DealSpeech_DealItemText({ kind = "gold", amount = 50, duration = 0 }, true), "You give: 50 gold")
+	eq(DealSpeech_DealItemText({ kind = "resource", name = "Silk", amount = 1, duration = 0 }, false), "They give: Silk, 1")
+	eq(DealSpeech_Summary({}, {}), "Deal is empty.")
+	eq(DealSpeech_Summary({ { kind = "gold", amount = 5, duration = 30 }, { kind = "agreement", name = "Open Borders", duration = 30 } },
+		{ { kind = "resource", name = "Silk", amount = 1, duration = 0 } }),
+		"You give: 5 gold per turn for 30 turns; Open Borders, 30 turns. They give: Silk, 1.")
+	eq(DealSpeech_Summary({}, { { kind = "gold", amount = 9, duration = 0 } }), "You give nothing. They give: 9 gold.")
+end)
+
+test("intro by mode", function()
+	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "make"), "Deal with Gilgamesh of Sumeria.")
+	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "theirdeal"), "Gilgamesh of Sumeria proposes a deal.")
+	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "theirdemand"), "Gilgamesh of Sumeria demands:")
+	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "demand"), "Demand from Gilgamesh of Sumeria.")
+end)
+
+test("available items", function()
+	eq(DealSpeech_AvailableText({ kind = "gold", amount = 120, duration = 0 }), "Gold, 120 available")
+	eq(DealSpeech_AvailableText({ kind = "gold", amount = 8, duration = 30 }), "Gold per turn, 8 available")
+	eq(DealSpeech_AvailableText({ kind = "gold", duration = 30 }), "Gold per turn")
+	eq(DealSpeech_AvailableText({ kind = "resource", class = "Luxury", name = "Silk", amount = 2, otherNone = "they" }),
+		"Luxury: Silk, 2 available, they have none")
+	eq(DealSpeech_AvailableText({ kind = "agreement", name = "Research Agreement", duration = 30, enabled = false, reason = "no tech" }),
+		"Research Agreement, 30 turns, unavailable: no tech")
+	eq(DealSpeech_AvailableText({ kind = "agreement", name = "Alliance", enabled = false }), "Alliance, unavailable")
+	eq(DealSpeech_AvailableText({ kind = "city", name = "Rome" }), "City: Rome")
+	eq(DealSpeech_AvailableText({ kind = "favor", amount = 40 }), "Diplomatic favor, 40 available")
+end)
+
+test("change text", function()
+	eq(DealSpeech_ChangeText({}, { "50 gold" }), "Added: 50 gold")
+	eq(DealSpeech_ChangeText({ "50 gold", "Silk, 1" }, { "Silk, 1" }), "Removed: 50 gold")
+	eq(DealSpeech_ChangeText({ "50 gold" }, { "60 gold" }), "Changed: 60 gold")
+	eq(DealSpeech_ChangeText({ "50 gold" }, { "50 gold" }), nil)
+	eq(DealSpeech_ChangeText({ "Silk, 1" }, { "Silk, 1", "Silk, 1" }), "Added: Silk, 1")
+end)

@@ -1,0 +1,23 @@
+# UNVERIFIED: written offline, never run in the game. Deal screen (DiplomacyDealView.lua) on medieval-t100 (Rome, turn 99, civs met).
+# V lists the civs, Enter opens the diplomacy overview of the first one; the "Make Deal" overview entry is activated through
+# the screen's own callback (the position of the entry in the list depends on the diplomatic state), then the deal screen
+# announces itself 0.4 s after it opens.
+# no-share-load
+load medieval-t100
+clear-advisors
+key V -Settle 1500
+expect ^Diplomacy, met civilizations
+key Enter -Settle 3500
+expect ^Diplomacy with
+lua DiplomacyActionView OnSelectInitialDiplomacyStatement("CHOICE_MAKE_DEAL")
+wait Tab switches sections -Timeout 20
+expect ^Deal with .* of .*Tab switches sections: Deal, Your items, Their items, Actions
+key Tab -Settle 1000
+expect ^Your items, \d+ items?
+expect \d+ of \d+
+key Down -Settle 800
+expect \d+ of \d+
+key Escape -Settle 2500
+expect ^Deal closed
+key Escape -Settle 1500
+no-lua-errors
