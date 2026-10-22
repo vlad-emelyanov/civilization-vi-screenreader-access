@@ -37,6 +37,7 @@ local m_unitActions			:table = {};		-- plain list of the selected unit's actions
 local m_delayed				:table = {};		-- { time = seconds left, fn = function }
 local m_enterWatch			:number = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
 local m_enterLabel			:string = "";		-- what the action panel said Enter would do
+local m_placeCommitTime		:number = -100;		-- UI.GetElapsedTime() of the last placement commit (its result must outlive the selection that follows)
 local m_lastResultTime		:number = -100;		-- UI.GetElapsedTime() of the last announced result of a player's action
 local m_movers				:table = {};		-- unit id -> { dest = plot index, issued = time }: units on a move order given in this session
 local m_lastKeyTime			:number = -100;		-- UI.GetElapsedTime() of the last key press seen by the input handler
@@ -194,6 +195,53 @@ local function IsSettler( unit:table )
 	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return false; end
 	local row:table = GameInfo.Units[ unit:GetUnitType() ];
 	return row ~= nil and row.FoundCity == true;
+end
+
+-- Builders (non-combat units with build charges: Builder, Military Engineer): the improvements each unit type can ever
+-- build, from Improvement_ValidBuildUnits, cached per unit type.
+local m_builderLists:table = {};
+
+local function BuilderImprovements( unit:table )
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return nil; end
+	local unitType:number = unit:GetUnitType();
+	local cached = m_builderLists[ unitType ];
+	if cached ~= nil then return cached.list; end
+	local entry:table = { list = nil };
+	local row:table = GameInfo.Units[ unitType ];
+	if row ~= nil and row.BuildCharges ~= nil and row.BuildCharges > 0 and ( row.Combat or 0 ) == 0 then
+		local found:table = {};
+		for valid in GameInfo.Improvement_ValidBuildUnits() do
+			local improvement:table = ( valid.UnitType == row.UnitType ) and GameInfo.Improvements[ valid.ImprovementType ] or nil;
+			if improvement ~= nil then table.insert( found, { hash = improvement.Hash, name = Locale.Lookup( improvement.Name ) } ); end
+		end
+		if #found > 0 then entry.list = found; end
+	end
+	m_builderLists[ unitType ] = entry;
+	return entry.list;
+end
+
+-- "Builder can build: Farm, Mine" / "Builder can build nothing here" for the plot, as the engine answers for this unit
+-- (the same check the unit panel makes). Nil when the unit is no builder or the plot is not known.
+local function BuilderBuildText( unit:table, plot:table )
+	local list:table = BuilderImprovements( unit );
+	if list == nil or plot == nil then return nil; end
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	if vis == nil or not vis:IsRevealed( plot:GetIndex() ) then return nil; end
+	local name:string = Locale.Lookup( GameInfo.Units[ unit:GetUnitType() ].Name );
+	if unit:GetMovesRemaining() <= 0 then return name .. " has no moves left"; end
+	local operation:number = UnitOperationTypes.BUILD_IMPROVEMENT;
+	local names:table = {};
+	for _, improvement in ipairs( list ) do
+		local params:table = {};
+		params[ UnitOperationTypes.PARAM_IMPROVEMENT_TYPE ] = improvement.hash;
+		if UnitManager.CanStartOperation( unit, operation, plot, params, false ) then table.insert( names, improvement.name ); end
+	end
+	if #names == 0 then return name .. " can build nothing here"; end
+	if #names > 6 then
+		local extra:number = #names - 5;
+		names = { names[1], names[2], names[3], names[4], names[5], extra .. " more" };
+	end
+	return name .. " can build: " .. table.concat( names, ", " );
 end
 
 -- The first n good and m bad reasons of a settle candidate as "river, coast, silk, but floods, poor food" (empty when
@@ -600,6 +648,9 @@ local function DescribeCursorPlot( plot:table )
 	elseif IsSettler( unit ) then
 		local ok:boolean, reason = SettleScan_CanFound( unit, plot );
 		text = text .. ( ok and ", can settle" or ( ", " .. SettleScan_CannotText( reason ) ) );
+	elseif unit ~= nil then
+		local build:string = BuilderBuildText( unit, plot );
+		if build ~= nil then text = text .. ", " .. build; end
 	end
 	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
 	if relative ~= nil then text = text .. ". " .. relative; end
@@ -792,6 +843,8 @@ local function SpeakPlotDetails()
 	local text:string = PlotDescription_GetDetailed( plot, options );
 	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
 	if relative ~= nil then text = text .. ". " .. relative; end
+	local build:string = ( unit ~= nil and GetTargetMode() == nil ) and BuilderBuildText( unit, plot ) or nil;
+	if build ~= nil then text = text .. ". " .. build; end
 	OutputMessageToScreenReader( text );
 end
 
@@ -868,13 +921,15 @@ local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:numb
 	if plot == nil then return; end
 	SetCursor( plot:GetX(), plot:GetY(), false );
 	local text:string = UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } );
-	m_lastSelectionSpeech = UI.GetElapsedTime();
-	OutputMessageToScreenReader( text, UI.GetElapsedTime() - m_lastResultTime < 1.5 );
-	if m_ready then
-		SpeakSettleSentence( unit );
-	else
-		m_pendingUnit = unitID;		-- the game is still loading (turn 1): said again once it is ready, see OnLoadScreenClose
+	if not m_ready then
+		-- the game is still loading: it would be spoken before "CONTINUE GAME. Press Enter to start."; said once ready, see OnLoadScreenClose
+		m_pendingUnit = unitID;
+		return;
 	end
+	m_lastSelectionSpeech = UI.GetElapsedTime();
+	local sinceCommit:number = UI.GetElapsedTime() - m_placeCommitTime;
+	OutputMessageToScreenReader( text, UI.GetElapsedTime() - m_lastResultTime < 1.5 or sinceCommit < 3.0 );
+	SpeakSettleSentence( unit );
 end
 
 local function CityProductionText( city:table )
@@ -977,7 +1032,15 @@ local function OnLocalPlayerTurnEnd()
 	CloseMode( false, true );
 	m_enterWatch = -1;
 	if GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
-	OutputMessageToScreenReader( "Turn ended", true );
+	-- The event also fires when ending the turn is refused a moment later (a unit that finished exploring asks for
+	-- orders, turn number unchanged): speak only when the turn really ended.
+	local turn:number = Game.GetCurrentGameTurn();
+	After( 0.7, function()
+		local player:table = Players[ Game.GetLocalPlayer() ];
+		if Game.GetCurrentGameTurn() ~= turn or player == nil or not player:IsTurnActive() then
+			OutputMessageToScreenReader( "Turn ended", true );
+		end
+	end );
 end
 
 -- ===========================================================================
@@ -1380,8 +1443,14 @@ end
 
 -- The production / purchase that followed the placement, said once the engine has applied it.
 local function PlacementResult( scan:table, before:table, tries:number )
-	local city:table = UI.GetHeadSelectedCity();
+	-- the city captured at commit time: the game may already have selected the next unit (no selected city any more)
+	local city:table = before.city;
 	if city == nil or not IsLocalPlayerActive() then return; end
+	-- the selection of the next unit may already have been spoken: do not cut it off, queue behind it
+	local SayResult = function( text:string )
+		m_lastResultTime = UI.GetElapsedTime();
+		OutputMessageToScreenReader( text, m_lastSelectionSpeech > m_placeCommitTime );
+	end
 	if scan.purchaseYield ~= nil then
 		local player:table = Players[ Game.GetLocalPlayer() ];
 		local isGold:boolean = ( scan.purchaseYield == YieldTypes.GOLD );
@@ -1449,7 +1518,7 @@ local function PlacementCommit( c:table )
 		PlacementRescan();
 		return;
 	end
-	local before:table = { size = city:GetBuildQueue():GetSize(), balance = 0 };
+	local before:table = { size = city:GetBuildQueue():GetSize(), balance = 0, city = city };
 	if purchase then
 		before.balance = ( scan.purchaseYield == YieldTypes.GOLD ) and math.floor( player:GetTreasury():GetGoldBalance() ) or math.floor( player:GetReligion():GetFaithBalance() );
 		CityManager.RequestCommand( city, CityCommandTypes.PURCHASE, params );
@@ -1457,6 +1526,7 @@ local function PlacementCommit( c:table )
 		CityManager.RequestOperation( city, CityOperationTypes.BUILD, params );
 	end
 	m_lastKeyTime = UI.GetElapsedTime();
+	m_placeCommitTime = m_lastKeyTime;
 	LuaEvents.SRA_ExitPlacement( false );		-- WorldInput: leave the mode as the game does after placing (closes this mode)
 	After( 0.3, function()		-- the hook may be missing or fail: never stay in the placement mode after a commit
 		if IsPlacementMode( UI.GetInterfaceMode() ) then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
@@ -2006,18 +2076,16 @@ end
 local function OnUnitOperationAdded( ownerID:number, unitID:number, hOperation:number, operationIndex:number )
 	if ownerID ~= Game.GetLocalPlayer() or not m_ready then return; end
 	local row:table = GameInfo.UnitOperations[ operationIndex ];
+	if row ~= nil and row.OperationType == "UNITOPERATION_HEAL" then
+		-- Fortify Until Healed only adds the operation (no UnitOperationStarted, like Automate Exploration)
+		if UI.GetElapsedTime() - m_lastKeyTime <= 2.0 then SayResult( OPERATION_RESULTS.UNITOPERATION_HEAL ); end
+		return;
+	end
 	if row == nil or row.OperationType ~= "UNITOPERATION_AUTOMATE_EXPLORE" then return; end
+	-- The game also re-adds the operation of units that are already exploring (every turn, after a load): only the
+	-- order the player just gave is told. (The old "it has not moved" check after 1 s was dropped: unreliable.)
+	if UI.GetElapsedTime() - m_lastKeyTime > 2.0 then return; end
 	SayResult( OPERATION_RESULTS.UNITOPERATION_AUTOMATE_EXPLORE );
-	-- an exploring unit moves at once: one that stays where it is and keeps all its moves has nothing to explore
-	local unit:table = Players[ ownerID ]:GetUnits():FindID( unitID );
-	if unit == nil then return; end
-	local x:number, y:number, moves:number = unit:GetX(), unit:GetY(), unit:GetMovesRemaining();
-	After( 1.0, function()
-		local now:table = Players[ ownerID ]:GetUnits():FindID( unitID );
-		if now ~= nil and now:GetX() == x and now:GetY() == y and moves > 0 and now:GetMovesRemaining() >= moves then
-			SayResult( "It has not moved: nothing to explore, or the way is blocked" );
-		end
-	end );
 end
 
 local function OnUnitCommandStarted( ownerID:number, unitID:number, commandID:number )
@@ -2094,14 +2162,29 @@ local function CombatSide( data:table )
 		side.name = PlotDescription_GetUnitName( unit );
 		side.short = Locale.Lookup( unit:GetName() );
 		side.x, side.y = unit:GetX(), unit:GetY();
+		-- never name a unit the player cannot see (or an unmet civ behind it)
+		if data.playerID ~= Game.GetLocalPlayer() and not ( IsPlotVisibleToLocal( Map.GetPlot( side.x, side.y ) ) and PlotDescription_IsUnitVisible( unit ) ) then
+			side.name, side.short, side.unseen = "An unseen unit", "The unseen unit", true;
+		end
 	else
-		local city:table = player:GetCities():FindID( data.componentID );
-		if city == nil then return nil; end
+		local city:table = nil;
+		if data.componentType == ComponentType.DISTRICT then
+			local district:table = player:GetDistricts():FindID( data.componentID );
+			if district == nil then return nil; end
+			city = district:GetCity();
+			if city == nil then return nil; end
+			side.x, side.y = district:GetX(), district:GetY();
+		elseif data.componentType == ComponentType.CITY then
+			city = player:GetCities():FindID( data.componentID );
+			if city == nil then return nil; end
+			side.x, side.y = city:GetX(), city:GetY();
+		else
+			return nil;
+		end
 		side.name = Locale.Lookup( city:GetName() );
 		side.short = side.name;
-		side.x, side.y = city:GetX(), city:GetY();
 	end
-	if data.playerID == Game.GetLocalPlayer() then side.name = "Your " .. side.name; end
+	if data.playerID == Game.GetLocalPlayer() and not side.unseen then side.name = "Your " .. side.name; end
 	return side;
 end
 
