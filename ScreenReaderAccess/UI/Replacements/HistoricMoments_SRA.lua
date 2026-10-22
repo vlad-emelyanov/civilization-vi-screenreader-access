@@ -4,6 +4,7 @@
 include("InstanceManager");
 include("GameCapabilities");
 include("ModalScreen_PlayerYieldsHelper");
+include("ScreenReader");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -84,6 +85,9 @@ local m_isOpenFromEndGame	:boolean = false;
 
 local m_kQueuedPopups		: table	 = {};
 
+local m_srEntries	:table = {};		-- ScreenReaderAccess: spoken text of every moment on the timeline, oldest first
+local m_srIndex		:number = 0;		-- ScreenReaderAccess: entry last read with Up/Down
+
 -- Cause nil access on DATA_ILLUSTRATIONS_MAP to return m_LargeIllustrationIM
 setmetatable(DATA_ILLUSTRATIONS_MAP, { __index = function() return m_LargeIllustrationIM; end });
 
@@ -132,6 +136,18 @@ function ShowNewTimelineMoment(popupData:table)
 	local localPlayerID:number = Game.GetLocalPlayer();
 	local pPlayerConfig:table = PlayerConfigurations[localPlayerID];
 	Controls.ModalScreenTitle:SetText(Locale.ToUpper(Locale.Lookup("LOC_HISTORY_NEW_MOMENT", pPlayerConfig:GetCivilizationDescription())));
+
+	-- ScreenReaderAccess: "Historic moment: <title>. <description>, plus N era score. Enter to continue"
+	local momentData:table = Game.GetHistoryManager():GetMomentData(popupData.momentID);
+	local momentInfo:table = momentData and GameInfo.Moments[momentData.Type] or nil;
+	if momentInfo ~= nil then
+		local srText:string = "Historic moment: " .. Locale.Lookup(momentInfo.Name) .. ". " .. string.gsub(CleanTextForSpeech(Locale.Lookup(momentData.InstanceDescription)), "[%.%s]+$", "");
+		if momentData.EraScore ~= nil and momentData.EraScore ~= 0 then srText = srText .. ", plus " .. tostring(momentData.EraScore) .. " era score"; end
+		OutputMessageToScreenReader(srText .. ". Enter to continue");
+		m_srIndex = #m_srEntries;
+	else
+		OutputMessageToScreenReader("Historic moment. Enter to continue");
+	end
 end
 
 -- ===========================================================================
@@ -188,6 +204,8 @@ function ResetTimeline()
 	m_SmallMomentStackIM:ResetInstances();
 	m_EraLabelIM:ResetInstances();
 	m_TimelinePaddingIM:ResetInstances();
+	m_srEntries = {};		-- ScreenReaderAccess
+	m_srIndex = 0;		-- ScreenReaderAccess
 	for _, instanceManager in ipairs(DATA_ILLUSTRATIONS_MAP) do
 		instanceManager:ResetInstances();
 	end
@@ -284,6 +302,12 @@ function AddMoment(momentData:table, isNewMoment:boolean)
 
 		local momentDate:string = Calendar.MakeYearStr(momentData.Turn);
 		local momentScore:number = momentData.EraScore and momentData.EraScore or 0;
+
+		-- ScreenReaderAccess
+		local srText:string = Locale.Lookup(momentInfo.Name) .. ". " .. string.gsub(CleanTextForSpeech(Locale.Lookup(momentData.InstanceDescription)), "[%.%s]+$", "") .. ", Turn " .. tostring(momentData.Turn) .. ", " .. momentDate;
+		if momentScore ~= 0 then srText = srText .. ", plus " .. tostring(momentScore) .. " era score"; end
+		table.insert(m_srEntries, srText);
+		-- End ScreenReaderAccess
 
 		instance.Frame:SetTexture(frameTexture);
 		instance.Description:SetText(momentData.InstanceDescription);
@@ -466,11 +490,19 @@ end
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
-	if (uiMsg == KeyEvents.KeyUp and pInputStruct:GetKey() == Keys.VK_ESCAPE) then
-		Close();
+	if (uiMsg == KeyEvents.KeyUp) then
+		-- ScreenReaderAccess: Enter closes too, Up/Down read the moments, all other keys are consumed
+		local key:number = pInputStruct:GetKey();
+		if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then
+			Close();
+		elseif key == Keys.VK_UP then
+			SRA_ReadEntry(-1);
+		elseif key == Keys.VK_DOWN then
+			SRA_ReadEntry(1);
+		end
 		return true;
 	end;
-	return false;
+	return ContextPtr:IsVisible();		-- ScreenReaderAccess: modal
 end
 
 -- ===========================================================================
@@ -495,11 +527,32 @@ function CacheMomentIllustrations()
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: timeline view, Up/Down read the moments
+-- ===========================================================================
+function SRA_AnnounceTimeline()
+	if #m_srEntries == 0 then
+		OutputMessageToScreenReader("Historic moments timeline. No moments yet. Enter or Escape to close");
+		return;
+	end
+	m_srIndex = #m_srEntries;
+	OutputMessageToScreenReader("Historic moments timeline, " .. #m_srEntries .. " moments. Up and Down read them, Enter or Escape to close. Latest: " .. m_srEntries[m_srIndex] .. ", " .. m_srIndex .. " of " .. #m_srEntries);
+end
+
+function SRA_ReadEntry(step:number)
+	if #m_srEntries == 0 then return; end
+	m_srIndex = m_srIndex + step;
+	if m_srIndex < 1 then m_srIndex = #m_srEntries; end
+	if m_srIndex > #m_srEntries then m_srIndex = 1; end
+	OutputMessageToScreenReader(m_srEntries[m_srIndex] .. ", " .. m_srIndex .. " of " .. #m_srEntries);
+end
+
+-- ===========================================================================
 function ToggleHistoricMomentsScreen(showAnim:boolean)
 	if ( ContextPtr:IsHidden() ) then
 		m_isOpenFromEndGame = false;
 		m_CurrentMoment = -1;
 		DisplayTimeline(showAnim);
+		SRA_AnnounceTimeline();		-- ScreenReaderAccess
 	else
 		Close()
 	end
@@ -511,6 +564,7 @@ function ToggleFromEndGame(parentControl)
 		m_isOpenFromEndGame = true;
 		m_CurrentMoment = -1;
 		DisplayTimeline();
+		SRA_AnnounceTimeline();		-- ScreenReaderAccess
 	else
 		Close()
 	end
@@ -545,7 +599,24 @@ function OnEndGame()
 end
 
 -- ===========================================================================
+-- ScreenReaderAccess: hot reload leaves the old instance's listeners registered; remove every one on shutdown.
+function SRA_OnShutdown()
+	Events.SystemUpdateUI.Remove( OnUpdateUI );
+	Events.NotificationActivated.Remove(OnProcessNotification);
+	Events.LocalPlayerTurnBegin.Remove( OnLocalPlayerTurnBegin );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	Events.TeamVictory.Remove(OnEndGame);
+	Events.UIIdle.Remove( OnUIIdle );
+	LuaEvents.PrideMoments_ToggleTimeline.Remove(ToggleHistoricMomentsScreen);
+	LuaEvents.Advisor_ToggleTimeline.Remove(ToggleHistoricMomentsScreen);
+	LuaEvents.EndGameMenu_OpenHistoricMoments.Remove(ToggleFromEndGame);
+	LuaEvents.HistoricMoments_Close.Remove( OnClose );
+	LuaEvents.ShowEndGame.Remove(OnEndGame);
+end
+
+-- ===========================================================================
 function Initialize()
+	ContextPtr:SetShutdown( SRA_OnShutdown );		-- ScreenReaderAccess
 	ContextPtr:SetHide(true);
 	ContextPtr:SetInputHandler(OnInputHandler, true);
 	

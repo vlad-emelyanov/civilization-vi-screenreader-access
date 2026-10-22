@@ -2,6 +2,7 @@
 -- Popup for Natural Disasters (aka: Random events)
 
 include("PopupManager");
+include("ScreenReader");		-- ScreenReaderAccess
 
 
 -- ===========================================================================
@@ -134,6 +135,41 @@ function OnClose()
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: "Natural disaster: Moderate Flood, near Ottawa. <effects>. Enter or Escape to continue"
+-- ===========================================================================
+function SRA_Announce( kData:table )
+	local name:string = kData.SRName or Locale.Lookup(kData.Name);
+	local text:string = (kData.EffectOperatorType == NUCLEAR_OPERATOR_TYPE and "Nuclear disaster: " or "Natural disaster: ") .. name;
+	-- nearest city of the local player
+	local bestName:string = nil;
+	local bestDist:number = 99;
+	local pPlayer:table = Players[Game.GetLocalPlayer()];
+	if pPlayer ~= nil and kData.PlotX ~= nil then
+		for _, pCity in pPlayer:GetCities():Members() do
+			local dist:number = Map.GetPlotDistance(kData.PlotX, kData.PlotY, pCity:GetX(), pCity:GetY());
+			if dist < bestDist then
+				bestDist = dist;
+				bestName = Locale.Lookup(pCity:GetName());
+			end
+		end
+	end
+	if bestName ~= nil then
+		text = text .. ", " .. (bestDist == 0 and "in " or "near ") .. bestName;
+	end
+	text = text .. ".";
+	if kData.Description ~= nil then text = text .. " " .. string.gsub(CleanTextForSpeech(kData.Description), "[%.%s]+$", "") .. "."; end
+	local effects:table = {};
+	if kData.IsMitigated then table.insert(effects, "mitigated"); end
+	if kData.FertilityAdded ~= nil and kData.FertilityAdded < 0 then table.insert(effects, math.abs(kData.FertilityAdded) .. " tiles lost fertility"); end
+	if kData.FertilityAdded ~= nil and kData.FertilityAdded > 0 then table.insert(effects, kData.FertilityAdded .. " tiles made fertile"); end
+	if kData.TilesDamaged ~= nil and kData.TilesDamaged > 0 then table.insert(effects, kData.TilesDamaged .. " tiles damaged"); end
+	if kData.UnitsLost ~= nil and kData.UnitsLost > 0 then table.insert(effects, kData.UnitsLost .. " units lost"); end
+	if kData.PopLost ~= nil and kData.PopLost > 0 then table.insert(effects, kData.PopLost .. " population lost"); end
+	if #effects > 0 then text = text .. " " .. table.concat(effects, ", ") .. "."; end
+	OutputMessageToScreenReader(text .. " Enter or Escape to continue");
+end
+
+-- ===========================================================================
 function ShowPopup( kData:table )
 	
 	-- Only call once to preserve whatever lens was on before showing scene
@@ -221,6 +257,8 @@ function ShowPopup( kData:table )
 
 	Controls.MitigatedLabel:SetHide(kData.IsMitigated ~= true);
 
+	SRA_Announce(kData);		-- ScreenReaderAccess
+
 	Controls.DisasterNameStack:CalculateSize();
 	Controls.MainContainer:DoAutoSize();
 end
@@ -281,6 +319,7 @@ function ShowRandomEvent(type:number, severity:number, plotx:number, ploty:numbe
 		local kData:table = { 			
 			EventType			= type,
 			Name				= Locale.ToUpper(Locale.Lookup(info.Name)),
+			SRName				= Locale.Lookup(info.Name),		-- ScreenReaderAccess
 			Description			= description,
 			Animation			= result.Animation,
 			Icon				= info.IconSmall,
@@ -460,6 +499,13 @@ end
 
 -- ===========================================================================
 function OnShutdown()
+	-- ScreenReaderAccess: hot reload leaves the old instance's listeners registered
+	Events.RandomEventStarted.Remove( OnRandomEventStarted );
+	Events.RandomEventOccurred.Remove( OnRandomEventOccurred );
+	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	Events.CameraAnimationStopped.Remove( OnCameraAnimationStopped );
+	Events.CameraAnimationNotFound.Remove( OnCameraAnimationNotFound );
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isHidden", ContextPtr:IsHidden());
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "m_kCurrentPopup", m_kCurrentPopup);
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "m_kPopupMgr", m_kPopupMgr.ToTable() );
@@ -482,11 +528,11 @@ end
 --	Native Input / ESC support
 -- ===========================================================================
 function KeyHandler( key:number )
-	if key == Keys.VK_ESCAPE then
+	if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then		-- ScreenReaderAccess: Enter too
 		Close();
 		return true;
 	end
-	return false;
+	return ContextPtr:IsVisible();		-- ScreenReaderAccess: modal
 end
 function OnInputHander( pInputStruct:table )
 	local uiMsg :number = pInputStruct:GetMessageType();
