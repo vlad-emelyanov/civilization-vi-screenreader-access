@@ -1,0 +1,38 @@
+-- ReligionText.lua: pure text helpers of the religion screen
+stub("engine")
+include("ReligionText")
+
+test("Join", function()
+	eq(ReligionText_Join({}), "none")
+	eq(ReligionText_Join({ "A" }), "A")
+	eq(ReligionText_Join({ "A", "B" }), "A and B")
+	eq(ReligionText_Join({ "A", "B", "C" }), "A, B and C")
+end)
+
+test("Count", function()
+	eq(ReligionText_Count(1, "city", "cities"), "1 city")
+	eq(ReligionText_Count(0, "city", "cities"), "0 cities")
+	eq(ReligionText_Count(4, "city", "cities"), "4 cities")
+end)
+
+test("Followers sorted, zero dropped", function()
+	eq(ReligionText_Followers({}), "no followers")
+	eq(ReligionText_Followers({ { name = "Hinduism", followers = 2 }, { name = "Islam", followers = 0 }, { name = "Buddhism", followers = 6 } }), "6 Buddhism, 2 Hinduism")
+end)
+
+test("CityLine", function()
+	eq(ReligionText_CityLine("Rome", "Buddhism", { { name = "Buddhism", followers = 6 }, { name = "Hinduism", followers = 2 } }), "Rome: majority Buddhism, 6 Buddhism, 2 Hinduism")
+	eq(ReligionText_CityLine("Rome", nil, {}), "Rome: no religion")
+	eq(ReligionText_CityLine("Rome", nil, { { name = "Hinduism", followers = 1 } }), "Rome: no majority, 1 Hinduism")
+end)
+
+test("Founder, Beliefs, ToChoose, Capital", function()
+	eq(ReligionText_Founder(true, "Rome"), "founded by you")
+	eq(ReligionText_Founder(false, "Phoenicia"), "founded by Phoenicia")
+	eq(ReligionText_Beliefs({}), "no beliefs yet")
+	eq(ReligionText_Beliefs({ "Choral Music", "Tithe" }), "Choral Music and Tithe")
+	eq(ReligionText_ToChoose(1), "1 belief to choose")
+	eq(ReligionText_ToChoose(2), "2 beliefs to choose")
+	eq(ReligionText_Capital("follower belief"), "Follower belief")
+	eq(ReligionText_Capital(""), "")
+end)

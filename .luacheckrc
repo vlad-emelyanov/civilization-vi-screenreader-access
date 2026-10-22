@@ -47,7 +47,7 @@ globals = {
 	"PlacementScan_Blockers", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
 	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_GetDirectionWord",
 	"PlotDescription_GetRelative", "PlotDescription_GetShort", "PlotDescription_GetUnitName",
-	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "PrintKeyMap",
+	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "ReligionText_Beliefs", "ReligionText_Capital", "ReligionText_CityLine", "ReligionText_Count", "ReligionText_Followers", "ReligionText_Founder", "ReligionText_Join", "ReligionText_ToChoose", "PrintKeyMap",
 	"PrintKeyboardNavigationElements", "SRListen", "SRUnlistenAll", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
 	"SettleScan_CheckPlot", "SettleScan_Scan", "StringifyCity", "StringifyUnit", "TopPanelData_BuildItems",
 	"TopPanelData_Summary",
