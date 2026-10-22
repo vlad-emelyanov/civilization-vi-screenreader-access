@@ -16,12 +16,15 @@ description: Build the mod, launch Civilization VI and drive it with the keyboar
 | `sr [-All]` | Prints new screen reader lines (`-All`: every new `Lua.log` line, incl. `#KEYNAV_MOVE`). |
 | `wait <regex> [-Timeout s]` | Blocks until a screen reader line matches (exit 1 on timeout). Use it instead of sleeps, e.g. `wait Begin Game -Timeout 240` (multi-word patterns unquoted: from Git Bash a quoted arg breaks cmd.exe; avoid `|` and `&` in patterns) during a game load. |
 | `shot` | Screenshot of the game window (downscaled to 1280 px), prints the PNG path; view it with the Read tool. |
+| `deploy` | Hot reload: copies changed files from `ScreenReaderAccess\` straight into the deployed mod folder (in place), the running game re-initialises the affected context within ~1 s. Prints `deployed <file>` per file and `LUA ERROR> ...` (exit 1) for errors in the next 2.5 s. Reports new files / `Database\` changes as `needs build + restart`. |
+| `lua <state> <code>` / `lua <state> -File f.lua` | Runs Lua in a Lua state via FireTuner (needs `EnableTuner 1` + game restart). States: `civctl states`; useful: `GameCore_Tuner` (gameplay DB/players: set up scenarios, read units), `InGame`, `InGameAccess` (the hub's own state). Prints the `print()` output; `ERR:` + exit 1 on Lua errors. |
+| `states` | Lists tuner Lua states. |
 | `status` | Is the game / console app running. |
 | `keymap` | Regenerates `keymap.md` (below) from the `#KEYMAP` dump in `Lua.log`. |
 
 ## Workflow
 
-1. `build`, then `stop` and `start` (Lua changes need a restart).
+1. First time (or after new files / `.civ6proj` / SQL changes): `build`, then `stop` and `start`, load a game. After that, for Lua edits use `deploy` and keep playing: no restart. Never `build` while the game runs (it kills hot reload until the next restart; `build` warns). Timings: full loop build+stop+start+load a save ~65 s; `deploy` ~4 s.
 2. Navigate by **reacting to `SR>` output**: press one key, read what was announced, decide the next key. Loop in PowerShell with a match condition when walking a list, e.g.
    ```powershell
    for ($i=1; $i -le 12; $i++) { $o = & util\civctl.cmd key Down; "Down -> $($o -join ' | ')"; if ($o -match 'Start Game') { break } }

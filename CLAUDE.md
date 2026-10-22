@@ -33,12 +33,19 @@ The console app must be running for clicks/mouse moves to happen, and for any an
 Lua changes can only be verified in the real game. Use the harness (details in the `civ-test` skill, `.claude/skills/civ-test/SKILL.md`):
 
 ```
-util\civctl.cmd build                 # ModBuddy build + deploy to My Games\...\Mods; must print "1 succeeded"
-util\civctl.cmd stop; util\civctl.cmd start -Timeout 180   # restart is required to load Lua changes
-util\civctl.cmd key Down              # sends a key, prints the resulting "SR> ..." lines
-util\civctl.cmd shot                  # screenshot path, view only when output is confusing
+util\civctl.cmd deploy               # FAST LOOP (~4 s): copy changed mod files into the running game, which hot-reloads the UI context
+util\civctl.cmd build                # ModBuddy build + deploy to My Games\...\Mods; must print "1 succeeded"
+util\civctl.cmd stop; util\civctl.cmd start -Timeout 180   # full restart (~35 s to main menu, ~65 s back in a game)
+util\civctl.cmd key Down             # sends a key, prints the resulting "SR> ..." lines
+util\civctl.cmd lua InGame "print(Game.GetCurrentGameTurn())"   # run Lua in a game state via FireTuner (GameCore_Tuner, InGame, InGameAccess, ...); `states` lists them
+util\civctl.cmd shot                 # screenshot path, view only when output is confusing
 ```
 
+- **Hot reload (verified):** the game watches the deployed mod folder and re-initialises a UI context ~1 s after one of its Lua files is rewritten in place. It works for the hub (`InGameAccess.lua`), game-file overrides (`NotificationPanel.lua`, `UnitPanel.lua`) and front-end files (`MainMenu.lua`), with or without `EnableTuner`. Use `civctl deploy` (it copies repo -> deployed folder in place and reports Lua errors from the following 2.5 s). Do NOT run `build` in between: ModBuddy deletes and recreates the whole deployed folder, and the game's file watcher is dead until the game is restarted (edits then silently do nothing). So: `build` once before `start`, then only `deploy` while the game runs. A reload resets that context's state (e.g. the map cursor); the first key after a front-end reload may be swallowed.
+- **Needs a full restart:** new files, `.civ6proj`/`.modinfo` changes (these need `build`), `Database/*.sql` (`deploy` reports them), probably XML layout changes (untested). If a deploy shows a `Syntax Error`, fix and deploy again.
+- Without a restart you can also `Exit to Main Menu` and `Resume Game` (~25 s) to re-run everything, but hot reload makes that rarely necessary.
+- Tuner: `EnableTuner 1` in `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VI\AppOptions.txt` (`[Debug]`, needs a game restart; disables achievements). `util\civtuner.py` (adapted from civ6-mcp, MIT) speaks the FireTuner protocol on 127.0.0.1:4318; only one tuner connection at a time. Use it to set up scenarios in `GameCore_Tuner` (e.g. `Players[0]:GetTreasury():ChangeGoldBalance(100)`) and to read state; errors print as `ERR:` with exit code 1.
+- Do not run several `civctl` commands in parallel: they share the log cursor in `%TEMP%\civctl\cursor.txt`.
 - Console app: `dotnet build ScreenreaderAccess.Console` (`civctl start` launches it).
 - Lua errors land in `Lua.log` as `Runtime Error:`; grep for them after every run. Wrap new input handlers in `xpcall` while developing; an error in an input handler otherwise silently kills the screen's keyboard input.
 - Drive the game by reacting to the `SR>` output, not fixed key counts: menus change (e.g. Resume Game appears once a save exists).
