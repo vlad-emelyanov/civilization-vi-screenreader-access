@@ -91,6 +91,7 @@ local m_ActionPanelGearAnim		: table	 = ContextPtr:LookUpControl( "/InGame/Actio
 local m_isLoadComplete          : boolean = false;
 -- Begin ScreenReaderAccess mod change
 local m_sraReported				: table = {};		-- "player:id" of the notifications already seen once: re-adds (refresh, player change) are not new
+local m_sraSeedUntil			: number = -1;		-- UI.GetElapsedTime() until which added notifications are only remembered (after a hot reload)
 local m_sraRestoring			: boolean = false;	-- the engine is re-adding the notifications of the (new) local player
 -- End ScreenReaderAccess mod change
 
@@ -1816,8 +1817,9 @@ function OnLocalPlayerChanged()
 	ClearNotifications();
 	-- Begin ScreenReaderAccess mod change
 	m_sraRestoring = true;		-- the notifications of the new local player come back: they are not arrivals
-	NotificationManager.RestoreVisualState(Game.GetLocalPlayer());	-- Restore the notifications
-	m_sraRestoring = false;
+	local ok:boolean, err = pcall( function() NotificationManager.RestoreVisualState(Game.GetLocalPlayer()); end );	-- Restore the notifications
+	m_sraRestoring = false;		-- always reset, or every arrival afterwards would be muted
+	if not ok then print( "NotificationPanel restore error: " .. tostring(err) ); end
 	-- End ScreenReaderAccess mod change
 end
 
@@ -1889,7 +1891,7 @@ function SRA_NotificationArrived( pNotification:table )
 	local key:string = pNotification:GetPlayerID() .. ":" .. pNotification:GetID();
 	if m_sraReported[ key ] then return; end
 	m_sraReported[ key ] = true;
-	if not m_isLoadComplete or m_sraRestoring then return; end
+	if not m_isLoadComplete or m_sraRestoring or UI.GetElapsedTime() < m_sraSeedUntil then return; end
 	local message:string, summary:string = SRA_NotificationTexts( pNotification );
 	local blocking:boolean = pNotification:GetEndTurnBlocking() ~= EndTurnBlockingTypes.NO_ENDTURN_BLOCKING;
 	LuaEvents.SRA_NotificationAdded( pNotification:GetID(), message, summary, pNotification:GetTypeName(), blocking );
@@ -1980,7 +1982,20 @@ end
 function OnInit( isReload:boolean )
 	LateInitialize();
 	if isReload then			
-		NotificationManager.RestoreVisualState(Game.GetLocalPlayer());	-- Restore the notifications
+		-- Begin ScreenReaderAccess mod change
+		-- A hot reload happens mid-game: LoadGameViewStateDone will not come again, so the panel would stay muted. The
+		-- notifications that come back are seeded as already reported (they are not arrivals).
+		m_sraRestoring = true;
+		local ok:boolean, err = pcall( function() NotificationManager.RestoreVisualState(Game.GetLocalPlayer()); end );
+		m_sraRestoring = false;
+		if not ok then print( "NotificationPanel restore error: " .. tostring(err) ); end
+		-- End ScreenReaderAccess mod change
+	end
+	if ContextPtr:IsHotLoad() then
+		-- ScreenReaderAccess: see above. The engine hands the restored notifications over as events after this call
+		-- returns, so the flag above does not cover them: they are seeded for a moment instead.
+		m_isLoadComplete = true;
+		m_sraSeedUntil = UI.GetElapsedTime() + 2.0;
 	end
 end
 

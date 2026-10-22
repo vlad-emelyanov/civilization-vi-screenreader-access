@@ -91,6 +91,23 @@ local function FormatNumber( value:number )
 	return tostring( math.floor( value * 10 + 0.5 ) / 10 );
 end
 
+-- Is one of the game's popups or screens open (the options menu included)? Contexts that are always shown are skipped.
+local ALWAYS_SHOWN:table = { TopPanel = true, DiplomacyRibbon = true, PartialScreenHooks = true, InGameAccess = true };
+
+local function IsGamePopupOpen()
+	local menu = ContextPtr:LookUpControl( "/InGame/TopOptionsMenu" );
+	if menu ~= nil and not menu:IsHidden() then return true; end
+	for _, name in ipairs( { "WorldPopups", "FakePopups", "Screens", "PartialScreens", "Diplomacy", "EndGame" } ) do
+		local parent = ContextPtr:LookUpControl( "/InGame/" .. name );
+		if parent ~= nil then
+			for _, child in ipairs( parent:GetChildren() ) do
+				if not child:IsHidden() and not ALWAYS_SHOWN[ child:GetID() ] then return true; end
+			end
+		end
+	end
+	return false;
+end
+
 -- Runs fn after the given seconds (from the update loop).
 local function After( seconds:number, fn )
 	table.insert( m_delayed, { time = seconds, fn = fn } );
@@ -1448,8 +1465,14 @@ local function ActivateNotification( item:table )
 		return;
 	end
 	local lookOnly:boolean = ( reply ~= nil and reply.lookOnly );
+	local player:number = Game.GetLocalPlayer();
+	local turn:number = Game.GetCurrentGameTurn();
 	After( 0.5, function()
 		if m_lastSelectionSpeech >= started or m_mode ~= nil then return; end		-- a selection or screen spoke for itself
+		-- the world may have moved on in half a second (turn change, hotseat, a popup or a target mode opened)
+		if Game.GetLocalPlayer() ~= player or Game.GetCurrentGameTurn() ~= turn or not IsLocalPlayerActive() then return; end
+		if not Players[ player ]:IsTurnActive() or UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then return; end
+		if IsGamePopupOpen() then return; end
 		if n.x >= 0 and n.y >= 0 then
 			SetCursor( n.x, n.y, true, false );
 		elseif lookOnly then
@@ -1807,7 +1830,8 @@ local function OnUpdate( deltaTime:number )
 		m_arrivalTimer = m_arrivalTimer - deltaTime;
 		if m_arrivalTimer < 0 then
 			m_arrivalTimer = -1;
-			FlushArrivals();
+			local ok:boolean, err = xpcall( FlushArrivals, KeyNavErrorHandler );
+			if not ok then print( "InGameAccess FlushArrivals error: " .. tostring(err) ); end
 		end
 	end
 	local i:number = 1;
@@ -1852,6 +1876,16 @@ end
 function Initialize()
 	-- Contexts added with AddUserInterfaces start hidden, and a hidden context gets no input actions or updates.
 	ContextPtr:SetHide( false );
+
+	-- A hot reload (civctl deploy) happens in the middle of a game: LoadScreenClose will not come again, so the hub would
+	-- stay "not ready" (no event announcements) with a fresh state. Start it as it would be after the load, without
+	-- repeating the turn announcement.
+	if ContextPtr:IsHotLoad() and IsLocalPlayerActive() then
+		m_ready = true;
+		m_cursorPlayer = Game.GetLocalPlayer();
+		m_lastAnnouncedTurn = Game.GetLocalPlayer() .. ":" .. Game.GetCurrentGameTurn();
+		for _, unit in Players[ Game.GetLocalPlayer() ]:GetUnits():Members() do RememberUnit( unit ); end
+	end
 
 	RegisterAction( "KeyNavMoveCellLeft",		function() MoveCursor( -1, 0 ); end );
 	RegisterAction( "KeyNavMoveCellRight",		function() MoveCursor( 1, 0 ); end );
