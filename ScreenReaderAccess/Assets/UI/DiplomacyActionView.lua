@@ -2932,6 +2932,7 @@ function Close()
 	-- game may just be exiting and this screen was never raised.
 	if isCleanExit then
 		LuaEvents.DiplomacyActionView_ShowIngameUI();
+		OutputMessageToScreenReader( "Diplomacy closed" );		-- ScreenReaderAccess
 	end
 end
 
