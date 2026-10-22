@@ -627,6 +627,9 @@ function Open()
 		m_srAnnouncePending = true;				-- ScreenReaderAccess
 		m_srData = nil;							-- ScreenReaderAccess
 		m_srPending = nil;						-- ScreenReaderAccess
+		-- ScreenReaderAccess: an open city overview (CityPanelOverview) would swallow the first Escape (its own input handler
+		-- closes the overview silently), so the production panel would seem to ignore it. Close the overview first.
+		LuaEvents.CityPanel_ShowOverviewPanel( false );
 		LuaEvents.ProductionPanel_Open();
 		UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);
 		Refresh();
