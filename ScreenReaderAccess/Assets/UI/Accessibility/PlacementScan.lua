@@ -12,6 +12,9 @@
 --	             speech ("plus 3 Science"), explanation = the game's adjacency explanation (Space), removes = { "Woods", "Deer" },
 --	             notes = { other engine conditions }, relative = "2 tiles north-east", distance }
 --	PlacementScan_Cannot( scan, plot ) -> why the plot cannot take the item ("" when the engine gives no reason)
+--	PlacementScan_Explain( scan ) -> { canOwned, canBuy, reasons, noSuitable, raw }: why the engine says the city cannot build the item at
+--	all (BuildQueue:CanProduce); PlacementScan_Blockers( scan, plot ) -> reasons other than ownership for a plot ("" when none).
+--	Purchasable tiles with such a reason are left out of the list (scan.blocked counts them, scan.blockedReason is the first reason).
 --
 --	Sources (verified in game):
 --	  * valid now: CityManager.GetOperationTargets( city, BUILD, { PARAM_DISTRICT_TYPE | PARAM_BUILDING_TYPE } ) -> PLOTS
@@ -102,7 +105,7 @@ local function _Conditions( city:table, kind:string, hash:number, plot:table )
 		params[ CityOperationTypes.PARAM_BUILDING_TYPE ] = hash;
 	end
 	local removes:table, notes:table = {}, {};
-	local ok:boolean, can, results = pcall( function() return CityManager.CanStartOperation( city, CityOperationTypes.BUILD, params, true ); end );
+	local ok:boolean, _, results = pcall( function() return CityManager.CanStartOperation( city, CityOperationTypes.BUILD, params, true ); end );
 	if not ok or results == nil then return removes, notes; end
 	for _, text in ipairs( _Items( results, CityOperationResults.SUCCESS_CONDITIONS ) ) do
 		local name:string = _RemovalName( plot, text );
@@ -114,6 +117,27 @@ local function _Conditions( city:table, kind:string, hash:number, plot:table )
 		end
 	end
 	return removes, notes;
+end
+
+-- The engine's failure reasons (cleaned for speech) for BUILD at this plot, { } when it gives none. For a tile the city
+-- does not own it gives none (verified: false, no results), so anything listed there is a reason other than ownership.
+local function _Failures( city:table, kind:string, hash:number, plot:table )
+	local params:table = {};
+	params[ CityOperationTypes.PARAM_X ] = plot:GetX();
+	params[ CityOperationTypes.PARAM_Y ] = plot:GetY();
+	if kind == "district" then
+		params[ CityOperationTypes.PARAM_DISTRICT_TYPE ] = hash;
+	else
+		params[ CityOperationTypes.PARAM_BUILDING_TYPE ] = hash;
+	end
+	local reasons:table = {};
+	local ok:boolean, _, results = pcall( function() return CityManager.CanStartOperation( city, CityOperationTypes.BUILD, params, true ); end );
+	if not ok or results == nil then return reasons; end
+	for _, text in ipairs( _Items( results, CityOperationResults.FAILURE_REASONS ) ) do
+		local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%.%s]+$", "" );
+		if clean ~= "" then table.insert( reasons, clean ); end
+	end
+	return reasons;
 end
 
 -- Housing the district adds on this plot (only the districts the game shows it for), or nil.
@@ -202,7 +226,7 @@ end
 function PlacementScan_Scan( city:table, kind:string, hash:number, purchaseYield:number )
 	local scan:table = {
 		kind = kind, hash = hash, city = city, cityName = Locale.Lookup( city:GetName() ), purchaseYield = purchaseYield,
-		list = {}, byIndex = {}, best = nil, owned = 0,
+		list = {}, byIndex = {}, best = nil, owned = 0, blocked = 0, blockedReason = nil,
 	};
 	local row:table;
 	if kind == "district" then
@@ -249,9 +273,17 @@ function PlacementScan_Scan( city:table, kind:string, hash:number, purchaseYield
 			end
 			if can then
 				seen[ plotIndex ] = true;
-				local candidate:table = _MakeCandidate( scan, plot, false );
-				table.insert( scan.list, candidate );
-				scan.byIndex[ plotIndex ] = candidate;
+				-- the tile has to be bought first, which only helps when ownership is all that stands in the way
+				local reasons:table = _Failures( city, kind, hash, plot );
+				if #reasons > 0 then
+					scan.blocked = scan.blocked + 1;
+					scan.blockedReason = scan.blockedReason or table.concat( reasons, ", " );
+					if scan.blocked == 1 then print( "PlacementScan: not offering " .. plot:GetX() .. "," .. plot:GetY() .. " for " .. scan.typeName .. ": " .. scan.blockedReason ); end
+				else
+					local candidate:table = _MakeCandidate( scan, plot, false );
+					table.insert( scan.list, candidate );
+					scan.byIndex[ plotIndex ] = candidate;
+				end
 			end
 		end
 	end
@@ -259,6 +291,59 @@ function PlacementScan_Scan( city:table, kind:string, hash:number, purchaseYield
 	_Sort( scan );
 	scan.best = scan.list[1];
 	return scan;
+end
+
+-- For debugging: a table as text.
+local function _Dump( value )
+	if type( value ) ~= "table" then return tostring( value ); end
+	local parts:table = {};
+	for k, v in pairs( value ) do table.insert( parts, tostring( k ) .. "=" .. _Dump( v ) ); end
+	return "{" .. table.concat( parts, "; " ) .. "}";
+end
+
+-- The engine hands the reason over localized, not as the LOC tag, so compare the text too.
+local function _NoSuitableText( tag:string )
+	return string.gsub( CleanTextForSpeech( Locale.Lookup( tag ) ), "[%.%s]+$", "" );
+end
+
+-- Why can the city not build the item at all (no owned tile fits)? Asks the build queue, once without and once allowing
+-- the purchase of tiles. -> { canOwned, canBuy, reasons = { text }, noSuitable = true when the engine only says there
+-- is no suitable location, raw = the results as text }. Verified results: failure reasons come as localized text
+-- ("Requires Population of 4 or greater."), or as the LOC tag LOC_DISTRICT_ZONE_NO_SUITABLE_LOCATION.
+function PlacementScan_Explain( scan:table )
+	local info:table = { canOwned = false, canBuy = false, reasons = {}, noSuitable = false, raw = "" };
+	local queue:table = scan.city:GetBuildQueue();
+	local seen:table = {};
+	local function Collect( results:table )
+		if results == nil then return; end
+		if results[ CityOperationResults.NO_SUITABLE_LOCATION ] == true then info.noSuitable = true; end
+		for _, text in ipairs( _Items( results, CityOperationResults.FAILURE_REASONS ) ) do
+			local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%.%s]+$", "" );
+			if text == "LOC_DISTRICT_ZONE_NO_SUITABLE_LOCATION" or text == "LOC_BUILDING_CONSTRUCT_NO_SUITABLE_LOCATION"
+					or clean == _NoSuitableText( "LOC_DISTRICT_ZONE_NO_SUITABLE_LOCATION" ) or clean == _NoSuitableText( "LOC_BUILDING_CONSTRUCT_NO_SUITABLE_LOCATION" ) then
+				info.noSuitable = true;
+			else
+				if clean ~= "" and not seen[ clean ] then
+					seen[ clean ] = true;
+					table.insert( info.reasons, clean );
+				end
+			end
+		end
+	end
+	local ok1:boolean, can1, results1 = pcall( function() return queue:CanProduce( scan.hash, false, true ); end );
+	local ok2:boolean, can2, results2 = pcall( function() return queue:CanProduce( scan.hash, false, true, true ); end );
+	info.canOwned = ok1 and can1 == true;
+	info.canBuy = ok2 and can2 == true;
+	Collect( ok1 and results1 or nil );
+	Collect( ok2 and results2 or nil );
+	info.raw = "CanProduce(" .. tostring( scan.typeName ) .. ") owned: " .. tostring( can1 ) .. " " .. _Dump( results1 ) .. "; buy: " .. tostring( can2 ) .. " " .. _Dump( results2 );
+	print( "PlacementScan: " .. info.raw );
+	return info;
+end
+
+-- Why can't a tile the city has just bought take the item? (the owned-tile reasons of the engine, "" when it gives none)
+function PlacementScan_Blockers( scan:table, plot:table )
+	return table.concat( _Failures( scan.city, scan.kind, scan.hash, plot ), ", " );
 end
 
 -- Why can the item not go on this plot? The engine's failure reasons for the owned case, a few plain words otherwise.
