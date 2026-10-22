@@ -7,6 +7,7 @@
   .\util\civctl.ps1 deploy                # copy changed mod files straight into the running game's deployed mod folder: hot reload, no restart
   .\util\civctl.ps1 lua InGame 'print(Game.GetCurrentGameTurn())'   # run Lua in a game Lua state via FireTuner (needs EnableTuner 1)
   .\util\civctl.ps1 states                # list the tuner's Lua states
+  .\util\civctl.ps1 deploy -NoLint        # same without the lint pass (deploy lints the changed .lua files first; lint errors refuse the deploy)
   .\util\civctl.ps1 reload InGameAccess.lua   # force a hot reload of a deployed file even if unchanged
   .\util\civctl.ps1 menu                  # is the in-game options menu / a popup open? (exit 4 if so)
   .\util\civctl.ps1 start                 # launch game + console app, wait for main menu
@@ -46,6 +47,7 @@ param(
     [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
     [switch]$Force,         # build: build even though the game is running
+    [switch]$NoLint,        # deploy/reload: skip the luacheck pass over the changed .lua files
     [string]$Out,
     [string]$File,          # lua: read the Lua code from this file instead of the command line
     [string]$Owner,         # name of the agent driving the game (lock file); default $env:CIVCTL_OWNER or 'default'
@@ -441,6 +443,24 @@ function Invoke-Deploy([string[]]$touch) {
     $needsBuild = @()
     $sha = [Security.Cryptography.SHA1]::Create()
     $repoRels = @{}
+    if (-not $NoLint) {
+        # Lint the .lua files that would be copied (util\lint.py: exit 1 = errors -> refuse; exit 2 = tool problem -> warn and go on).
+        $lintFiles = @()
+        foreach ($f in (Get-ShippedFiles $src)) {
+            if ($f.Extension -ne '.lua') { continue }
+            $rel = $f.FullName.Substring($src.Length).TrimStart('\')
+            $target = Join-Path $dst $rel
+            if ($touch) { if (-not ($touch | Where-Object { $rel -like "*$_*" })) { continue } }
+            elseif ((Test-Path $target) -and ([BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($f.FullName))) -eq [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($target))))) { continue }
+            $lintFiles += $f.FullName
+        }
+        if ($lintFiles.Count -gt 0) {
+            $lo = Invoke-PythonCapture (@((Join-Path $PSScriptRoot 'lint.py')) + $lintFiles)
+            $lo | ForEach-Object { Write-Output "lint> $_" }
+            if ($script:PyExit -eq 1) { Write-Output 'Lint errors: deploy refused (fix them, or pass -NoLint).'; exit 1 }
+            if ($script:PyExit -ne 0) { Write-Warning "lint.py failed (exit $($script:PyExit)); deploying anyway." }
+        }
+    }
     foreach ($f in (Get-ShippedFiles $src)) {
         $rel = $f.FullName.Substring($src.Length).TrimStart('\')
         $repoRels[$rel.ToLowerInvariant()] = $true

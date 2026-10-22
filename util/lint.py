@@ -8,12 +8,14 @@ Exit codes: 0 = ok (warnings in upstream game-file copies are only printed with 
             2 = tool problem (download failed, ...).
 Strict files = mod-only code: Assets/UI/Accessibility/*.lua and UI/Additions/*.lua.
 """
-import os, re, shutil, subprocess, sys, urllib.request
+import hashlib, os, re, shutil, subprocess, sys, urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS = os.path.join(ROOT, "util", "tools")
 EXE = os.path.join(TOOLS, "luacheck.exe")
-URL = "https://github.com/lunarmodules/luacheck/releases/latest/download/luacheck.exe"
+VERSION = "v1.2.0"
+URL = "https://github.com/lunarmodules/luacheck/releases/download/%s/luacheck.exe" % VERSION
+SHA256 = "0f1c69c4d09f1ebb4d8df14c215e4553e2e639bd4cb7bf3c639b0daa6198317b"
 STRICT = ("ScreenReaderAccess/Assets/UI/Accessibility/", "ScreenReaderAccess/UI/Additions/")
 
 
@@ -23,6 +25,11 @@ def ensure_tool():
     os.makedirs(TOOLS, exist_ok=True)
     print("downloading luacheck.exe ...", file=sys.stderr)
     urllib.request.urlretrieve(URL, EXE + ".part")
+    with open(EXE + ".part", "rb") as fh:
+        got = hashlib.sha256(fh.read()).hexdigest()
+    if got != SHA256:
+        os.remove(EXE + ".part")
+        raise RuntimeError("luacheck.exe sha256 mismatch (got %s, expected %s)" % (got, SHA256))
     os.replace(EXE + ".part", EXE)
 
 
