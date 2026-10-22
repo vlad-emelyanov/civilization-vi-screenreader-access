@@ -66,7 +66,7 @@ Policy (goes into the civ-test and team-lead skills):
 
 ## 3. Playtest game setups (profiles) and a new-game command
 
-**Done 2026-10-22:** `util/profiles/*.lua` and `civctl newgame <profile>` (~70 s incl. save); run for `early`, `medieval`, `crowded`. `industrial`, `modern`, `modes` are written but not run yet. Engine facts: a turn-1 save shows the Gathering Storm intro again after loading (Escape); `civtuner.py status` has to ask the game (`Game.GetCurrentGameTurn`), the `InGame` state is absent at the front end.
+**Done 2026-10-22:** `util/profiles/*.lua` and `civctl newgame <profile>` (~70 s incl. save); run for `early`, `medieval`, `crowded`, `industrial` (turn 128) and `modes`; `modern` is written but not run. Secret Societies is not available in this install (its DLC is not active), so `modes-start` has no game mode. Tiny maps allow at most 10 city-states (`MaxCityStates`); a higher `CityStateCount` reads back fine but gives 0 city-states, so `crowded` clamps to 10. Engine facts: a turn-1 save shows the Gathering Storm intro again after loading (Escape); `civtuner.py status` has to ask the game (`Game.GetCurrentGameTurn`), the `InGame` state is absent at the front end.
 
 Setup parameters (ids as used by the Advanced Setup parameter system, verified):
 
@@ -183,7 +183,7 @@ Autoplay does not replace blind play-throughs: those stay the way we find UX pro
 
 ## 7. Code checks without the game
 
-**Done (2026-10-22):** `python util/lint.py` (luacheck, strict for mod-only files), `python util/luatest.py` (lupa/Lua 5.1, 6 test files), `Accessibility/SRListen.lua` added and registered. Pending: wiring lint into `civctl deploy`, and adopting `SRListen` in the overrides (needs a game restart).
+**Done (2026-10-22):** `python util/lint.py` (luacheck, strict for mod-only files), `python util/luatest.py` (lupa/Lua 5.1, 6 test files), `Accessibility/SRListen.lua` added and registered. Later the same day: luacheck pinned to v1.2.0 with a SHA256 check, `civctl deploy` lints changed files and refuses on errors (`-NoLint`), and `SRListen` is adopted in UnitPanel, AdvisorPopup and HistoricMoments (a hot reload does run the old instance's `SetShutdown` handler).
 
 These let more agents work in parallel, because only work that needs the game waits for it.
 
@@ -210,6 +210,8 @@ Once 2, 6 and 7 exist, the team-lead loop changes:
   - They do not drive the game; they commit on a branch each, or hand over a patch.
 - One verifier agent owns the game (the lock file from workstream 1). It merges, deploys, runs `civctl regress` for the new scripts plus all old ones, and reports failures back to the owning agent.
 - Long autoplay runs that build fixtures go in the verifier's idle time.
+
+**Done 2026-10-22:** `.claude/skills/team-lead/SKILL.md` describes worktree fix agents (lint, offline tests, regress script, own branch, no `civctl`), one verifier that owns the game (lease lock), play segments that start from fixtures and save `bug-<name>`, and `docs/engine-notes.md` as the home of engine facts. Not yet exercised in a real fix round.
 
 ## Order and rough size
 
