@@ -35,6 +35,8 @@ local m_isNeedRestoreLoadGameMenu	: boolean = false;
 
 local m_keyNavElements: table = {};
 local m_selectedKeyNavElement: number = 0;
+local m_saveAnnouncePending: boolean = false;	-- a quick save was started and its completion is not announced yet
+local m_saveAnnounceTimer: number = 0;
 
 
 -- State variable to track that the menu is in the process of being closed and 
@@ -196,6 +198,10 @@ function OnQuickSaveGame()
 		gameFile.IsAutosave = false;
 		gameFile.IsQuicksave = true;
 
+		-- Screen reader: say that the save started and, from Events.SaveComplete, that it is done.
+		m_saveAnnouncePending = true;
+		m_saveAnnounceTimer = 0;
+		OutputMessageToScreenReader("Saving...", true);
 		Network.SaveGame(gameFile);	
 		UI.PlaySound("Confirm_Bed_Positive");
 	end
@@ -242,6 +248,7 @@ function Close()
 	end
 	
 	m_isClosing = true;
+	OutputMessageToScreenReader("Menu closed");
 	
 	EffectsManager:ResumeAllEffects();	-- Resume any continous particle effects.
 
@@ -748,6 +755,26 @@ end
 -- ===========================================================================
 function OnUpdate( fDeltaTime:number )
 	KeyNav_Tick(fDeltaTime);
+	-- Fallback when Events.SaveComplete does not fire for a quick save.
+	if m_saveAnnouncePending then
+		m_saveAnnounceTimer = m_saveAnnounceTimer + fDeltaTime;
+		if m_saveAnnounceTimer > 4 then
+			m_saveAnnouncePending = false;
+			OutputMessageToScreenReader("Game saved");
+		end
+	end
+end
+
+-- ===========================================================================
+function OnSaveComplete( ... )
+	if m_saveAnnouncePending then
+		m_saveAnnouncePending = false;
+		OutputMessageToScreenReader("Game saved");
+	end
+end
+
+function OnShutdownSR()
+	Events.SaveComplete.Remove( OnSaveComplete );
 end
 
 -- ===========================================================================
@@ -771,6 +798,8 @@ function Initialize()
 	ContextPtr:SetInputHandler( OnInput, true );
 	ContextPtr:SetShowHandler( OnShow );
 	ContextPtr:SetUpdate( OnUpdate );
+	ContextPtr:SetShutdown( OnShutdownSR );
+	Events.SaveComplete.Add( OnSaveComplete );
 	
 	Controls.ExitGameButton:RegisterCallback( Mouse.eLClick, function() OnExitGameAskAreYouSure(); end );
 	Controls.ExitGameButton:RegisterCallback( Mouse.eMouseEnter, function() 
