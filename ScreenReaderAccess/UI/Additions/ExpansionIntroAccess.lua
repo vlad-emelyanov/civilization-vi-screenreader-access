@@ -338,6 +338,14 @@ function KeyNavKeyHandler( key:number )
 end
 
 -- ===========================================================================
+-- Hot reload: remove the listeners, or the old instance keeps reacting next to the new one.
+function OnShutdown()
+	Events.LoadGameViewStateDone.Remove( OnLoadGameViewStateDone );
+	Events.LoadScreenClose.Remove( OnLoadScreenClose );
+	LuaEvents.InGameTopOptionsMenu_ShowExpansionIntro.Remove( OnShowFromMenuRequest );
+	LuaEvents.DiplomacyActionView_HideIngameUI.Remove( HideIfVisible );
+end
+
 function HideIfVisible()
 	if ContextPtr:IsVisible() then
 		OnClose();
@@ -374,5 +382,6 @@ function Initialize()
 	-- The game menu's welcome entry also reaches the DLC's popup: swap that one for ours too.
 	LuaEvents.InGameTopOptionsMenu_ShowExpansionIntro.Add( OnShowFromMenuRequest );
 	LuaEvents.DiplomacyActionView_HideIngameUI.Add( HideIfVisible );
+	ContextPtr:SetShutdown( OnShutdown );
 end
 Initialize();

@@ -993,7 +993,13 @@ end
 --	UI Callback
 --	DESTRUCTOR
 -- ===========================================================================
+function SRA_OnCursorPlot( plotIndex:number )		-- ScreenReaderAccess
+	m_srSuppressedPlot = plotIndex;
+	m_srSuppressUntil = UI.GetElapsedTime() + 1.6;
+end
+
 function OnShutdown()
+	LuaEvents.SRA_CursorPlot.Remove( SRA_OnCursorPlot );		-- ScreenReaderAccess
 	-- Cache values for hotloading...
 	LuaEvents.GameDebug_AddValue("PlotToolTip", "m_isActive", m_isActive );
 	TTManager:RemoveToolTipDisplayCallback( OnToolTipShow );
@@ -1119,6 +1125,6 @@ function Initialize()
 	LuaEvents.WorldInput_DragMapEnd.Add( OnDragMapEnd );
 	LuaEvents.WorldInput_TouchPlotTooltipShow.Add( OnTouchPlotTooltipShow );
 	LuaEvents.WorldInput_TouchPlotTooltipHide.Add( OnTouchPlotTooltipHide );	
-	LuaEvents.SRA_CursorPlot.Add( function( plotIndex:number ) m_srSuppressedPlot = plotIndex; m_srSuppressUntil = UI.GetElapsedTime() + 1.6; end );
+	LuaEvents.SRA_CursorPlot.Add( SRA_OnCursorPlot );		-- ScreenReaderAccess
 end
 Initialize();

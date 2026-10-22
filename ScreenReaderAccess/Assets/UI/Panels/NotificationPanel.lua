@@ -1787,7 +1787,15 @@ end
 -- ===========================================================================
 --	UI Event
 -- ===========================================================================
+-- Begin ScreenReaderAccess mod change
+local SRA_OnRequestNotifications, SRA_OnActivateNotification, SRA_OnDismissNotification;		-- defined below
+-- End ScreenReaderAccess mod change
 function OnShutdown()
+	-- Begin ScreenReaderAccess mod change
+	LuaEvents.SRA_RequestNotifications.Remove( SRA_OnRequestNotifications );
+	LuaEvents.SRA_ActivateNotification.Remove( SRA_OnActivateNotification );
+	LuaEvents.SRA_DismissNotification.Remove( SRA_OnDismissNotification );
+	-- End ScreenReaderAccess mod change
 	Events.NotificationAdded.Remove(				OnNotificationAdded );
 	Events.NotificationDismissed.Remove(			OnNotificationDismissed );
 	Events.NotificationRefreshRequested.Remove(	OnNotificationRefreshRequested );
@@ -1897,7 +1905,7 @@ function SRA_NotificationArrived( pNotification:table )
 	LuaEvents.SRA_NotificationAdded( pNotification:GetID(), message, summary, pNotification:GetTypeName(), blocking );
 end
 
-local function SRA_OnRequestNotifications()
+function SRA_OnRequestNotifications()
 	local list:table = {};
 	local playerID:number = Game.GetLocalPlayer();
 	local playerTable:table = m_notifications[ playerID ];
@@ -1925,7 +1933,7 @@ end
 
 -- Answers with SRA_NotificationActivated( id, found, lookOnly ): found = false when the notification is gone or not valid
 -- for the phase; lookOnly = activating it only moves the camera to its plot (no chooser or popup opens).
-local function SRA_OnActivateNotification( id:number )
+function SRA_OnActivateNotification( id:number )
 	local found:boolean, lookOnly:boolean = false, false;
 	local pNotification:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
 	if pNotification ~= nil and pNotification:IsValidForPhase() then
@@ -1938,7 +1946,7 @@ local function SRA_OnActivateNotification( id:number )
 	LuaEvents.SRA_NotificationActivated( id, found, lookOnly );
 end
 
-local function SRA_OnDismissNotification( id:number )
+function SRA_OnDismissNotification( id:number )
 	local pNotification:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
 	if pNotification ~= nil and pNotification:CanUserDismiss() then
 		NotificationManager.Dismiss( pNotification:GetPlayerID(), pNotification:GetID() );

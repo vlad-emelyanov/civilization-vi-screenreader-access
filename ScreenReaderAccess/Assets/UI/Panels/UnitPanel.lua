@@ -4301,6 +4301,12 @@ local function SRBuildActions()
 	return plain;
 end
 
+-- Hot reload: drop the mod's listeners, or the old instance answers next to the new one.
+function SRA_OnShutdown()
+	LuaEvents.SRA_RequestUnitActions.Remove( OnSRRequestUnitActions );
+	LuaEvents.SRA_RunUnitAction.Remove( OnSRRunUnitAction );
+end
+
 function OnSRRequestUnitActions( refresh:boolean )
 	local unit:table = UI.GetHeadSelectedUnit();
 	if refresh and unit ~= nil and g_UnitId == unit:GetID() and g_selectedPlayerId == unit:GetOwner() then
@@ -4387,6 +4393,7 @@ function Initialize()
 	LuaEvents.PlayerChange_Close.Add(					OnPlayerChangeClose );
 	LuaEvents.SRA_RequestUnitActions.Add(				OnSRRequestUnitActions );	-- ScreenReaderAccess mod change
 	LuaEvents.SRA_RunUnitAction.Add(					OnSRRunUnitAction );
+	ContextPtr:SetShutdown( SRA_OnShutdown );			-- ScreenReaderAccess mod change
 
 	-- Setup settlement water guide colors
 	local FreshWaterColor:number = UI.GetColorValue("COLOR_BREATHTAKING_APPEAL");

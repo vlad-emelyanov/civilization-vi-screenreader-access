@@ -64,14 +64,30 @@ local OpenPlacement;
 --	HELPERS
 -- ===========================================================================
 
--- Runs f, printing any error instead of silently losing it.
+-- Runs f, printing any error instead of silently losing it. The error handler is captured at load: after a hot reload a
+-- stale instance must not look the global up again (it is gone there) and fail with a second error.
+local m_errorHandler = KeyNavErrorHandler;
 local function Safe( name:string, f )
 	return function( ... )
 		local count:number = select( "#", ... );
 		local args:table = { ... };
-		local ok:boolean, err = xpcall( function() return f( unpack(args, 1, count) ); end, KeyNavErrorHandler );
+		local ok:boolean, err = xpcall( function() return f( unpack(args, 1, count) ); end, m_errorHandler or tostring );
 		if not ok then print( "InGameAccess " .. name .. " error: " .. tostring(err) ); end
 	end
+end
+
+-- Every Events.* / LuaEvents.* listener goes through Listen, so OnShutdown can remove them all. Listeners of a context
+-- that was hot reloaded would otherwise survive in the engine, fire in a dead environment and run next to the new ones.
+local m_listeners:table = {};
+local function Listen( event, fn )
+	event.Add( fn );
+	table.insert( m_listeners, { event = event, fn = fn } );
+end
+
+local function OnShutdown()
+	print( "InGameAccess: shutdown, removing " .. #m_listeners .. " listeners" );
+	for _, l in ipairs( m_listeners ) do l.event.Remove( l.fn ); end
+	m_listeners = {};
 end
 
 local function Capitalize( text:string )
@@ -228,7 +244,7 @@ local function AddEvent( name:string, handler )
 		print( "InGameAccess: unknown event " .. name );
 		return;
 	end
-	Events[name].Add( Safe( name, handler ) );
+	Listen( Events[name], Safe( name, handler ) );
 end
 
 -- ===========================================================================
@@ -2218,13 +2234,13 @@ function Initialize()
 	RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
 	RegisterAction( "KeyNavNotifications",		ToggleNotifications );
 	RegisterAction( "KeyNavYields",				SpeakYields );
-	Events.InputActionTriggered.Add( OnInputActionTriggered );
+	Listen( Events.InputActionTriggered, OnInputActionTriggered );
 
-	Events.UnitSelectionChanged.Add( Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
-	Events.CitySelectionChanged.Add( Safe( "CitySelectionChanged", OnCitySelectionChanged ) );
-	Events.LocalPlayerTurnBegin.Add( Safe( "LocalPlayerTurnBegin", AnnounceTurn ) );
-	Events.LoadScreenClose.Add( Safe( "LoadScreenClose", OnLoadScreenClose ) );
-	Events.LocalPlayerTurnEnd.Add( Safe( "LocalPlayerTurnEnd", OnLocalPlayerTurnEnd ) );
+	Listen( Events.UnitSelectionChanged, Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
+	Listen( Events.CitySelectionChanged, Safe( "CitySelectionChanged", OnCitySelectionChanged ) );
+	Listen( Events.LocalPlayerTurnBegin, Safe( "LocalPlayerTurnBegin", AnnounceTurn ) );
+	Listen( Events.LoadScreenClose, Safe( "LoadScreenClose", OnLoadScreenClose ) );
+	Listen( Events.LocalPlayerTurnEnd, Safe( "LocalPlayerTurnEnd", OnLocalPlayerTurnEnd ) );
 
 	AddEvent( "InterfaceModeChanged",		OnInterfaceModeChanged );
 	AddEvent( "UnitOperationStarted",		OnUnitOperationStarted );
@@ -2240,11 +2256,11 @@ function Initialize()
 		if player == Game.GetLocalPlayer() and m_ready and row ~= nil then SayResult( "Upgraded to " .. Locale.Lookup( row.Name ) ); end
 	end );
 	AddEvent( "UnitKilledInCombat",			OnUnitKilledInCombat );
-	LuaEvents.SRA_UnitActions.Add( OnUnitActionsReceived );
-	LuaEvents.SRA_Notifications.Add( OnNotificationsReceived );
-	LuaEvents.SRA_NotificationAdded.Add( Safe( "NotificationAdded", OnNotificationAdded ) );
-	LuaEvents.SRA_NotificationActivated.Add( Safe( "NotificationActivated", OnNotificationActivated ) );
-	LuaEvents.SRA_AttackKey.Add( Safe( "AttackKey", AttackKey ) );
+	Listen( LuaEvents.SRA_UnitActions, OnUnitActionsReceived );
+	Listen( LuaEvents.SRA_Notifications, OnNotificationsReceived );
+	Listen( LuaEvents.SRA_NotificationAdded, Safe( "NotificationAdded", OnNotificationAdded ) );
+	Listen( LuaEvents.SRA_NotificationActivated, Safe( "NotificationActivated", OnNotificationActivated ) );
+	Listen( LuaEvents.SRA_AttackKey, Safe( "AttackKey", AttackKey ) );
 	AddEvent( "UnitRemovedFromMap",			function() After( 0.3, ResetStaleMode ); end );
 	AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )
 		local player:table = Players[ playerID ];
@@ -2253,5 +2269,6 @@ function Initialize()
 
 	ContextPtr:SetInputHandler( OnInput, true );
 	ContextPtr:SetUpdate( Safe( "Update", OnUpdate ) );
+	ContextPtr:SetShutdown( OnShutdown );
 end
 Initialize();
