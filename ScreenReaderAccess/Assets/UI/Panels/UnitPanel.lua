@@ -4278,10 +4278,23 @@ local function SRBuildActions()
 					if actionId ~= nil then hotkey = Input.GetGestureDisplayString( actionId, 0 ) or ""; end
 				end
 				table.insert( m_srActions, { action = action } );
-				table.insert( plain, {
-					id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey,
-					disabled = ( action.Disabled == true ), reason = SRReasons( tooltip ),
-					detail = CleanTextForSpeech( tooltip ), category = category,
+					local reason = SRReasons( tooltip );
+					local detail = CleanTextForSpeech( tooltip );
+					if action.Disabled == true and reason == "" and action.SRName ~= nil and unit ~= nil then
+						-- an improvement the engine refuses without giving a reason
+						local plot = Map.GetPlot( unit:GetX(), unit:GetY() );
+						local row = GameInfo.Improvements[ action.CallbackVoid1 ];
+						if plot ~= nil and row ~= nil and plot:GetImprovementType() == row.Index then
+							reason = "already built here";
+						else
+							reason = "not possible on this tile";
+						end
+						detail = detail .. ". " .. reason;
+					end
+					table.insert( plain, {
+						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey,
+						disabled = ( action.Disabled == true ), reason = reason,
+						detail = detail, category = category,
 					tag = action.userTag, typeName = SRTypeName( action.userTag ) } );
 				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
 				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil
@@ -4328,6 +4341,41 @@ end
 function SRA_OnShutdown()
 	LuaEvents.SRA_RequestUnitActions.Remove( OnSRRequestUnitActions );
 	LuaEvents.SRA_RunUnitAction.Remove( OnSRRunUnitAction );
+	Events.BeginWonderReveal.Remove( OnBeginWonderReveal );
+	Events.CitySelectionChanged.Remove( OnCitySelectionChanged );
+	Events.CityReligionFollowersChanged.Remove( OnCityReligionFollowersChanged );
+	Events.GovernmentPolicyChanged.Remove( OnGovernmentPolicyChanged );
+	Events.GreatWorkMoved.Remove( OnGreatWorkMoved );
+	Events.InputActionTriggered.Remove( OnInputActionTriggered );
+	Events.InterfaceModeChanged.Remove( OnInterfaceModeChanged );
+	Events.LocalPlayerTurnEnd.Remove( OnLocalPlayerTurnEnd );
+	Events.PantheonFounded.Remove( OnPantheonFounded );
+	Events.PhaseBegin.Remove( OnPhaseBegin );
+	Events.PlayerTurnActivated.Remove( OnPlayerTurnActivated );
+	Events.PlayerTurnDeactivated.Remove( OnPlayerTurnDeactivated );
+	Events.UnitCommandStarted.Remove( OnUnitCommandStarted );
+	Events.UnitDamageChanged.Remove( OnUnitDamageChanged );
+	Events.UnitMoveComplete.Remove( OnUnitMoveComplete );
+	Events.UnitChargesChanged.Remove( OnUnitChargesChanged );
+	Events.UnitPromoted.Remove( OnUnitPromotionChanged );
+	Events.UnitOperationsCleared.Remove( OnUnitOperationsCleared );
+	Events.UnitOperationAdded.Remove( OnUnitOperationAdded );
+	Events.UnitOperationDeactivated.Remove( OnUnitOperationDeactivated );
+	Events.UnitRemovedFromMap.Remove( OnUnitRemovedFromMap );
+	Events.UnitSelectionChanged.Remove( OnUnitSelectionChanged );
+	Events.UnitMovementPointsChanged.Remove( OnUnitMovementPointsChanged );
+	Events.UnitMovementPointsCleared.Remove( OnUnitMovementPointsChanged );
+	Events.UnitMovementPointsRestored.Remove( OnUnitMovementPointsChanged );
+	Events.UnitAbilityLost.Remove( OnUnitAbilityLost );
+	LuaEvents.TradeOriginChooser_SetTradeUnitStatus.Remove( OnSetTradeUnitStatus );
+	LuaEvents.TradeRouteChooser_SetTradeUnitStatus.Remove( OnSetTradeUnitStatus );
+	LuaEvents.TutorialUIRoot_DisableActions.Remove( OnTutorialDisableActions );
+	LuaEvents.TutorialUIRoot_DisableActionForAll.Remove( OnTutorialDisableActionForAll );
+	LuaEvents.TutorialUIRoot_EnableActions.Remove( OnTutorialEnableActions );
+	LuaEvents.TutorialUIRoot_EnableActionForAll.Remove( OnTutorialEnableActionForAll );
+	LuaEvents.UnitFlagManager_PointerEntered.Remove( OnUnitFlagPointerEntered );
+	LuaEvents.UnitFlagManager_PointerExited.Remove( OnUnitFlagPointerExited );
+	LuaEvents.PlayerChange_Close.Remove( OnPlayerChangeClose );
 end
 
 function OnSRRequestUnitActions( refresh:boolean )

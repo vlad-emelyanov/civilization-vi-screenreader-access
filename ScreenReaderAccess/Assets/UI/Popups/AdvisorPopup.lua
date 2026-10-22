@@ -635,6 +635,9 @@ function OnShutdown()
 	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
 	LuaEvents.TutorialUIRoot_AdvisorRaise.Remove( OnAdvisorRaise );
 	LuaEvents.TutorialUIRoot_AdvisorLower.Remove( OnAdvisorLower );
+	-- ScreenReaderAccess mod change: also drop the two Events listeners (stale instances after a hot reload)
+	Events.InputActionTriggered.Remove( OnInputActionTriggered );
+	Events.UIIdle.Remove( OnUIIdle );
 end
 
 
