@@ -271,6 +271,11 @@ function Get-GameProcess {
     Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
 }
 
+# Any game process, window or not (the window handle is 0 while the game launches).
+function Test-GameLaunching {
+    [bool](Get-Process -Name $GameProcessNames -ErrorAction SilentlyContinue)
+}
+
 function Get-ConsoleProcess {
     Get-Process -Name 'ScreenreaderAccess.Console' -ErrorAction SilentlyContinue
 }
@@ -338,7 +343,7 @@ function Invoke-Start {
         Start-Process $ConsoleExe -WindowStyle Minimized | Out-Null
         Write-Output 'Started console app.'
     }
-    if (Get-GameProcess) {
+    if (Test-GameLaunching) {
         Write-Output 'Game already running.'
         return
     }
@@ -747,7 +752,13 @@ function Ensure-MainMenu {
 }
 
 function Invoke-LoadOnce([string]$name) {
-    if (-not (Get-GameProcess) -and -not (Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue)) { Invoke-Start }
+    if (Test-GameLaunching) {
+        if (-not (Get-GameProcess)) {
+            Write-Output 'Game process exists but has no window yet (launching): waiting, not starting a second instance.'
+            $until = (Get-Date).AddSeconds(120)
+            while (-not (Get-GameProcess) -and (Test-GameLaunching) -and (Get-Date) -lt $until) { Start-Sleep -Seconds 1 }
+        }
+    } elseif (-not (Get-Process -Name 'FiraxisBugReporter' -ErrorAction SilentlyContinue)) { Invoke-Start }
     Assert-GameHealthy -Grace 8 -Block
     Ensure-MainMenu
     $res = Invoke-LuaCapture 'MainMenu' ('local s={}; s.Name="' + $name + '"; s.Location=SaveLocations.LOCAL_STORAGE; s.Type=SaveTypes.SINGLE_PLAYER; s.IsAutosave=false; s.IsQuicksave=false; s.Directory=SaveDirectories.DEFAULT; return tostring(Network.LoadGame(s, ServerType.SERVER_TYPE_NONE))')
