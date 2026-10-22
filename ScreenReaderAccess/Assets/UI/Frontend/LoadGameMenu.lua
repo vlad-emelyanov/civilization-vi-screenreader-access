@@ -7,6 +7,7 @@ include( "LocalPlayerActionSupport" );
 
 include("KeyboardNavigation")
 include("ScreenReader")
+include("SRListen")
 
 
 local RELOAD_CACHE_ID: string = "LoadGameMenu";		-- hotloading
@@ -643,6 +644,7 @@ end
 
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();
 	-- Cache values for hotloading...
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isHidden", ContextPtr:IsHidden());
 end
@@ -787,7 +789,7 @@ function Initialize()
 	InitializeDirectoryBrowsing();
 	Resize();
 
-	LuaEvents.FileListQueryComplete.Add( OnFileListQueryComplete );
+	SRListen( LuaEvents.FileListQueryComplete, OnFileListQueryComplete );
 
 	-- UI Events
 	ContextPtr:SetInputHandler( OnInputHandler, true );
@@ -796,8 +798,8 @@ function Initialize()
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetRefreshHandler( OnRefresh );
 	ContextPtr:SetShutdown(OnShutdown);
-	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
-	LuaEvents.JoiningRoom_Showing.Add(OnJoiningRoom_Showing);
+	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );
+	SRListen( LuaEvents.JoiningRoom_Showing, OnJoiningRoom_Showing );
 
 	-- UI Callbacks
 	Controls.ActionButton:RegisterCallback( Mouse.eLClick, OnActionButton );
@@ -808,17 +810,17 @@ function Initialize()
 	Controls.SelectedFileStack:RegisterSizeChanged( OnSelectedFileStackSizeChanged );
 
 	-- LUA Events
-	LuaEvents.HostGame_SetLoadGameServerType.Add( OnSetLoadGameServerType );
-	LuaEvents.MainMenu_SetLoadGameServerType.Add( OnSetLoadGameServerType );
-	LuaEvents.InGameTopOptionsMenu_SetLoadGameServerType.Add( OnSetLoadGameServerType );
+	SRListen( LuaEvents.HostGame_SetLoadGameServerType, OnSetLoadGameServerType );
+	SRListen( LuaEvents.MainMenu_SetLoadGameServerType, OnSetLoadGameServerType );
+	SRListen( LuaEvents.InGameTopOptionsMenu_SetLoadGameServerType, OnSetLoadGameServerType );
 
-	LuaEvents.FileListQueryResults.Add( OnQuickLoadQueryResults );
+	SRListen( LuaEvents.FileListQueryResults, OnQuickLoadQueryResults );
 
-	Events.SystemUpdateUI.Add( OnUpdateUI );
+	SRListen( Events.SystemUpdateUI, OnUpdateUI );
 
     m_QuickloadId = Input.GetActionId("QuickLoad");
-    Events.InputActionTriggered.Add( OnInputActionTriggered );
-    Events.LoadComplete.Add( OnLoadComplete );
+    SRListen( Events.InputActionTriggered, OnInputActionTriggered );
+    SRListen( Events.LoadComplete, OnLoadComplete );
 end
 Initialize();
 
