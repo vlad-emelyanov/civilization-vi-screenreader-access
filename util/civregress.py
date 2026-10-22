@@ -10,8 +10,11 @@ Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' 
   key <args>              civctl key <args>              e.g. key Enter -Settle 2000, key Shift+Down
   wait <args>             civctl wait <args>             e.g. wait Turn \\d+ -Timeout 30 (no | or & in the regex: cmd.exe)
   lua <state> <expr>      civctl lua <state> <expr>      (the expression goes through a temp -File: quotes are safe)
-  clear-advisors          presses Enter until no "ADVISOR:" line is spoken any more (max 12): the advisor popups that a
-                          loaded or tuner-changed game queues swallow keys. Its lines stay in the window.
+  clear-advisors          presses Enter only while the AdvisorPopup context is visible (tuner probe, max 12 presses): the
+                          advisor popups that a loaded or tuner-changed game queues swallow keys. With no popup up it presses
+                          nothing (Enter would end the turn). Warns when the cap is hit with a popup still up. Its lines
+                          stay in the window.
+  no-lua-errors           PASS if Lua.log got no new "Runtime Error" line since the script began (put it last)
   expect <regex>          PASS if some SR> line since the last check matches (re.search, case-sensitive, use (?i))
   expect-not <regex>      PASS if no SR> line since the last check matches
 
@@ -24,6 +27,7 @@ Failure handling: a failed expect prints FAIL with the lines it saw and the scri
 owner) aborts the whole run. After an abort the next script starts with a fresh load. Other non-zero exits of
 key/wait/lua count as a failed step and the script goes on.
 
+A script whose checks were all skipped by a shared load is reported as SKIPPED-ALL with a warning (it checked nothing).
 A script that has a comment line `# no-share-load` always does its own load, and the next script does not share its game
 (use it when the script changes the game: scenario, Enter, F-keys that open screens).
 
@@ -31,7 +35,8 @@ Loads: by default every script does its own `load`, because keys change the game
 `load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script loaded the same fixture and finished without an abort (faster, but state
 drifts: use it for read-only scripts). Scripts are run grouped by their first fixture so shared loads are adjacent.
 
-Env: CIVCTL_OWNER is the lock owner passed to civctl (default 'regress').
+Env: CIVCTL_OWNER is the lock owner passed to civctl. Run directly the default is 'regress'; through `civctl regress` it is
+the caller's owner (civctl exports it; 'default' when none is set), so the caller's lock lease is reused.
 Exit code: 0 all passed, 1 something failed, 2 usage/parse error.
 """
 import argparse
@@ -48,9 +53,11 @@ SCENARIO_DIR = os.path.join(ROOT, "util", "scenarios")
 CIVCTL = os.path.join(ROOT, "util", "civctl.ps1")
 POWERSHELL = "powershell.exe"
 TIMEOUT_RC = 124
+MAX_ADVISOR_PRESSES = 12
+LUA_LOG = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Firaxis Games", "Sid Meier's Civilization VI", "Logs", "Lua.log")
 
-ACTIONS = ("load", "scenario", "key", "wait", "lua", "clear-advisors")
-NO_ARG = ("clear-advisors",)
+ACTIONS = ("load", "scenario", "key", "wait", "lua", "clear-advisors", "no-lua-errors")
+NO_ARG = ("clear-advisors", "no-lua-errors")
 CHECKS = ("expect", "expect-not")
 STEP_TIMEOUT = 600  # seconds per civctl call (a load is ~45 s, a newgame 70 s)
 
@@ -184,11 +191,48 @@ class LockedError(Exception):
     pass
 
 
+def log_size(path):
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+
+def new_lua_errors(path, offset):
+    """Runtime Error lines appended to the log after byte offset (the whole file if it shrank = recreated)."""
+    try:
+        with open(path, "rb") as f:
+            if os.path.getsize(path) < offset:
+                offset = 0
+            f.seek(offset)
+            data = f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return []
+    return [l.rstrip() for l in data.splitlines() if "Runtime Error" in l]
+
+
+def advisor_popup_up(runner):
+    """Asks the game whether the AdvisorPopup context is visible. Returns (rc, up, lines)."""
+    fd, tmp = tempfile.mkstemp(suffix=".lua", prefix="regress_")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write("return tostring(not ContextPtr:IsHidden())")
+    try:
+        rc, lines = runner.run(["lua", "AdvisorPopup", "-File", tmp])
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    return rc, rc == 0 and any(l.strip() == "true" for l in lines), lines
+
+
 class ScriptResult:
     def __init__(self, name):
         self.name = name
         self.passed = 0
         self.failed = 0
+        self.skipped = 0    # checks skipped because of a shared load
+        self.skipped_all = False
         self.aborted = None  # reason string
         self.loaded = None   # fixture the game is in at the end (None after an abort)
 
@@ -203,11 +247,13 @@ def run_script(name, steps, runner, out=print, skip_load=False):
     window = []         # [(raw, text)] since the last check
     checked = False     # the window has been looked at: the next action starts a new one
     skipped_load = False
+    log_offset = log_size(getattr(runner, "lua_log", LUA_LOG))
     after_skip = False  # checks right after a skipped load are skipped too
     out("== %s (%d steps)" % (name, len(steps)))
     for i, s in enumerate(steps):
         if s.kind in CHECKS and after_skip:
             out("  SKIP line %d: %s %s (shared load)" % (s.line, s.kind, s.arg))
+            res.skipped += 1
             continue
         after_skip = False
         if s.kind in CHECKS:
@@ -236,14 +282,39 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             continue
         if checked:
             window, checked = [], False
+        if s.kind == "no-lua-errors":
+            checked = True
+            errs = new_lua_errors(getattr(runner, "lua_log", LUA_LOG), log_offset)
+            if errs:
+                res.failed += 1
+                out("  FAIL line %d: no-lua-errors (%d new Runtime Error lines)" % (s.line, len(errs)))
+                for l in errs[:5]:
+                    out("       " + l)
+            else:
+                res.passed += 1
+                out("  PASS line %d: no-lua-errors" % s.line)
+            continue
         if s.kind == "clear-advisors":
             out("  > clear-advisors")
-            for _ in range(12):
+            rc, presses = 0, 0
+            while True:
+                rc, up, lines = advisor_popup_up(runner)
+                if rc == 6:
+                    raise LockedError(chr(10).join(lines))
+                if rc != 0:
+                    out("  WARNING line %d: advisor probe failed (exit %d), no Enter pressed: %s" % (s.line, rc, " ".join(l.strip() for l in lines[-2:])))
+                    break
+                if not up:
+                    break
+                if presses >= MAX_ADVISOR_PRESSES:
+                    out("  WARNING line %d: advisor popup still up after %d Enter presses" % (s.line, presses))
+                    break
                 rc, lines = runner.run(["key", "Enter", "-Settle", "1500"])
+                presses += 1
                 if rc == 6:
                     raise LockedError(chr(10).join(lines))
                 window.extend(parse_sr_lines(lines))
-                if rc != 0 or not any("ADVISOR:" in l for l in lines):
+                if rc != 0:
                     break
             if rc == 5 or rc == TIMEOUT_RC:
                 res.failed += 1
@@ -300,7 +371,11 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             res.loaded = s.arg
     if res.aborted or getattr(steps, "fresh", False):
         res.loaded = None
-    out("   -> %d passed, %d failed%s" % (res.passed, res.failed, ", ABORTED: " + res.aborted if res.aborted else ""))
+    res.skipped_all = res.skipped > 0 and res.passed + res.failed == 0
+    if res.skipped_all:
+        out("   WARNING: SKIPPED-ALL: every check of this script was skipped by the shared load; it checked nothing (add '# no-share-load')")
+    out("   -> %d passed, %d failed%s%s" % (res.passed, res.failed, ", %d skipped" % res.skipped if res.skipped else "",
+                                           ", ABORTED: " + res.aborted if res.aborted else ""))
     return res
 
 
@@ -356,12 +431,17 @@ def discover(names):
 
 
 def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")  # python -I ignores PYTHONIOENCODING; a pipe is cp1252
+        except (AttributeError, ValueError):
+            pass
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("names", nargs="*", help="script names in test/regress (default/all: every script)")
     ap.add_argument("--share-load", action="store_true", help="skip the load when the previous script loaded the same fixture")
     ap.add_argument("--dry-run", action="store_true", help="parse and list the scripts, do not touch the game")
     ap.add_argument("--list", action="store_true", help="same as --dry-run")
-    ap.add_argument("--owner", help="civctl lock owner (default $CIVCTL_OWNER or 'regress')")
+    ap.add_argument("--owner", help="civctl lock owner (default $CIVCTL_OWNER or 'regress'; civctl regress passes its own owner)")
     a = ap.parse_args(argv)
     try:
         scripts = order_scripts(discover(a.names))
@@ -378,8 +458,9 @@ def main(argv=None):
     results = run_all(scripts, CivctlRunner(owner=a.owner), a.share_load)
     p = sum(r.passed for r in results)
     f = sum(r.failed for r in results)
-    print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s" % (
-        len(results), p, f, "; aborted: " + ", ".join(r.name for r in results if r.aborted) if any(r.aborted for r in results) else ""))
+    print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (
+        len(results), p, f, "; aborted: " + ", ".join(r.name for r in results if r.aborted) if any(r.aborted for r in results) else "",
+        "; SKIPPED-ALL: " + ", ".join(r.name for r in results if r.skipped_all) if any(r.skipped_all for r in results) else ""))
     return 0 if all(r.ok for r in results) else 1
 
 

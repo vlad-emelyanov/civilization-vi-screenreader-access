@@ -121,6 +121,66 @@ class FlowTests(unittest.TestCase):
         self.assertTrue(res.aborted)
 
 
+class AdvisorAndSkipTests(unittest.TestCase):
+    def test_no_popup_presses_nothing(self):
+        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["false"]))])
+        res = cr.run_script("t", cr.parse_script("clear-advisors"), r, lambda s: None)
+        self.assertFalse([c for c in r.calls if c[0] == "key"])
+        self.assertTrue(res.ok)
+
+    def test_presses_while_popup_up(self):
+        state = {"up": 2}
+
+        def probe():
+            return 0, ["true" if state["up"] > 0 else "false"]
+
+        def press():
+            state["up"] -= 1
+            return 0, ["SR> ADVISOR: x"]
+        r = FakeRunner([(["lua", "AdvisorPopup"], probe), (["key", "Enter"], press)])
+        cr.run_script("t", cr.parse_script("clear-advisors"), r, lambda s: None)
+        self.assertEqual(len([c for c in r.calls if c[0] == "key"]), 2)
+
+    def test_cap_warns(self):
+        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["true"]))])
+        log = []
+        cr.run_script("t", cr.parse_script("clear-advisors"), r, log.append)
+        self.assertEqual(len([c for c in r.calls if c[0] == "key"]), cr.MAX_ADVISOR_PRESSES)
+        self.assertTrue(any("WARNING" in l and "still up" in l for l in log))
+
+    def test_skipped_all(self):
+        text = "load x" + chr(10) + "expect ^T"
+        scripts = [("a", cr.parse_script(text)), ("b", cr.parse_script(text))]
+        r = FakeRunner([(["load"], (0, ["SR> Turn 1"]))])
+        log = []
+        res = cr.run_all(scripts, r, share_load=True, out=log.append)
+        self.assertFalse(res[0].skipped_all)
+        self.assertTrue(res[1].skipped_all)
+        self.assertTrue(any("SKIPPED-ALL" in l for l in log))
+
+    def test_no_lua_errors(self):
+        import tempfile
+        fd, path = tempfile.mkstemp()
+        os.close(fd)
+        try:
+            with open(path, "w") as f:
+                f.write("old Runtime Error: ancient\n")
+            r = FakeRunner()
+            r.lua_log = path
+
+            def key():
+                with open(path, "a") as f:
+                    f.write("[x] Runtime Error: boom\n")
+                return 0, []
+            r.table = [(["key"], key)]
+            res = cr.run_script("t", cr.parse_script("no-lua-errors"), r, lambda s: None)
+            self.assertEqual((res.passed, res.failed), (1, 0))
+            res = cr.run_script("t", cr.parse_script("key A" + chr(10) + "no-lua-errors"), r, lambda s: None)
+            self.assertEqual((res.passed, res.failed), (0, 1))
+        finally:
+            os.remove(path)
+
+
 class OrderTests(unittest.TestCase):
     def test_grouping_and_share_load(self):
         mk = lambda t: cr.parse_script(t)  # noqa: E731
