@@ -5,6 +5,8 @@
 include("SupportFunctions");
 include("PopupPriorityLoader_", true);
 include("Civ6Common"); --FormatTimeRemaining
+include("ScreenReader");	-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
 
 -- ===========================================================================
 -- Constants
@@ -43,6 +45,11 @@ function OnOpen(stageNum:number)
 		UIManager:QueuePopup(ContextPtr, PopupPriority.WorldCongressIntro, { AlwaysVisibleInQueue = true });
 
 		m_currStageNum = stageNum;
+
+		-- Begin ScreenReaderAccess mod change
+		OutputMessageToScreenReader( CleanTextForSpeech( Controls.Title:GetText() ) .. ". " .. CleanTextForSpeech( Controls.Body1:GetText() ) .. " " ..
+			CleanTextForSpeech( Controls.Body2:GetText() ) .. " Enter to begin voting.", true );
+		-- End ScreenReaderAccess mod change
 	end
 end
 
@@ -74,6 +81,7 @@ end
 function OnShutdown()
 	--Stop Listening
 	LuaEvents.GameDebug_Return.Remove(OnGameDebugReturn);
+	SRUnlistenAll();		-- ScreenReaderAccess
 
 	--Setup reload variables
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "IsHidden", ContextPtr:IsHidden());
@@ -143,12 +151,13 @@ function Initialize()
 
 	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
 
-	Events.InputActionTriggered.Add( OnInputActionTriggered );
-	Events.TurnTimerUpdated.Add( OnTurnTimerUpdated );
-	Events.LoadScreenClose.Add( OnLoadScreenClose );
+	-- ScreenReaderAccess: SRListen, so a hot reload does not leave this instance's listeners behind
+	SRListen( Events.InputActionTriggered, OnInputActionTriggered );
+	SRListen( Events.TurnTimerUpdated, OnTurnTimerUpdated );
+	SRListen( Events.LoadScreenClose, OnLoadScreenClose );
 
-	Events.WorldCongressStage1.Add(function() OnOpen(1); end);
-	Events.WorldCongressStage2.Add(function() OnOpen(2); end);
+	SRListen( Events.WorldCongressStage1, function() OnOpen(1); end );
+	SRListen( Events.WorldCongressStage2, function() OnOpen(2); end );
 
 	Controls.AcceptButton:RegisterCallback(Mouse.eLClick, OnClose);
 end

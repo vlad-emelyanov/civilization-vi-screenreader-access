@@ -1,0 +1,30 @@
+# UNVERIFIED: written offline, never run. Assumes 2 resolutions, each with a target. Fixture bug-world-congress-silent (turn 110, congress blocker; copy it from the main repo test/fixtures).
+# no-share-load
+load bug-world-congress-silent
+expect (?i)enter to begin voting
+key Enter -Settle 2500
+expect Resolutions: \d+ to vote on
+key Down -Settle 600
+expect \d+ of \d+
+key Right -Settle 600
+expect option B
+key OemPlus -Settle 600
+expect (?i)vote for B
+key T -Settle 800
+expect ^Target for
+key Enter -Settle 800
+expect ^Target:
+key Up -Settle 400
+key OemPlus -Settle 600
+key T -Settle 800
+key Enter -Settle 800
+key Down -Settle 400
+key Down -Settle 400
+key N -Settle 2000
+expect (?i)review your votes
+key N -Settle 3000
+expect (?i)votes submitted
+wait World Congress results -Timeout 90
+key Enter -Settle 1500
+expect (?i)world congress closed
+no-lua-errors

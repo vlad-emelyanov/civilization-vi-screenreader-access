@@ -10,6 +10,10 @@ include("WorldCrisisSupport");
 include("PopupPriorityLoader_", true);
 include("InputSupport");
 include("Civ6Common"); --FormatTimeRemaining
+include("ScreenReader");		-- ScreenReaderAccess
+include("SRListen");			-- ScreenReaderAccess
+include("KeyNavList");			-- ScreenReaderAccess
+include("WorldCongressText");	-- ScreenReaderAccess
 
 -- ===========================================================================
 -- Constants
@@ -239,6 +243,7 @@ function SetStage(stageNum:number, beginCongress:boolean)
 	Controls.DescriptionBG:SetHide(not m_IsInSession or m_CurrentPhase ~= PHASE_STEP_MAX);
 
 	UpdateNavButtons();
+	SRA_RequestAnnounce( true );		-- ScreenReaderAccess
 	return true;
 end
 
@@ -291,6 +296,7 @@ function SetPhase(phaseNum:number)
 	-- Set Phase only gets called when congress is in session - hide it
 	Controls.EmptyLabel:SetHide(true);
 	UpdateNavButtons();
+	SRA_RequestAnnounce( true );		-- ScreenReaderAccess
 	return true;
 end
 
@@ -846,6 +852,7 @@ function PopulateChoicePulldown(kResolutionChoice:table, kVoteData:table)
 		local metPlayers, isUniqueLeader = GetMetPlayersAndUniqueLeaders();
 		 
 		instance.PlayerPulldown:ClearEntries();
+		kResolutionChoice.sraTargets = {};		-- ScreenReaderAccess
 		local possibleTargets:table = kResolutionData.PossibleTargets;
 		if possibleTargets and table.count(possibleTargets) > 0 then
 			for i, v in pairs(possibleTargets) do
@@ -856,6 +863,7 @@ function PopulateChoicePulldown(kResolutionChoice:table, kVoteData:table)
 				entry.Button:SetVoid1(i);
 				local text, leaderIcon, civIcon = GetPulldownNameAndIcons(kResolutionData, i );
 				entry.Button:SetText(text);
+				table.insert( kResolutionChoice.sraTargets, { text = text, a1 = i, id = i } );		-- ScreenReaderAccess
 
 				local civIconManager:table = CivilizationIcon:AttachInstance(entry.CivIcon);
 				civIconManager:UpdateIconFromPlayerID(playerID);
@@ -878,7 +886,7 @@ function PopulateChoicePulldown(kResolutionChoice:table, kVoteData:table)
 
 		instance.PlayerPulldown:GetButton():SetText(text);
 		instance.PlayerPulldown:GetButton():SetToolTipString(Locale.Lookup("LOC_WORLD_CONGRESS_TT_NO_VOTING_DOWN"));
-		instance.PlayerPulldown:RegisterSelectionCallback(function(i)
+		kResolutionChoice.sraSelect = function(i)		-- ScreenReaderAccess: kept so the keyboard can call it
 			local playerID:number = tonumber(kResolutionData.PossibleTargets[i]);
 			kResolutionChoice.target = i;
 			local text, leaderIcon, civIcon = GetPulldownNameAndIcons(kResolutionData, i );
@@ -892,13 +900,15 @@ function PopulateChoicePulldown(kResolutionChoice:table, kVoteData:table)
 
 			UpdateResolutionChoice(kResolutionChoice);
 			UpdateNavButtons();
-		end);
+		end;
+		instance.PlayerPulldown:RegisterSelectionCallback(kResolutionChoice.sraSelect);		-- ScreenReaderAccess
 	else--kResolutionData.TargetType ~= "PlayerType"
 		instance.Pulldown:SetHide(false);
 		instance.PlayerPulldown:SetHide(true);
 		instance.Pulldown:GetButton():RegisterCallback(Mouse.eLClick, function() AssignActivePulldown(instance.Pulldown); end);
 
 		instance.Pulldown:ClearEntries();
+		kResolutionChoice.sraTargets = {};		-- ScreenReaderAccess
 		instance.Pulldown:GetButton():SetToolTipString(Locale.Lookup("LOC_WORLD_CONGRESS_TT_NO_VOTING_DOWN"));
 				
 		-- Dup for sorting and save index order of targets in a reverse lookup table.
@@ -923,6 +933,7 @@ function PopulateChoicePulldown(kResolutionChoice:table, kVoteData:table)
 				entry.Button:SetVoid2( kSortedIndex[name] );
 				local text = Locale.Lookup( kSortedTargets[pulldownIndex] );
 				entry.Button:SetText(text);
+				table.insert( kResolutionChoice.sraTargets, { text = text, a1 = pulldownIndex, a2 = kSortedIndex[name], id = kSortedIndex[name] } );		-- ScreenReaderAccess
 			end
 			instance.Pulldown:CalculateInternals();
 		else
@@ -939,7 +950,7 @@ function PopulateChoicePulldown(kResolutionChoice:table, kVoteData:table)
 			instance.Pulldown:GetButton():SetToolTipString("");
 		end
 				
-		instance.Pulldown:RegisterSelectionCallback( 
+		kResolutionChoice.sraSelect = 		-- ScreenReaderAccess: kept so the keyboard can call it
 			function( pulldownIndex:number, gameIndex:number )
 				kResolutionChoice.target = gameIndex;
 				local text:string = Locale.Lookup( kSortedTargets[pulldownIndex] );
@@ -947,8 +958,8 @@ function PopulateChoicePulldown(kResolutionChoice:table, kVoteData:table)
 				instance.Pulldown:GetButton():SetToolTipString("");			
 				UpdateResolutionChoice( kResolutionChoice );
 				UpdateNavButtons();
-			end
-		);
+			end;
+		instance.Pulldown:RegisterSelectionCallback( kResolutionChoice.sraSelect );		-- ScreenReaderAccess
 	end
 end
 
@@ -1260,6 +1271,7 @@ function PopulateProposalStack(kProposals:table, kProposalIM:table, kProposalCat
 			-- Only store vote data for proposals players can vote on
 			kVoteData.instance = instance;
 			m_kProposalVotes[voteKey] = kVoteData;
+			kVoteData.sraFavorCost = kProposalCategory.FavorCost;		-- ScreenReaderAccess
 
 			-- This allows us to update the total cost 
 			instance.UpdateTitle = updateTitleFn;
@@ -1303,10 +1315,12 @@ function PopulateProposalStack(kProposals:table, kProposalIM:table, kProposalCat
 				PopulateEmergencyData(instance, kVoteData.data.Target, kVoteData.data.EmergencyType);
 
 				UpdateAvailableProposal(kVoteData, kProposalCategory);
-				instance.SelectBox:RegisterCallback(Mouse.eLClick, OnToggleProposal(instance, kProposal, kProposalCategory));
+				kVoteData.sraToggle = OnToggleProposal(instance, kProposal, kProposalCategory);		-- ScreenReaderAccess
+				instance.SelectBox:RegisterCallback(Mouse.eLClick, kVoteData.sraToggle);
 			else
 				UpdateProposal(kVoteData);
 				local kCostData = kProposalCategory.FavorCost;
+				kVoteData.sraCostData = kCostData;		-- ScreenReaderAccess
 				UpdateVotingWidget(instance.Vote, kVoteData, kCostData, TestProposalVote);
 				instance.Vote.UpButton:RegisterCallback(Mouse.eLClick, OnVoteProposal(UP_VOTE, kVoteData, kCostData));
 				instance.Vote.DownButton:RegisterCallback(Mouse.eLClick, OnVoteProposal(DOWN_VOTE, kVoteData, kCostData));
@@ -2439,6 +2453,7 @@ function OnShutdown()
 	--Stop listening
 	LuaEvents.GameDebug_Return.Remove(OnGameDebugReturn);
 	LuaEvents.WorldCongressIntro_ShowWorldCongress.Remove( OnShowFromIntro );
+	SRUnlistenAll();		-- ScreenReaderAccess: the Events.X listeners of Initialize
 	LuaEvents.CongressButton_ShowCongressResults.Remove(OnWorldCongressResults);
 	LuaEvents.DiplomacyActionView_ShowCongressResults.Remove(OnWorldCongressResults);
 	LuaEvents.NotificationPanel_ResumeCongress.Remove(OnResumeCongress);
@@ -2467,9 +2482,830 @@ function OnShutdown()
 end
 
 -- ===========================================================================
+-- Begin ScreenReaderAccess mod change
+--	Keyboard access and speech for the World Congress (docs/ingame-plan.md, World Congress).
+--	Modes (SRA_Mode): "vote" (stage 1 / 2, phase 1: resolutions and proposals to vote on), "summary" (phase 2: review
+--	before submitting), "review" (stage 4: last results / current effects / available proposals tabs). One KeyNavList
+--	per mode, rebuilt from the popup's own state (m_kResolutionVotes, m_kProposalVotes, Game.GetWorldCongress())
+--	at key time; the target chooser is a second list. Every action calls the screen's own function (OnVoteResolution,
+--	OnVoteProposal, the pulldown selection callback, OnNext, OnAccept, ...), nothing is requested from the engine here.
+-- ===========================================================================
+local m_sraFocusOption:table = {};		-- resolution hash -> 1 or 2: the option the cursor looks at
+local m_sraTargetHash = nil;			-- resolution hash while the target chooser is open
+local m_sraPending:number = -1;			-- seconds until the opening announcement (< 0: none pending)
+local m_sraPendingAge:number = 0;
+local m_sraResetFocus:boolean = true;
+local m_sraMainList:table = nil;
+local m_sraTargetList:table = nil;
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text )
+	if text == nil then return ""; end
+	return WCText_Strip( CleanTextForSpeech( Locale.Lookup( text ) ) );
+end
+
+local function SRA_PlayerName( playerID )
+	if playerID == nil or playerID < 0 or PlayerConfigurations[ playerID ] == nil then return ""; end
+	return SRA_Clean( GetVisiblePlayerName( playerID ) );
+end
+
+local function SRA_SortedKeys( t:table )
+	local keys:table = {};
+	if t ~= nil then
+		for k, _ in pairs( t ) do table.insert( keys, k ); end
+	end
+	table.sort( keys, function( a, b )
+		if type( a ) == "number" and type( b ) == "number" then return a < b; end
+		return tostring( a ) < tostring( b );
+	end );
+	return keys;
+end
+
+local function SRA_Mode()
+	if m_CurrentStage == 1 or m_CurrentStage == 2 then
+		if m_CurrentPhase == 1 then return "vote"; end
+		if m_CurrentPhase == 2 then return "summary"; end
+		return nil;
+	elseif m_CurrentStage == 4 then
+		return "review";
+	end
+	return nil;
+end
+
+local function SRA_HasTargets( kRD:table )
+	return kRD.PossibleTargets ~= nil and next( kRD.PossibleTargets ) ~= nil;
+end
+
+-- Text of the target with this value of kResolutionChoice.target (nil: none chosen).
+local function SRA_TargetText( kRD:table, target )
+	if target == nil or target == -1 then return nil; end
+	local text = GetPulldownNameAndIcons( kRD, target );
+	return SRA_Clean( text );
+end
+
+-- ---------------------------------------------------------------------------
+--	Resolutions (voting stage)
+-- ---------------------------------------------------------------------------
+local function SRA_ResolutionFacts( index )
+	local kVote:table = m_kResolutionVotes ~= nil and m_kResolutionVotes[ index ] or nil;
+	if kVote == nil then return nil; end
+	local kChoice:table = m_kResolutionChoices[ kVote.Hash ];
+	local f:table = { vote = kVote, choice = kChoice, rd = kVote.A.kResolutionData, res = kVote.A.data, hash = kVote.Hash };
+	f.name = SRA_Clean( f.res.Name );
+	f.chosen = ( kChoice ~= nil and kChoice.choice ~= nil and kChoice.choice > 0 ) and kChoice.choice or 0;
+	f.focus = m_sraFocusOption[ kVote.Hash ] or ( f.chosen ~= 0 and f.chosen ) or 1;
+	if f.chosen == 1 then f.held = kVote.A; elseif f.chosen == 2 then f.held = kVote.B; end
+	f.target = ( f.chosen ~= 0 ) and SRA_TargetText( f.rd, kChoice.target ) or nil;
+	return f;
+end
+
+local function SRA_ResolutionDetail( f:table )
+	local parts:table = { f.name };
+	table.insert( parts, "Option A: " .. SRA_Clean( f.res.Effect1Description ) );
+	table.insert( parts, "Option B: " .. SRA_Clean( f.res.Effect2Description ) );
+	if SRA_HasTargets( f.rd ) then
+		local count:number = 0;
+		for _ in pairs( f.rd.PossibleTargets ) do count = count + 1; end
+		local kind:string = ( f.rd.TargetType == "PlayerType" ) and "a civilization" or "a choice";
+		table.insert( parts, "Needs a target, " .. kind .. ", " .. count .. " to choose from" .. ( f.target and ( ", now " .. f.target ) or ", none chosen yet" ) );
+	end
+	local ok:boolean, costData = pcall( function() return Game.GetWorldCongress():GetVotesandFavorCost( Game.GetLocalPlayer() ); end );
+	if ok and costData ~= nil then table.insert( parts, "Votes: " .. WCText_CostList( costData, 4 ) ); end
+	local favored:table, disfavored:table = {}, {};
+	for _, id in pairs( f.rd.FavoredPlayerIDs or {} ) do table.insert( favored, SRA_PlayerName( id ) ); end
+	for _, id in pairs( f.rd.DisfavoredPlayerIDs or {} ) do table.insert( disfavored, SRA_PlayerName( id ) ); end
+	if #favored > 0 then table.insert( parts, "Favored by " .. table.concat( favored, ", " ) ); end
+	if #disfavored > 0 then table.insert( parts, "Disfavored by " .. table.concat( disfavored, ", " ) ); end
+	return table.concat( parts, ". " );
+end
+
+local function SRA_ResolutionItem( index )
+	local f:table = SRA_ResolutionFacts( index );
+	if f == nil then return nil; end
+	local d:table = {
+		name = f.name, focus = f.focus, chosen = f.chosen,
+		effect = SRA_Clean( ( f.focus == 1 ) and f.res.Effect1Description or f.res.Effect2Description ),
+		votes = f.held and f.held.votes or 0, cost = f.held and f.held.cost or 0,
+		target = f.target, needsTarget = SRA_HasTargets( f.rd ),
+	};
+	return { key = "res:" .. f.hash, kind = "res", index = index, text = WCText_ResolutionLine( d ),
+		detail = function() return SRA_ResolutionDetail( f ); end };
+end
+
+-- ---------------------------------------------------------------------------
+--	Proposals (discussions, emergencies)
+-- ---------------------------------------------------------------------------
+-- Title and description of a proposal; the target player's name is a parameter of the game's text.
+local function SRA_ProposalTexts( kProposal:table, targetID )
+	if targetID ~= nil and targetID >= 0 and PlayerConfigurations[ targetID ] ~= nil then
+		local name:string = GetVisiblePlayerName( targetID );
+		return SRA_Clean( Locale.Lookup( kProposal.Name, name ) ), SRA_Clean( Locale.Lookup( kProposal.Description, name ) );
+	end
+	return SRA_Clean( kProposal.Name ), SRA_Clean( kProposal.Description );
+end
+
+local function SRA_EmergencyText( kProposal:table )
+	local target = kProposal.Target or kProposal.TargetPlayer;
+	if target == nil or kProposal.EmergencyType == nil then return ""; end
+	local ok:boolean, text = pcall( function()
+		local emergency:table = Game.GetEmergencyManager():GetSingleEmergency( target, kProposal.EmergencyType );
+		return ( emergency ~= nil ) and SRA_Clean( emergency.ShortDescriptionText ) or "";
+	end );
+	return ok and text or "";
+end
+
+local function SRA_ProposalVoteItem( voteKey, kVote:table )
+	local title:string, desc:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
+	local signed:number = ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 );
+	return { key = "prop:" .. voteKey, kind = "prop", voteKey = voteKey,
+		text = WCText_ProposalLine( title, desc, signed, kVote.cost ),
+		detail = function()
+			local extra:string = SRA_EmergencyText( kVote.data );
+			return title .. ". " .. desc .. ( extra ~= "" and ( ". " .. extra ) or "" ) ..
+				". Equals votes for it, minus votes against it";
+		end };
+end
+
+-- ---------------------------------------------------------------------------
+--	What blocks the Next / Submit step
+-- ---------------------------------------------------------------------------
+local function SRA_MissingText()
+	local entries:table = {};
+	for _, i in ipairs( SRA_SortedKeys( m_kResolutionVotes ) ) do
+		local kVote:table = m_kResolutionVotes[ i ];
+		local kChoice:table = m_kResolutionChoices[ kVote.Hash ];
+		local needsVote:boolean = ( kVote.A.votes + kVote.B.votes ) <= 0;
+		local needsTarget:boolean = ( not needsVote ) and ( kChoice == nil or kChoice.choice < 0 or kChoice.target < 0 );
+		table.insert( entries, { name = SRA_Clean( kVote.A.data.Name ), needsVote = needsVote, needsTarget = needsTarget } );
+	end
+	for _, key in ipairs( SRA_SortedKeys( m_kProposalVotes ) ) do
+		local kVote:table = m_kProposalVotes[ key ];
+		if kVote.data ~= nil and kVote.votes == 0 and not ( kVote.voteBlocker and kVote.voteBlocker.NoUpvote and kVote.voteBlocker.NoDownvote ) then
+			local title:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
+			table.insert( entries, { name = title, needsVote = true } );
+		end
+	end
+	return WCText_Missing( entries );
+end
+
+local function SRA_NextBlockedReason()
+	if GameConfiguration.IsPaused() then return SRA_Clean( "LOC_WORLD_CONGRESS_TT_GAME_PAUSED" ); end
+	local missing:string = SRA_MissingText();
+	if missing ~= "" then return missing; end
+	return SRA_Clean( "LOC_WORLD_CONGRESS_TT_SELECT_ALL" );
+end
+
+-- ---------------------------------------------------------------------------
+--	Item lists
+-- ---------------------------------------------------------------------------
+local function SRA_VoteItems()
+	local items:table = {};
+	for _, i in ipairs( SRA_SortedKeys( m_kResolutionVotes ) ) do
+		local item:table = SRA_ResolutionItem( i );
+		if item ~= nil then table.insert( items, item ); end
+	end
+	for _, key in ipairs( SRA_SortedKeys( m_kProposalVotes ) ) do
+		local kVote:table = m_kProposalVotes[ key ];
+		if kVote.instance ~= nil and kVote.data ~= nil then table.insert( items, SRA_ProposalVoteItem( key, kVote ) ); end
+	end
+	local canNext:boolean = CanMoveToNextPhase();
+	table.insert( items, { key = "next", kind = "next", text = "Next: review your votes before submitting", choosable = canNext,
+		reason = SRA_NextBlockedReason(), detail = function() return canNext and "All votes and targets are set. Enter or N goes on" or SRA_NextBlockedReason(); end } );
+	return items;
+end
+
+local function SRA_SummaryItems()
+	local items:table = {};
+	for _, i in ipairs( SRA_SortedKeys( m_kResolutionVotes ) ) do
+		local f:table = SRA_ResolutionFacts( i );
+		if f ~= nil and f.chosen ~= 0 and f.held ~= nil then
+			local letter:string = WCText_Letter( f.chosen );
+			local effect:string = SRA_Clean( ( f.chosen == 1 ) and f.res.Effect1Description or f.res.Effect2Description );
+			local text:string = f.name .. ": option " .. letter .. ", " .. effect .. ", target " .. ( f.target or "none" ) ..
+				", " .. WCText_VotesPhrase( f.held.votes, letter, f.held.cost );
+			table.insert( items, { key = "sres:" .. f.hash, kind = "info", text = text, detail = text } );
+		end
+	end
+	for _, key in ipairs( SRA_SortedKeys( m_kProposalVotes ) ) do
+		local kVote:table = m_kProposalVotes[ key ];
+		if kVote.data ~= nil then
+			local title:string, desc:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
+			local text:string = WCText_ProposalLine( title, desc, ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 ), kVote.cost );
+			table.insert( items, { key = "sprop:" .. key, kind = "info", text = text, detail = text } );
+		end
+	end
+	table.insert( items, { key = "submit", kind = "submit", text = "Submit votes",
+		detail = function() return "Sends your votes and ends your turn. " .. ( m_StartingFavor - m_WorkingFavor ) .. " favor spent, " .. m_WorkingFavor .. " left"; end } );
+	table.insert( items, { key = "back", kind = "back", text = "Back to voting", detail = "Goes back to the resolutions" } );
+	return items;
+end
+
+-- Each voter's choice for a result resolution.
+local function SRA_ReviewVoters( kRD:table )
+	local parts:table = {};
+	for _, kData in pairs( kRD.PlayerSelections or {} ) do
+		local target:string = "";
+		if kRD.TargetType == "PlayerType" then
+			local tid = tonumber( kData.ResolutionTarget );
+			if tid ~= nil and tid ~= -1 then target = SRA_TargetText( kRD, tid ) or ""; end
+		else
+			target = SRA_Clean( kData.ResolutionTarget );
+		end
+		local line:string = SRA_PlayerName( tonumber( kData.PlayerID ) ) .. ": " .. WCText_Plural( kData.Votes, "vote" ) ..
+			" for " .. SRA_Clean( kData.OptionChosenLabel );
+		if target ~= "" then line = line .. ", target " .. target; end
+		table.insert( parts, line );
+	end
+	return table.concat( parts, ". " );
+end
+
+-- A resolution of the last session (withVotes) or of the current effects (turnsLeft).
+local function SRA_ReviewResolutionItem( kRD:table, withVotes:boolean, turnsLeft )
+	local kRes:table = GameInfo.Resolutions[ kRD.Type ];
+	if kRes == nil then return nil; end
+	local aVotes:number, bVotes:number = 0, 0;
+	if withVotes then
+		for _, kData in pairs( kRD.PlayerSelections or {} ) do
+			if kData.OptionChosen == 1 then aVotes = aVotes + kData.Votes; else bVotes = bVotes + kData.Votes; end
+		end
+	end
+	local target:string = "";
+	if kRD.TargetType == "PlayerType" then
+		local pid = tonumber( kRD.ChosenThing );
+		if pid ~= nil and pid ~= -1 then target = SRA_TargetText( kRD, pid ) or ""; end
+	else
+		target = SRA_Clean( kRD.ChosenThing );
+	end
+	local name:string = SRA_Clean( kRes.Name );
+	local text:string = WCText_ReviewResolution{ name = name, label = SRA_Clean( kRD.ChosenLabel ), tie = withVotes and aVotes == bVotes,
+		target = target, effect = SRA_Clean( kRD.ChosenOption ),
+		aVotes = withVotes and aVotes or nil, bVotes = withVotes and bVotes or nil, turnsLeft = turnsLeft };
+	return { key = "rres:" .. tostring( kRD.Type ), kind = "info", text = text,
+		detail = function()
+			local parts:table = { text };
+			if kRD.RejectedOption ~= nil then
+				table.insert( parts, "Rejected outcome " .. SRA_Clean( kRD.RejectedLabel ) .. ": " .. SRA_Clean( kRD.RejectedOption ) );
+			end
+			local voters:string = withVotes and SRA_ReviewVoters( kRD ) or "";
+			if voters ~= "" then table.insert( parts, voters ); end
+			return table.concat( parts, ". " );
+		end };
+end
+
+-- A proposal of the last session (with PlayerVotes) or of the current effects.
+local function SRA_ReviewProposalItem( kProposal:table, withVotes:boolean )
+	local target = kProposal.TargetPlayer or kProposal.Target;
+	local title:string, desc:string = SRA_ProposalTexts( kProposal, target );
+	local upVotes, downVotes = nil, nil;
+	local voters:table = {};
+	if withVotes and kProposal.PlayerVotes ~= nil then
+		upVotes, downVotes = 0, 0;
+		for _, v in pairs( kProposal.PlayerVotes ) do
+			if v.Votes > 0 then upVotes = upVotes + v.Votes; elseif v.Votes < 0 then downVotes = downVotes - v.Votes; end
+			if v.Votes ~= 0 then
+				table.insert( voters, SRA_PlayerName( tonumber( v.PlayerType ) ) .. ": " .. WCText_Plural( math.abs( v.Votes ), "vote" ) .. ( v.Votes > 0 and " for" or " against" ) );
+			end
+		end
+	end
+	local text:string = WCText_ReviewProposal( title, desc, upVotes, downVotes );
+	return { key = "rprop:" .. tostring( kProposal.TypeName ) .. "_" .. tostring( target ) .. "_" .. tostring( kProposal.Sender ),
+		kind = "info", text = text, detail = function()
+			local extra:string = SRA_EmergencyText( kProposal );
+			return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ( #voters > 0 and ( ". " .. table.concat( voters, ". " ) ) or "" );
+		end };
+end
+
+local function SRA_AddCategoryProposals( items:table, categories:table, withVotes:boolean )
+	for _, kSorted in ipairs( GetSortedProposalCategories( categories ) ) do
+		for _, kProposal in pairs( kSorted.kCategory.ProposalsOfType ) do
+			table.insert( items, SRA_ReviewProposalItem( kProposal, withVotes ) );
+		end
+	end
+end
+
+-- Why an available proposal cannot be (de)selected, from the same data the game uses for the check box.
+local function SRA_ToggleBlockText( kVote:table )
+	if kVote.proposalBlocker ~= nil then return SRA_Clean( kVote.proposalBlocker.Description ); end
+	if kVote.disabled then return "Not available"; end
+	for _, other in pairs( m_kProposalVotes ) do
+		if other ~= kVote and other.votes > 0 and other.data.Target == kVote.data.Target then
+			return SRA_Clean( "LOC_WORLD_CONGRESS_TT_MAX_ONE_PROPOSAL" );
+		end
+	end
+	if kVote.votes == 0 and kVote.sraFavorCost ~= nil and m_WorkingFavor < kVote.sraFavorCost then
+		return "Not enough favor, it costs " .. kVote.sraFavorCost .. " and you have " .. m_WorkingFavor;
+	end
+	return "Can't be selected now";
+end
+
+local function SRA_AvailableItems()
+	local items:table = {};
+	local categories:table = Game.GetWorldCongress():GetEmergencies( Game.GetLocalPlayer() ).Proposals;
+	for _, kSorted in ipairs( GetSortedProposalCategories( categories ) ) do
+		for _, kProposal in pairs( kSorted.kCategory.ProposalsOfType ) do
+			local voteKey:string = GetProposalVoteKey( kProposal );
+			local kVote:table = m_kProposalVotes ~= nil and m_kProposalVotes[ voteKey ] or nil;
+			if kVote ~= nil and kVote.instance ~= nil then
+				local title:string, desc:string = SRA_ProposalTexts( kProposal, kProposal.Target );
+				local blocked:boolean = kVote.instance.SelectBox:IsDisabled();
+				local state:string = ( kVote.votes ~= 0 ) and "selected" or "not selected";
+				if kVote.sraFavorCost ~= nil and kVote.sraFavorCost > 0 then state = state .. ", costs " .. kVote.sraFavorCost .. " favor"; end
+				local text:string = title .. ( desc ~= "" and ( ": " .. desc ) or "" ) .. ", " .. state;
+				if blocked and kVote.votes == 0 then text = text .. ", unavailable: " .. SRA_ToggleBlockText( kVote ); end
+				table.insert( items, { key = "eprop:" .. voteKey, kind = "eprop", voteKey = voteKey, text = text,
+					detail = function()
+						local extra:string = SRA_EmergencyText( kProposal );
+						return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ". Enter selects or unselects it";
+					end } );
+			end
+		end
+	end
+	if Controls.AcceptButton:IsVisible() then
+		local canSubmit:boolean = CanSubmit();
+		table.insert( items, { key = "submit", kind = "submit",
+			text = SRA_Clean( m_HasSpecialSessionNotification and "LOC_WORLD_CONGRESS_ADD_PROPOSALS" or "LOC_WORLD_CONGRESS_SUBMIT" ) .. " selected proposals",
+			choosable = canSubmit, reason = SRA_Clean( "LOC_WORLD_CONGRESS_TT_SELECT_ONE" ),
+			detail = "Spends " .. ( m_StartingFavor - m_WorkingFavor ) .. " favor and calls a special session next turn" } );
+	end
+	if Controls.PassButton:IsVisible() then
+		table.insert( items, { key = "pass", kind = "pass", text = SRA_Clean( "LOC_WORLD_CONGRESS_PASS" ), detail = "Passes on the special session" } );
+	end
+	return items;
+end
+
+local function SRA_ReviewItems()
+	local items:table = {};
+	local pid:number = Game.GetLocalPlayer();
+	local pWorldCongress:table = Game.GetWorldCongress();
+	if m_ReviewTab == REVIEW_TAB_RESULTS then
+		local kReview:table = pWorldCongress:GetReview( pid );
+		if kReview ~= nil then
+			for _, k in ipairs( SRA_SortedKeys( kReview.Resolutions ) ) do
+				local kRD:table = kReview.Resolutions[ k ];
+				if type( kRD ) == "table" then
+					local item:table = SRA_ReviewResolutionItem( kRD, true, nil );
+					if item ~= nil then table.insert( items, item ); end
+				end
+			end
+			SRA_AddCategoryProposals( items, kReview.Discussions, true );
+		end
+	elseif m_ReviewTab == REVIEW_TAB_CURRENT_EFFECTS then
+		local turnsLeft:number = pWorldCongress:GetMeetingStatus().TurnsLeft + 1;
+		local kResolutions:table = pWorldCongress:GetResolutions( pid );
+		for _, k in ipairs( SRA_SortedKeys( kResolutions ) ) do
+			local kRD:table = kResolutions[ k ];
+			if type( kRD ) == "table" then
+				local item:table = SRA_ReviewResolutionItem( kRD, false, turnsLeft );
+				if item ~= nil then table.insert( items, item ); end
+			end
+		end
+		SRA_AddCategoryProposals( items, pWorldCongress:GetProposals( pid ).Proposals, false );
+	else
+		items = SRA_AvailableItems();
+	end
+	return items;
+end
+
+local function SRA_BuildItems()
+	local mode:string = SRA_Mode();
+	if mode == "vote" then return SRA_VoteItems(); end
+	if mode == "summary" then return SRA_SummaryItems(); end
+	if mode == "review" then return SRA_ReviewItems(); end
+	return {};
+end
+
+local function SRA_FindItem( key )
+	for _, item in ipairs( SRA_BuildItems() ) do
+		if item.key == key then return item; end
+	end
+	return nil;
+end
+
+-- ---------------------------------------------------------------------------
+--	Actions
+-- ---------------------------------------------------------------------------
+local function SRA_CostData()
+	return Game.GetWorldCongress():GetVotesandFavorCost( Game.GetLocalPlayer() );
+end
+
+-- Adds (direction 1) or removes (-1) a vote on the option the cursor looks at. Returns true when the vote changed.
+local function SRA_VoteResolution( item:table, direction:number )
+	local f:table = SRA_ResolutionFacts( item.index );
+	if f == nil then return false; end
+	local kData:table = ( f.focus == 1 ) and f.vote.A or f.vote.B;
+	local kCost:table = SRA_CostData();
+	local why = WCText_VoteBlock( kData.votes, direction, kCost, m_WorkingFavor );
+	if why ~= nil then SRA_Say( why ); return false; end
+	local before:number = kData.votes;
+	OnVoteResolution( f.focus, ( direction > 0 ) and UP_VOTE or DOWN_VOTE, kData, kCost )();
+	if kData.votes == before and f.chosen == f.focus then
+		SRA_Say( "The vote did not change" );
+		return false;
+	end
+	local letter:string = WCText_Letter( f.focus );
+	local parts:table = {};
+	if f.chosen ~= 0 and f.chosen ~= f.focus then table.insert( parts, "Switched to option " .. letter ); end
+	table.insert( parts, WCText_VotesPhrase( kData.votes, letter, kData.cost ) );
+	table.insert( parts, m_WorkingFavor .. " favor left" );
+	local after:table = SRA_ResolutionFacts( item.index );
+	if after ~= nil and after.target == nil and SRA_HasTargets( after.rd ) then table.insert( parts, "target needed, T to choose" ); end
+	SRA_Say( table.concat( parts, ", " ) );
+	return true;
+end
+
+local function SRA_VoteProposal( item:table, direction:number )
+	local kVote:table = m_kProposalVotes[ item.voteKey ];
+	if kVote == nil then return; end
+	local blocker:table = kVote.voteBlocker;
+	if blocker ~= nil then
+		local starting:boolean = ( kVote.votes == 0 );
+		if ( blocker.NoUpvote and blocker.NoDownvote ) or ( starting and direction > 0 and blocker.NoUpvote ) or ( starting and direction < 0 and blocker.NoDownvote ) then
+			SRA_Say( SRA_Clean( blocker.Description ) );
+			return;
+		end
+	end
+	local kCost:table = kVote.sraCostData or SRA_CostData();
+	local before:number = ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 );
+	OnVoteProposal( direction, kVote, kCost )();
+	if kVote.votes == 0 then kVote.voteDirection = NO_VOTE; end		-- the game leaves a stale direction after a refused first vote
+	local after:number = ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 );
+	if after == before then
+		SRA_Say( direction > 0 and "No more votes: not enough favor or at the maximum" or "No votes to take back" );
+		return;
+	end
+	local text:string = ( after == 0 ) and "No votes" or ( WCText_Plural( math.abs( after ), "vote" ) .. ( after > 0 and " for" or " against" ) );
+	if kVote.cost ~= nil and kVote.cost > 0 then text = text .. ", costs " .. kVote.cost .. " favor"; end
+	SRA_Say( text .. ", " .. m_WorkingFavor .. " favor left" );
+end
+
+local function SRA_KeyVote( direction:number )
+	local mode:string = SRA_Mode();
+	local item:table = SRA_FindItem( m_sraMainList.GetFocusKey() );
+	if mode ~= "vote" or item == nil or ( item.kind ~= "res" and item.kind ~= "prop" ) then
+		SRA_Say( "Nothing to vote on here" );
+		return;
+	end
+	if item.kind == "res" then SRA_VoteResolution( item, direction ); else SRA_VoteProposal( item, direction ); end
+end
+
+-- Left / Right: option A / B of a resolution (voting), the other tab (results).
+local function SRA_KeyHorizontal( delta:number )
+	local mode:string = SRA_Mode();
+	if mode == "review" then
+		SRA_SwitchTab( delta );
+		return;
+	end
+	if mode ~= "vote" then return; end
+	local item:table = SRA_FindItem( m_sraMainList.GetFocusKey() );
+	if item == nil or item.kind ~= "res" then return; end
+	local f:table = SRA_ResolutionFacts( item.index );
+	m_sraFocusOption[ f.hash ] = ( delta < 0 ) and 1 or 2;
+	m_sraMainList.Focus( item.key );
+end
+
+function SRA_SwitchTab( delta:number )
+	local tabs:table = { REVIEW_TAB_RESULTS, REVIEW_TAB_CURRENT_EFFECTS };
+	if HasEmergencyProposals() then table.insert( tabs, REVIEW_TAB_AVAILABLE_PROPOSALS ); end
+	local current:number = 1;
+	for i, tab in ipairs( tabs ) do
+		if tab == m_ReviewTab then current = i; end
+	end
+	local nextIndex:number = current + ( ( delta < 0 ) and -1 or 1 );
+	if nextIndex < 1 then nextIndex = #tabs; end
+	if nextIndex > #tabs then nextIndex = 1; end
+	if #tabs == 1 then
+		SRA_Say( "No other tab" );
+		return;
+	end
+	OnWorldCongressResults( tabs[ nextIndex ] );		-- the screen's own tab buttons; SetStage announces the new tab
+end
+
+local function SRA_OpenTargets( item:table )
+	local f:table = SRA_ResolutionFacts( item.index );
+	if f == nil then return; end
+	if not SRA_HasTargets( f.rd ) then
+		SRA_Say( "This resolution has no target" );
+		return;
+	end
+	-- the target belongs to the option that holds the votes: vote for the option the cursor looks at first
+	if f.chosen ~= f.focus or f.held == nil or f.held.votes < 1 then
+		if not SRA_VoteResolution( item, 1 ) then return; end
+		f = SRA_ResolutionFacts( item.index );
+		if f.chosen ~= f.focus then return; end
+	end
+	if f.choice.sraTargets == nil then
+		PopulateChoicePulldown( f.choice, ( f.chosen == 1 ) and f.vote.A or f.vote.B );
+	end
+	local targets:table = f.choice.sraTargets;
+	if targets == nil or #targets == 0 then
+		SRA_Say( "No targets to choose from" );
+		return;
+	end
+	local current = nil;
+	for n, entry in ipairs( targets ) do
+		if entry.id == f.choice.target then current = n; end
+	end
+	m_sraTargetHash = f.hash;
+	m_sraTargetList.Reset();
+	m_sraTargetList.Open( "Target for " .. f.name, current );
+end
+
+local function SRA_TargetItems()
+	local items:table = {};
+	local kChoice:table = ( m_sraTargetHash ~= nil and m_kResolutionChoices ~= nil ) and m_kResolutionChoices[ m_sraTargetHash ] or nil;
+	if kChoice == nil or kChoice.sraTargets == nil then return items; end
+	for n, entry in ipairs( kChoice.sraTargets ) do
+		local name:string = SRA_Clean( entry.text );
+		table.insert( items, { key = n, text = name .. ( ( entry.id == kChoice.target ) and ", current" or "" ), entry = entry, name = name } );
+	end
+	return items;
+end
+
+local function SRA_OnTargetActivate( item:table )
+	local hash = m_sraTargetHash;
+	local kChoice:table = m_kResolutionChoices[ hash ];
+	if kChoice == nil or kChoice.sraSelect == nil then return; end
+	kChoice.sraSelect( item.entry.a1, item.entry.a2 );		-- the pulldown's own selection callback
+	m_sraTargetHash = nil;
+	m_sraMainList.Focus( "res:" .. hash, "Target: " .. item.name );
+end
+
+local function SRA_OnTargetClose()
+	local hash = m_sraTargetHash;
+	m_sraTargetHash = nil;
+	m_sraMainList.Focus( "res:" .. tostring( hash ), "Back" );
+end
+
+local function SRA_CloseSpoken()
+	local mode:string = SRA_Mode();
+	local blocking:boolean = m_IsInSession and ( mode == "vote" or mode == "summary" );
+	m_sraTargetHash = nil;
+	m_sraPending = -1;
+	ClosePopup();
+	if blocking then
+		SRA_Say( "Closed. Resume Congress still blocks the turn; Enter or Control+N reopens it." );
+	else
+		SRA_Say( "World Congress closed" );
+	end
+end
+
+local function SRA_Submit()
+	if GameConfiguration.IsPaused() then
+		SRA_Say( SRA_Clean( "LOC_WORLD_CONGRESS_TT_GAME_PAUSED" ) );
+		return;
+	end
+	SRA_Say( "Votes submitted" );
+	OnAccept();
+end
+
+local function SRA_SubmitProposals()
+	if GameConfiguration.IsPaused() then
+		SRA_Say( SRA_Clean( "LOC_WORLD_CONGRESS_TT_GAME_PAUSED" ) );
+		return;
+	end
+	if not CanSubmit() then
+		SRA_Say( SRA_Clean( "LOC_WORLD_CONGRESS_TT_SELECT_ONE" ) );
+		return;
+	end
+	OnAccept();		-- opens the game's confirmation dialog, which speaks itself
+end
+
+-- N: the forward step of the current stage.
+local function SRA_Forward()
+	local mode:string = SRA_Mode();
+	if mode == "vote" then
+		if not CanMoveToNextPhase() then
+			SRA_Say( SRA_NextBlockedReason() );
+			return;
+		end
+		OnNext();		-- SetPhase announces the review
+	elseif mode == "summary" then
+		SRA_Submit();
+	elseif mode == "review" then
+		if m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS and Controls.AcceptButton:IsVisible() then
+			SRA_SubmitProposals();
+		else
+			SRA_CloseSpoken();
+		end
+	end
+end
+
+local function SRA_ToggleProposal( item:table )
+	local kVote:table = m_kProposalVotes[ item.voteKey ];
+	if kVote == nil or kVote.sraToggle == nil then return; end
+	if kVote.instance.SelectBox:IsDisabled() then
+		SRA_Say( SRA_ToggleBlockText( kVote ) );
+		return;
+	end
+	kVote.sraToggle();		-- OnToggleProposal: the check box callback
+	m_sraMainList.Focus( item.key );
+end
+
+local function SRA_OnActivate( item:table )
+	local mode:string = SRA_Mode();
+	if item.kind == "res" then
+		SRA_OpenTargets( item );
+	elseif item.kind == "next" or item.kind == "submit" then
+		SRA_Forward();
+	elseif item.kind == "back" then
+		OnPrev();
+	elseif item.kind == "pass" then
+		SRA_Say( "Passed" );
+		OnPass();
+	elseif item.kind == "eprop" then
+		SRA_ToggleProposal( item );
+	elseif mode == "review" then
+		SRA_CloseSpoken();		-- results and current effects: Enter continues, as the game's Enter does
+	else
+		local detail = item.detail;
+		if type( detail ) == "function" then detail = detail(); end
+		SRA_Say( detail or item.text );
+	end
+end
+
+local function SRA_Help()
+	local mode:string = SRA_Mode();
+	if mode == "vote" then
+		SRA_Say( "Up and Down move between resolutions and proposals. Left and Right choose option A or B. Equals or Shift Up adds a vote, minus or Shift Down removes one. T or Enter chooses the target. Space reads the whole resolution. N or the last item reviews your votes. Escape closes the screen; Resume Congress reopens it." );
+	elseif mode == "summary" then
+		SRA_Say( "Up and Down read your choices. Enter on Submit votes, or N, sends them and ends your turn. Back to voting returns. Escape closes the screen." );
+	elseif m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
+		SRA_Say( "Up and Down move. Enter selects or unselects a proposal. Space reads details. N or the Submit item sends them. Left and Right switch tabs. Escape closes." );
+	else
+		SRA_Say( "Up and Down read the results. Space reads who voted how. Left and Right switch tabs. Enter, N or Escape closes the screen." );
+	end
+end
+
+-- ---------------------------------------------------------------------------
+--	Announcements
+-- ---------------------------------------------------------------------------
+local function SRA_TabName()
+	if m_ReviewTab == REVIEW_TAB_CURRENT_EFFECTS then return "Current effects"; end
+	if m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then return "Available proposals"; end
+	return "World Congress results";
+end
+
+local function SRA_Announce()
+	local mode:string = SRA_Mode();
+	if mode == nil or ContextPtr:IsHidden() then return; end
+	if m_sraResetFocus then
+		m_sraMainList.Reset();
+		m_sraFocusOption = {};
+		m_sraResetFocus = false;
+	end
+	m_sraTargetHash = nil;
+	local items:table = SRA_BuildItems();
+	local head:string, hint:string;
+	if mode == "vote" then
+		local resolutions:number, proposals:number = 0, 0;
+		for _, item in ipairs( items ) do
+			if item.kind == "res" then resolutions = resolutions + 1; elseif item.kind == "prop" then proposals = proposals + 1; end
+		end
+		local parts:table = {};
+		if resolutions > 0 then table.insert( parts, "Resolutions: " .. resolutions .. " to vote on" ); end
+		if proposals > 0 then table.insert( parts, WCText_Plural( proposals, "proposal" ) .. " to vote on" ); end
+		head = ( m_CurrentStage == 2 and "Special session. " or "World Congress. " ) .. table.concat( parts, ", " ) ..
+			". You have " .. m_WorkingFavor .. " diplomatic favor";
+		if resolutions > 0 then
+			local costData:table = SRA_CostData();
+			local free:number = 0;
+			while costData[ free ] ~= nil and costData[ free ] == 0 do free = free + 1; end
+			if free > 0 then head = head .. ", " .. WCText_Plural( free, "free vote" ) .. " each"; end
+		end
+		hint = "H for keys";
+	elseif mode == "summary" then
+		head = "Review your votes. " .. ( m_StartingFavor - m_WorkingFavor ) .. " favor spent, " .. m_WorkingFavor .. " left";
+		hint = "Enter on Submit votes sends them";
+	else
+		head = SRA_TabName();
+		if #items == 0 then
+			local empty:string = Controls.EmptyLabel:IsHidden() and "" or SRA_Clean( Controls.EmptyLabel:GetText() );
+			SRA_Say( head .. ". " .. ( empty ~= "" and empty or "Nothing to show" ) .. ". Escape closes", true );
+			return;
+		end
+		if m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
+			hint = "Enter selects, Left or Right switches tab, Escape closes";
+		else
+			hint = "Enter to continue, Space for details, Left or Right for other tabs";
+		end
+	end
+	if #items == 0 then
+		SRA_Say( head .. ". Nothing available", true );
+		return;
+	end
+	m_sraMainList.Open( "", nil, true );		-- silent: sets the focus (the first item, or the one kept)
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == m_sraMainList.GetFocusKey() then index = i; end
+	end
+	SRA_Say( head .. ". " .. items[ index ].text .. ", " .. index .. " of " .. #items .. ". " .. hint, true );
+end
+
+-- Called by the screen after the stage / phase changed or the popup was reopened. The announcement waits a moment so
+-- the populate calls and the popup queue have settled.
+function SRA_RequestAnnounce( resetFocus:boolean )
+	m_sraPending = 0.4;
+	m_sraPendingAge = 0;
+	if resetFocus then m_sraResetFocus = true; end
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_sraPending < 0 then return; end
+	m_sraPendingAge = m_sraPendingAge + deltaTime;
+	if m_sraPendingAge > 5 then m_sraPending = -1; return; end		-- the popup never became visible
+	if ContextPtr:IsHidden() then return; end
+	m_sraPending = m_sraPending - deltaTime;
+	if m_sraPending > 0 then return; end
+	m_sraPending = -1;
+	local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+	if not ok then print( "WorldCongressPopup announce error: " .. tostring( err ) ); end
+end
+
+-- ---------------------------------------------------------------------------
+--	Input
+-- ---------------------------------------------------------------------------
+function SRA_CreateLists()
+	-- a key the engine does not know would make the table constructor fail: add them one by one
+	local extra:table = {};
+	local function Bind( key, fn )
+		if key ~= nil then extra[ key ] = fn; end
+	end
+	Bind( Keys.VK_LEFT, function() SRA_KeyHorizontal( -1 ); end );
+	Bind( Keys.VK_RIGHT, function() SRA_KeyHorizontal( 1 ); end );
+	Bind( Keys.VK_OEM_PLUS, function() SRA_KeyVote( 1 ); end );
+	Bind( Keys.VK_OEM_MINUS, function() SRA_KeyVote( -1 ); end );
+	Bind( Keys.VK_TAB, function() if SRA_Mode() == "review" then SRA_SwitchTab( 1 ); end end );
+	Bind( Keys.T, function()
+		local item:table = SRA_FindItem( m_sraMainList.GetFocusKey() );
+		if SRA_Mode() == "vote" and item ~= nil and item.kind == "res" then SRA_OpenTargets( item ); else SRA_Say( "No target here" ); end
+	end );
+	Bind( Keys.N, SRA_Forward );
+	Bind( Keys.H, SRA_Help );
+	m_sraMainList = KeyNavList_Create{
+		build = SRA_BuildItems,
+		isActive = function() return not ContextPtr:IsHidden() and m_sraTargetHash == nil; end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_CloseSpoken,
+		extraKeys = extra,
+	};
+	m_sraTargetList = KeyNavList_Create{
+		build = SRA_TargetItems,
+		isActive = function() return not ContextPtr:IsHidden() and m_sraTargetHash ~= nil; end,
+		onActivate = SRA_OnTargetActivate,
+		onClose = SRA_OnTargetClose,
+	};
+end
+
+-- Every keyboard event is swallowed while the popup is shown (the game's own handler passed most keys on to the map).
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end
+	local msg:number = pInputStruct:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = pInputStruct:GetKey();
+
+	-- the game's OK / Cancel dialog (submitting proposals) is operated with Up/Down/Enter, Escape cancels
+	if m_kPopupDialog:IsOpen() then
+		if msg == KeyEvents.KeyUp then
+			if key == Keys.VK_ESCAPE then
+				m_kPopupDialog:Close();
+				SRA_Say( "Cancelled" );
+			else
+				xpcall( function() m_kPopupDialog:KeyHandler( key ); end, KeyNavErrorHandler );
+			end
+		end
+		return true;
+	end
+
+	if pInputStruct:IsShiftDown() and not pInputStruct:IsControlDown() and not pInputStruct:IsAltDown() then
+		local direction:number = 0;
+		if key == Keys.VK_UP or key == Keys.VK_OEM_PLUS then direction = 1;
+		elseif key == Keys.VK_DOWN or key == Keys.VK_OEM_MINUS then direction = -1; end
+		if direction ~= 0 and m_sraTargetHash == nil then
+			if msg == KeyEvents.KeyUp then
+				local ok:boolean, err = xpcall( function() SRA_KeyVote( direction ); end, KeyNavErrorHandler );
+				if not ok then print( "WorldCongressPopup vote error: " .. tostring( err ) ); end
+			end
+			return true;
+		end
+		if key == Keys.VK_TAB and SRA_Mode() == "review" then
+			if msg == KeyEvents.KeyUp then xpcall( function() SRA_SwitchTab( -1 ); end, KeyNavErrorHandler ); end
+			return true;
+		end
+	end
+
+	if m_sraTargetList.HandleInput( pInputStruct ) or m_sraMainList.HandleInput( pInputStruct ) then return true; end
+	return true;
+end
+-- End ScreenReaderAccess mod change
+
+-- ===========================================================================
 -- Consume all input except VK_ESCAPE
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	local key = pInputStruct:GetKey();
 	if uiMsg == KeyEvents.KeyUp then
@@ -2533,6 +3369,7 @@ function OnResumeCongress()
 	if not m_HasAccepted and (not m_IsInSession or HasChoices()) then
 		UIManager:QueuePopup(ContextPtr, PopupPriority.WorldCongressPopup, { AlwaysVisibleInQueue = true });
 		Input.PushActiveContext( InputContext.Popup );
+		SRA_RequestAnnounce( false );		-- ScreenReaderAccess
 	elseif not GameConfiguration.IsHotseat() then
 		LuaEvents.WorldCongressPopup_ShowWorldCongressBetweenTurns(m_CurrentStage);
 	end
@@ -2670,15 +3507,18 @@ function Initialize()
 	ContextPtr:SetInputHandler(OnInputHandler, true);
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
+	ContextPtr:SetUpdate( SRA_OnUpdate );		-- ScreenReaderAccess
+	SRA_CreateLists();							-- ScreenReaderAccess
 
-	Events.SystemUpdateUI.Add(OnUpdateUI);
-	Events.LoadScreenClose.Add(OnLoadScreenClose);
-	Events.WorldCongressStage1.Add(function(i) OnWorldCongressStageChange(i, 1); end);
-	Events.WorldCongressStage2.Add(function(i) OnWorldCongressStageChange(i, 2); end);
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
-	Events.TurnTimerUpdated.Add( OnTurnTimerUpdated );
-	Events.GameConfigChanged.Add( OnGameConfigChanged );
-	Events.UserRequestClose.Add( CloseActivePulldown );
+	-- ScreenReaderAccess: SRListen so that a hot reload does not leave this instance's listeners behind (SRUnlistenAll in OnShutdown)
+	SRListen( Events.SystemUpdateUI, OnUpdateUI );
+	SRListen( Events.LoadScreenClose, OnLoadScreenClose );
+	SRListen( Events.WorldCongressStage1, function(i) OnWorldCongressStageChange(i, 1); end );
+	SRListen( Events.WorldCongressStage2, function(i) OnWorldCongressStageChange(i, 2); end );
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );
+	SRListen( Events.TurnTimerUpdated, OnTurnTimerUpdated );
+	SRListen( Events.GameConfigChanged, OnGameConfigChanged );
+	SRListen( Events.UserRequestClose, CloseActivePulldown );
 end
 
 --No capability means never initialize this so it can never be used.

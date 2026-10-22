@@ -117,3 +117,10 @@ Autoplay (state `InGame`, never `GameCore_Tuner`):
 AutoplayManager.SetTurns(n); AutoplayManager.SetReturnAsPlayer(0); AutoplayManager.SetObserveAsPlayer(0); AutoplayManager.SetActive(true)
 ```
 The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goes false after n turns and control returns with no popup open. ~6.5 s/turn around turn 71, ~21 s/turn around turn 115; poll at most every 30 s. The local player is -1 during autoplay: nil-guard `Players[Game.GetLocalPlayer()]` in listeners.
+
+## World Congress (read from the scripts, unverified)
+
+- Scripts in `DLC/Expansion2/UI/Additions` (`WorldCongressPopup/Intro/BetweenTurns`): use `ReplaceUIScript`. Popup state is file-local (`m_CurrentStage` 1/2/4, `m_CurrentPhase` 1/2, `m_kResolutionVotes`, `m_kResolutionChoices`); pulldown and check-box callbacks are closures, so the copy records them (`sraSelect`, `sraToggle`).
+- A resolution needs >= 1 vote and a target to pass Next; voting for the other option zeroes the first and clears the target; removing the last vote is impossible. `GetVotesandFavorCost` is 0-based and cumulative, with `MaxVotes`.
+- `LOC_NOTIFICATION_WORLD_CONGRESS_RESULTS_MESSAGE/_SUMMARY` exist in no text file (raw tag is returned); the notification is AutoActivate and opens the results popup.
+- `WorldCongressBetweenTurns` compares with `Keys.VK_ENTER`, which may not exist; `VK_RETURN` is the engine name.

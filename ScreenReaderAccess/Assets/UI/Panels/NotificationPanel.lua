@@ -1889,6 +1889,12 @@ local function SRA_NotificationTexts( pNotification:table )
 	local summary:string = Locale.Lookup( pNotification:GetSummary() );
 	local entry:NotificationType = GetNotificationEntry( pNotification:GetPlayerID(), pNotification:GetID() );
 	if entry ~= nil then message, summary = ApplyNotificationTextOverrides( entry, pNotification, message, summary ); end
+	-- The game ships no text for the World Congress results notification (LOC_NOTIFICATION_WORLD_CONGRESS_RESULTS_MESSAGE / _SUMMARY
+	-- are not in any text file), so Locale.Lookup hands the raw tag back.
+	if pNotification:GetTypeName() == "NOTIFICATION_WORLD_CONGRESS_RESULTS" then
+		if message == pNotification:GetMessage() then message = "World Congress results"; end
+		if summary == pNotification:GetSummary() then summary = "The World Congress session is over. Review the results"; end
+	end
 	return message, summary;
 end
 

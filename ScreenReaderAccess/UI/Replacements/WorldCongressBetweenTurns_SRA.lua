@@ -4,6 +4,8 @@
 include("LeaderIcon");
 include("InstanceManager");
 include("PopupPriorityLoader_", true);
+include("ScreenReader");	-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
 
 -- ===========================================================================
 -- Constants
@@ -37,6 +39,16 @@ local m_waitingForAnimation:boolean = false;
 function OnSlideDone()
 	UI.PlaySound("WC_ProposalSubmitted");
 end
+
+-- Begin ScreenReaderAccess mod change
+function SRA_WaitingName(playerID:number)
+	local localPlayerID:number = Game.GetLocalPlayer();
+	if playerID == localPlayerID or Players[localPlayerID]:GetDiplomacy():HasMet(playerID) then
+		return CleanTextForSpeech(Locale.Lookup(PlayerConfigurations[playerID]:GetLeaderName()));
+	end
+	return "an unknown leader";
+end
+-- End ScreenReaderAccess mod change
 
 function OnShow(stageNum:number)
 	m_WorldCongressStage = stageNum;
@@ -94,6 +106,21 @@ function OnShow(stageNum:number)
 
 	UIManager:QueuePopup(ContextPtr, PopupPriority.WorldCongressBetweenTurns);
 	UpdateCanContinue();
+
+	-- Begin ScreenReaderAccess mod change
+	local waiting:table = {};
+	for _, pPlayer in ipairs(aPlayers) do
+		local waitID:number = pPlayer:GetID();
+		if m_kPlayerStages[waitID] ~= nil and m_kPlayerStages[waitID] <= m_WorldCongressStage then
+			table.insert(waiting, SRA_WaitingName(waitID));
+		end
+	end
+	if #waiting > 0 then
+		OutputMessageToScreenReader("World Congress votes submitted. Waiting for " .. table.concat(waiting, ", ") .. ". Enter to close this screen.", true);
+	else
+		OutputMessageToScreenReader("World Congress votes submitted. Everyone is ready. Enter to close this screen.", true);
+	end
+	-- End ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -147,6 +174,7 @@ function OnRemotePlayerTurnEnd(playerID:number)
 		instance.BG:SetColor(COLOR_READY);
 		instance.Label:SetText(LOC_PROPOSAL_SUBMITTED);
 		UpdateCanContinue();
+		OutputMessageToScreenReader(SRA_WaitingName(playerID) .. " has submitted", true);		-- ScreenReaderAccess
 	end
 end
 
@@ -172,7 +200,7 @@ end
 --	Input
 -- ===========================================================================
 function KeyHandler( key:number )
-	if (key == Keys.VK_ESCAPE or key == Keys.VK_ENTER) then
+	if (key == Keys.VK_ESCAPE or key == Keys.VK_ENTER or key == Keys.VK_RETURN) then		-- ScreenReaderAccess: VK_RETURN is the engine's name (VK_ENTER may not exist)
 		OnHide();
 		return true;
 	end
@@ -181,7 +209,7 @@ end
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then return KeyHandler( pInputStruct:GetKey() ); end;
-	return false;
+	return uiMsg == KeyEvents.KeyDown;		-- ScreenReaderAccess: the key presses of this screen do not reach the map
 end
 
 -- ===========================================================================
@@ -195,6 +223,7 @@ function OnGameDebugReturn( context:string, contextTable:table )
 	end
 end
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess
 	LuaEvents.GameDebug_AddValue(RELOAD_ID, "IsVisible", ContextPtr:IsVisible());
 	LuaEvents.GameDebug_AddValue(RELOAD_ID, "WorldCongressStage", m_WorldCongressStage);
 end
@@ -217,11 +246,12 @@ function Initialize()
 	LuaEvents.WorldCongressPopup_ShowWorldCongressBetweenTurns.Add(OnShow);
 	LuaEvents.WorldCongressPopup_HideWorldCongressBetweenTurns.Add(OnHide);
 	
-	Events.PreTurnBegin.Add(OnHide);
-	Events.LocalPlayerTurnEnd.Add(OnLocalPlayerTurnEnd);
-	Events.RemotePlayerTurnEnd.Add(OnRemotePlayerTurnEnd);
-	Events.WorldCongressStage1.Add(function(i) OnWorldCongressStageChange(i, 1); end);
-	Events.WorldCongressStage2.Add(function(i) OnWorldCongressStageChange(i, 2); end);
+	-- ScreenReaderAccess: SRListen, so a hot reload does not leave this instance's listeners behind
+	SRListen(Events.PreTurnBegin, OnHide);
+	SRListen(Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd);
+	SRListen(Events.RemotePlayerTurnEnd, OnRemotePlayerTurnEnd);
+	SRListen(Events.WorldCongressStage1, function(i) OnWorldCongressStageChange(i, 1); end);
+	SRListen(Events.WorldCongressStage2, function(i) OnWorldCongressStageChange(i, 2); end);
 
 	Controls.HideButton:RegisterCallback(Mouse.eLClick, OnHide);
 end

@@ -58,4 +58,5 @@ globals = {
 	"PromotionText_Reason", "PromotionText_State",
 	"TradeText_Detail", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
 	"CityReport_BuildItems", "CityReport_Gather", "TXT_NO_PRODUCTION", "SIZE_PRODUCTION_ICON",
+	"WCText_CostList", "WCText_Letter", "WCText_Missing", "WCText_Plural", "WCText_ProposalLine", "WCText_ReviewProposal", "WCText_ReviewResolution", "WCText_ResolutionLine", "WCText_Strip", "WCText_VoteBlock", "WCText_VotesPhrase",
 }
