@@ -2060,7 +2060,8 @@ end
 
 -- Called at the end of UpdateData (screen opened, or the game changed religion data while it is open).
 function SRA_OnDataUpdated()
-	if not ContextPtr:IsHidden() then SRA_ArmOpen(); end
+	-- Nothing: the opening announcement is armed only by Open(); mode changes are announced explicitly
+	-- (re-arming here doubled the speech and reset the focus on every BeliefAdded / ReligionFounded update).
 end
 
 -- ---------------------------------------------------------------------------
@@ -2150,6 +2151,7 @@ local function SRA_ConfirmResult()
 	-- the screen skips its own refresh while it thinks beliefs are still being chosen: refresh it so it shows the result
 	if SRA_Mode() == "confirm" and m_isConfirmedBeliefs then
 		UpdateData();
+		SRA_Announce( true );
 	end
 end
 
@@ -2276,7 +2278,6 @@ m_srList = KeyNavList_Create{
 		[ Keys.VK_TAB ] = SRA_NextTab,
 		[ Keys.C ] = SRA_KeyContinue,
 		[ Keys.F ] = SRA_KeyFilter,
-		[ Keys.L ] = SRA_OnClose,
 	},
 };
 -- End ScreenReaderAccess change

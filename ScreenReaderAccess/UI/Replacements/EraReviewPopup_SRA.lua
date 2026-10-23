@@ -327,7 +327,16 @@ function SRA_HandleKey(key:number)
 		SRA_Details();
 	elseif key == Keys.VK_ESCAPE then
 		OnClose();
-		OutputMessageToScreenReader("Closed. Make Dedication still blocks the turn; Enter on it in Control N or Next Action reopens it.");
+		local blocked:boolean = false;
+		pcall(function()
+			local label = ContextPtr:LookUpControl("/InGame/HUD/ActionPanel/EndTurnText");
+			blocked = label ~= nil and string.find(string.lower(label:GetText() or ""), "dedication", 1, true) ~= nil;
+		end);
+		if blocked then
+			OutputMessageToScreenReader("Closed. Make Dedication still blocks the turn; Enter on it in Control N or Next Action reopens it.");
+		else
+			OutputMessageToScreenReader("Closed");
+		end
 	end
 end
 

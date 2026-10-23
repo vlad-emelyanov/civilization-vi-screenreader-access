@@ -137,6 +137,11 @@ local function IsGamePopupOpen()
 			end
 		end
 	end
+	-- Gathering Storm popups added straight to the InGame context (not under a container)
+	for _, name in ipairs( { "EraReviewPopup", "DedicationPopup", "WorldCongressPopup", "WorldCongressIntro", "WorldCongressBetweenTurns" } ) do
+		local popup = ContextPtr:LookUpControl( "/InGame/" .. name );
+		if popup ~= nil and not popup:IsHidden() then return true; end
+	end
 	return false;
 end
 

@@ -4306,7 +4306,7 @@ local function SRBuildActions()
 					for _, ePromotion in ipairs( m_srPromotions ) do
 						local def = GameInfo.UnitPromotions[ePromotion];
 						if def ~= nil then
-							table.insert( m_srActions, { callback = function() OnPromoteUnit( ePromotion ); end } );
+							table.insert( m_srActions, { callback = function() OnPromoteUnit( ePromotion ); OutputMessageToScreenReader( "Promoted: " .. Locale.Lookup( def.Name ) ); end } );
 							table.insert( plain, {
 								id = #m_srActions, name = "Promote to " .. Locale.Lookup( def.Name ), hotkey = "",
 								disabled = false, reason = "", detail = CleanTextForSpeech( Locale.Lookup( def.Description ) ),

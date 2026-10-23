@@ -43,7 +43,7 @@ end
 -- Begin ScreenReaderAccess mod change
 function SRA_WaitingName(playerID:number)
 	local localPlayerID:number = Game.GetLocalPlayer();
-	if playerID == localPlayerID or Players[localPlayerID]:GetDiplomacy():HasMet(playerID) then
+	if playerID == localPlayerID or (Players[localPlayerID] ~= nil and Players[localPlayerID]:GetDiplomacy():HasMet(playerID)) then
 		return CleanTextForSpeech(Locale.Lookup(PlayerConfigurations[playerID]:GetLeaderName()));
 	end
 	return "an unknown leader";
