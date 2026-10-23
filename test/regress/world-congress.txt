@@ -1,4 +1,4 @@
-# UNVERIFIED: written offline, never run. Assumes 2 resolutions, each with a target. Fixture bug-world-congress-silent (turn 110, congress blocker; copy it from the main repo test/fixtures).
+# Verified in game 2026-10-22. Assumes 2 resolutions, each with a target. Fixture bug-world-congress-silent (turn 110, congress blocker; copy it from the main repo test/fixtures).
 # no-share-load
 load bug-world-congress-silent
 expect (?i)enter to begin voting
@@ -24,7 +24,12 @@ key N -Settle 2000
 expect (?i)review your votes
 key N -Settle 3000
 expect (?i)votes submitted
-wait World Congress results -Timeout 90
-key Enter -Settle 1500
+wait Turn 111 -Timeout 300
+clear-advisors
+key Space -Settle 1200
+expect Rejected outcome
+key Right -Settle 1500
+expect ^Current effects\.
+key N -Settle 1500
 expect (?i)world congress closed
 no-lua-errors

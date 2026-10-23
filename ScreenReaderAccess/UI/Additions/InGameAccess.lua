@@ -889,7 +889,11 @@ local function SpeakWhatsNext()
 	end
 	-- The game's "Please wait" while a World Congress session is open: say what actually blocks the turn
 	local okWait:boolean, isWait:boolean = pcall( function()
-		return text == CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_PLEASE_WAIT" ) );
+		-- (the label also stays on the plain end-turn text after Escape closed the popup, while the Resume Congress blocker is pending)
+		for _, key in ipairs( { "LOC_ACTION_PANEL_PLEASE_WAIT", "LOC_ACTION_PANEL_NEXT_TURN", "LOC_ACTION_PANEL_END_TURN" } ) do
+			if string.lower( text ) == string.lower( CleanTextForSpeech( Locale.Lookup( key ) ) ) then return true; end
+		end
+		return string.lower( text ) == "end turn";
 	end );
 	if okWait and isWait then
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );

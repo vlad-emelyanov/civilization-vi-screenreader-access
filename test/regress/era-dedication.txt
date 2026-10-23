@@ -1,4 +1,4 @@
-# UNVERIFIED (written offline, never run). Fixture bug-dedication-blocker: the Make Dedication notification blocks the turn.
+# Verified in game 2026-10-22. Fixture bug-dedication-blocker: the Make Dedication notification blocks the turn.
 # Next Action (Enter) activates the blocker, which opens the era review popup; Continue leads to the dedication chooser.
 # no-share-load
 load bug-dedication-blocker

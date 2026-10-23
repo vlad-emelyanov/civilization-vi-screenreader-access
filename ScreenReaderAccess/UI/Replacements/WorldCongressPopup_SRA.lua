@@ -2844,7 +2844,7 @@ local function SRA_ReviewItems()
 		local kReview:table = pWorldCongress:GetReview( pid );
 		if kReview ~= nil then
 			for _, k in ipairs( SRA_SortedKeys( kReview.Resolutions ) ) do
-				local kRD:table = kReview.Resolutions[ k ];
+				local kRD = kReview.Resolutions[ k ];
 				if type( kRD ) == "table" then
 					local item:table = SRA_ReviewResolutionItem( kRD, true, nil );
 					if item ~= nil then table.insert( items, item ); end
@@ -2856,7 +2856,7 @@ local function SRA_ReviewItems()
 		local turnsLeft:number = pWorldCongress:GetMeetingStatus().TurnsLeft + 1;
 		local kResolutions:table = pWorldCongress:GetResolutions( pid );
 		for _, k in ipairs( SRA_SortedKeys( kResolutions ) ) do
-			local kRD:table = kResolutions[ k ];
+			local kRD = kResolutions[ k ];
 			if type( kRD ) == "table" then
 				local item:table = SRA_ReviewResolutionItem( kRD, false, turnsLeft );
 				if item ~= nil then table.insert( items, item ); end
