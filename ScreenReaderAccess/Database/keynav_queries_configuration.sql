@@ -50,3 +50,6 @@ INSERT INTO "InputActions" VALUES ('KeyNavGreatWorks','Great Works screen','Open
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavGreatWorks',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_W');
 INSERT INTO "InputActions" VALUES ('KeyNavPlaces','Places','Open a keyboard list of places: your cities, your units (also automated ones), points of interest, notification locations, foreign cities; M sends a unit there','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavPlaces',0,'KBMouse','LOC_OPTIONS_KEY_J');
+
+INSERT INTO "InputActions" VALUES ('KeyNavEraProgress','Era progress','Open or close the Era Progress panel (Rise and Fall, Gathering Storm) as a keyboard list; same as the numpad Divide','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavEraProgress',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_E');

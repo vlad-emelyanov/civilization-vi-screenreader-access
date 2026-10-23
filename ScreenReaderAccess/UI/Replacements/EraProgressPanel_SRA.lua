@@ -9,6 +9,9 @@ include("CivilizationIcon");
 include("TeamSupport");
 include("EraSupport");
 include("GameCapabilities");
+include("ScreenReader");		-- ScreenReaderAccess mod change
+include("KeyNavList");			-- ScreenReaderAccess mod change
+include("SRListen");			-- ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	CONSTANTS
@@ -53,6 +56,11 @@ local m_EraData:table = {
 	NextGoldenAgeName = "";
 	FinalEraReached = false;
 };
+
+-- ScreenReaderAccess mod change: keyboard list over the panel's data, spoken summary on open
+local m_srList:table = nil;
+local m_srOpen:boolean = false;
+local m_srActionId = nil;			-- KeyNavEraProgress (Control+E): the game's own toggle is the numpad Divide
 
 local m_CivilizationIconIM:table = InstanceManager:new("CivilizationIconAge", "CivIconBacking", Controls.CivIconStack);
 
@@ -384,6 +392,141 @@ function PopulateLocalPlayerIcon()
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess mod change: speech and keyboard list (built at key time from m_EraData, which Refresh() fills)
+-- ===========================================================================
+local function SRA_Plain( text:string )
+	return CleanTextForSpeech( text or "" );
+end
+
+local function SRA_AgeLabel()		-- "Golden Age" / "Heroic Age" for the upper threshold
+	local label:string = SRA_Plain( m_EraData.NextGoldenAgeName );
+	if label == "" then label = "Golden age"; end
+	return label;
+end
+
+local function SRA_TimeText()
+	if m_EraData.FinalEraReached then return "Final era, no further era"; end
+	if m_EraData.NextEraMinTurn == m_EraData.NextEraMaxTurn then
+		return tostring( m_EraData.NextEraMaxTurn ) .. ( m_EraData.NextEraMaxTurn == 1 and " turn" or " turns" ) .. " until the next era";
+	end
+	return m_EraData.NextEraMinTurn .. " to " .. m_EraData.NextEraMaxTurn .. " turns until the next era";
+end
+
+local function SRA_OutcomeText()
+	local key:string = "LOC_ERA_PROGRESS_NORMAL_AGE";
+	if m_EraData.NextEraType == ERA_TYPE_GOLDEN_AGE then key = "LOC_ERA_PROGRESS_GOLDEN_AGE";
+	elseif m_EraData.NextEraType == ERA_TYPE_DARK_AGE then key = "LOC_ERA_PROGRESS_DARK_AGE"; end
+	return SRA_Plain( Locale.Lookup( "LOC_ERAS_YOU_WILL_EARN_BLANK_AGE_NEXT_ERA", Locale.Lookup( key ) ) );
+end
+
+local function SRA_OtherCivItems( items:table )
+	local gameEras:table = Game.GetEras();
+	local localPlayer:table = Players[ m_EraData.PlayerID ];
+	if localPlayer == nil then return; end
+	local groups:table = { heroic = {}, golden = {}, normal = {}, dark = {} };
+	local unmet:number = 0;
+	for _, pPlayer in ipairs( PlayerManager.GetAliveMajors() ) do
+		local id:number = pPlayer:GetID();
+		if id ~= m_EraData.PlayerID then
+			if localPlayer:GetDiplomacy():HasMet( id ) then
+				local name:string = Locale.Lookup( PlayerConfigurations[ id ]:GetCivilizationShortDescription() );
+				if gameEras:HasHeroicGoldenAge( id ) then table.insert( groups.heroic, name );
+				elseif gameEras:HasGoldenAge( id ) then table.insert( groups.golden, name );
+				elseif gameEras:HasDarkAge( id ) then table.insert( groups.dark, name );
+				else table.insert( groups.normal, name ); end
+			else
+				unmet = unmet + 1;
+			end
+		end
+	end
+	for _, entry in ipairs( { { "heroic", "Heroic age" }, { "golden", "Golden age" }, { "normal", "Normal age" }, { "dark", "Dark age" } } ) do
+		if #groups[ entry[1] ] > 0 then
+			table.insert( items, { key = "civs:" .. entry[1], text = entry[2] .. ": " .. table.concat( groups[ entry[1] ], ", " ), section = "Other civilizations" } );
+		end
+	end
+	if unmet > 0 then
+		table.insert( items, { key = "civs:unmet", text = unmet .. ( unmet == 1 and " civilization" or " civilizations" ) .. " not met", section = "Other civilizations" } );
+	end
+end
+
+local function SRA_Items()
+	local items:table = {};
+	table.insert( items, { key = "era", text = "Era: " .. SRA_Plain( Locale.Lookup( m_EraData.CurrentEraName ) ) .. ", " .. SRA_Plain( m_EraData.ShortAgeName ) .. " age", detail = SRA_Plain( m_EraData.AgeName ) } );
+	table.insert( items, { key = "score", text = "Era score " .. tostring( m_EraData.CurrentEraScore ) .. ". " .. SRA_OutcomeText(), detail = SRA_OutcomeText() } );
+	if not m_EraData.FinalEraReached then
+		local darkTo:number = math.max( m_EraData.DarkAgeThreshold - 1, 0 );
+		local onTrack:number = m_EraData.NextEraType;		-- the age the score gives now
+		table.insert( items, { key = "dark", section = "Thresholds", text = "Dark age below " .. m_EraData.DarkAgeThreshold .. " (0 to " .. darkTo .. ")" .. ( onTrack == ERA_TYPE_DARK_AGE and ", on track" or "" ), detail = SRA_Plain( m_EraData.DarkAgeThresholdTooltip ) } );
+		if not HasCapability("CAPABILITY_DRAMATICAGES") then
+			table.insert( items, { key = "normal", section = "Thresholds", text = "Normal age " .. m_EraData.DarkAgeThreshold .. " to " .. ( m_EraData.GoldenAgeThreshold - 1 ) .. ( onTrack == ERA_TYPE_NORMAL_AGE and ", on track" or "" ) } );
+		end
+		table.insert( items, { key = "golden", section = "Thresholds", text = SRA_AgeLabel() .. " at " .. m_EraData.GoldenAgeThreshold .. " or more" .. ( onTrack == ERA_TYPE_GOLDEN_AGE and ", on track" or "" ), detail = SRA_Plain( m_EraData.GoldenAgeThresholdTooltip ) } );
+	end
+	table.insert( items, { key = "time", text = SRA_TimeText() } );
+	for i, entry in ipairs( m_EraData.ScoreBreakdown ) do
+		for source, value in pairs( entry ) do
+			table.insert( items, { key = "breakdown:" .. i, section = "Score breakdown", text = SRA_Plain( source ) .. ": " .. tostring( value ) } );
+		end
+	end
+	local effects:string = SRA_Plain( m_EraData.AgeEffects );
+	if effects ~= "" then
+		table.insert( items, { key = "effects", section = "Age effects", text = effects } );
+	end
+	SRA_OtherCivItems( items );
+	return items;
+end
+
+-- "Era progress. Medieval Era, normal age. Era score 12. You will earn a Normal Age next Era. Dark age below 10, golden age at 20. 25 turns until the next era"
+local function SRA_Summary()
+	local parts:table = { "Era progress", SRA_Plain( Locale.Lookup( m_EraData.CurrentEraName ) ) .. ", " .. SRA_Plain( m_EraData.ShortAgeName ) .. " age",
+		"Era score " .. tostring( m_EraData.CurrentEraScore ), SRA_OutcomeText() };
+	if not m_EraData.FinalEraReached then
+		table.insert( parts, "Dark age below " .. m_EraData.DarkAgeThreshold .. ", " .. string.lower( SRA_AgeLabel() ) .. " at " .. m_EraData.GoldenAgeThreshold );
+	end
+	table.insert( parts, SRA_TimeText() );
+	return table.concat( parts, ". " );
+end
+
+local function SRA_OnOpened()
+	m_srOpen = true;
+	LuaEvents.SRA_SpeechHold( "EraProgress", true, "/InGame/PartialScreens/" .. ContextPtr:GetID() );
+	m_srList.Reset();
+	m_srList.Open( "", nil, true );
+	OutputMessageToScreenReader( SRA_Summary() );
+end
+
+local function SRA_OnClosed()
+	if not m_srOpen then return; end
+	m_srOpen = false;
+	LuaEvents.SRA_SpeechHold( "EraProgress", false );
+	OutputMessageToScreenReader( "Era progress closed" );
+end
+
+-- Enter and Space both read the item in full (its detail, else its text again)
+local function SRA_OnActivate( item:table )
+	local text:string = item.detail;
+	if text == nil or text == "" then text = item.text; end
+	OutputMessageToScreenReader( text );
+end
+
+-- Keys first to the list while the panel is open; the game's Escape handler does the rest
+local function SRA_OnInput( input:table )
+	if m_srOpen and m_srList ~= nil and m_srList.HandleInput( input ) then return true; end
+	return m_AnimSupport.OnInputHandler( input );
+end
+
+-- The mod hotkey (Control+E): the same as the numpad Divide, which calls Open() / Close() here
+local function SRA_OnInputAction( actionId )
+	if actionId ~= m_srActionId or m_srActionId == nil then return; end
+	if m_srOpen then
+		Close();
+	else
+		LuaEvents.PartialScreenHooks_CloseAllExcept( "EraProgressPanel" );
+		Open();
+	end
+end
+
+-- ===========================================================================
 function Open()
 	-- Ensure this panel is displayed below PartialScreenHooks
 	-- This is done on Open() because LookUpControl can't always find PartialScreens during Initalization
@@ -404,6 +547,7 @@ function Open()
 	Refresh();
 	UI.PlaySound("CityStates_Panel_Open");
 	LuaEvents.EraProgressPanel_Open();
+	SRA_OnOpened();		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -413,6 +557,7 @@ function Close()
     end
 	m_AnimSupport.Hide();
 	LuaEvents.EraProgressPanel_Close();
+	SRA_OnClosed();		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -470,6 +615,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess mod change
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isHidden", ContextPtr:IsHidden());
 end
 
@@ -523,7 +669,7 @@ function Initialize()
 
 	-- Rundown / Screen Events
 	Events.SystemUpdateUI.Add(m_AnimSupport.OnUpdateUI);
-	ContextPtr:SetInputHandler(m_AnimSupport.OnInputHandler, true);
+	ContextPtr:SetInputHandler(SRA_OnInput, true);		-- ScreenReaderAccess mod change (was m_AnimSupport.OnInputHandler)
 
 	Controls.Title:SetText(Locale.ToUpper("LOC_ERA_PROGRESS_TITLE"));
 
@@ -546,3 +692,15 @@ function Initialize()
 	end
 end
 Initialize();
+
+-- ScreenReaderAccess mod change
+m_srList = KeyNavList_Create{
+	build = SRA_Items,
+	isActive = function() return m_srOpen and not ContextPtr:IsHidden(); end,
+	onActivate = SRA_OnActivate,
+};
+m_srActionId = Input.GetActionId("KeyNavEraProgress");
+if m_srActionId ~= nil then
+	SRListen( Events.InputActionTriggered, SRA_OnInputAction );
+end
+print( "EraProgressPanel: ScreenReaderAccess copy loaded" );
