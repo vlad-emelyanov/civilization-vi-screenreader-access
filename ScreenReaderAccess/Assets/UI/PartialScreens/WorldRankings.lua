@@ -277,7 +277,7 @@ local m_iTurnsTillCulturalVictory:number = -1;
 -- ScreenReaderAccess
 -- ===========================================================================
 --	ScreenReaderAccess: keyboard navigation and speech for World Rankings
---	Tab / Shift+Tab switch tabs (the game's own tab callbacks, so the data is refreshed), Up/Down/Home/End walk the
+--	Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs (the game's own tab callbacks, so the data is refreshed), Up/Down/Home/End walk the
 --	rows of the tab, Space reads the row's details (score breakdown, science project checklist, tourist tooltip ...),
 --	H reads what the victory type is about, Escape closes. Every keyboard event is swallowed while the screen is
 --	open except the function keys (so the key that opened the screen can close it again).
@@ -635,7 +635,7 @@ function SRA_HandleInput( input:table )
 	if SRA_IsFunctionKey( key ) then return false; end
 	local isUp:boolean = ( msg == KeyEvents.KeyUp );
 	if key == Keys.VK_TAB then
-		if isUp then SRA_Safe( function() SRA_SwitchTab( input:IsShiftDown() and -1 or 1 ); end, "tab" ); end
+		if isUp then SRA_Safe( function() SRA_SwitchTab( ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1 ); end, "tab" ); end
 		return true;
 	elseif key == Keys.VK_ESCAPE then
 		if isUp then SRA_Safe( Close, "close" ); end

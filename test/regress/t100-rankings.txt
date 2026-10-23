@@ -1,17 +1,32 @@
-# UNVERIFIED (written offline, never run in the game). medieval-t100: F1 opens World Rankings on the first tab (Overview).
+# Verified in game 2026-10-22. medieval-t100: F1 opens World Rankings on the first tab (Overall); Tab / Control+Tab
+# switch tabs (Shift+Tab is the Steam overlay), Space = details, F1 and Escape close.
 # no-share-load
 load medieval-t100
 clear-advisors
 key F1 -Settle 2500
-expect ^World Rankings\. [^,]+, 1 of \d+ tabs?\. .*, 1 of \d+
-key Down -Settle 500
-expect , 2 of \d+$
-key Space -Settle 500
-expect \S
+expect ^World Rankings\. [^,]+, 1 of 7 tabs\. Science Victory: .*, 1 of 5
+key Down -Settle 600
+expect ^Culture Victory: .*, 2 of 5
+key Space -Settle 600
+expect ^1\. .*Culture per turn
 key Tab -Settle 800
-expect ^[^,]+, 2 of \d+ tabs?\. .*, 1 of \d+
-key Shift+Tab -Settle 800
-expect ^[^,]+, 1 of \d+ tabs?\. .*, 1 of \d+
+expect ^Score, 2 of 7 tabs\. 1\. .* points, 1 of \d+
+key Down -Settle 600
+expect ^2\. .* points, 2 of \d+
+key Space -Settle 600
+expect Civics \d+, Empire \d+
+key Tab -Settle 800
+expect ^Science, 3 of 7 tabs\.
+key Control+Tab -Settle 800
+expect ^Score, 2 of 7 tabs\.
+key Control+Tab -Settle 800
+expect ^[^,]+, 1 of 7 tabs\.
+key Control+Tab -Settle 800
+expect ^Diplomacy, 7 of 7 tabs\.
+key F1 -Settle 1500
+expect ^World Rankings closed
+key F1 -Settle 2500
+expect ^World Rankings\.
 key Escape -Settle 1500
 expect ^World Rankings closed
 no-lua-errors
