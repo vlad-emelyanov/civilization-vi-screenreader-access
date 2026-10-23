@@ -308,6 +308,10 @@ def clear_advisors(runner, out=print, line=0):
             out("  WARNING line %d: advisor probe failed (exit %d), nothing closed: %s" % (line, rc, " ".join(l.strip() for l in lines[-2:])))
             return ("crashed" if rc in (5, TIMEOUT_RC) else "ok"), collected
         if not was_up:
+            # the speech the popups and the game produced meanwhile (no key press returned it): scripts expect it in their window
+            rc2, spoken = runner.run(["sr"])
+            if rc2 == 0:
+                collected += [l for l in spoken if l.strip()]
             return "ok", collected
         presses += 1
         collected += [l for l in lines if l.strip() not in ("closed", "none")]

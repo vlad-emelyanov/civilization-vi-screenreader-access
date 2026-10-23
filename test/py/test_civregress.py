@@ -143,7 +143,7 @@ class AdvisorAndSkipTests(unittest.TestCase):
     def test_no_popup_closes_nothing(self):
         r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["none"]))])
         res = cr.run_script("t", cr.parse_script("clear-advisors"), r, lambda s: None)
-        self.assertEqual(len(r.calls), 1)
+        self.assertEqual([c[0] for c in r.calls], ["lua", "sr"])   # one close attempt, then the speech since
         self.assertFalse([c for c in r.calls if c[0] == "key"])
         self.assertTrue(res.ok)
 
