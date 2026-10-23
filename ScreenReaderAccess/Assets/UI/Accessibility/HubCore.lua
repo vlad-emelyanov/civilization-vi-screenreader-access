@@ -157,6 +157,11 @@ function HubCore.TestDirtyReason()
 	return nil;
 end
 
+-- The snapshot and selection of a game as it is (no checks, nothing changed): the baseline TestResetState compares with.
+function HubCore.TestSnapshotText()
+	return "snap " .. TestSnapshot() .. "|" .. TestSelectionTag();
+end
+
 -- baseline: nil to just look, or the text a previous call returned after "clean " (taken right after a load). Returns
 -- "clean <snapshot>|<selection>" or "dirty <reason>". Puts the map cursor and the selection back when it is clean.
 function HubCore.TestResetState( baseline )

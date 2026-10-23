@@ -74,6 +74,14 @@ test("changed gold, units or turn state is dirty against the baseline", function
 	units = 3
 end)
 
+test("TestSnapshotText reports the state even when a screen is open", function()
+	selected = { kind = "c", id = 9 }
+	controls["/InGame/TopOptionsMenu"] = control(false)
+	eq(HubCore.TestSnapshotText(), "snap t=50;g=100;u=3;c=1|c:9")
+	controls["/InGame/TopOptionsMenu"] = nil
+	selected = nil
+end)
+
 test("the selection is put back to the baseline", function()
 	selected = { kind = "u", id = 7 }
 	local base = HubCore.TestResetState(nil):match("^clean (.*)$")
