@@ -5,11 +5,14 @@
 -- ===========================================================================
 HubCore = {};
 
+HubCore.m_cursorPlayer = -1;		-- local player the cursor belongs to
 HubCore.m_mode = nil;		-- the active keyboard mode { name, list, onClose }, see MODES below; nil: none
 HubCore.m_delayed = {};		-- { time = seconds left, fn = function }
 HubCore.m_lastResultTime = -100;		-- UI.GetElapsedTime() of the last announced result of a player's action
 HubCore.m_lastKeyTime = -100;		-- UI.GetElapsedTime() of the last key press seen by the input handler
 HubCore.m_unitNames = {};		-- "player:unit" -> spoken name, remembered while the unit is alive (it is gone when its death is reported)
+HubCore.m_placeConfirm = nil;		-- plot index the placement browser asked "Enter to confirm" for
+-- PlacementPlotText: defined with the placement browser: what the cursor plot means there
 
 -- ===========================================================================
 --	HELPERS

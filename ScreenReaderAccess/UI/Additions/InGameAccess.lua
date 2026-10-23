@@ -32,14 +32,9 @@ if not m_cityReportLoaded then print( "InGameAccess: the city report files did n
 -- ===========================================================================
 --	MEMBERS
 -- ===========================================================================
-local MOUSE_MOVE_DELAY		:number = 0.8;		-- seconds to let the camera settle before the real mouse follows the cursor
 
-local m_cursorX				:number = nil;		-- map cursor (plot coordinates)
-local m_cursorY				:number = nil;
-local m_mouseTimer			:number = -1;		-- >= 0: seconds until the mouse is moved onto the cursor plot
 local m_actions				:table = {};		-- actionId -> handler
 local m_lastAnnouncedTurn	:string = "";		-- "<local player>:<turn>" of the last turn announcement (hotseat: every player hears their turn)
-local m_cursorPlayer		:number = -1;		-- local player the cursor belongs to
 local m_ready				:boolean = false;	-- a game is loaded (LoadScreenClose seen): event announcements are allowed
 local m_unitActions			:table = {};		-- plain list of the selected unit's actions, sent by UnitPanel (SRA_UnitActions)
 local m_enterWatch			:number = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
@@ -48,7 +43,6 @@ local m_placeCommitTime		:number = -100;		-- UI.GetElapsedTime() of the last pla
 local m_movers				:table = {};		-- unit id -> { dest = plot index, issued = time }: units on a move order given in this session
 local m_attackIntent		:boolean = false;	-- the MOVE_TO mode was entered with the Attack key: only enemies are valid targets
 local m_menuItems			:table = {};		-- items of the unit actions menu, fetched when it opens
-local m_scanOrigin			:number = nil;		-- plot the X scan started from
 local m_spotted				:table = {};		-- "player:unit" -> turn the enemy was last announced
 local m_spottedTurn			:number = -1;		-- turn m_spottedCount counts
 local m_spottedCount		:number = 0;
@@ -61,87 +55,10 @@ local m_lastSelectionSpeech	:number = -100;		-- UI.GetElapsedTime() of the last 
 local m_pendingUnit			:number = nil;		-- unit selected while the game was still loading: announced once it is ready
 local m_placeScan			:table = nil;		-- PlacementScan result of the open placement mode (district / wonder browser)
 local m_placeParams			:table = nil;		-- insert-mode parameters read from the interface mode when placement began
-local m_placeConfirm		:number = nil;		-- plot index the placement browser asked "Enter to confirm" for
 local m_placeBusy			:boolean = false;	-- a tile purchase is waiting for its rescan: Enter says "Wait"
 local m_placeReplaced		:boolean = false;	-- the placement mode is closing because another placement mode replaced it
-local PlacementPlotText;						-- defined with the placement browser: what the cursor plot means there
 local OpenPlacement;
 
--- ===========================================================================
---	MAP CURSOR
--- ===========================================================================
-
--- Keeps the real mouse on the cursor plot (for sighted helpers and for the few things that still click),
--- once the camera has had time to arrive. The plot tooltip must not read the plot again: it is already announced.
-local function QueueMouseMove( plot:table )
-	LuaEvents.SRA_CursorPlot( plot:GetIndex() );
-	m_mouseTimer = MOUSE_MOVE_DELAY;
-end
-
--- Finds where a plot is on the screen by sampling the engine's screen-to-plot mapping (there is no plot-to-screen
--- call). Normalized screen coordinates run from -1 to 1 with y up. Returns pixel coordinates or nil when off screen.
-local function FindPlotScreenPos( x:number, y:number )
-	local sumX:number, sumY:number, count:number = 0, 0, 0;
-	local STEPS:number = 25;
-	for iy = -STEPS, STEPS do
-		for ix = -STEPS, STEPS do
-			local nx:number, ny:number = ix / STEPS, iy / STEPS;
-			local px:number, py:number = UI.GetPlotCoordFromNormalizedScreenPos( nx, ny );
-			if px == x and py == y then
-				sumX = sumX + nx;
-				sumY = sumY + ny;
-				count = count + 1;
-			end
-		end
-	end
-	if count == 0 then return nil; end
-	local screenWidth:number, screenHeight:number = UIManager:GetScreenSizeVal();
-	return math.floor( ( sumX / count / 2 + 0.5 ) * screenWidth ), math.floor( ( 0.5 - sumY / count / 2 ) * screenHeight );
-end
-
-local function UpdateMouse( deltaTime:number )
-	if m_mouseTimer < 0 then return; end
-	m_mouseTimer = m_mouseTimer - deltaTime;
-	if m_mouseTimer >= 0 then return; end
-	m_mouseTimer = -1;
-	if m_cursorX == nil then return; end
-	-- SetCursor asked the camera to put the cursor plot at the screen centre. Near the edge of the map it cannot, and
-	-- the mouse at the centre would sit on another plot (and the game would read that one): find the real position.
-	local centerX:number, centerY:number = UI.GetPlotCoordFromNormalizedScreenPos( 0, 0 );
-	local screenWidth:number, screenHeight:number = UIManager:GetScreenSizeVal();
-	if centerX == m_cursorX and centerY == m_cursorY then
-		KeyNavMoveMouseToScreen( math.floor( screenWidth / 2 ), math.floor( screenHeight / 2 ) );
-		return;
-	end
-	local px:number, py:number = FindPlotScreenPos( m_cursorX, m_cursorY );
-	if px ~= nil then KeyNavMoveMouseToScreen( px, py ); end
-end
-
-local function ResetCursor()
-	m_cursorX, m_cursorY = nil, nil;
-	m_mouseTimer = -1;
-	m_cursorPlayer = Game.GetLocalPlayer();
-	HubCore.CloseMode( false, true );		-- another player (hotseat) or a new game: a list of the previous one is stale
-end
-
-local function GetCursor()
-	if m_cursorPlayer ~= Game.GetLocalPlayer() then ResetCursor(); end	-- hotseat: the next player starts at their own units
-	if m_cursorX == nil then
-		local plot:table = HubCore.GetSelectionPlot();
-		local capital:table = nil;
-		if HubCore.IsLocalPlayerActive() then capital = Players[ Game.GetLocalPlayer() ]:GetCities():GetCapitalCity(); end
-		if plot ~= nil then
-			m_cursorX, m_cursorY = plot:GetX(), plot:GetY();
-		elseif capital ~= nil then
-			m_cursorX, m_cursorY = capital:GetX(), capital:GetY();
-		else
-			m_cursorX, m_cursorY = UI.GetPlotCoordFromNormalizedScreenPos( 0, 0 );	-- what the camera is looking at
-		end
-	end
-	return m_cursorX, m_cursorY;
-end
-
--- ===========================================================================
 --	TARGET MODES: interface modes in which the game wants a plot (move to, attacks ...)
 -- ===========================================================================
 local m_targetModes:table = {};		-- InterfaceModeTypes value -> spoken name
@@ -168,7 +85,7 @@ for _, name in ipairs( { "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY", "SPY_TRAVEL_TO_
 	if InterfaceModeTypes[name] ~= nil then m_chooserModes[ InterfaceModeTypes[name] ] = true; end
 end
 
-local function GetTargetMode()
+function Hub.GetTargetMode()
 	local mode:number = UI.GetInterfaceMode();
 	local label:string = m_targetModes[mode];
 	if label ~= nil then return mode, label; end
@@ -178,7 +95,7 @@ end
 -- A list mode cannot be opened in the middle of a target mode.
 local function CanOpenMode()
 	if not HubCore.IsLocalPlayerActive() then return false; end
-	if GetTargetMode() ~= nil then
+	if Hub.GetTargetMode() ~= nil then
 		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
 		return false;
 	end
@@ -197,7 +114,7 @@ end
 -- The unit or city that chose a target mode is gone (died, deselected, turn ended): leave the mode, or Enter and
 -- Escape would be swallowed by a mode that has nothing to act on.
 local function ResetStaleMode()
-	if GetTargetMode() ~= nil and UI.GetHeadSelectedUnit() == nil and UI.GetHeadSelectedCity() == nil then
+	if Hub.GetTargetMode() ~= nil and UI.GetHeadSelectedUnit() == nil and UI.GetHeadSelectedCity() == nil then
 		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 	end
 end
@@ -321,7 +238,7 @@ local function GetCityAttackTargets( city:table )
 end
 
 -- Mode specific words for the cursor plot: path length for a move, valid target and odds for an attack.
-local function TargetInfo( mode:number, plot:table, unit:table )
+function Hub.TargetInfo( mode:number, plot:table, unit:table )
 	if unit == nil then
 		if mode == InterfaceModeTypes.CITY_RANGE_ATTACK or mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK then
 			local city:table = UI.GetHeadSelectedCity();
@@ -374,224 +291,6 @@ local function TargetInfo( mode:number, plot:table, unit:table )
 		return text;
 	end
 	return nil;
-end
-
-local function DescribeCursorPlot( plot:table )
-	local selectionPlot:table, unit:table = HubCore.GetSelectionPlot();
-	local options:table = {};
-	local localPlayer:number = Game.GetLocalPlayer();
-	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
-	local text:string = PlotDescription_GetShort( plot, options );
-	local mode:number = GetTargetMode();
-	local placement:string = PlacementPlotText( plot );
-	if placement ~= nil then
-		text = placement .. ". " .. text;
-	elseif mode ~= nil then
-		local info:string = TargetInfo( mode, plot, unit );
-		if info ~= nil then text = info .. ". " .. text; end
-		local build:string = ( unit ~= nil and unit:GetOwner() == localPlayer ) and HubCore.BuilderBuildText( unit, plot ) or nil;		-- builders walking to a tile
-		if build ~= nil then text = text .. ", " .. build; end
-	elseif HubCore.IsSettler( unit ) then
-		local ok:boolean, reason = SettleScan_CanFound( unit, plot );
-		text = text .. ( ok and ", can settle" or ( ", " .. SettleScan_CannotText( reason ) ) );
-	elseif unit ~= nil then
-		local build:string = HubCore.BuilderBuildText( unit, plot );
-		if build ~= nil then text = text .. ", " .. build; end
-	end
-	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
-	if relative ~= nil then text = text .. ". " .. relative; end
-	return text;
-end
-
--- Puts the cursor on (x, y), moves the camera there and optionally speaks the plot.
--- noMouse: the real mouse does not follow (browsing a list of candidates: the mouse must not sit on every one of them).
-local function SetCursor( x:number, y:number, speak:boolean, interrupt:boolean, noMouse:boolean )
-	local plot:table = Map.GetPlot( x, y );
-	if plot == nil then return; end
-	m_cursorPlayer = Game.GetLocalPlayer();
-	m_cursorX, m_cursorY = x, y;
-	if m_placeConfirm ~= nil and m_placeConfirm ~= plot:GetIndex() then m_placeConfirm = nil; end		-- moved away from the tile to confirm
-	UI.LookAtPlotScreenPosition( x, y, 0.5, 0.5 );
-	if noMouse then
-		m_mouseTimer = -1;
-	else
-		QueueMouseMove( plot );
-	end
-	if speak then
-		OutputMessageToScreenReader( DescribeCursorPlot( plot ), not interrupt );
-	end
-end
-
--- Shift+Arrows. Left/Right step along the row; Up/Down step to the next row north/south (alternately north-west
--- and north-east, so that two steps go straight north, as on the screen).
-local function MoveCursor( dx:number, dy:number )
-	if not HubCore.IsLocalPlayerActive() then return; end
-	local x:number, y:number = GetCursor();
-	x = x + dx;
-	y = y + dy;
-	local width:number, height:number = Map.GetGridSize();
-	if y < 0 or y >= height then
-		OutputMessageToScreenReader( "Edge of the map" );
-		return;
-	end
-	if x < 0 or x >= width then
-		if Map.IsWrapX() then
-			x = x % width;
-		else
-			OutputMessageToScreenReader( "Edge of the map" );
-			return;
-		end
-	end
-	SetCursor( x, y, true, true );
-end
-
--- Period: the cursor goes to the selected unit or city and says what is there.
-local function CursorToSelection()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	local plot:table, unit:table = HubCore.GetSelectionPlot();
-	if plot == nil then
-		OutputMessageToScreenReader( "Nothing selected" );
-		return;
-	end
-	SetCursor( plot:GetX(), plot:GetY(), false );
-	local options:table = {};
-	if unit ~= nil then options.excludeUnitId = unit:GetID(); end
-	local name:string = "";	-- a selected city is named by its own plot description
-	if unit ~= nil then name = Locale.Lookup( unit:GetName() ) .. ". "; end
-	OutputMessageToScreenReader( name .. PlotDescription_GetShort( plot, options ) );
-end
-
-local function SelectUnitObject( unit:table )
-	UI.DeselectAllCities();
-	UI.DeselectUnit( unit );
-	UI.SelectUnit( unit );
-	if UI.RebuildSelectionList ~= nil then UI.RebuildSelectionList( unit ); end
-end
-
--- Control+K: select the next of all the local player's units (also fortified, sleeping and automated ones), by unit id.
-local function CycleAllUnits()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	local units:table = {};
-	for _, unit in Players[ Game.GetLocalPlayer() ]:GetUnits():Members() do table.insert( units, unit ); end
-	if #units == 0 then
-		OutputMessageToScreenReader( "You have no units" );
-		return;
-	end
-	table.sort( units, function( a, b ) return a:GetID() < b:GetID(); end );
-	local selected:table = UI.GetHeadSelectedUnit();
-	local current:number = 0;
-	if selected ~= nil then
-		for i, unit in ipairs( units ) do
-			if unit:GetID() == selected:GetID() then current = i; end
-		end
-	end
-	SelectUnitObject( units[ current % #units + 1 ] );
-end
-
--- K: select the unit (or city) of the local player on the cursor plot; pressed again it cycles through them.
--- Needed to wake fortified units and to pick one of a stack, which Next Action never selects.
-local function SelectAtCursor()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	local x:number, y:number = GetCursor();
-	local plot:table = Map.GetPlot( x, y );
-	if plot == nil then return; end
-	local localPlayer:number = Game.GetLocalPlayer();
-	local candidates:table = {};
-	for _, unit in ipairs( Units.GetUnitsInPlot( plot ) ) do
-		if unit:GetOwner() == localPlayer then table.insert( candidates, { unit = unit } ); end
-	end
-	local city:table = Cities.GetCityInPlot( x, y );
-	if city ~= nil and city:GetOwner() == localPlayer then table.insert( candidates, { city = city } ); end
-	if #candidates == 0 then
-		OutputMessageToScreenReader( "Nothing of yours here" );
-		return;
-	end
-	local selectedUnit:table = UI.GetHeadSelectedUnit();
-	local selectedCity:table = UI.GetHeadSelectedCity();
-	local current:number = 0;
-	for i, candidate in ipairs( candidates ) do
-		if candidate.unit ~= nil and selectedUnit ~= nil and candidate.unit:GetID() == selectedUnit:GetID() then current = i; end
-		if candidate.city ~= nil and selectedUnit == nil and selectedCity ~= nil and candidate.city:GetID() == selectedCity:GetID() then current = i; end
-	end
-	local target:table = candidates[ current % #candidates + 1 ];
-	if target.unit ~= nil then
-		SelectUnitObject( target.unit );
-	else
-		UI.DeselectAllUnits();
-		UI.SelectCity( target.city );
-	end
-end
-
--- X: the cursor jumps to the nearest plot with foreign units in view (hostile ones first); pressed again, to the
--- next one. One stop per plot (the plot description lists the stack). Finds targets for the attack modes, and
--- threats in general. Said like a cursor move, so target modes add their info.
-local m_scanKey:string = nil;
-local function ScanUnits( interrupt:boolean )
-	if not HubCore.IsLocalPlayerActive() then return; end
-	if interrupt == nil then interrupt = true; end
-	local localPlayer:number = Game.GetLocalPlayer();
-	local originPlot:table = HubCore.GetSelectionPlot();
-	if originPlot == nil then
-		local x:number, y:number = GetCursor();
-		originPlot = Map.GetPlot( x, y );
-	end
-	-- a scan that starts from somewhere else starts again at the nearest plot
-	if m_scanOrigin ~= originPlot:GetIndex() then
-		m_scanOrigin = originPlot:GetIndex();
-		m_scanKey = nil;
-	end
-	local byPlot:table = {};
-	local found:table = {};
-	for playerID = 0, 63 do
-		local player:table = Players[ playerID ];
-		if playerID ~= localPlayer and player ~= nil and player:IsAlive() then
-			local hostile:boolean = HubCore.IsHostile( playerID );
-			for _, unit in player:GetUnits():Members() do
-				local distance:number = Map.GetPlotDistance( originPlot:GetX(), originPlot:GetY(), unit:GetX(), unit:GetY() );
-				if distance <= 10 and PlotDescription_IsUnitVisible( unit ) then
-					local plotIndex:number = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex();
-					local entry:table = byPlot[ plotIndex ];
-					if entry == nil then
-						entry = { key = tostring( plotIndex ), x = unit:GetX(), y = unit:GetY(), distance = distance, hostile = false };
-						byPlot[ plotIndex ] = entry;
-						table.insert( found, entry );
-					end
-					if hostile then entry.hostile = true; end
-				end
-			end
-		end
-	end
-	if #found == 0 then
-		OutputMessageToScreenReader( "No foreign units in view" );
-		return;
-	end
-	table.sort( found, function( a, b )
-		if a.hostile ~= b.hostile then return a.hostile; end
-		if a.distance ~= b.distance then return a.distance < b.distance; end
-		return a.key < b.key;
-	end );
-	local next:number = 1;
-	for i, entry in ipairs( found ) do
-		if entry.key == m_scanKey then next = i % #found + 1; end
-	end
-	m_scanKey = found[ next ].key;
-	SetCursor( found[ next ].x, found[ next ].y, true, interrupt );
-end
-
--- I: details of the cursor plot.
-local function SpeakPlotDetails()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	local x:number, y:number = GetCursor();
-	local plot:table = Map.GetPlot( x, y );
-	local selectionPlot:table, unit:table = HubCore.GetSelectionPlot();
-	local options:table = {};
-	if unit ~= nil then options.excludeUnitId = unit:GetID(); end
-	local text:string = PlotDescription_GetDetailed( plot, options );
-	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
-	if relative ~= nil then text = text .. ". " .. relative; end
-	local build:string = ( unit ~= nil and GetTargetMode() == nil ) and HubCore.BuilderBuildText( unit, plot ) or nil;
-	if build ~= nil then text = text .. ". " .. build; end
-	OutputMessageToScreenReader( text );
 end
 
 -- ===========================================================================
@@ -680,7 +379,7 @@ local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:numb
 	if m_movers[ unitID ] ~= nil and UnitManager.GetQueuedDestination( unit ) == nil then m_movers[ unitID ] = nil; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil then return; end
-	SetCursor( plot:GetX(), plot:GetY(), false );
+	HubCursor.SetCursor( plot:GetX(), plot:GetY(), false );
 	local text:string = UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } );
 	if not m_ready then
 		-- the game is still loading: it would be spoken before "CONTINUE GAME. Press Enter to start."; said once ready, see OnLoadScreenClose
@@ -730,7 +429,7 @@ local function OnCitySelectionChanged( owner:number, cityID:number, i:number, j:
 	local city:table = Players[owner]:GetCities():FindID( cityID );
 	if city == nil then return; end
 	local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
-	if plot ~= nil then SetCursor( plot:GetX(), plot:GetY(), false ); end
+	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false ); end
 	local parts:table = { Locale.Lookup( city:GetName() ), Locale.Lookup( "LOC_HUD_CITY_POPULATION" ) .. " " .. city:GetPopulation() };
 	local production:string = CityProductionText( city );
 	if production ~= nil then table.insert( parts, production ); end
@@ -748,7 +447,7 @@ local function AnnounceTurn()
 	local key:string = Game.GetLocalPlayer() .. ":" .. turn;
 	if key == m_lastAnnouncedTurn then return; end
 	m_lastAnnouncedTurn = key;
-	if m_cursorPlayer ~= Game.GetLocalPlayer() then ResetCursor(); end
+	if HubCore.m_cursorPlayer ~= Game.GetLocalPlayer() then HubCursor.ResetCursor(); end
 	OutputMessageToScreenReader( "Turn " .. turn .. ", " .. Calendar.MakeYearStr( turn ), true );
 end
 
@@ -769,7 +468,7 @@ end
 local function OnLoadScreenClose()
 	m_lastAnnouncedTurn = "";
 	m_lastSettleSpoken = nil;
-	ResetCursor();
+	HubCursor.ResetCursor();
 	m_ready = true;
 	m_movers = {};
 	m_spotted = {};
@@ -792,7 +491,7 @@ end
 local function OnLocalPlayerTurnEnd()
 	HubCore.CloseMode( false, true );
 	m_enterWatch = -1;
-	if GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
+	if Hub.GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	-- The event also fires when ending the turn is refused a moment later (a unit that finished exploring asks for
 	-- orders, turn number unchanged). Already inactive at event time: the turn really ended, say it now (a deferred
 	-- line could land after the next "Turn N"). Still active: check again shortly and speak only if the same turn
@@ -848,12 +547,12 @@ function Hub.CursorToNearestCityTarget()
 		OutputMessageToScreenReader( "No enemy in range. Escape to cancel", true );
 		return;
 	end
-	SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
+	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
 end
 
 -- R and W with a city selected (UnitPanel is hidden then and says nothing): open the city's ranged attack, or say why not.
 function Hub.CityAttackKey()
-	if not HubCore.IsLocalPlayerActive() or GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
+	if not HubCore.IsLocalPlayerActive() or Hub.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil or city:GetOwner() ~= Game.GetLocalPlayer() then return; end
 	local name:string = Locale.Lookup( city:GetName() );
@@ -883,7 +582,7 @@ local function OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if label == nil then return; end
 	-- the cursor starts at the acting unit or city, and the tiles are chosen from there
 	local plot:table = HubCore.GetSelectionPlot();
-	if plot ~= nil then SetCursor( plot:GetX(), plot:GetY(), false ); end
+	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false ); end
 	-- CityPanel flips SELECTION -> CITY_RANGE_ATTACK when a city is selected in that mode: one mode line, not two
 	local now:number = UI.GetElapsedTime();
 	if Hub.lastModeLine == newMode and now - Hub.lastModeTime < 0.5 then return; end
@@ -898,12 +597,12 @@ end
 
 -- For modes without a direct call below: click the plot with the real mouse, like a sighted player would.
 local function ClickCursorPlot()
-	local x:number, y:number = GetCursor();
+	local x:number, y:number = HubCursor.GetCursor();
 	local screenWidth:number, screenHeight:number = UIManager:GetScreenSizeVal();
 	local px:number, py:number = math.floor( screenWidth / 2 ), math.floor( screenHeight / 2 );
 	local centerX:number, centerY:number = UI.GetPlotCoordFromNormalizedScreenPos( 0, 0 );
 	if centerX ~= x or centerY ~= y then
-		px, py = FindPlotScreenPos( x, y );
+		px, py = HubCursor.FindPlotScreenPos( x, y );
 		if px == nil then
 			HubCore.SayResult( "That tile is off screen" );
 			return;
@@ -940,9 +639,9 @@ end
 
 -- Enter in a target mode: what WorldInput does on the left click in that mode, for the cursor plot.
 local function ConfirmTarget()
-	local mode:number, label:string = GetTargetMode();
+	local mode:number, label:string = Hub.GetTargetMode();
 	if mode == nil then return; end
-	local x:number, y:number = GetCursor();
+	local x:number, y:number = HubCursor.GetCursor();
 	local plot:table = Map.GetPlot( x, y );
 	local unit:table = UI.GetHeadSelectedUnit();
 	if plot == nil then return; end
@@ -1038,12 +737,12 @@ end
 -- military unit the move mode in which only enemies are valid ("Attack"). In a target mode W confirms, like Enter.
 local function AttackKey()
 	if not HubCore.IsLocalPlayerActive() then return; end
-	local mode:number = GetTargetMode();
+	local mode:number = Hub.GetTargetMode();
 	if mode ~= nil then
 		if mode == InterfaceModeTypes.MOVE_TO and not m_attackIntent then
 			m_attackIntent = true;
 			OutputMessageToScreenReader( "Attack: choose a target with Shift+Arrows or X, Enter to attack, Escape to cancel" );
-			ScanUnits( false );
+			HubCursor.ScanUnits( false );
 		else
 			ConfirmTarget();
 		end
@@ -1072,7 +771,7 @@ local function AttackKey()
 		m_attackIntent = true;
 		UI.SetInterfaceMode( InterfaceModeTypes.MOVE_TO );
 	end
-	HubCore.After( 0.3, function() if GetTargetMode() ~= nil then ScanUnits( false ); end end );
+	HubCore.After( 0.3, function() if Hub.GetTargetMode() ~= nil then HubCursor.ScanUnits( false ); end end );
 end
 
 -- ===========================================================================
@@ -1084,7 +783,7 @@ local m_settleList:table;
 local function SettleClosed( quiet:boolean )
 	if quiet then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
-	if unit ~= nil then SetCursor( unit:GetX(), unit:GetY(), false ); end
+	if unit ~= nil then HubCursor.SetCursor( unit:GetX(), unit:GetY(), false ); end
 end
 
 local function BuildSettleItems()
@@ -1151,7 +850,7 @@ m_settleList = KeyNavList_Create{
 	isActive	= function() return HubCore.IsModeOpen( "settle" ); end,
 	onActivate	= SettleGo,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
-	onFocus		= function( item ) SetCursor( item.candidate.x, item.candidate.y, false, nil, true ); end,
+	onFocus		= function( item ) HubCursor.SetCursor( item.candidate.x, item.candidate.y, false, nil, true ); end,
 };
 
 -- X: with a settler selected the spot browser, otherwise the scan for foreign units.
@@ -1159,11 +858,11 @@ local function ScanKey()
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if HubCore.IsModeOpen( "settle" ) then HubCore.CloseMode( true, false ); return; end
 	local unit:table = UI.GetHeadSelectedUnit();
-	if HubCore.IsSettler( unit ) and GetTargetMode() == nil then
+	if HubCore.IsSettler( unit ) and Hub.GetTargetMode() == nil then
 		OpenSettleBrowser( unit );
 		return;
 	end
-	ScanUnits( true );
+	HubCursor.ScanUnits( true );
 end
 
 -- ===========================================================================
@@ -1198,7 +897,7 @@ local function PlacementItemText( c:table )
 end
 
 -- What the cursor plot means for the item being placed (nil when no placement is going on).
-PlacementPlotText = function( plot:table )
+HubCore.PlacementPlotText = function( plot:table )
 	local scan:table = m_placeScan;
 	if scan == nil or not HubCore.IsModeOpen( "placement" ) then return nil; end
 	local c:table = scan.byIndex[ plot:GetIndex() ];
@@ -1245,12 +944,12 @@ end
 -- the placement mode, or Enter and Escape would have nothing to act on.
 local function PlacementClosed( quiet:boolean )
 	m_placeScan = nil;
-	m_placeConfirm = nil;
+	HubCore.m_placeConfirm = nil;
 	m_placeBusy = false;
 	-- not when the close is the mode being replaced by another placement mode: that one must stay
 	if not m_placeReplaced and IsPlacementMode( UI.GetInterfaceMode() ) then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	local plot:table = HubCore.GetSelectionPlot();
-	if plot ~= nil then SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
+	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
 end
 
 local function PlacementCancel()
@@ -1260,8 +959,8 @@ end
 
 -- Escape: back from the confirmation first, then out of the placement.
 local function PlacementEscape()
-	if m_placeConfirm ~= nil then
-		m_placeConfirm = nil;
+	if HubCore.m_placeConfirm ~= nil then
+		HubCore.m_placeConfirm = nil;
 		OutputMessageToScreenReader( "Back to the list" );
 		return;
 	end
@@ -1437,7 +1136,7 @@ local function PlacementEnter( item:table )
 	local scan:table = m_placeScan;
 	if scan == nil then return; end
 	if m_placeBusy then HubCore.SayResult( "Wait" ); return; end
-	local x:number, y:number = GetCursor();
+	local x:number, y:number = HubCursor.GetCursor();
 	local plot:table = Map.GetPlot( x, y );
 	if plot == nil then return; end
 	local c:table = scan.byIndex[ plot:GetIndex() ];
@@ -1446,12 +1145,12 @@ local function PlacementEnter( item:table )
 		HubCore.SayResult( "Can't place " .. scan.name .. " here" .. ( why ~= "" and ( ": " .. why ) or "" ) );
 		return;
 	end
-	if m_placeConfirm == c.plotIndex then
-		m_placeConfirm = nil;
+	if HubCore.m_placeConfirm == c.plotIndex then
+		HubCore.m_placeConfirm = nil;
 		if c.owned then PlacementCommit( c ); else PlacementBuyTile( c ); end
 		return;
 	end
-	m_placeConfirm = c.plotIndex;
+	HubCore.m_placeConfirm = c.plotIndex;
 	local effects:string = PlacementEffects( c, false );
 	if c.owned then
 		HubCore.SayResult( "Place " .. scan.name .. " here?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " Enter to confirm, Escape to go back" );
@@ -1466,8 +1165,8 @@ m_placeList = KeyNavList_Create{
 	onActivate	= PlacementEnter,
 	onClose		= PlacementEscape,
 	onFocus		= function( item )
-		m_placeConfirm = nil;
-		SetCursor( item.candidate.x, item.candidate.y, false, nil, true );
+		HubCore.m_placeConfirm = nil;
+		HubCursor.SetCursor( item.candidate.x, item.candidate.y, false, nil, true );
 	end,
 };
 
@@ -1527,13 +1226,13 @@ OpenPlacement = function( mode:number )
 		return;
 	end
 	m_placeScan = scan;
-	m_placeConfirm = nil;
+	HubCore.m_placeConfirm = nil;
 	m_placeBusy = false;
 	HubCore.CloseMode( false, true );
 	HubCore.m_mode = { name = "placement", list = m_placeList, onClose = PlacementClosed };
 	local best:table = scan.best;
 	m_placeList.Open( "", best.key, true );
-	SetCursor( best.x, best.y, false, nil, true );
+	HubCursor.SetCursor( best.x, best.y, false, nil, true );
 	local text:string;
 	if ownedNone then
 		text = "No owned tile fits; " .. HubCore.Plural( #scan.list, "tile", "tiles" ) .. " can be bought. Best: " .. PlacementItemText( best ) .. ".";
@@ -1882,13 +1581,13 @@ function Hub.LeaveManageView()
 	Hub.m_tilesList.Reset();
 	Hub.m_specList.Reset();
 	local city:table = GetReportCity();
-	if city ~= nil and view ~= "focus" then SetCursor( city:GetX(), city:GetY(), false, nil, true ); end
+	if city ~= nil and view ~= "focus" then HubCursor.SetCursor( city:GetX(), city:GetY(), false, nil, true ); end
 	m_reportList.Focus( view );
 end
 
 function Hub.CursorToPlotIndex( plotIndex:number )
 	local plot:table = Map.GetPlotByIndex( plotIndex );
-	if plot ~= nil then SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
+	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
 end
 
 function Hub.FocusState( city:table, yieldType:number )
@@ -2124,7 +1823,7 @@ local function ToggleCityReport()
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil or city:GetOwner() ~= localPlayer then
 		city = nil;
-		local x:number, y:number = GetCursor();
+		local x:number, y:number = HubCursor.GetCursor();
 		local atCursor:table = Cities.GetCityInPlot( x, y );
 		if atCursor ~= nil and atCursor:GetOwner() == localPlayer then city = atCursor; end
 	end
@@ -2193,7 +1892,7 @@ local function ActivateNotification( item:table )
 		if not Players[ player ]:IsTurnActive() or UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then return; end
 		if HubCore.IsGamePopupOpen() then return; end
 		if n.x >= 0 and n.y >= 0 then
-			SetCursor( n.x, n.y, true, false );
+			HubCursor.SetCursor( n.x, n.y, true, false );
 		elseif lookOnly then
 			local title:string = CleanTextForSpeech( n.message );
 			local summary:string = CleanTextForSpeech( n.summary );
@@ -2664,7 +2363,7 @@ function Hub.HandleInput( input:table )
 	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
-	if GetTargetMode() ~= nil then
+	if Hub.GetTargetMode() ~= nil then
 		-- Enter and Escape belong to the mode; both KeyDown and KeyUp are consumed, so ActionPanel never sees Enter
 		if UI.GetHeadSelectedUnit() == nil and UI.GetHeadSelectedCity() == nil then
 			ResetStaleMode();		-- nothing left to act: the keys go to the game again
@@ -2702,7 +2401,7 @@ function Hub.OnInput( input:table )
 end
 
 function Hub.OnUpdate( deltaTime:number )
-	UpdateMouse( deltaTime );
+	HubCursor.UpdateMouse( deltaTime );
 	if m_arrivalTimer >= 0 then
 		m_arrivalTimer = m_arrivalTimer - deltaTime;
 		if m_arrivalTimer < 0 then
@@ -2751,6 +2450,7 @@ end
 
 -- Hub modules (Accessibility/Hub*.lua), see docs/ingame-plan.md
 include( "HubCore" );
+include( "HubCursor" );
 
 -- ===========================================================================
 function Initialize()
@@ -2762,21 +2462,21 @@ function Initialize()
 	-- repeating the turn announcement.
 	if ContextPtr:IsHotLoad() and HubCore.IsLocalPlayerActive() then
 		m_ready = true;
-		m_cursorPlayer = Game.GetLocalPlayer();
+		HubCore.m_cursorPlayer = Game.GetLocalPlayer();
 		m_lastAnnouncedTurn = Game.GetLocalPlayer() .. ":" .. Game.GetCurrentGameTurn();
 		for _, unit in Players[ Game.GetLocalPlayer() ]:GetUnits():Members() do HubCore.RememberUnit( unit ); end
 	end
 
-	Hub.RegisterAction( "KeyNavMoveCellLeft",		function() MoveCursor( -1, 0 ); end );
-	Hub.RegisterAction( "KeyNavMoveCellRight",		function() MoveCursor( 1, 0 ); end );
-	Hub.RegisterAction( "KeyNavMoveCellUp",			function() MoveCursor( 0, 1 ); end );
-	Hub.RegisterAction( "KeyNavMoveCellDown",		function() MoveCursor( 0, -1 ); end );
-	Hub.RegisterAction( "KeyNavPlotDetails",		SpeakPlotDetails );
-	Hub.RegisterAction( "KeyNavCursorToSelection",	CursorToSelection );
+	Hub.RegisterAction( "KeyNavMoveCellLeft",		function() HubCursor.MoveCursor( -1, 0 ); end );
+	Hub.RegisterAction( "KeyNavMoveCellRight",		function() HubCursor.MoveCursor( 1, 0 ); end );
+	Hub.RegisterAction( "KeyNavMoveCellUp",			function() HubCursor.MoveCursor( 0, 1 ); end );
+	Hub.RegisterAction( "KeyNavMoveCellDown",		function() HubCursor.MoveCursor( 0, -1 ); end );
+	Hub.RegisterAction( "KeyNavPlotDetails",		HubCursor.SpeakPlotDetails );
+	Hub.RegisterAction( "KeyNavCursorToSelection",	HubCursor.CursorToSelection );
 	Hub.RegisterAction( "KeyNavWhatsNext",			SpeakWhatsNext );
 	Hub.RegisterAction( "KeyNavUnitActions",		ToggleUnitMenu );
-	Hub.RegisterAction( "KeyNavSelectAtCursor",		SelectAtCursor );
-	Hub.RegisterAction( "KeyNavCycleAllUnits",		CycleAllUnits );
+	Hub.RegisterAction( "KeyNavSelectAtCursor",		HubCursor.SelectAtCursor );
+	Hub.RegisterAction( "KeyNavCycleAllUnits",		HubCursor.CycleAllUnits );
 	Hub.RegisterAction( "KeyNavScanUnits",			ScanKey );
 	Hub.RegisterAction( "KeyNavDiplomacy",			ToggleCivMenu );
 	Hub.RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
@@ -2816,7 +2516,7 @@ function Initialize()
 	HubCore.Listen( LuaEvents.SRA_NotificationActivated, HubCore.Safe( "NotificationActivated", OnNotificationActivated ) );
 	HubCore.Listen( LuaEvents.SRA_AttackKey, HubCore.Safe( "AttackKey", AttackKey ) );
 	HubCore.Listen( LuaEvents.SRA_TradeResult, HubCore.Safe( "TradeResult", OnTradeResult ) );		-- trade choosers: outcome of the route / move
-	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) SetCursor( x, y, false, false, true ); end ) );		-- City-States screen: Show on map
+	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) HubCursor.SetCursor( x, y, false, false, true ); end ) );		-- City-States screen: Show on map
 	HubCore.AddEvent( "UnitRemovedFromMap",			function() HubCore.After( 0.3, ResetStaleMode ); end );
 	HubCore.AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )
 		local player:table = Players[ playerID ];
