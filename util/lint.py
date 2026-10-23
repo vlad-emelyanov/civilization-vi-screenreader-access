@@ -6,6 +6,7 @@
 Exit codes: 0 = ok (warnings in upstream game-file copies are only printed with -v),
             1 = errors: a syntax error anywhere, or any warning in a strict file,
             2 = tool problem (download failed, ...).
+The .civ6proj registration check (util/overridecheck.py) runs at the end; its errors also give exit 1.
 Strict files = mod-only code: Assets/UI/Accessibility/*.lua and UI/Additions/*.lua.
 """
 import hashlib, os, re, shutil, subprocess, sys, urllib.request
@@ -134,7 +135,19 @@ def main(argv):
     if r.returncode > 2:
         print(r.stderr, file=sys.stderr)
         return 2
-    return 1 if errors else 0
+    override_errors = run_overridecheck()
+    return 1 if (errors or override_errors) else 0
+
+
+def run_overridecheck():
+    """Static .civ6proj registration check (util/overridecheck.py): 1 if it found errors."""
+    sys.path.insert(0, os.path.join(ROOT, "util"))
+    try:
+        import overridecheck
+        return 1 if overridecheck.main([]) else 0
+    except Exception as e:  # a broken checker must not hide lint results
+        print("overridecheck failed to run: %s" % e, file=sys.stderr)
+        return 0
 
 
 if __name__ == "__main__":
