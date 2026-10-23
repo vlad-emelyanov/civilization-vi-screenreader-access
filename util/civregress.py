@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Speech regression runner: replays key scripts against a loaded fixture and checks the SR> lines.
 
-  python util/civregress.py [name ...|all] [--share-load|--no-share-load] [--dry-run] [--list] [--record] [--update] [--clear-advisors]
+  python util/civregress.py [name ...|all] [--share-load|--no-share-load] [--dry-run] [--list] [--record] [--update] [--clear-advisors] [--no-batch]
 
 Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' comments are ignored):
 
@@ -46,7 +46,14 @@ second result counts, TIMING marks it): drift must not fail a script that passes
 The run ends with a TIMING table (seconds per script) and TOTAL. `key Shift+Tab` is rejected when the script is parsed (Steam overlay).
 `--clear-advisors` only closes the advisor popups of the loaded game (what `civctl clear-advisors` runs).
 The TIMING table splits each script's time into load / keys (key + action steps; "settle" = the part of it that is the scripted
--Settle sleeps) / wait / lua (lua + scenario) / other, and a BREAKDOWN line sums it up: that shows where a slow run goes.
+-Settle waits) / wait / lua (lua + scenario) / other, and a BREAKDOWN line sums it up: that shows where a slow run goes.
+
+Speed: the runner keeps ONE `civctl.ps1 batch` process (a JSON array of civctl arguments per stdin line; the output of a step ends with
+`@@CIVCTL-DONE <rc>`) instead of a powershell.exe per step. A step timeout kills the process tree and the next step starts a new
+process, as does exit 5; if it cannot start or the protocol breaks, the steps run per call (said once). `--no-batch` = per call always.
+`key`/`action` return once an SR line has arrived and -Quiet ms (default 250) passed without another one; -Settle is only the maximum
+(no SR line at all = the full -Settle). `-Quiet <ms>` raises the window for a late second line, `-NoQuiet` is the old fixed wait.
+civctl reports the real wait as `@@waited <ms>` (the runner strips and sums it): "settle" in TIMING/BREAKDOWN is the time really waited.
 
 Selective runs: every script carries a header `# covers: <glob> [<glob> ...]` naming the mod files it exercises (globs on repo-relative
 paths with / ; `**/` = any directories, `*` = within one name; a glob without a leading `**/` matches as a path suffix).
@@ -72,12 +79,15 @@ Exit code: 0 all passed, 1 something failed, 2 usage/parse error, 7 no owner.
 """
 import argparse
 import glob
+import json
 import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -97,6 +107,8 @@ ACTIONS = ("load", "scenario", "key", "action", "wait", "lua", "clear-advisors",
 NO_ARG = ("clear-advisors", "no-lua-errors")
 CHECKS = ("expect", "expect-not", "expect-lua")
 STEP_TIMEOUT = 600  # seconds per civctl call (a load is ~45 s, a newgame 70 s)
+BATCH_DONE = "@@CIVCTL-DONE"   # civctl batch: ends the output of one command, followed by its exit code
+_WAITED = re.compile(r"^@@waited (\d+)\s*$")   # key/action: ms actually spent waiting for the speech
 
 
 class ScriptError(Exception):
@@ -224,25 +236,53 @@ def civctl_args(step):
 
 
 class CivctlRunner:
-    """Runs util/civctl.cmd; run(args) -> (exit code, output lines)."""
+    """Runs util/civctl.ps1; run(args) -> (exit code, output lines).
 
-    def __init__(self, cmd=CIVCTL, owner=None):  # cmd: path of civctl.ps1
+    batch=True keeps ONE `civctl.ps1 batch` process and sends each step to it as a JSON line (saves the powershell.exe start per
+    step); the output of a step ends at a `@@CIVCTL-DONE <rc>` line. A step timeout kills the process tree and the next step starts a
+    new process; so does exit 5 (crash). If the process cannot start or the protocol breaks, the steps go through the per-call path
+    (said once). After run(), last_waited = seconds the key/action step spent waiting for speech (None if civctl did not say)."""
+
+    def __init__(self, cmd=CIVCTL, owner=None, batch=False, batch_cmd=None, say=print):  # cmd: path of civctl.ps1
         self.cmd = cmd
         self.env = dict(os.environ)
         self.env["CIVCTL_OWNER"] = owner or os.environ.get("CIVCTL_OWNER") or ""  # main() refuses an empty owner
+        self.env["CIVCTL_REPORT_WAITED"] = "1"
+        self.batch = batch
+        self.batch_cmd = batch_cmd or [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", cmd, "batch"]
+        self.say = say
+        self.last_waited = None
+        self._proc = None
+        self._queue = None
 
     def run(self, args):
         # A process that cannot start (0xC0000142 STATUS_DLL_INIT_FAILED = desktop heap / handle pressure, seen as a burst of
         # 7 failing scripts in one `regress all`) never reached civctl: nothing was sent to the game, so retrying is safe.
+        self.last_waited = None
         for attempt in range(3):
             rc, lines = self._run_once(args)
             if rc not in START_FAILURE_RCS:
-                return rc, lines
+                break
             print("  (powershell failed to start, rc=0x%08X: retry %d/2 after %d s)" % (rc & 0xFFFFFFFF, attempt + 1, 3 * (attempt + 1)))
             time.sleep(3 * (attempt + 1))
-        return rc, lines
+        waited, keep = None, []
+        for l in lines:
+            m = _WAITED.match(l)
+            if m:
+                waited = (waited or 0) + int(m.group(1))
+            else:
+                keep.append(l)
+        self.last_waited = None if waited is None else waited / 1000.0
+        return rc, keep
 
     def _run_once(self, args):
+        if self.batch:
+            res = self._run_batch(args)
+            if res is not None:
+                return res
+        return self._run_percall(args)
+
+    def _run_percall(self, args):
         # powershell.exe -File directly: going through civctl.cmd (%*) loses '^' and quotes in regexes.
         cmd = [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.cmd] + args
         p = subprocess.Popen(cmd, cwd=ROOT, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
@@ -250,10 +290,109 @@ class CivctlRunner:
             stdout, _ = p.communicate(timeout=STEP_TIMEOUT)
         except subprocess.TimeoutExpired:
             # kill the whole tree: the child powershell would keep driving the game and holding the lock
-            subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
+            self._kill_tree(p)
             p.communicate()
             return TIMEOUT_RC, ["civctl timed out after %d s (process tree killed)" % STEP_TIMEOUT]
         return p.returncode, stdout.decode("utf-8", errors="replace").splitlines()
+
+    @staticmethod
+    def _kill_tree(p):
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(p.pid)], capture_output=True)
+
+    # -- batch process
+    def _give_up_batch(self, why):
+        self.batch = False
+        self.close()
+        self.say("  (civctl batch process unusable: %s; running every step as its own powershell.exe)" % why)
+
+    def _start_batch(self):
+        self._proc = subprocess.Popen(self.batch_cmd, cwd=ROOT, env=self.env, stdin=subprocess.PIPE,
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        q = queue.Queue()
+        self._queue = q
+
+        def pump(f=self._proc.stdout):
+            try:
+                for raw in iter(f.readline, b""):
+                    q.put(raw.decode("utf-8", errors="replace").rstrip("\r\n"))
+            except (OSError, ValueError):
+                pass
+            q.put(None)   # end of output
+        threading.Thread(target=pump, daemon=True).start()
+
+    def _run_batch(self, args):
+        """(rc, lines) for the step, or None to run it through the per-call path (the batch process is then given up)."""
+        if self._proc is None:
+            try:
+                self._start_batch()
+            except OSError as e:
+                self._give_up_batch("cannot start: %s" % e)
+                return None
+        p, q = self._proc, self._queue
+        try:
+            p.stdin.write((json.dumps(args) + "\n").encode("ascii"))
+            p.stdin.flush()
+        except (OSError, ValueError):
+            rc = self._reap(p)
+            if rc in START_FAILURE_RCS:
+                return rc, []
+            self._give_up_batch("stdin closed")
+            return None
+        lines = []
+        deadline = time.time() + STEP_TIMEOUT
+        while True:
+            try:
+                l = q.get(timeout=max(0.0, deadline - time.time()))
+            except queue.Empty:
+                self._kill_tree(p)
+                self.close()
+                return TIMEOUT_RC, ["civctl timed out after %d s (process tree killed)" % STEP_TIMEOUT]
+            if l is None:   # the process ended before the step was done
+                rc = self._reap(p)
+                if not lines:
+                    if rc in START_FAILURE_RCS:
+                        return rc, []
+                    self._give_up_batch("it exited with code %s before answering" % rc)
+                    return None
+                self._give_up_batch("it exited with code %s in the middle of a step" % rc)
+                return 1, lines + ["civctl batch process ended unexpectedly (exit %s)" % rc]
+            if l.startswith(BATCH_DONE):
+                try:
+                    rc = int(l[len(BATCH_DONE):].strip())
+                except ValueError:
+                    self._give_up_batch("bad sentinel %r" % l)
+                    return 1, lines + [l]
+                if rc == 5:
+                    self.close()   # the game crashed/hung: the next step starts a fresh process
+                return rc, lines
+            lines.append(l)
+
+    def _reap(self, p):
+        try:
+            rc = p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self._kill_tree(p)
+            rc = None
+        self._proc = self._queue = None
+        return rc
+
+    def close(self):
+        """Ends the batch process (stdin closed, killed if it does not leave); the next step would start a new one."""
+        p, self._proc, self._queue = self._proc, None, None
+        if p is None:
+            return
+        try:
+            p.stdin.close()
+        except (OSError, ValueError):
+            pass
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self._kill_tree(p)
+            try:
+                p.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
 
 
 class LockedError(Exception):
@@ -341,7 +480,8 @@ class ScriptResult:
 
 
 def settle_seconds(arg):
-    """Seconds a key/action step sleeps for the screen reader lines: -Settle ms (default 600) times -Count (default 1)."""
+    """Upper bound of the seconds a key/action step waits for the screen reader lines: -Settle ms (default 600) times -Count (default 1).
+    Only used when civctl did not report the real wait (`@@waited`)."""
     m = re.search(r"-Settle\s+(\d+)", arg)
     c = re.search(r"-Count\s+(\d+)", arg)
     return (int(m.group(1)) if m else 600) * (int(c.group(1)) if c else 1) / 1000.0
@@ -434,7 +574,8 @@ def run_script(name, steps, runner, out=print, skip_load=False):
         finally:
             res.times[s.kind] = res.times.get(s.kind, 0.0) + time.time() - t_step
             if s.kind in ("key", "action"):
-                res.settle += settle_seconds(s.arg)
+                waited = getattr(runner, "last_waited", None)   # what civctl really waited (quiet window), else the scripted -Settle
+                res.settle += waited if waited is not None else settle_seconds(s.arg)
             if tmp:
                 try:
                     os.remove(tmp)
@@ -855,6 +996,7 @@ def main(argv=None):
     ap.add_argument("--update", action="store_true", help="like --record, and rewrite the failing expect lines in place (.bak kept)")
     ap.add_argument("--base", help="`changed`: git revision to diff against (default: the last green `regress all`)")
     ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
+    ap.add_argument("--no-batch", action="store_true", help="start powershell.exe for every civctl call (default: one long-lived `civctl batch` process)")
     ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
     if a.clear_advisors:
@@ -905,7 +1047,11 @@ def main(argv=None):
         print(lock)
         return 8
     try:
-        results = run_all(scripts, CivctlRunner(owner=owner), share)
+        runner = CivctlRunner(owner=owner, batch=not a.no_batch)
+        try:
+            results = run_all(scripts, runner, share)
+        finally:
+            runner.close()
     finally:
         release_run_lock(lock)
     if run_everything and not record and results and all(r.ok for r in results) and len(results) == len(scripts):

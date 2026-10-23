@@ -366,5 +366,123 @@ class RunLock(unittest.TestCase):
         self.assertFalse(os.path.exists(path))
 
 
+FAKE_BATCH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fake_civctl_batch.py")
+
+
+class BatchRunnerTests(unittest.TestCase):
+    """CivctlRunner(batch=True) against a fake process that speaks the `civctl batch` protocol."""
+
+    def runner(self, batch_cmd=None):
+        said = []
+        r = cr.CivctlRunner(owner="t", batch=True, batch_cmd=batch_cmd or [sys.executable, "-u", FAKE_BATCH], say=said.append)
+        r.said = said
+        r.percall = []
+
+        def percall(args):
+            r.percall.append(list(args))
+            return 0, ["percall " + " ".join(args)]
+        r._run_percall = percall
+        self.addCleanup(r.close)
+        return r
+
+    def test_protocol_one_process_for_all_steps(self):
+        r = self.runner()
+        rc1, l1 = r.run(["pid"])
+        rc2, l2 = r.run(["pid"])
+        rc3, l3 = r.run(["echo", "a b", "-X"])
+        self.assertEqual((rc1, rc2, rc3), (0, 0, 0))
+        self.assertEqual(l1, l2)
+        self.assertEqual(l3, ["echo echo a b -X"])
+        self.assertEqual(r.percall, [])
+        self.assertEqual(r.said, [])
+
+    def test_rc_and_output_of_a_failing_step(self):
+        r = self.runner()
+        self.assertEqual(r.run(["fail"]), (1, ["nope"]))
+        self.assertEqual(r.run(["echo"])[0], 0)   # the process is still fine
+
+    def test_waited_lines_are_stripped_and_summed(self):
+        r = self.runner()
+        rc, lines = r.run(["key", "Down"])
+        self.assertEqual(lines, ["SR> spoken"])
+        self.assertAlmostEqual(r.last_waited, 0.42)
+        r.run(["echo"])
+        self.assertIsNone(r.last_waited)   # reset per step; a command that does not report leaves None
+
+    def test_waited_accounting_in_the_breakdown(self):
+        r = self.runner()
+        steps = cr.parse_script("key Down -Settle 2500\nexpect spoken\n")
+        res = cr.run_script("w", steps, r, out=lambda s: None)
+        self.assertEqual(res.passed, 1)
+        self.assertAlmostEqual(res.settle, 0.42)   # not the scripted 2.5 s
+        res2 = cr.run_script("w", steps, FakeRunner(default=(0, ["SR> spoken"])), out=lambda s: None)
+        self.assertAlmostEqual(res2.settle, 2.5)   # a runner that does not report keeps the scripted bound
+
+    def test_restart_after_crash_rc5(self):
+        r = self.runner()
+        pid1 = r.run(["pid"])[1]
+        self.assertEqual(r.run(["crash"]), (5, ["GAME CRASHED"]))
+        self.assertNotEqual(r.run(["pid"])[1], pid1)
+        self.assertEqual(r.percall, [])
+
+    def test_timeout_kills_and_restarts(self):
+        r = self.runner()
+        old = cr.STEP_TIMEOUT
+        self.addCleanup(setattr, cr, "STEP_TIMEOUT", old)
+        pid1 = r.run(["pid"])[1]
+        cr.STEP_TIMEOUT = 1
+        rc, lines = r.run(["hang"])
+        cr.STEP_TIMEOUT = old
+        self.assertEqual(rc, cr.TIMEOUT_RC)
+        self.assertIn("timed out", lines[0])
+        self.assertNotEqual(r.run(["pid"])[1], pid1)
+        self.assertEqual(r.percall, [])
+
+    def test_cannot_start_falls_back_once(self):
+        r = self.runner(batch_cmd=["definitely-not-a-program-xyz"])
+        self.assertEqual(r.run(["a"]), (0, ["percall a"]))
+        self.assertEqual(r.run(["b"]), (0, ["percall b"]))
+        self.assertEqual(len(r.said), 1)
+        self.assertIn("every step as its own powershell.exe", r.said[0])
+
+    def test_dies_before_answering_reruns_the_step_per_call(self):
+        r = self.runner()
+        self.assertEqual(r.run(["silent-die"]), (0, ["percall silent-die"]))
+        self.assertEqual(r.run(["echo"]), (0, ["percall echo"]))
+        self.assertEqual(len(r.said), 1)
+
+    def test_dies_in_the_middle_of_a_step_fails_it(self):
+        r = self.runner()
+        rc, lines = r.run(["die"])
+        self.assertEqual(rc, 1)
+        self.assertEqual(lines[0], "half an answer")
+        self.assertIn("ended unexpectedly", lines[-1])
+        self.assertEqual(r.run(["echo"]), (0, ["percall echo"]))   # later steps use the per-call path
+        self.assertEqual(len(r.said), 1)
+
+    def test_close_ends_the_process(self):
+        r = self.runner()
+        r.run(["pid"])
+        p = r._proc
+        r.close()
+        self.assertIsNotNone(p.poll())
+        r.close()   # twice is fine
+
+    def test_start_failure_rc_is_retried(self):
+        r = self.runner()
+        calls = []
+        orig = r._run_batch
+
+        def flaky(args):
+            calls.append(1)
+            return (cr.START_FAILURE_RCS[0], []) if len(calls) == 1 else orig(args)
+        r._run_batch = flaky
+        old_sleep = cr.time.sleep
+        cr.time.sleep = lambda s: None
+        self.addCleanup(setattr, cr.time, "sleep", old_sleep)
+        self.assertEqual(r.run(["echo", "x"]), (0, ["echo echo x"]))
+        self.assertEqual(len(calls), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
