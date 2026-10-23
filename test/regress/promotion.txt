@@ -1,4 +1,4 @@
-# UNVERIFIED (written offline, never run in the game). Fixture bug-promotion-tree-silent: turn 109, a Pikeman can be promoted.
+# Verified in game 2026-10-22. Fixture bug-promotion-tree-silent: turn 109, a Pikeman can be promoted.
 # The unit is selected through InGameAccess (UI.SelectUnit); Shift+U opens the promotion tree (UnitPromotionPopup.lua override).
 # no-share-load
 load bug-promotion-tree-silent

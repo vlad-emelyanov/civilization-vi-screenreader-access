@@ -1,4 +1,4 @@
--- Scenario: prophet-ready. STATUS: unverified (nothing here was run; the District / Units API calls are the ones the game's own UI scripts use)
+-- Scenario: prophet-ready. STATUS: verified on medieval-t100 (2026-10-22; that game has a pantheon but no Holy Site, the scenario places one)
 -- Fixture: medieval-t100 (turn 99, AI-played Rome) IF its civ has a pantheon, a completed Holy Site and religions are left. The script
 --   checks all three and stops with an error saying which is missing (then use another fixture or build the Holy Site first).
 -- Then: select the Great Prophet (it stands on the Holy Site): InGameAccess state, `lua InGameAccess` with
@@ -44,7 +44,22 @@ for _, d in me:GetDistricts():Members() do
 	end
 end
 if x == nil then
-	error("scenario prophet-ready: no completed Holy Site; build one first (city production, purchase with gold) or use a fixture that has one")
+	-- No Holy Site: place a finished one with the tuner call (CreateIncompleteDistrict with 100 percent construction completes it) on the first free,
+	-- owned, featureless, non-mountain land plot within 2 tiles of the capital.
+	local capital = me:GetCities():GetCapitalCity()
+	local queue = capital:GetBuildQueue()
+	for dx = -2, 2 do
+		for dy = -2, 2 do
+			local plot = Map.GetPlot(capital:GetX() + dx, capital:GetY() + dy)
+			if x == nil and plot ~= nil and not plot:IsWater() and plot:GetDistrictType() == -1 and plot:GetOwner() == 0
+					and not plot:IsMountain() and plot:GetFeatureType() == -1 then
+				pcall(function() queue:CreateIncompleteDistrict(holySite, plot:GetIndex(), 100) end)
+				if plot:GetDistrictType() ~= -1 then x, y = plot:GetX(), plot:GetY() end
+			end
+		end
+	end
+	if x == nil then error("scenario prophet-ready: no completed Holy Site and none could be placed near the capital") end
+	print("scenario prophet-ready: placed a Holy Site at " .. x .. "," .. y)
 end
 
 me:GetUnits():Create(prophetIndex, x, y)

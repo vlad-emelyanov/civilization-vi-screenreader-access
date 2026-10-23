@@ -1,4 +1,4 @@
-# UNVERIFIED (written offline, never run in the game). medieval-t100: Backslash selects the capital, Control+I opens the city report.
+# Verified in game 2026-10-22. medieval-t100: Backslash selects the capital, Control+I opens the city report.
 # no-share-load
 load medieval-t100
 clear-advisors

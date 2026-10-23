@@ -1,6 +1,5 @@
-# UNVERIFIED (written offline, never run). Founding a religion with a Great Prophet on medieval-t100 (see util/scenarios/prophet-ready.lua for its
-# preconditions: a pantheon and a completed Holy Site; the scenario errors out when they are missing, which fails the run visibly).
-# The position of "Found Religion" in the prophet's action menu is not known: the verifier adjusts the number of Down presses below.
+# Verified in game 2026-10-22. Founding a religion with a Great Prophet on medieval-t100 (util/scenarios/prophet-ready.lua places a Holy Site and the prophet).
+# Found Religion is the first entry of the prophet's Tab menu; the game then raises a "Choose Religion" blocker; L opens the religion screen in its founding mode (Control+N would list the blockers in a varying order).
 # no-share-load
 load medieval-t100
 scenario prophet-ready
@@ -8,9 +7,9 @@ clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_GREAT_PROPHET" then UI.SelectUnit(u) break end end
 key Tab -Settle 1500
 expect ^Great Prophet actions, \d+ options
-key Down -Settle 600
-expect (?i)found religion
-key Enter -Settle 3000
+expect ^Found Religion
+key Enter -Settle 3500
+key L -Settle 3000
 expect ^Found a religion: choose a religion, \d+ available\. .+, 1 of \d+
 key Down -Settle 600
 expect \d+ of \d+$
@@ -22,10 +21,8 @@ key Enter -Settle 1000
 expect ^Chose .+
 expect ^Choose beliefs for .+: 1 belief to choose\. Chosen: .+
 key Enter -Settle 1000
+expect ^Chose .+
 expect ^Confirm\. Found .+ with .+ and .+
 key Enter -Settle 2500
-expect , confirmed
-expect (?i)has .+
-key Escape -Settle 1500
-expect ^Religion closed
+expect (?i)^.+ has .+ and .+
 no-lua-errors
