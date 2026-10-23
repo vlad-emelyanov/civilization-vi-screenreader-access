@@ -1,0 +1,15 @@
+# Written blind 2026-10-23 (not yet verified). Space in the production list says the description first: "Name: description. rest of the tooltip", the name once. The opening line says "Space for description" once per session.
+# covers: **/ProductionPanel.lua **/ScreenReader.lua
+# no-share-load: opens the production panel
+load medieval-t100
+clear-advisors
+key Enter -Count 2 -Fast -Settle 100
+expect ^Rome, choose production.*Space for description
+key Space -Settle 1500
+expect ^[^:]{2,40}: .{15,}
+key Down -Settle 800
+key Space -Settle 1500
+expect ^[^:]{2,40}: .{15,}
+key Escape -Settle 1200
+key Escape -Settle 1200
+no-lua-errors

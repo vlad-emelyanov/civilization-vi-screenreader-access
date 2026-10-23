@@ -227,7 +227,7 @@ function HubEvents.OnUnitDamageChanged( playerID:number, unitID:number, newDamag
 		text = fight.attacker.name .. " attacks " .. fight.defender.name .. ( place ~= nil and ( ", " .. place ) or "" ) .. ": "
 			.. who .. " takes " .. ( newDamage - oldDamage ) .. " damage, " .. ( maxDamage - newDamage ) .. " of " .. maxDamage .. " left";
 	end
-	OutputMessageToScreenReader( text, true );
+	HubCore.Announce( text, true );
 	LuaEvents.SRA_CombatSpoken();		-- StatusMessagePanel drops its duplicate of this fight
 end
 
@@ -256,7 +256,7 @@ function HubEvents.OnUnitKilledInCombat( killedPlayer:number, killedId:number, k
 	if killer == nil and fight ~= nil and fight.attacker.isCity and fight.attacker.player == killerPlayer
 			and fight.defender.player == killedPlayer and fight.defender.id == killedId and UI.GetElapsedTime() - fight.time < 15 then
 		killer = fight.attacker.short;
-		OutputMessageToScreenReader( ( killedPlayer == localPlayer and ( "Your " .. killed .. " was killed" ) or ( killed .. " killed" ) ) .. " by " .. killer, true );
+		HubCore.Announce( ( killedPlayer == localPlayer and ( "Your " .. killed .. " was killed" ) or ( killed .. " killed" ) ) .. " by " .. killer, true );
 		LuaEvents.SRA_CombatSpoken();
 		return;
 	end
@@ -270,7 +270,7 @@ function HubEvents.OnUnitKilledInCombat( killedPlayer:number, killedId:number, k
 		if killerPlayer == localPlayer then killer = "your " .. killer; end
 		text = text .. " by " .. killer;
 	end
-	OutputMessageToScreenReader( text, true );
+	HubCore.Announce( text, true );
 	LuaEvents.SRA_CombatSpoken();		-- StatusMessagePanel drops its duplicate of this fight
 end
 
@@ -336,5 +336,5 @@ function HubEvents.OnUnitVisibilityChanged( playerID:number, unitID:number, visi
 	local text:string = PlotDescription_GetUnitName( unit ) .. " spotted";
 	if relative ~= nil then text = text .. ", " .. relative .. " of " .. bestName; else text = text .. " at " .. bestName; end
 	HubRegions.m_lastSpotSpeech = UI.GetElapsedTime();
-	OutputMessageToScreenReader( text, true );
+	HubCore.Announce( text, true );
 end

@@ -132,6 +132,7 @@ end
 
 function Hub.OnUpdate( deltaTime:number )
 	HubCursor.UpdateMouse( deltaTime );
+	HubCore.UpdateSpeech( deltaTime );
 	if HubCore.m_arrivalTimer >= 0 then
 		HubCore.m_arrivalTimer = HubCore.m_arrivalTimer - deltaTime;
 		if HubCore.m_arrivalTimer < 0 then
@@ -255,6 +256,7 @@ function Initialize()
 	HubCore.Listen( LuaEvents.SRA_NotificationActivated, HubCore.Safe( "NotificationActivated", HubRegions.OnNotificationActivated ) );
 	HubCore.Listen( LuaEvents.SRA_AttackKey, HubCore.Safe( "AttackKey", HubTargets.AttackKey ) );
 	HubCore.Listen( LuaEvents.SRA_TradeResult, HubCore.Safe( "TradeResult", HubEvents.OnTradeResult ) );		-- trade choosers: outcome of the route / move
+	HubCore.Listen( LuaEvents.SRA_SpeechHold, HubCore.Safe( "SpeechHold", HubCore.SetSpeechHold ) );		-- popups that speak: event announcements wait
 	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) HubCursor.SetCursor( x, y, false, false, true ); end ) );		-- City-States screen: Show on map
 	HubCore.AddEvent( "UnitRemovedFromMap",			function() HubCore.After( 0.3, HubTargets.ResetStaleMode ); end );
 	HubCore.AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )

@@ -2481,6 +2481,7 @@ end
 -- buildings, units. Tab cycles the panel's tabs. Corps/armies and queue editing are not covered.
 -- ===========================================================================
 local m_srList:table = nil;
+local m_srHintSaid:boolean = false;		-- "Space for description" is said once per session
 
 -- GetData() is expensive and is called on every key; cache it per Refresh (View sets it, Open/Close clear it).
 local function SRA_Data()
@@ -2509,6 +2510,13 @@ local function SRA_Reasons( kItem:table, skipFunds:boolean )
 		if not ( skipFunds and ( text == funds1 or text == funds2 ) ) then table.insert( reasons, text ); end
 	end
 	return table.concat( reasons, ", " );
+end
+
+-- Space: "Settler: Used to found new cities. <rest of the tooltip>". The game's tooltips bury the description after the stats
+-- (or leave it out of the first lines), so it is looked up in the database and spoken first.
+local function SRA_Detail( kItem:table )
+	local row:table = GameInfo.Units[ kItem.Hash ] or GameInfo.Buildings[ kItem.Hash ] or GameInfo.Districts[ kItem.Hash ] or GameInfo.Projects[ kItem.Hash ];
+	return SRDescriptionFirst( kItem.Name, row ~= nil and row.Description or nil, kItem.ToolTip );
 end
 
 local function SRA_TurnsText( turns:number )
@@ -2558,7 +2566,7 @@ local function SRA_Item( kItem:table, kind:string, section:string, owner:string 
 		choosable = not ( kItem.Disabled or built ),
 		reason = built and "Already built" or ( "Can't build " .. name .. ( reasons ~= "" and ( ": " .. reasons ) or "" ) ),
 		recommended = recommended,
-		detail = function() return CleanTextForSpeech( Locale.Lookup( detailItem.ToolTip ) ); end,
+		detail = function() return SRA_Detail( detailItem ); end,
 	};
 end
 
@@ -2592,7 +2600,7 @@ local function SRA_PurchaseItem( kItem:table, kind:string, section:string )
 		choosable = not kItem.Disabled,
 		reason = "Can't buy " .. name .. ( kItem.CantAfford and ( ": not enough " .. currency .. ", " .. math.max( missing, 1 ) .. " more needed" ) or "" )
 			.. ( other ~= "" and ( ": " .. other ) or "" ),
-		detail = function() return CleanTextForSpeech( Locale.Lookup( detailItem.ToolTip ) ); end,
+		detail = function() return SRA_Detail( detailItem ); end,
 	};
 end
 
@@ -2771,6 +2779,7 @@ local function SRA_Announce( keepGuard:boolean )
 		end
 		if mode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
 	end
+	if not m_srHintSaid then m_srHintSaid = true; title = title .. ", Space for description"; end
 	-- Start on the first recommended item that can be built, else the first that can be built.
 	local initialKey = nil;
 	local firstChoosable = nil;

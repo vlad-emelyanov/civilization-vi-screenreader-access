@@ -22,6 +22,7 @@ HubCore.m_arrivalTimer = -1;		-- >= 0: seconds until the arrivals are announced 
 HubCore.m_lastSelectionSpeech = -100;		-- UI.GetElapsedTime() of the last unit/city selection announcement
 HubCore.m_placeConfirm = nil;		-- plot index the placement browser asked "Enter to confirm" for
 HubCore.m_placeReplaced = false;	-- the placement mode is closing because another placement mode replaced it
+HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1 };		-- speech hold, see HubCore.Announce
 -- PlacementPlotText: defined with the placement browser: what the cursor plot means there
 
 -- ===========================================================================
@@ -232,8 +233,106 @@ end
 function HubCore.SayResult( text:string )
 	local now:number = UI.GetElapsedTime();
 	local own:boolean = now - HubCore.m_lastKeyTime < 1.0;
-	if own then HubCore.m_lastResultTime = now; end
-	OutputMessageToScreenReader( text, not own );
+	if own then
+		HubCore.m_lastResultTime = now;
+		OutputMessageToScreenReader( text, false );
+	else
+		HubCore.Announce( text, true );		-- happened on its own: waits for a popup that is speaking
+	end
+end
+
+-- ===========================================================================
+--	SPEECH HOLD: a popup that speaks (Eureka, tech completed, natural wonder) sends LuaEvents.SRA_SpeechHold( name, true )
+--	when it shows and ( name, false ) when it closes. While a hold is active, event announcements (HubCore.Announce) wait in
+--	a short queue and are spoken, in order and without interrupting, 0.4 s after the last hold ended. Results of the
+--	player's own keys (SayResult) are never held. An event announcement spoken just before a hold began was cut off by
+--	the popup's speech and is queued again.
+-- ===========================================================================
+local HOLD_SECONDS:number = 60;			-- a hold that was never released expires
+local HOLD_QUEUE_MAX:number = 6;
+local HOLD_RELEASE_DELAY:number = 0.4;
+local HOLD_RECENT_WINDOW:number = 1.5;		-- announcements this recent are cut by a popup that begins now
+
+function HubCore.IsSpeechHeld()
+	local now:number = UI.GetElapsedTime();
+	local holds:table = HubCore.m_speech.holds;
+	for name, expires in pairs( holds ) do
+		if now >= expires then holds[ name ] = nil; end
+	end
+	return next( holds ) ~= nil;
+end
+
+-- Adds an entry; a new selection announcement replaces older (not yet spoken) selection and settle entries, exact duplicates are dropped.
+local function QueueSpeech( queue:table, text:string, kind:string )
+	if kind == "selection" then
+		for i = #queue, 1, -1 do
+			if queue[i].kind == "selection" or queue[i].kind == "settle" then table.remove( queue, i ); end
+		end
+	end
+	for _, entry in ipairs( queue ) do
+		if entry.text == text then return; end
+	end
+	table.insert( queue, { text = text, kind = kind } );
+	while #queue > HOLD_QUEUE_MAX do table.remove( queue, 1 ); end
+end
+
+-- Speaks an event announcement (not the answer to a key): at once, or after the popup that holds the speech.
+-- kind: "selection" (unit/city selected), "settle", "turn", "ready", or nil.
+function HubCore.Announce( text:string, nointerrupt:boolean, kind:string )
+	if text == nil or text == "" then return; end
+	local speech:table = HubCore.m_speech;
+	if HubCore.IsSpeechHeld() or #speech.queue > 0 then
+		QueueSpeech( speech.queue, text, kind );
+		return;
+	end
+	local now:number = UI.GetElapsedTime();
+	OutputMessageToScreenReader( text, nointerrupt );
+	table.insert( speech.recent, { text = text, kind = kind, time = now } );
+	while #speech.recent > 4 do table.remove( speech.recent, 1 ); end
+end
+
+function HubCore.SetSpeechHold( name:string, on:boolean )
+	local speech:table = HubCore.m_speech;
+	if not on then
+		speech.holds[ name ] = nil;
+		return;
+	end
+	if not HubCore.IsSpeechHeld() then
+		-- the popup's own speech cut off what was said a moment ago: say it again after the popup
+		local now:number = UI.GetElapsedTime();
+		local old:table = speech.queue;
+		speech.queue = {};
+		for _, entry in ipairs( speech.recent ) do
+			if now - entry.time <= HOLD_RECENT_WINDOW then QueueSpeech( speech.queue, entry.text, entry.kind ); end
+		end
+		for _, entry in ipairs( old ) do QueueSpeech( speech.queue, entry.text, entry.kind ); end
+	end
+	speech.recent = {};
+	speech.holds[ name ] = UI.GetElapsedTime() + HOLD_SECONDS;
+	speech.releaseTimer = -1;
+end
+
+-- Forgets holds and everything queued (turn end, load).
+function HubCore.ClearSpeechHold()
+	HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1 };
+end
+
+-- From the update loop: speaks the queue once no hold is left (after a short pause), then the other periodic watches.
+function HubCore.UpdateSpeech( deltaTime:number )
+	local speech:table = HubCore.m_speech;
+	if HubCore.IsSpeechHeld() or #speech.queue == 0 then
+		speech.releaseTimer = -1;
+	else
+		if speech.releaseTimer < 0 then speech.releaseTimer = HOLD_RELEASE_DELAY; end
+		speech.releaseTimer = speech.releaseTimer - deltaTime;
+		if speech.releaseTimer <= 0 then
+			local queue:table = speech.queue;
+			speech.queue = {};
+			speech.releaseTimer = -1;
+			for _, entry in ipairs( queue ) do OutputMessageToScreenReader( entry.text, true ); end
+		end
+	end
+	if HubAnnounce ~= nil and HubAnnounce.UpdateReadyWatch ~= nil then HubAnnounce.UpdateReadyWatch( deltaTime ); end
 end
 
 function HubCore.IsPlotVisibleToLocal( plot:table )

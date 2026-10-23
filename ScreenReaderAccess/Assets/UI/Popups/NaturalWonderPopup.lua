@@ -52,6 +52,7 @@ function Close()
 	if isDone then
 		m_eCurrentFeature = -1;
 		m_kCurrentPopup = nil;		
+		LuaEvents.SRA_SpeechHold( "NaturalWonder", false );		-- ScreenReaderAccess mod change
 		LuaEvents.NaturalWonderPopup_Closed();	-- Signal other systems (e.g., bulk show UI)
 		UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);		
 		UILens.RestoreActiveLens();
@@ -106,6 +107,7 @@ function ShowPopup( kData:table )
 	Controls.QuoteContainer:DoAutoSize();
 
 	-- ScreenReaderAccess mod change
+	LuaEvents.SRA_SpeechHold( "NaturalWonder", true );		-- the hub's own announcements wait until this popup closes
 	OutputMessageToScreenReader("Natural wonder discovered: " .. Locale.Lookup(GameInfo.Features[kData.Feature].Name) .. ((kData.Description ~= nil) and (". " .. kData.Description) or "") .. ". Enter to continue");
 end
 

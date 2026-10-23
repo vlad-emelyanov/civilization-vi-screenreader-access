@@ -26,7 +26,8 @@ function ShowBoost(queueEntry:table)
 	UIManager:QueuePopup( ContextPtr, PopupPriority.Low, { DelayShow = true });
 	m_isOnQueue = true;
 
-	-- ScreenReaderAccess mod change: speak the boost (Enter or Escape continues)
+	-- ScreenReaderAccess mod change: speak the boost (Enter or Escape continues); the hub holds its own announcements meanwhile
+	LuaEvents.SRA_SpeechHold( "BoostUnlocked", true );
 	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". Enter to continue");
 
 	PlayAnimations();
@@ -320,6 +321,7 @@ function OnClose()
 	m_isOnQueue = false;
 
 	ShowNextQueuedPopup();
+	if not m_isOnQueue then LuaEvents.SRA_SpeechHold( "BoostUnlocked", false ); end		-- ScreenReaderAccess mod change: no further boost queued
 end
 
 -- ===========================================================================

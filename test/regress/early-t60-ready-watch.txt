@@ -1,0 +1,9 @@
+# Written blind 2026-10-23 (not yet verified). When nothing blocks the turn any more the hub says "All done. Enter ends the turn" (once the end-turn label has been "Next turn" for 0.5 s). Verifier: if the fixture still has a blocker (research, production) that the skip leaves, choose it by hand and adjust.
+# covers: **/HubAnnounce.lua **/HubCore.lua
+# no-share-load: skips all units
+load early-t60
+clear-advisors
+lua InGameAccess local h=GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash; for _,u in Players[0]:GetUnits():Members() do UnitManager.RequestOperation(u,h) end
+wait All done. Enter ends the turn -Timeout 12
+expect ^All done. Enter ends the turn
+no-lua-errors

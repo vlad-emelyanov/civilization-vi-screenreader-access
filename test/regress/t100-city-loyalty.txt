@@ -1,0 +1,7 @@
+# Written blind 2026-10-23 (not yet verified). Selecting a city says its loyalty (Rise and Fall and later): "full loyalty" or "loyalty 72 of 100, minus 3 per turn".
+# covers: **/HubAnnounce.lua
+load medieval-t100
+clear-advisors
+action CapitalCity -Settle 1500
+expect ^\S.*, Population \d+.*(full loyalty|loyalty [\d.]+ of [\d.]+)
+no-lua-errors

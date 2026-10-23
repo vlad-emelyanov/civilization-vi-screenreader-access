@@ -25,6 +25,7 @@ local m_srGovernmentAction = nil;		-- ScreenReaderAccess mod change: what the "C
 local m_srSpokenKey:string = nil;		-- tech or civic and turn of the last announcement: the popup is shown again after an advisor popup closes
 
 local function SRAnnounce( unlockables:table, headerKey:string )
+	LuaEvents.SRA_SpeechHold( "TechCivicCompleted", true );		-- the hub's own announcements wait until this popup closes
 	if m_kCurrentData ~= nil then
 		local key:string = ( m_kCurrentData.tech ~= nil and ( "tech" .. tostring( m_kCurrentData.tech ) ) or ( "civic" .. tostring( m_kCurrentData.civic ) ) )
 			.. ":" .. tostring( Game.GetCurrentGameTurn() );
@@ -300,6 +301,7 @@ end
 
 -- ===========================================================================
 function OnHide()
+	LuaEvents.SRA_SpeechHold( "TechCivicCompleted", false );		-- ScreenReaderAccess mod change
 	StopSound();
 end
 
@@ -343,6 +345,7 @@ end
 --	Immediate close.
 -- ===========================================================================
 function Close()
+	LuaEvents.SRA_SpeechHold( "TechCivicCompleted", false );		-- ScreenReaderAccess mod change
 	StopSound();
 	m_kPopupData = {};						-- Force no data (e.g., immediate end turn)
 	m_kCurrentData = nil;

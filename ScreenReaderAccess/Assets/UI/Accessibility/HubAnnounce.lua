@@ -97,7 +97,7 @@ local function SpeakSettleSentence( unit:table )
 	local ok:boolean, sentence = xpcall( function() return HubCore.SettleSentence( unit ); end, KeyNavErrorHandler );
 	if ok then
 		m_lastSettleSpoken = spokenKey;
-		OutputMessageToScreenReader( sentence, true );
+		HubCore.Announce( sentence, true, "settle" );
 	else
 		print( "InGameAccess settle scan error: " .. tostring( sentence ) );
 	end
@@ -130,7 +130,7 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 	end
 	HubCore.m_lastSelectionSpeech = UI.GetElapsedTime();
 	local sinceCommit:number = UI.GetElapsedTime() - HubCore.m_placeCommitTime;
-	OutputMessageToScreenReader( text, UI.GetElapsedTime() - HubCore.m_lastResultTime < 1.5 or sinceCommit < 3.0 );
+	HubCore.Announce( text, UI.GetElapsedTime() - HubCore.m_lastResultTime < 1.5 or sinceCommit < 3.0, "selection" );
 	SpeakSettleSentence( unit );
 end
 
@@ -163,6 +163,32 @@ local function CityGrowthText( city:table )
 	return "not growing";
 end
 
+-- "full loyalty" / "loyalty 72 of 100, minus 3 per turn" (Rise and Fall and later; nil without cultural identity). Pure part:
+function HubAnnounce.LoyaltyText( current:number, max:number, perTurn:number )
+	local function Num( value:number )
+		value = math.floor( value * 10 + 0.5 ) / 10;
+		if value == math.floor( value ) then return tostring( math.floor( value ) ); end
+		return tostring( value );
+	end
+	perTurn = math.floor( perTurn * 10 + 0.5 ) / 10;
+	if current >= max and perTurn >= 0 then return "full loyalty"; end
+	local text:string = "loyalty " .. Num( current ) .. " of " .. Num( max );
+	if perTurn > 0 then text = text .. ", plus " .. Num( perTurn ) .. " per turn";
+	elseif perTurn < 0 then text = text .. ", minus " .. Num( -perTurn ) .. " per turn"; end
+	return text;
+end
+
+local function CityLoyaltyText( city:table )
+	if city.GetCulturalIdentity == nil then return nil; end
+	local ok:boolean, text = pcall( function()
+		local identity:table = city:GetCulturalIdentity();
+		if identity == nil then return nil; end
+		return HubAnnounce.LoyaltyText( identity:GetLoyalty(), identity:GetMaxLoyalty(), identity:GetLoyaltyPerTurn() );
+	end );
+	if not ok then print( "InGameAccess loyalty error: " .. tostring( text ) ); return nil; end
+	return text;
+end
+
 function HubAnnounce.OnCitySelectionChanged( owner:number, cityID:number, i:number, j:number, k:number, isSelected:boolean, isEditable:boolean )
 	if owner ~= Game.GetLocalPlayer() then return; end
 	HubCore.CloseMode( false, true );
@@ -177,8 +203,10 @@ function HubAnnounce.OnCitySelectionChanged( owner:number, cityID:number, i:numb
 	if production ~= nil then table.insert( parts, production ); end
 	local growth:string = CityGrowthText( city );
 	if growth ~= nil then table.insert( parts, growth ); end
+	local loyalty:string = CityLoyaltyText( city );
+	if loyalty ~= nil then table.insert( parts, loyalty ); end
 	HubCore.m_lastSelectionSpeech = UI.GetElapsedTime();
-	OutputMessageToScreenReader( table.concat( parts, ", " ) );
+	HubCore.Announce( table.concat( parts, ", " ), false, "selection" );
 end
 
 -- "Turn 5, 3600 BC". Said once per turn: a new turn and a finished load both announce it, and a loaded game
@@ -190,7 +218,7 @@ function HubAnnounce.AnnounceTurn()
 	if key == HubCore.m_lastAnnouncedTurn then return; end
 	HubCore.m_lastAnnouncedTurn = key;
 	if HubCore.m_cursorPlayer ~= Game.GetLocalPlayer() then HubCursor.ResetCursor(); end
-	OutputMessageToScreenReader( "Turn " .. turn .. ", " .. Calendar.MakeYearStr( turn ), true );
+	HubCore.Announce( "Turn " .. turn .. ", " .. Calendar.MakeYearStr( turn ), true, "turn" );
 end
 
 -- The selection that happened while the game was loading, said again now that it is ready.
@@ -202,12 +230,14 @@ local function AnnouncePendingUnit()
 	if unit == nil or unit:GetID() ~= unitID or unit:GetOwner() ~= Game.GetLocalPlayer() then return; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil then return; end
-	OutputMessageToScreenReader( HubAnnounce.UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } ), true );
+	HubCore.Announce( HubAnnounce.UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } ), true, "selection" );
 	SpeakSettleSentence( unit );
 end
 
 -- A game was loaded or started: forget everything about the previous one.
 function HubAnnounce.OnLoadScreenClose()
+	HubCore.ClearSpeechHold();
+	HubAnnounce.ResetReadyWatch();
 	HubCore.m_lastAnnouncedTurn = "";
 	m_lastSettleSpoken = nil;
 	HubCursor.ResetCursor();
@@ -231,6 +261,8 @@ function HubAnnounce.OnLoadScreenClose()
 end
 
 function HubAnnounce.OnLocalPlayerTurnEnd()
+	HubCore.ClearSpeechHold();
+	HubAnnounce.ResetReadyWatch();
 	HubCore.CloseMode( false, true );
 	HubCore.m_enterWatch = -1;
 	if HubTargets.GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
@@ -250,4 +282,47 @@ function HubAnnounce.OnLocalPlayerTurnEnd()
 			OutputMessageToScreenReader( "Turn ended", true );
 		end
 	end );
+end
+
+-- ===========================================================================
+--	READY WATCH: "All done. Enter ends the turn" once nothing blocks the turn any more. Polls the action panel's label
+--	(the game's own blocker text) every 0.25 s during the local player's turn; "Next turn" held for 0.5 s counts as ready
+--	("Unit has moves remaining" and every other blocker do not). Said once per ready phase (it re-arms when a blocker
+--	shows again or the turn is over), through HubCore.Announce so that a popup is not talked over, and not while a hub
+--	mode, a target mode or a game popup/screen is open: it is said when they close if the turn is still ready.
+-- ===========================================================================
+local READY_POLL:number = 0.25;
+local READY_STABLE:number = 0.5;
+local m_ready:table = { poll = 0, stable = 0, armed = true };
+
+function HubAnnounce.ResetReadyWatch()
+	m_ready.poll, m_ready.stable, m_ready.armed = 0, 0, true;
+end
+
+-- Is the action panel saying "Next turn"? (no blockers; nothing while it waits for other players)
+local function IsNextTurnLabel()
+	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
+	if label == nil then return false; end
+	local text:string = label:GetText();
+	if text == nil or text == "" then return false; end
+	return string.lower( CleanTextForSpeech( text ) ) == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEXT_TURN" ) ) );
+end
+
+function HubAnnounce.UpdateReadyWatch( deltaTime:number )
+	m_ready.poll = m_ready.poll - deltaTime;
+	if m_ready.poll > 0 then return; end
+	local elapsed:number = READY_POLL - m_ready.poll;		-- time since the last poll (at least READY_POLL)
+	m_ready.poll = READY_POLL;
+	local player:table = Players[ Game.GetLocalPlayer() or -1 ];
+	local isReady:boolean = HubCore.m_ready and player ~= nil and player:IsTurnActive() and IsNextTurnLabel();
+	if not isReady then
+		m_ready.stable = 0;
+		m_ready.armed = true;
+		return;
+	end
+	m_ready.stable = m_ready.stable + elapsed;
+	if not m_ready.armed or m_ready.stable < READY_STABLE then return; end
+	if HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return; end
+	m_ready.armed = false;
+	HubCore.Announce( "All done. Enter ends the turn", true, "ready" );
 end

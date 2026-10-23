@@ -107,3 +107,33 @@ function CleanTextForSpeech(text: string)
 	text = string.gsub(text, "%s+$", "");
 	return text;
 end
+
+-- A game tooltip (name line, stats, description, reasons) turned into "Name: description. rest": the description first,
+-- the name line dropped from the tooltip (it is said once) and the description not repeated where the tooltip has it.
+-- name, description (a loc key or text, may be nil) and tooltip are the raw game strings; Locale.Lookup is applied here.
+function SRDescriptionFirst( name:string, description:string, tooltip:string )
+	local plainName:string = CleanTextForSpeech( Locale.Lookup( name or "" ) );
+	local rest:string = CleanTextForSpeech( Locale.Lookup( tooltip or "" ) );
+	local plainDescription:string = "";
+	if description ~= nil and description ~= "" then plainDescription = CleanTextForSpeech( Locale.Lookup( description ) ); end
+	-- the tooltip starts with the upper-cased name
+	if plainName ~= "" and string.lower( string.sub( rest, 1, #plainName ) ) == string.lower( plainName ) then
+		rest = string.gsub( string.sub( rest, #plainName + 1 ), "^[%s%.,:]+", "" );
+	end
+	if plainDescription ~= "" then
+		local from:number, to:number = string.find( rest, plainDescription, 1, true );
+		if from ~= nil then
+			rest = string.sub( rest, 1, from - 1 ) .. string.sub( rest, to + 1 );
+			rest = string.gsub( rest, "%.%s*%.", "." );
+			rest = string.gsub( rest, "^[%s%.,]+", "" );
+			rest = string.gsub( rest, "[%s,]+$", "" );
+		end
+	end
+	local text:string = plainName;
+	if plainDescription ~= "" then text = text .. ": " .. plainDescription; end
+	if rest ~= "" then
+		if plainDescription ~= "" and not string.find( plainDescription, "[%.!?]$" ) then text = text .. "."; end
+		text = text .. ( plainDescription ~= "" and " " or ": " ) .. rest;
+	end
+	return text;
+end
