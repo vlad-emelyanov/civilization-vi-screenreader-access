@@ -920,6 +920,7 @@ def run_with_test_options(scripts, runner, share, use_test_options=True, out=pri
         if testopts_mod is None:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -I (civctl regress) has no util/ on sys.path
             import testopts as testopts_mod
+        testopts_mod.RUNNER = runner   # tuner Lua through civctl (the batch child may hold the single tuner connection)
         if testopts_mod.cmd_on(out):
             raise RuntimeError("testopts on refused")
     except Exception as e:

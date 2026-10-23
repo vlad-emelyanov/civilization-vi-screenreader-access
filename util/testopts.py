@@ -120,15 +120,36 @@ def game_running():
     return any(GAME_PROCESS.search(l.split(",")[0]) for l in out.splitlines())
 
 
+RUNNER = None   # civregress sets its CivctlRunner here: tuner Lua then goes through `civctl lua` (the runner's batch child may hold the
+                # one tuner connection, a second direct connection would collide). None = connect directly (CLI use, no batch running).
+
+
+def _tuner_via_runner(state, code):
+    fd, tmp = tempfile.mkstemp(suffix=".lua", prefix="testopts_")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(code)
+    try:
+        return RUNNER.run(["lua", state, "-File", tmp])
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+
+
 def tuner_run(code):
     """Runs Lua in the first LUA_STATES state that answers. Returns the printed lines; raises RuntimeError if none did."""
-    import asyncio
-    sys.path.insert(0, HERE)
-    import civtuner
     last = None
     for state in LUA_STATES:
-        out = []
-        rc = asyncio.run(civtuner.run(state, code, 8.0, out, quiet_missing_state=True))
+        if RUNNER is not None:
+            rc, out = _tuner_via_runner(state, code)
+            out = [l.rstrip() for l in out]
+        else:
+            import asyncio
+            sys.path.insert(0, HERE)
+            import civtuner
+            out = []
+            rc = asyncio.run(civtuner.run(state, code, 8.0, out, quiet_missing_state=True))
         if rc == 0:
             return out
         last = "%s: tuner rc %d %s" % (state, rc, " ".join(out[-2:]))

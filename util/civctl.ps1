@@ -1132,7 +1132,7 @@ function Show-Status {
     }
 }
 
-function Write-TestOptsWarning { if (Test-Path (Join-Path $env:TEMP 'civctl	estopts-backup.json')) { 'WARNING: test options active: python util/testopts.py restore' } }
+function Write-TestOptsWarning { if (Test-Path (Join-Path $env:TEMP 'civctl\testopts-backup.json')) { 'WARNING: test options active: python util/testopts.py restore' } }
 $script:LockHeld = $false
 $script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'advance', 'wait') { 150 } else { 0 }
 $LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'action', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
