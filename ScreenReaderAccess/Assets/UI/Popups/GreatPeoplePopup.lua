@@ -855,6 +855,7 @@ end
 
 -- =======================================================================================
 function Close()
+	if SRA_DeferClose() then return; end		-- ScreenReaderAccess: the popup stays until the result of the request is spoken
 	SRA_ResetState();		-- ScreenReaderAccess
 	if not ContextPtr:IsHidden() then
 		UI.PlaySound("UI_Screen_Close");
@@ -1283,6 +1284,10 @@ end
 -- available list (or now claimed by us) a second after the request; otherwise "Could not ...".
 local m_srPending	:table = nil;		-- { id, ok, fail, time }
 
+function SRA_DeferClose()
+	return m_srPending ~= nil;
+end
+
 function SRA_SetPending( p:table, ok:string, fail:string )
 	m_srPending = { id = p.id, ok = ok, fail = fail, time = 0 };
 end
@@ -1307,6 +1312,7 @@ function SRA_OnUpdate( deltaTime:number )
 	m_srPending = nil;
 	local ok, confirmed = pcall( SRA_PendingConfirmed, pending );
 	OutputMessageToScreenReader( ( ok and confirmed ) and pending.ok or pending.fail );
+	Close();		-- the game's own button handlers wanted to close the popup
 end
 
 local function SRA_OnActivate( item:table )

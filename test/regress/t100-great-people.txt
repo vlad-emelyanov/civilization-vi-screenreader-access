@@ -14,4 +14,13 @@ key Escape -Settle 800
 expect ^Back
 key Escape -Settle 1500
 expect ^Great People closed
+# Recruit: scenario setup = 70 General points granted through GameCore_Tuner; "Recruited" is spoken only after the engine confirmed it
+lua GameCore_Tuner local p=Players[0]:GetGreatPeoplePoints(); p:ChangePointsTotal(GameInfo.GreatPersonClasses["GREAT_PERSON_CLASS_GENERAL"].Index, 70); return 1
+clear-advisors
+action ToggleGreatPeople -Settle 2500
+expect you can recruit now
+key Enter -Settle 1000
+expect ^Actions for .+\. Recruit .+, 1 of \d+
+key Enter -Settle 3500
+expect ^Recruited \S
 no-lua-errors
