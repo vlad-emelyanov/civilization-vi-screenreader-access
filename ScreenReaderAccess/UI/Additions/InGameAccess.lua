@@ -442,7 +442,7 @@ end
 -- TradeOriginChooser.lua) own these two modes with their own keyboard lists, speech, Enter and Escape. The hub stays
 -- silent and lets every key through (as in the production panel); it only closes its unit menu when one starts.
 local m_chooserModes:table = {};
-for _, name in ipairs( { "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY" } ) do
+for _, name in ipairs( { "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY", "SPY_TRAVEL_TO_CITY", "SPY_CHOOSE_MISSION" } ) do
 	if InterfaceModeTypes[name] ~= nil then m_chooserModes[ InterfaceModeTypes[name] ] = true; end
 end
 
