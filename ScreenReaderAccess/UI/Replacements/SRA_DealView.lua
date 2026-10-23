@@ -3888,7 +3888,7 @@ local function SRA_HandleKey( input:table, key:number, isUp:boolean )
 		return;
 	end
 	if key == Keys.VK_TAB then
-		if isUp then SRA_CycleSection( input:IsShiftDown() and -1 or 1 ); end
+		if isUp then SRA_CycleSection( ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1 ); end
 		return;
 	end
 	if key == Keys.S and not input:IsShiftDown() and not input:IsControlDown() and not input:IsAltDown() then
