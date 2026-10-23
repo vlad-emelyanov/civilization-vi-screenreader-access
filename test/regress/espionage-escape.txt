@@ -6,6 +6,7 @@
 # Verifier: Down/Up move over Airplane, Boat, Vehicle, Foot ("not available, No Aerodrome in city" for missing districts), Space says loot and pursuers, Enter says "Escaping by <route>"
 # and the popup hides (SET_ESCAPE_ROUTE sent), Escape says "Closed" (the game's OnClose: no route chosen). Foot is always available.
 # no-share-load
+# covers: **/EspionageEscape.lua **/NotificationPanel.lua
 load medieval-t100
 clear-advisors
 scenario spy-ready
