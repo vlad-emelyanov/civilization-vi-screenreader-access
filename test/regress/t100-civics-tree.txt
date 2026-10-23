@@ -1,4 +1,5 @@
 # Verified 2026-10-23.
+# covers: **/CivicsTree.lua **/TreeNav.lua **/TreeText.lua
 # it opens on the era of the current civic, Left/Right switch eras, Up/Down move through the era, Space = details,
 # J jumps back to the current civic, Escape closes. The target is NOT changed here (Enter is left out on purpose).
 # no-share-load

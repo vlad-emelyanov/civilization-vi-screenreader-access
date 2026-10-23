@@ -1,4 +1,5 @@
 # Verified 2026-10-22. Scenario enemy-at-capital on early-t60: a barbarian warrior next to Rome.
+# covers: **/PlotDescription.lua **/ScreenReaderPlotUtils.lua
 # no-share-load
 # Advisor popups of the loaded game swallow keys: clear-advisors presses Enter until they are gone (its lines stay in the window).
 load early-t60

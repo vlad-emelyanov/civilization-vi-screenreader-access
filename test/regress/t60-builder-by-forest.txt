@@ -1,4 +1,5 @@
 # Verified 2026-10-22. Scenario builder-by-forest on early-t60: the builder is selected through InGameAccess (UI.SelectUnit); Tab lists its actions.
+# covers: **/UnitPanel.lua **/WorldInput.lua
 # no-share-load
 load early-t60
 scenario builder-by-forest

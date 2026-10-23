@@ -1,4 +1,5 @@
 # Verified in game 2026-10-22. medieval-t100: Backslash selects the capital, Control+I opens the city report.
+# covers: **/CityReportData.lua **/CityReportGather.lua
 # no-share-load
 load medieval-t100
 clear-advisors

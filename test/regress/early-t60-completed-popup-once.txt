@@ -1,4 +1,5 @@
 # Verified 2026-10-23. Item 4: RESEARCH COMPLETED is spoken once, not again after an advisor popup.
+# covers: **/TechCivicCompletedPopup.lua **/AdvisorPopup.lua **/NotificationPanel.lua
 # The completed popup only comes with the turn rollover: finish the research with the tuner, skip all units (so Enter ends the turn), Enter.
 # no-share-load
 load early-t60

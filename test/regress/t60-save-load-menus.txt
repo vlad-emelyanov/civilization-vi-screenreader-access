@@ -1,4 +1,5 @@
 # Verified in game 2026-10-22: in-game Save Game / Load Game screens speak. Opens them, never saves or loads (the overwrite question is cancelled).
+# covers: **/SaveGameMenu.lua **/InGameTopOptionsMenu.lua **/LoadSaveMenu_Shared.lua **/LoadGameMenu.lua
 # Top menu order: Return, Quick Save, Save Game, Load Game (the cursor restarts at Return whenever the menu is shown again).
 # no-share-load
 load early-t60

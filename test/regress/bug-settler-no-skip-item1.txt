@@ -1,4 +1,5 @@
 # Verified 2026-10-23. Item 1: a settler that the game lets neither skip nor sleep.
+# covers: **/UnitPanel.lua **/WorldInput.lua
 # Fixture bug-settler-no-skip: turn 106, Settler in Rome under barbarian siege.
 # no-share-load
 load bug-settler-no-skip

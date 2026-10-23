@@ -1,4 +1,5 @@
 # Verified in game 2026-10-22. Deal screen on medieval-t100 (Rome, civs met), real keys only.
+# covers: **/SRA_DealView.lua **/DealSpeech.lua **/DiplomacyActionView.lua
 # V lists the civs, Enter opens the overview of Dido; "Make Deal" is the 5th entry (4 x Down) while the relationship is Friendly.
 # Control+Tab = previous section (Shift+Tab opens the Steam overlay).
 # no-share-load

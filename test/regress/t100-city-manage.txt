@@ -1,4 +1,5 @@
 # Verified 2026-10-22: city management in the Control+I report (focus, tiles, specialists). Changes the city; fixture is never saved.
+# covers: **/CityReportData.lua **/CityReportGather.lua
 # no-share-load
 load medieval-t100
 clear-advisors

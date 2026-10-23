@@ -1,4 +1,5 @@
 # Verified 2026-10-22. Scenario governor-title on early-t60: one governor title ready; F10 says so.
+# covers: **/Governor*_SRA.lua
 # no-share-load
 load early-t60
 scenario governor-title

@@ -1,4 +1,5 @@
 # Verified in game 2026-10-22. O opens the Great People popup on medieval-t100 (GreatPeoplePopup.lua override).
+# covers: **/GreatPeoplePopup.lua **/GreatPeopleText.lua
 # no-share-load
 load medieval-t100
 clear-advisors

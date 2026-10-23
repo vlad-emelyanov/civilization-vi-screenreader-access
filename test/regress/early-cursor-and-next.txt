@@ -1,4 +1,5 @@
 # Verified 2026-10-22 on early-start (turn 1, nothing founded; the settler is the first unit needing orders).
+# covers: **/ScreenReaderPlotUtils.lua **/PlotDescription.lua **/PlotToolTip.lua **/SettleScan.lua **/PlacementScan.lua UI/Additions/InGameAccess.lua
 # no-share-load
 load early-start
 expect ^Turn 1\b

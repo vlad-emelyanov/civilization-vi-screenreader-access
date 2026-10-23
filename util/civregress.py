@@ -21,6 +21,9 @@ Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' 
   no-lua-errors           PASS if Lua.log got no new "Runtime Error" line since the script began (put it last)
   expect <regex>          PASS if some SR> line since the last check matches (re.search, case-sensitive, use (?i))
   expect-not <regex>      PASS if no SR> line since the last check matches
+  expect-lua <regex>      PASS if a non-SR> output line of the most recent `lua` / `scenario` step matches (the Lua print() / return
+                          value the tuner shows, e.g. `lua InGame return Game.GetCurrentGameTurn()` then `expect-lua ^62$`). The
+                          lines of an earlier step are replaced by the next lua/scenario step. Nothing to match = FAIL.
 
 Matching sees the text only: "SR> ", "(earlier) " and "[NOINTERRUPT] " prefixes are stripped, so ^ anchors work.
 Window: lines accumulate across key/wait/load/scenario/lua steps. expect/expect-not do not clear them, so several
@@ -43,6 +46,19 @@ screens, anything that mutates). A script that fails on a shared game is run onc
 second result counts, TIMING marks it): drift must not fail a script that passes alone. Scripts run grouped by their first fixture.
 The run ends with a TIMING table (seconds per script) and TOTAL. `key Shift+Tab` is rejected when the script is parsed (Steam overlay).
 `--clear-advisors` only closes the advisor popups of the loaded game (what `civctl clear-advisors` runs).
+The TIMING table splits each script's time into load / keys (key + action steps; "settle" = the part of it that is the scripted
+-Settle sleeps) / wait / lua (lua + scenario) / other, and a BREAKDOWN line sums it up: that shows where a slow run goes.
+
+Selective runs: every script carries a header `# covers: <glob> [<glob> ...]` naming the mod files it exercises (globs on repo-relative
+paths with / ; `**/` = any directories, `*` = within one name; a glob without a leading `**/` matches as a path suffix).
+  python util/civregress.py changed [--base <rev>]    run only the scripts the changes since <rev> can affect
+Base: --base, else the commit of the last green `regress all` (%TEMP%/civctl/regress-last-green.txt, per machine, written by an
+all-green, unaborted `regress all`), else (nothing recorded / unknown rev) every script. Changes = `git diff <base>` (committed AND
+uncommitted tracked changes) + untracked files. Selected: a script whose covers glob matches a changed file; every script without a
+`# covers:` header; a script that changed itself (test/regress/<name>.txt); scripts using a changed util/scenarios/<s>.lua; scripts
+with `action` steps when a ScreenReaderAccess/Database/*.sql changed. CORE files (ScreenReader.lua, KeyNavList.lua, SRListen.lua,
+KeyboardNavigation.lua, UI/Additions/InGameAccess.lua, Accessibility/Hub*.lua) select EVERYTHING. Changed mod files that no script
+covers are listed ("not covered"): they are not run by `changed`, only by `all`. `--dry-run` shows the selection and the reasons.
 
 Record mode (for a script written blind, never run against the game): `--record` runs the script (never shares loads) and
 writes test/regress/<name>.recorded.txt: the script with, under every expect/expect-not line, comment lines with PASS/FAIL
@@ -80,7 +96,7 @@ OWNER_REFUSED = ("REFUSED: no owner. In Git Bash prefix EVERY call: CIVCTL_OWNER
 
 ACTIONS = ("load", "scenario", "key", "action", "wait", "lua", "clear-advisors", "no-lua-errors")
 NO_ARG = ("clear-advisors", "no-lua-errors")
-CHECKS = ("expect", "expect-not")
+CHECKS = ("expect", "expect-not", "expect-lua")
 STEP_TIMEOUT = 600  # seconds per civctl call (a load is ~45 s, a newgame 70 s)
 
 
@@ -99,6 +115,7 @@ class Step:
 class Steps(list):
     fresh = False  # '# no-share-load' in the script
     text = ""      # the script source (record mode rewrites it)
+    covers = ()    # globs of '# covers:' headers (empty = none given: `regress changed` always runs the script)
 
 
 def key_problem(arg):
@@ -115,6 +132,7 @@ def parse_script(text, name="script"):
     steps = Steps()
     steps.fresh = bool(re.search(r"^#\s*no-share-load", text, re.M))
     steps.text = text
+    steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
     scenario = False
     for no, raw in enumerate(text.splitlines(), 1):
         line = raw.strip().lstrip("﻿")
@@ -169,7 +187,7 @@ def check(kind, pattern, sr_lines):
     """expect / expect-not over [(raw, text)]. Returns (ok, matching raw line or None)."""
     rx = re.compile(pattern)
     hit = next((raw for raw, text in sr_lines if rx.search(text)), None)
-    return (hit is not None if kind == "expect" else hit is None), hit
+    return (hit is None if kind == "expect-not" else hit is not None), hit
 
 
 def join_positional(arg):
@@ -314,11 +332,20 @@ class ScriptResult:
         self.loaded = None   # fixture the game is in at the end (None after an abort)
         self.seconds = 0.0   # wall time of the script
         self.retried = False  # failed with a shared load, then passed/failed again with a fresh one
+        self.times = {}      # seconds spent in civctl per step kind (load, key, action, wait, lua, scenario, clear-advisors, ...)
+        self.settle = 0.0    # seconds of the key/action time that are the scripted -Settle sleeps
         self.records = []    # record mode: {"line", "kind", "pattern", "ok", "window": [text]} per check that ran
 
     @property
     def ok(self):
         return self.failed == 0 and not self.aborted
+
+
+def settle_seconds(arg):
+    """Seconds a key/action step sleeps for the screen reader lines: -Settle ms (default 600) times -Count (default 1)."""
+    m = re.search(r"-Settle\s+(\d+)", arg)
+    c = re.search(r"-Count\s+(\d+)", arg)
+    return (int(m.group(1)) if m else 600) * (int(c.group(1)) if c else 1) / 1000.0
 
 
 def run_script(name, steps, runner, out=print, skip_load=False):
@@ -329,6 +356,7 @@ def run_script(name, steps, runner, out=print, skip_load=False):
     skipped_load = False
     log_offset = log_size(getattr(runner, "lua_log", LUA_LOG))
     after_skip = False  # checks right after a skipped load are skipped too
+    lua_lines = []      # [(raw, text)] non-SR> output of the most recent lua/scenario step (expect-lua)
     out("== %s (%d steps)" % (name, len(steps)))
     for i, s in enumerate(steps):
         if s.kind in CHECKS and after_skip:
@@ -338,9 +366,10 @@ def run_script(name, steps, runner, out=print, skip_load=False):
         after_skip = False
         if s.kind in CHECKS:
             checked = True
-            ok, hit = check(s.kind, s.arg, window)
+            seen = lua_lines if s.kind == "expect-lua" else window
+            ok, hit = check(s.kind, s.arg, seen)
             res.records.append({"line": s.line, "kind": s.kind, "pattern": s.arg, "ok": ok,
-                                "window": [t for _, t in window]})
+                                "window": [t for _, t in seen]})
             label = "%s %s" % (s.kind, s.arg)
             if ok:
                 res.passed += 1
@@ -350,11 +379,11 @@ def run_script(name, steps, runner, out=print, skip_load=False):
                 out("  FAIL line %d: %s" % (s.line, label))
                 if s.kind == "expect-not":
                     out("       matched: %s" % hit)
-                if window:
-                    for raw, _ in window:
+                if seen:
+                    for raw, _ in seen:
                         out("       %s" % raw)
                 else:
-                    out("       (no SR> lines)")
+                    out("       (no %s lines)" % ("lua output" if s.kind == "expect-lua" else "SR>"))
             continue
         if skip_load and not skipped_load and s.kind == "load":
             skipped_load = True
@@ -378,7 +407,9 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             continue
         if s.kind == "clear-advisors":
             out("  > clear-advisors")
+            t_step = time.time()
             status, lines = clear_advisors(runner, out, s.line)
+            res.times["clear-advisors"] = res.times.get("clear-advisors", 0.0) + time.time() - t_step
             window.extend(parse_sr_lines(lines))
             if status == "locked":
                 raise LockedError(lines[-1] if lines else "locked")
@@ -398,9 +429,13 @@ def run_script(name, steps, runner, out=print, skip_load=False):
                 break
             continue
         out("  > civctl %s" % " ".join(args if s.kind != "lua" else ["lua", s.arg]))
+        t_step = time.time()
         try:
             rc, lines = runner.run(args)
         finally:
+            res.times[s.kind] = res.times.get(s.kind, 0.0) + time.time() - t_step
+            if s.kind in ("key", "action"):
+                res.settle += settle_seconds(s.arg)
             if tmp:
                 try:
                     os.remove(tmp)
@@ -408,9 +443,9 @@ def run_script(name, steps, runner, out=print, skip_load=False):
                     pass
         window.extend(parse_sr_lines(lines))
         if s.kind == "lua" or s.kind == "scenario":
-            for l in lines:
-                if l.strip() and not _PREFIX.match(l):
-                    out("    " + l.rstrip())
+            lua_lines = [(l.rstrip(), l.strip()) for l in lines if l.strip() and not _PREFIX.match(l)]
+            for raw, _ in lua_lines:
+                out("    " + raw)
         if rc in (6, 7):
             raise LockedError("\n".join(lines))
         if rc == TIMEOUT_RC:
@@ -575,8 +610,154 @@ def timing_table(results):
         verdict = "ABORTED" if r.aborted else ("PASS" if r.ok else "FAIL")
         if r.retried:
             verdict += " (after a fresh-load retry)"
-        lines.append("  %-*s  %8s  %s" % (w, r.name, format_duration(r.seconds), verdict))
+        lines.append("  %-*s  %8s  %s  [%s]" % (w, r.name, format_duration(r.seconds), verdict, breakdown(r)))
     return lines
+
+
+def _bucket(times):
+    k = times.get("key", 0.0) + times.get("action", 0.0)
+    lua = times.get("lua", 0.0) + times.get("scenario", 0.0)
+    known = k + lua + times.get("load", 0.0) + times.get("wait", 0.0) + times.get("clear-advisors", 0.0)
+    return {"load": times.get("load", 0.0), "keys": k, "wait": times.get("wait", 0.0), "lua": lua,
+            "advisors": times.get("clear-advisors", 0.0), "other": max(0.0, sum(times.values()) - known)}
+
+
+def breakdown(r):
+    """'load 40 s, keys 30 s (settle 22 s), wait 2 s, lua 3 s' for one result."""
+    b = _bucket(r.times)
+    parts = ["load %d" % round(b["load"]), "keys %d (settle %d)" % (round(b["keys"]), round(r.settle))]
+    parts += ["%s %d" % (k, round(b[k])) for k in ("wait", "lua", "advisors") if b[k] >= 0.5]
+    return ", ".join(parts) + " s"
+
+
+def breakdown_total(results):
+    """One line summing the breakdown of all results (where the run's time went)."""
+    tot = {}
+    for r in results:
+        for k, v in _bucket(r.times).items():
+            tot[k] = tot.get(k, 0.0) + v
+    settle = sum(r.settle for r in results)
+    loads = sum(1 for r in results if r.times.get("load"))
+    return "BREAKDOWN: load %s (%d loads), keys %s of which settle sleeps %s, wait %s, lua %s, advisors %s, other %s" % (
+        format_duration(tot.get("load", 0)), loads, format_duration(tot.get("keys", 0)), format_duration(settle),
+        format_duration(tot.get("wait", 0)), format_duration(tot.get("lua", 0)), format_duration(tot.get("advisors", 0)),
+        format_duration(tot.get("other", 0)))
+
+
+# ---------------------------------------------------------------- `regress changed`: which scripts do the changes affect
+
+MOD_DIR = "ScreenReaderAccess/"
+# Files every script depends on (the speech layer, list navigation, event bookkeeping, the in-game hub): a change selects everything.
+CORE_GLOBS = ("**/ScreenReader.lua", "**/KeyNavList.lua", "**/SRListen.lua", "**/KeyboardNavigation.lua",
+              "**/InGameAccess.lua", "**/Hub*.lua")
+
+
+def glob_regex(glob):
+    """Glob -> compiled regex over a repo-relative path with '/'. '**/' = any directories, '*' / '?' stay within one name;
+    without a leading '**/' the glob still matches as a path suffix (a directory boundary)."""
+    g = glob.replace("\\", "/")
+    out, i = "", 0
+    if not g.startswith("**/"):
+        out = "(?:.*/)?"
+    while i < len(g):
+        if g.startswith("**/", i):
+            out += "(?:.*/)?"
+            i += 3
+        elif g[i] == "*":
+            out += "[^/]*"
+            i += 1
+        elif g[i] == "?":
+            out += "[^/]"
+            i += 1
+        else:
+            out += re.escape(g[i])
+            i += 1
+    return re.compile("^" + out + "$", re.I)
+
+
+def path_matches(path, globs):
+    p = path.replace("\\", "/")
+    return any(glob_regex(g).match(p) for g in globs)
+
+
+def script_scenarios(steps):
+    return {s.arg for s in steps if s.kind == "scenario"}
+
+
+def select_changed(scripts, changed):
+    """scripts: [(name, steps)]; changed: repo-relative changed paths.
+    Returns (selected {name: reason}, uncovered [mod paths no script covers]). Every script is selected when a core file changed;
+    scripts without a `# covers:` header are always selected."""
+    paths = [c.replace("\\", "/") for c in changed]
+    selected, uncovered = {}, []
+    for name, steps in scripts:
+        if not getattr(steps, "covers", ()):
+            selected[name] = "no '# covers:' header"
+    for p in paths:
+        if p.startswith(MOD_DIR) and path_matches(p, CORE_GLOBS):
+            return {name: "core file changed: %s" % p for name, _ in scripts}, []
+    for p in paths:
+        hit = False
+        m = re.match(r"^test/regress/([^/]+)\.txt$", p)
+        for name, steps in scripts:
+            why = None
+            if m and m.group(1) == name:
+                why = "script changed"
+            elif p.startswith("util/scenarios/") and p.endswith(".lua") and os.path.basename(p)[:-4] in script_scenarios(steps):
+                why = "scenario changed: %s" % p
+            elif p.startswith(MOD_DIR + "Database/") and any(s.kind == "action" for s in steps):
+                why = "hotkey database changed: %s" % p
+            elif p.startswith(MOD_DIR) and getattr(steps, "covers", ()) and path_matches(p, steps.covers):
+                why = "covers %s" % p
+            if why:
+                hit = True
+                selected.setdefault(name, why)
+        if not hit and p.startswith(MOD_DIR) and not p.endswith((".civ6proj", ".modinfo")):
+            uncovered.append(p)
+    return {n: selected[n] for n, _ in scripts if n in selected}, uncovered
+
+
+def last_green_path(directory=None):
+    return os.path.join(directory or os.path.join(tempfile.gettempdir(), "civctl"), "regress-last-green.txt")
+
+
+def read_last_green(directory=None):
+    try:
+        with open(last_green_path(directory), encoding="utf-8") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
+
+
+def write_last_green(rev, directory=None):
+    path = last_green_path(directory)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(rev + "\n")
+    return path
+
+
+def git_out(args):
+    """stdout lines of `git -C ROOT <args>`, or None when git fails (unknown revision, not a repository)."""
+    try:
+        r = subprocess.run(["git", "-C", ROOT] + args, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return r.stdout.splitlines() if r.returncode == 0 else None
+
+
+def git_head():
+    out = git_out(["rev-parse", "HEAD"])
+    return out[0].strip() if out else None
+
+
+def git_changed_since(base):
+    """Repo-relative paths changed between base and the working tree (committed + uncommitted tracked) plus untracked files; None if
+    base is unknown."""
+    diff = git_out(["diff", "--name-only", base, "--"])
+    if diff is None:
+        return None
+    return sorted(set(diff + (git_out(["ls-files", "--others", "--exclude-standard"]) or [])))
 
 
 def discover(names):
@@ -637,6 +818,25 @@ def release_run_lock(path):
         pass
 
 
+def select_for_changed(scripts, base=None, out=print):
+    """The `regress changed` selection with its report. base: --base or the last green rev (None = run everything)."""
+    base_src = "--base"
+    if not base:
+        base, base_src = read_last_green(), "last green `regress all`"
+    changed = git_changed_since(base) if base else None
+    if changed is None:
+        out("changed: %s -> running ALL %d scripts" % (
+            "no recorded green `regress all` (%s)" % last_green_path() if not base else "base %s is unknown to git" % base, len(scripts)))
+        return scripts
+    selected, uncovered = select_changed(scripts, changed)
+    out("changed: base %s (%s), %d changed file(s) -> %d of %d scripts" % (base[:10], base_src, len(changed), len(selected), len(scripts)))
+    for n, why in selected.items():
+        out("  select %-40s %s" % (n, why))
+    for p in uncovered:
+        out("  NOT COVERED by any script (only `regress all` runs these): %s" % p)
+    return [(n, s) for n, s in scripts if n in selected]
+
+
 def main(argv=None):
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -644,13 +844,14 @@ def main(argv=None):
         except (AttributeError, ValueError):
             pass
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("names", nargs="*", help="script names in test/regress (default/all: every script)")
+    ap.add_argument("names", nargs="*", help="script names in test/regress (default/all: every script; `changed`: the scripts the changes since --base / the last green run can affect)")
     ap.add_argument("--share-load", action="store_true", help="skip the load when the previous script loaded the same fixture")
     ap.add_argument("--no-share-load", action="store_true", help="`all` shares one load per fixture by default; this gives every script its own load")
     ap.add_argument("--dry-run", action="store_true", help="parse and list the scripts, do not touch the game")
     ap.add_argument("--list", action="store_true", help="same as --dry-run")
     ap.add_argument("--record", action="store_true", help="write test/regress/<name>.recorded.txt with the SR> lines each check saw (no shared loads)")
     ap.add_argument("--update", action="store_true", help="like --record, and rewrite the failing expect lines in place (.bak kept)")
+    ap.add_argument("--base", help="`changed`: git revision to diff against (default: the last green `regress all`)")
     ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
     ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
@@ -666,8 +867,14 @@ def main(argv=None):
             print(lines[-1] if lines else "locked")
             return 6
         return 5 if status == "crashed" else 0
+    changed_mode = a.names[:1] == ["changed"]
     try:
-        scripts = order_scripts(discover(a.names))
+        scripts = discover([] if changed_mode else a.names)
+        if changed_mode:
+            if len(a.names) > 1:
+                raise ScriptError("`changed` takes no script names (use --base <rev>)")
+            scripts = select_for_changed(scripts, a.base)
+        scripts = order_scripts(scripts)
     except ScriptError as e:
         print("ERROR: %s" % e, file=sys.stderr)
         return 2
@@ -684,7 +891,7 @@ def main(argv=None):
         return 7
     record = a.record or a.update
     run_everything = not a.names or a.names == ["all"]
-    share = (a.share_load or run_everything) and not a.no_share_load and not record
+    share = (a.share_load or run_everything or changed_mode) and not a.no_share_load and not record
     if share:
         print("(sharing one load per fixture; scenario and '# no-share-load' scripts load fresh; --no-share-load disables)")
     t0 = time.time()
@@ -696,12 +903,17 @@ def main(argv=None):
         results = run_all(scripts, CivctlRunner(owner=owner), share)
     finally:
         release_run_lock(lock)
+    if run_everything and not record and results and all(r.ok for r in results) and len(results) == len(scripts):
+        head = git_head()
+        if head:
+            print("last green recorded: %s (%s)" % (head[:10], write_last_green(head)))
     if record:
         steps_by_name = dict(scripts)
         for r in results:
             write_record(r.name, steps_by_name[r.name], r, a.update)
-    print("\nTIMING:")
+    print("\nTIMING:   (per script: wall time, verdict, [where it went, seconds])")
     print("\n".join(timing_table(results)))
+    print(breakdown_total(results))
     p = sum(r.passed for r in results)
     f = sum(r.failed for r in results)
     print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (

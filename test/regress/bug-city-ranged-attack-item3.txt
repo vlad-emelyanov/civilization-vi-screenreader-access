@@ -1,4 +1,5 @@
 # Verified 2026-10-23. Item 3: city ranged attack mode.
+# covers: **/UnitPanel.lua **/WorldInput.lua **/NotificationPanel.lua
 # Fixture bug-city-ranged-attack: turn 103, barbarian archers next to Rome, City Ranged Attack notification.
 # no-share-load
 load bug-city-ranged-attack

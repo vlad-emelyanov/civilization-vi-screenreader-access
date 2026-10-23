@@ -1,4 +1,5 @@
 # Verified 2026-10-22. medieval-t100 has no spies: spy-ready grants Diplomatic Service (SetCivic), a spy, and the F3 unlock
+# covers: **/EspionageOverview.lua **/EspionageText.lua **/EspionageChooser.lua **/EspionagePopup.lua
 # (OnCivicCompleted in PartialScreenHooks). The setup makes the game show a Historic Moment popup (Escape closes it).
 # F3 opens the Espionage overview; Tab / Control+Tab switch tabs; Enter on the spy opens the chooser; Escape and F3 close.
 # no-share-load

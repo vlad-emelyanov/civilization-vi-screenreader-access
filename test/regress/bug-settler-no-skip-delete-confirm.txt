@@ -1,4 +1,5 @@
 # Verified 2026-10-23 (needed the InGamePopup override: the game's Enter always confirmed Yes). Item 6: the Delete Unit confirmation starts on No.
+# covers: **/InGamePopup.lua **/PopupDialog.lua **/UnitPanel.lua
 # no-share-load
 load bug-settler-no-skip
 clear-advisors

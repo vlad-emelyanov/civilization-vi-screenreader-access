@@ -1,4 +1,5 @@
 # Verified in game 2026-10-22. Scenario trader-in-capital on medieval-t100: a Trader in the capital with moves restored.
+# covers: **/TradeRouteChooser.lua **/TradeOriginChooser.lua **/TradeText.lua
 # Selecting a trader with moves makes the game open its TradeRouteChooser by itself (interface mode MAKE_TRADE_ROUTE); the
 # Tab menu is not needed (Tab is swallowed by the chooser while it is open).
 # no-share-load
