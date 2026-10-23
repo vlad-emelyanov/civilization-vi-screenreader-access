@@ -2,10 +2,14 @@
 # covers: **/WorldCrisisPopup_SRA.lua
 # no-share-load: closes the popup
 load bug-crisis-popup-silent
+clear-advisors
+# the popup is not restored by a load: open it the way the notification does (emergency type 9 = Scored Competition, target player 2)
+lua InGame LuaEvents.NotificationPanel_EmergencyClicked(2, 9, 0)
+wait (?i)competition -Timeout 8
 expect (?i)competition.*enter to close
 key Down -Settle 600
-expect \d+ of \d+
+expect \d+ of 16
 key Up -Settle 600
-expect \d+ of \d+
+expect \d+ of 16
 key Enter -Settle 2000
 no-lua-errors

@@ -5,5 +5,5 @@ load bug-congress-intro-enter
 key Enter -Settle 1500
 expect (?i)enter to begin voting
 key Enter -Settle 2500
-expect Resolutions: \d+ to vote on
+expect (?i)\d+ votes? for A
 no-lua-errors
