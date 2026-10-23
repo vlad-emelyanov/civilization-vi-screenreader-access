@@ -57,7 +57,7 @@ param(
     [int]$Count = 1,
     [int]$Timeout = 120,
     [int]$Settle = 600,     # key/action: MAXIMUM ms to wait for the screen reader lines (the fixed wait with -NoQuiet)
-    [int]$Quiet = 250,      # key/action: return once an SR line has arrived and this many ms passed without another one (or at -Settle)
+    [int]$Quiet = -1,       # key/action: return once an SR line has arrived and this many ms passed without another one (or at -Settle). Default 150, or 700 when -Settle >= 1500 (screen opens speak a second line late); an explicit value always wins
     [switch]$NoQuiet,       # key/action: old behaviour, always sleep the full -Settle
     [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
@@ -133,6 +133,14 @@ $ErrorActionPreference = 'Stop'
 # 'Begin Game'; Git Bash does this: "'C:\Users\...\Code' is not recognized"). So pass multi-word arguments unquoted:
 # `civctl.cmd wait Begin Game -Timeout 5`.
 if ($MoreArgs) { $Arg = (@($Arg) + $MoreArgs) -join ' ' }
+
+$script:ProfOn = $env:CIVCTL_PROFILE -eq '1'   # key/action: print `@@profile phase=ms ...` (where the fixed cost of a key goes)
+$script:ProfSw = [Diagnostics.Stopwatch]::StartNew(); $script:ProfLast = 0; $script:ProfList = @()
+function Prof([string]$name) {
+    if (-not $script:ProfOn) { return }
+    $now = $script:ProfSw.ElapsedMilliseconds
+    $script:ProfList += ('{0}={1}' -f $name, ($now - $script:ProfLast)); $script:ProfLast = $now
+}
 
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 $GameExe = "C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization VI\Base\Binaries\Win64Steam\CivilizationVI.exe"
@@ -373,29 +381,43 @@ function Get-ConsoleProcess {
 }
 
 function Read-NewLogLines {
-    # Returns Lua.log lines appended since the stored cursor "<line count> <log creation ticks>".
+    # Returns Lua.log lines appended since the stored cursor "<line count> <log creation ticks> <byte offset>".
     # The creation time resets the cursor when the game recreates the log. A malformed cursor file (several lines, empty,
-    # written concurrently by two civctl processes) is treated as 0 instead of throwing.
+    # written concurrently by two civctl processes) is treated as 0 instead of throwing. With a valid byte offset only the tail of the
+    # log is read (the whole file otherwise: a cursor without the third field, or an offset beyond the file).
     if (-not (Test-Path $LuaLog)) { return @() }
-    $cursor = 0
+    $cursor = 0; $offset = 0L
     $created = (Get-Item $LuaLog).CreationTimeUtc.Ticks
     try {
-        $m = [regex]::Match([IO.File]::ReadAllText($CursorFile), '^\s*(\d+)(?:\s+(\d+))?')
+        $m = [regex]::Match([IO.File]::ReadAllText($CursorFile), '^\s*(\d+)(?:\s+(\d+))?(?:\s+(\d+))?')
         if ($m.Success) {
             $cursor = [int]$m.Groups[1].Value
             if ($m.Groups[2].Success -and [long]$m.Groups[2].Value -ne $created) { $cursor = 0 }
+            elseif ($m.Groups[2].Success -and $m.Groups[3].Success) { $offset = [long]$m.Groups[3].Value }
         }
-    } catch { $cursor = 0 }
+    } catch { $cursor = 0; $offset = 0L }
     $fs = [IO.File]::Open($LuaLog, 'Open', 'Read', 'ReadWrite')
     try {
-        $reader = New-Object IO.StreamReader($fs)
-        $lines = $reader.ReadToEnd() -split "`r?`n" | Where-Object { $_ -ne '' }
+        $len = $fs.Length
+        if ($cursor -eq 0 -or $offset -le 0 -or $offset -gt $len) { $offset = 0L; $base = 0 } else { $base = $cursor }
+        $fs.Seek($offset, 'Begin') | Out-Null
+        $buf = New-Object byte[] ($len - $offset)
+        $n = 0
+        while ($n -lt $buf.Length) { $r = $fs.Read($buf, $n, $buf.Length - $n); if ($r -le 0) { break }; $n += $r }
+        $text = [Text.Encoding]::UTF8.GetString($buf, 0, $n)
+        if ($offset -eq 0 -and $text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) { $text = $text.Substring(1) }
+        $new = @($text -split "`r?`n" | Where-Object { $_ -ne '' })
+        $end = $offset + $n
     } finally { $fs.Dispose() }
-    $lines = @($lines)
-    if ($lines.Count -lt $cursor) { $cursor = 0 }
-    try { [IO.File]::WriteAllText($CursorFile, "$($lines.Count) $created") } catch { }
-    if ($lines.Count -le $cursor) { return @() }
-    return $lines[$cursor..($lines.Count - 1)]
+    $total = $base + $new.Count
+    try { [IO.File]::WriteAllText($CursorFile, "$total $created $end") } catch { }
+    if ($base -eq 0 -and $cursor -gt 0) {
+        # full read: lines before the cursor were already shown
+        if ($new.Count -lt $cursor) { $cursor = 0 }
+        if ($new.Count -le $cursor) { return @() }
+        return $new[$cursor..($new.Count - 1)]
+    }
+    return $new
 }
 
 function Format-Lines($lines) {
@@ -512,6 +534,8 @@ function Wait-Quiet([long]$startPos, [int]$maxMs, [int]$quietMs) {
 }
 
 function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle = $Settle, [int]$Quiet = $Quiet, [switch]$NoQuiet = $NoQuiet) {
+    if ($Quiet -lt 0) { $Quiet = if ($Settle -ge 1500) { 700 } else { 150 } }
+    Prof 'init'
     if (-not $KeyArg) { throw 'Usage: civctl.ps1 key <KeyName> [-Count n]' }
     $parts = @($KeyArg -split '\+')
     if ($KeyAliases.ContainsKey($parts[-1].ToLowerInvariant())) { $parts[-1] = $KeyAliases[$parts[-1].ToLowerInvariant()] }
@@ -523,32 +547,51 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
         Write-Output 'REFUSED: Shift+Tab opens the Steam overlay and leaves Shift stuck in the game. Our screens use Control+Tab (previous section/tab).'
         Quit-Civctl 1
     }
-    Assert-GameHealthy -Grace 8 -Block
-    $game = Get-GameProcess
-    if (-not $game) { throw 'CIVCTL1:Game is not running.' }
+    # In a batch host the previous key's post-press check passed a moment ago: skip the pre-press check while that is < 5 s old and the
+    # remembered game process is still alive (the post-press check after this key still catches a crash or hang).
+    $game = $null
+    $g = $global:CivGame
+    if ($env:CIVCTL_BATCH_CHILD -and $g -and $global:CivHealthyAt -and ((Get-Date) - $global:CivHealthyAt).TotalSeconds -lt 5) {
+        try { $g.Refresh(); if (-not $g.HasExited -and $g.MainWindowHandle -ne 0) { $game = $g } } catch { $game = $null }
+    }
+    if (-not $game) {
+        Assert-GameHealthy -Grace 8 -Block
+        $game = Get-GameProcess
+        if (-not $game) { throw 'CIVCTL1:Game is not running.' }
+    }
+    Prof 'health1'
     # "Shift+E", "Control+Shift+F": modifiers are held around the key. Key names never contain '+' (the + key is OemPlus).
     $mods = [uint32[]]@($parts | Select-Object -SkipLast 1 | ForEach-Object {
         switch -Regex ($_) { '^(ctrl|control)$' { 0xA2 } '^shift$' { 0xA0 } '^(alt|menu)$' { 0xA4 } default { throw "Unknown modifier '$_' (use Shift, Control, Alt)" } }
     })
     $vk = [uint32][System.Windows.Forms.Keys]::Parse([System.Windows.Forms.Keys], $(if ($parts[-1] -eq 'Backspace') { 'Back' } else { $parts[-1] }), $true)
-    if (-not [CivCtl.Native]::Focus($game.MainWindowHandle)) { Write-Warning 'Could not bring game window to foreground; key may go elsewhere.' }
+    if (-not [CivCtl.Native]::Focus($game.MainWindowHandle)) { Write-Warning 'Could not bring game window to foreground; key may go elsewhere.' }   # returns at once when the game already is the foreground window
+    Prof 'focus'
     # Output that arrived after the previous command returned; shown rather than dropped so nothing is missed.
     $pending = Format-Lines (Read-NewLogLines)
     if ($pending) { $pending | ForEach-Object { "(earlier) $_" } }
+    Prof 'pending'
     $waited = 0
     try {
         for ($i = 0; $i -lt $Count; $i++) {
             $logPos = Get-LogLength
+            Prof 'pre'
             [CivCtl.Native]::Chord($mods, $vk, $Hold)
+            Prof 'send'
             if ($NoQuiet -or $Fast) { Start-Sleep -Milliseconds $Settle; $waited += $Settle }
             else { $waited += Wait-Quiet $logPos $Settle $Quiet }
+            Prof 'wait'
             if ($Fast -and $i -lt $Count - 1) { continue }
             Format-Lines (Read-NewLogLines)
+            Prof 'log'
             Assert-GameHealthy -Grace 8 -Block
+            $global:CivGame = $game; $global:CivHealthyAt = Get-Date
+            Prof 'health2'
         }
     } finally {
         # The regress runner (and `batch`) sums these to show the real waits; a normal shell does not set the variable.
         if ($env:CIVCTL_REPORT_WAITED -eq '1') { Write-Output "@@waited $waited" }
+        if ($script:ProfOn) { Write-Output ('@@profile ' + ($script:ProfList -join ' ') + (' total={0}' -f $script:ProfSw.ElapsedMilliseconds)) }
     }
 }
 
