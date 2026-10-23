@@ -1,25 +1,40 @@
-# UNVERIFIED (written offline, never run in game). medieval-t100 probably has no spies (Diplomatic Service comes with
-# the Renaissance era; try industrial-start, turn 128, or give a spy through the tuner): F3 opens the Espionage overview,
-# Tab / Control+Tab switch tabs, Escape and F3 close. With a spy the first line is "Espionage: 1 of N spy, 1 awaiting
-# orders. Operatives. Spy <name>, <rank>, in <city>, awaiting orders, 1 of 1"; Enter selects it and the chooser says
-# "Choose destination for <name>: N cities. ..." (extend this script once a fixture with a spy exists).
-# Needs the build with EspionageOverview.lua loaded ("ScreenReaderAccess: EspionageOverview copy loaded" in Lua.log).
+# Verified 2026-10-22. medieval-t100 has no spies: spy-ready grants Diplomatic Service (SetCivic), a spy, and the F3 unlock
+# (OnCivicCompleted in PartialScreenHooks). The setup makes the game show a Historic Moment popup (Escape closes it).
+# F3 opens the Espionage overview; Tab / Control+Tab switch tabs; Enter on the spy opens the chooser; Escape and F3 close.
 # no-share-load
 load medieval-t100
 clear-advisors
+scenario spy-ready
+lua PartialScreenHooks OnCivicCompleted(0, GameInfo.Civics["CIVIC_DIPLOMATIC_SERVICE"].Index, false)
+clear-advisors
 key F3 -Settle 2500
-expect ^Espionage: \d+ of \d+ spies?
+expect ^Espionage: 1 of 1 spy, 1 awaiting orders\. Operatives\. Spy \S+, .*, in Rome, awaiting orders, 1 of 1
 key Space -Settle 600
+expect ^Awaiting orders
 key Tab -Settle 1000
 expect ^City Activity\.
 key Down -Settle 600
 key Space -Settle 600
+expect ^Enter shows the city
 key Control+Tab -Settle 1000
 expect ^Operatives
+key Enter -Settle 2500
+expect Choose destination for \S+: \d+ cities
+key Down -Settle 700
+expect ^Hong Kong, city-state, \d+ turns, 2 of 2
+key Space -Settle 900
+expect ^Travel
+key Enter -Settle 1500
+expect ^Send \S+ to Hong Kong\?.*Enter to confirm
+key Escape -Settle 900
+key Escape -Settle 1200
+expect ^Cancelled
+key F3 -Settle 2500
+expect ^Espionage: 1 of 1 spy
 key Escape -Settle 1500
 expect ^Espionage closed
 key F3 -Settle 2500
-expect ^Espionage: \d+ of \d+ spies?
+expect ^Espionage: 1 of 1 spy
 key F3 -Settle 1500
 expect ^Espionage closed
 no-lua-errors
