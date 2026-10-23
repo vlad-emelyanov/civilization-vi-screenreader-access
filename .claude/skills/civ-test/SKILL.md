@@ -103,3 +103,7 @@ Run with `lua GameCore_Tuner '<code>'` (`-File` for longer scripts):
 - `Lua.log` shows what the mod printed, not what the console app actually spoke.
 - Don't use Bash `sleep` to wait on the game; use `wait`, or a PowerShell loop polling `Lua.log` for a pattern.
 - The user can't use their PC while you drive the game (focus and mouse are taken over).
+
+## Test game options (speed)
+
+`python util/testopts.py on` sets test-friendly user options (advisor disabled, QuickCombat/QuickMovement, no combat camera look-at, no historic moment animation) after saving the user's real values to `%TEMP%\civctl\testopts-backup.json` (never overwritten by a second `on`); `restore` writes them back and deletes the backup; `status [--json]` shows both. Setup agents run `on` before `advance`/`autoplay` for speed and `restore` after. `regress` does both itself unless `--real-options`; a script header `# options: animations` and/or `# options: advisor` runs that script with those options at the user's values. After a crash or killed run: `python util/testopts.py restore`.
