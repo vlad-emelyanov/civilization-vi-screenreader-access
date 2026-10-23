@@ -11,6 +11,9 @@ no historic moment animation. The user's real values are never hard-coded: `on` 
 Backup: %TEMP%\\civctl\\testopts-backup.json. `on` never overwrites an existing backup, so a crashed run (still on test values)
 followed by another `on` cannot lose the real values. MANUAL RECOVERY after a crash or a killed run:  python util/testopts.py restore
 
+Game running: values change in memory only (no save), so UserOptions.txt keeps the user's values and a crash cannot leave test
+values on disk. Game not running: `on` edits UserOptions.txt (the next game start uses the test values; `restore` puts them back).
+
 Mechanism: game running (CivilizationVI*.exe process) -> tuner Lua (LUA_READ / LUA_WRITE below, in the first state of LUA_STATES that
 answers); game not running -> edit UserOptions.txt in place (only the value token of the `Key value` line, so comments, line endings
 and encoding stay; keys are looked up file-wide, the file has duplicate section headers).
@@ -43,7 +46,6 @@ LUA_STATES = ("InGame", "MainMenu")
 LUA_READ_LINE = 'print("TESTOPT {key} " .. tostring(Options.GetUserOption("{section}", "{key}")))'
 LUA_WRITE_LINE = 'Options.SetUserOption("{section}", "{key}", {value})'
 LUA_APPLY_LINE = 'UserConfiguration.SetValue("{config}", {value})'
-LUA_SAVE = "Options.SaveUserOptions()"
 GAME_PROCESS = re.compile(r"CivilizationVI", re.I)
 
 
@@ -60,13 +62,24 @@ def lua_read():
 
 
 def lua_write(values):
+    """Lua for a RUNNING game: in-memory only (no SaveOptions: UserOptions.txt keeps the user's values, so a crash cannot leave
+    test values on disk). One pcall per key; a failure prints 'TESTOPT_ERR <key> <message>'."""
     lines = []
     for k, v in values.items():
-        lines.append(LUA_WRITE_LINE.format(section=_section(k), key=k, value=v))
+        body = LUA_WRITE_LINE.format(section=_section(k), key=k, value=v)
         if _config(k):
-            lines.append(LUA_APPLY_LINE.format(config=_config(k), value=v))
-    lines.append(LUA_SAVE)
+            body += "; " + LUA_APPLY_LINE.format(config=_config(k), value=v)
+        lines.append('do local ok, e = pcall(function() %s end) if not ok then print("TESTOPT_ERR %s " .. tostring(e)) end end' % (body, k))
     return "\n".join(lines)
+
+
+def clean_values(values):
+    """Only keys we manage with numeric values (a nil/'nil'/garbage backup entry is skipped, never written)."""
+    out = {}
+    for k, v in values.items():
+        if k in TEST_VALUES and re.fullmatch(r"-?\d+(\.\d+)?", str(v)):
+            out[k] = str(v)
+    return out
 
 
 # ---- file path -------------------------------------------------------------------------------------------------------
@@ -148,8 +161,11 @@ def read_values(running=None):
 
 def write_values(values, running=None):
     running = game_running() if running is None else running
+    values = clean_values(values)
     if running:
-        tuner_run(lua_write(values))
+        errs = [l.strip() for l in tuner_run(lua_write(values)) if l.startswith("TESTOPT_ERR")]
+        if errs:
+            raise RuntimeError("tuner Lua failed for: " + "; ".join(errs))
     else:
         file_write(values)
 
@@ -164,16 +180,24 @@ def read_backup():
 
 def cmd_on(out=print):
     running = game_running()
-    cur = read_values(running)
+    cur = clean_values(read_values(running))
     if read_backup() is None:
+        if cur == TEST_VALUES:
+            out("testopts: REFUSED: no backup, but the current options already equal the test values (a crashed run?). Run "
+                "`python util/testopts.py restore` if you know a backup exists, else set your options in the game's Options screen.")
+            return 1
         os.makedirs(os.path.dirname(BACKUP), exist_ok=True)
         with open(BACKUP, "w", encoding="utf-8") as f:
             json.dump(cur, f, indent=1)
         out("testopts: saved the real values %s -> %s" % (cur, BACKUP))
     else:
         out("testopts: backup already exists (kept; real values are in it)")
-    write_values(TEST_VALUES, running)
-    out("testopts: test values set (%s)" % ("tuner" if running else "UserOptions.txt"))
+    try:
+        write_values(TEST_VALUES, running)
+    except Exception:
+        cmd_restore(out)   # fix: never leave a half-applied state behind
+        raise
+    out("testopts: test values set (%s)" % ("tuner, in memory only" if running else "UserOptions.txt, effective at the next game start"))
     return 0
 
 

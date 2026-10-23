@@ -916,10 +916,12 @@ def run_with_test_options(scripts, runner, share, use_test_options=True, out=pri
     edits UserOptions.txt). use_test_options=False (--real-options): plain run_all. Manual recovery: python util/testopts.py restore"""
     if not use_test_options:
         return run_all(scripts, runner, share, out)
-    if testopts_mod is None:
-        import testopts as testopts_mod
     try:
-        testopts_mod.cmd_on(out)
+        if testopts_mod is None:
+            sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -I (civctl regress) has no util/ on sys.path
+            import testopts as testopts_mod
+        if testopts_mod.cmd_on(out):
+            raise RuntimeError("testopts on refused")
     except Exception as e:
         out("WARNING: test options not applied (%s); running with the real options" % e)
         return run_all(scripts, runner, share, out)
