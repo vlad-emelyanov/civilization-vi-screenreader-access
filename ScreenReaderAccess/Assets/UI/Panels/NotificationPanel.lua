@@ -1255,6 +1255,11 @@ function OnCityRangeAttack( notificationEntry : NotificationType )
 			local attackCity = pPlayer:GetCities():GetFirstRangedAttackCity();
 			if(attackCity ~= nil) then
 				UI.SelectCity(attackCity);
+				-- Begin ScreenReaderAccess mod change: go straight into the attack mode (a keyboard player has no banner button to click)
+				if CityManager.CanStartCommand( attackCity, CityCommandTypes.RANGE_ATTACK ) then
+					UI.SetInterfaceMode(InterfaceModeTypes.CITY_RANGE_ATTACK);
+				end
+				-- End ScreenReaderAccess mod change
 			else
 				error( "Unable to find selectable attack city while in OnCityRangeAttack()" );
 			end

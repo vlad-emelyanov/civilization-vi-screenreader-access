@@ -4256,6 +4256,28 @@ local function SRTypeName( hash:number )
 	return "";
 end
 
+-- Why the engine refuses an operation or command for this unit right now ("" when it says nothing).
+local function SRRefusalReason( unit:table, hash:number )
+	local reasons:table = {};
+	pcall( function()
+		local results:table = nil;
+		if GameInfo.UnitCommands[hash] ~= nil then
+			local _, r = UnitManager.CanStartCommand( unit, hash, false, true );
+			results = r;
+		else
+			if unit:GetMovesRemaining() <= 0 then table.insert( reasons, "no moves left" ); return; end
+			local _, r = UnitManager.CanStartOperation( unit, hash, nil, false, OperationResultsTypes.ALL );
+			results = r;
+		end
+		if results ~= nil and results[UnitOperationResults.FAILURE_REASONS] ~= nil then
+			for _, v in ipairs( results[UnitOperationResults.FAILURE_REASONS] ) do
+				table.insert( reasons, CleanTextForSpeech( Locale.Lookup( v ) ) );
+			end
+		end
+	end );
+	return table.concat( reasons, ", " );
+end
+
 -- Rebuilds m_srActions (callbacks) and returns the plain list for the hub.
 local function SRBuildActions()
 	m_srActions = {};
@@ -4340,8 +4362,30 @@ local function SRBuildActions()
 			end
 		end
 	end
+	-- A unit that needs orders but has no Skip Turn (a settler in a besieged city ...): say why, and what else ends the loop
+	if unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:IsReadyToMove() then
+		local hasSkip:boolean = false;
+		for _, entry in ipairs( plain ) do
+			if entry.typeName == "UNITOPERATION_SKIP_TURN" then hasSkip = true; end
+		end
+		if not hasSkip then
+			local why:string = SRRefusalReason( unit, UnitOperationTypes.SKIP_TURN );
+			if why == "" then why = "the game offers no skip for this unit now"; end
+			local alternatives:string = ( GameInfo.Units[unit:GetUnitType()].FoundCity ) and "move it, found a city or delete it" or "move it or delete it";
+			local hotkey:string = "";
+			local skipId = Input.GetActionId( "SkipTurn" );
+			if skipId ~= nil then hotkey = Input.GetGestureDisplayString( skipId, 0 ) or ""; end
+			local reason:string = why .. ". To get past it: " .. alternatives;
+			table.insert( m_srActions, { callback = function() OutputMessageToScreenReader( "Cannot skip: " .. reason ); end } );
+			table.insert( plain, {
+				id = #m_srActions, name = "Skip Turn", hotkey = hotkey, disabled = true, reason = reason, detail = reason,
+				category = "INPLACE", tag = UnitOperationTypes.SKIP_TURN, typeName = "UNITOPERATION_SKIP_TURN" } );
+		end
+	end
 	return plain;
 end
+
+local m_srHotkeyRows:table = nil;		-- input action id -> UnitOperations / UnitCommands row
 
 -- The hotkey of an action that is disabled right now does nothing in the game; say "Cannot automate exploration: Danger".
 function SRSayBlockedHotkey( actionId:number )
@@ -4361,6 +4405,28 @@ function SRSayBlockedHotkey( actionId:number )
 				end
 			end
 		end
+	end
+	-- No entry at all: the operation is not offered for this unit (Sleep for a settler, Fortify for a builder ...)
+	if actionId == m_DeleteHotkeyId or actionId == m_AttackHotkeyId then return; end
+	if m_srHotkeyRows == nil then		-- built once: this runs for every unrelated input action too
+		m_srHotkeyRows = {};
+		for operation in GameInfo.UnitOperations() do
+			local id = ( operation.HotkeyId ~= nil ) and Input.GetActionId( operation.HotkeyId ) or nil;
+			if id ~= nil and m_srHotkeyRows[id] == nil then m_srHotkeyRows[id] = operation; end
+		end
+		for command in GameInfo.UnitCommands() do
+			local id = ( command.HotkeyId ~= nil ) and Input.GetActionId( command.HotkeyId ) or nil;
+			if id ~= nil and m_srHotkeyRows[id] == nil then m_srHotkeyRows[id] = command; end
+		end
+	end
+	local row = m_srHotkeyRows[actionId];
+	if row == nil or not row.VisibleInUI then return; end
+	local name:string = CleanTextForSpeech( Locale.Lookup( row.Description ) );
+	local why:string = SRRefusalReason( unit, row.Hash );
+	if why ~= "" then
+		OutputMessageToScreenReader( "Cannot " .. string.lower( name ) .. ": " .. why );
+	else
+		OutputMessageToScreenReader( name .. " is not available for " .. Locale.Lookup( unit:GetName() ) );
 	end
 end
 

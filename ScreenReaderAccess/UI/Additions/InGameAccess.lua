@@ -1093,6 +1093,46 @@ end
 -- ===========================================================================
 --	TARGET MODES: entering, confirming (Enter) and cancelling (Escape)
 -- ===========================================================================
+H.lastModeLine = -1;		-- the target mode of the last mode line and when it was spoken
+H.lastModeTime = -100;
+H.attackTime = -100;		-- UI.GetElapsedTime() of the last confirmed attack
+
+-- City ranged attack: the cursor starts on the nearest tile the city can hit (Enter on the city itself says "No valid target").
+function H.CursorToNearestCityTarget()
+	if not IsCityMode( UI.GetInterfaceMode() ) then return; end
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil then return; end
+	local targets:table = GetCityAttackTargets( city );
+	local bestPlot:table, bestDistance:number = nil, 99;
+	if targets ~= nil then
+		for plotIndex, _ in pairs( targets ) do
+			local plot:table = Map.GetPlotByIndex( plotIndex );
+			if plot ~= nil then
+				local distance:number = Map.GetPlotDistance( city:GetX(), city:GetY(), plot:GetX(), plot:GetY() );
+				if distance < bestDistance then bestPlot, bestDistance = plot, distance; end
+			end
+		end
+	end
+	if bestPlot == nil then
+		OutputMessageToScreenReader( "No enemy in range. Escape to cancel", true );
+		return;
+	end
+	SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
+end
+
+-- R and W with a city selected (UnitPanel is hidden then and says nothing): open the city's ranged attack, or say why not.
+function H.CityAttackKey()
+	if not IsLocalPlayerActive() or GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil or city:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	local name:string = Locale.Lookup( city:GetName() );
+	if CityManager.CanStartCommand( city, CityCommandTypes.RANGE_ATTACK ) then
+		UI.SetInterfaceMode( InterfaceModeTypes.CITY_RANGE_ATTACK );
+	else
+		OutputMessageToScreenReader( name .. " can't attack: no enemy in range, or it already attacked this turn" );
+	end
+end
+
 local function OnInterfaceModeChanged( oldMode:number, newMode:number )
 	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
 	if m_mode ~= nil and ( m_mode.name == "menu" or m_targetModes[ newMode ] ~= nil or m_chooserModes[ newMode ] ) then CloseMode( false, true ); end
@@ -1113,11 +1153,16 @@ local function OnInterfaceModeChanged( oldMode:number, newMode:number )
 	-- the cursor starts at the acting unit or city, and the tiles are chosen from there
 	local plot:table = GetSelectionPlot();
 	if plot ~= nil then SetCursor( plot:GetX(), plot:GetY(), false ); end
+	-- CityPanel flips SELECTION -> CITY_RANGE_ATTACK when a city is selected in that mode: one mode line, not two
+	local now:number = UI.GetElapsedTime();
+	if H.lastModeLine == newMode and now - H.lastModeTime < 0.5 then return; end
+	H.lastModeLine, H.lastModeTime = newMode, now;
 	if newMode == InterfaceModeTypes.MOVE_TO and m_attackIntent then
 		OutputMessageToScreenReader( "Attack: choose a target with Shift+Arrows or X, Enter to attack, Escape to cancel" );
 		return;
 	end
 	OutputMessageToScreenReader( label .. ": choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel" );
+	if IsCityMode( newMode ) then After( 0.3, H.CursorToNearestCityTarget ); end
 end
 
 -- For modes without a direct call below: click the plot with the real mouse, like a sighted player would.
@@ -1205,6 +1250,7 @@ local function ConfirmTarget()
 			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
 		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.RANGE_ATTACK, nil, parameters ) then
 			UnitManager.RequestOperation( unit, UnitOperationTypes.RANGE_ATTACK, parameters );
+			H.attackTime = UI.GetElapsedTime();
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 			SayResult( "Ranged attack" );
 		else
@@ -1232,6 +1278,8 @@ local function ConfirmTarget()
 			SayResult( "No valid target there" );
 			return;
 		end
+		H.attackTime = UI.GetElapsedTime();
+		SayResult( "Attacking" );		-- the combat line arrives seconds later
 		ClickCursorPlot();
 	else
 		ClickCursorPlot();
@@ -2824,6 +2872,15 @@ end
 -- ===========================================================================
 --	ENTER (Next Action) must always say something
 -- ===========================================================================
+function H.IsGovernorLabel()
+	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
+	local text:string = ( label ~= nil ) and label:GetText() or "";
+	for _, key in ipairs( { "LOC_ACTION_PANEL_GOVERNOR_APPOINTMENT", "LOC_ACTION_PANEL_GOVERNOR_OPPORTUNITY", "LOC_ACTION_PANEL_GOVERNOR_PROMOTION", "LOC_ACTION_PANEL_GOVERNOR_IDLE" } ) do
+		if text == Locale.Lookup( key ) then print( "InGameAccess: Enter held back, end-turn label '" .. text .. "' right after an attack" ); return true; end
+	end
+	return false;
+end
+
 function H.IsUnitOrdersLabel( text:string )
 	return text == Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" ) or text == Locale.Lookup( "LOC_ACTION_PANEL_STACKED_UNIT" )
 		or text == Locale.Lookup( "LOC_ACTION_PANEL_UNIT_MOVES_REMAINING" );
@@ -2841,7 +2898,16 @@ function H.EnterFallback()
 	if not H.IsUnitOrdersLabel( m_enterLabel ) then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit ~= nil then
-		SayResult( UnitText( unit ) .. ", needs orders. Tab for its actions" );
+		local text:string = UnitText( unit ) .. ", needs orders. Tab for its actions";
+		-- a unit the game lets neither skip nor sleep (UnitPanel adds a disabled Skip Turn entry with the reason)
+		local okHint:boolean, hint = pcall( function()
+			for _, item in ipairs( FetchMenuItems( false ) ) do
+				if item.action.typeName == "UNITOPERATION_SKIP_TURN" and item.action.disabled then return item.action.reason; end
+			end
+			return nil;
+		end );
+		if okHint and hint ~= nil and hint ~= "" then text = text .. ". Cannot skip: " .. hint; end
+		SayResult( text );
 	else
 		SayResult( Capitalize( CleanTextForSpeech( m_enterLabel ) ) );
 	end
@@ -2876,6 +2942,11 @@ function H.HandleInput( input:table )
 			return true;
 		end
 		return false;
+	end
+	-- Just after an attack the end-turn label can flash a governor blocker; Enter would open the Governors screen
+	if key == Keys.VK_RETURN and UI.GetElapsedTime() - H.attackTime < 5 and H.IsGovernorLabel() then
+		if msg == KeyEvents.KeyUp then SayResult( "The attack is still resolving, press Enter again in a moment" ); end
+		return true;
 	end
 	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp and not IsGamePopupOpen() then H.ArmEnterWatch(); end		-- an open screen (City-States, governors) takes Enter itself
 	return false;
@@ -2969,6 +3040,8 @@ function Initialize()
 	H.RegisterAction( "KeyNavNotifications",		ToggleNotifications );
 	H.RegisterAction( "KeyNavYields",				SpeakYields );
 	H.RegisterAction( "KeyNavCityReport",			ToggleCityReport );
+	H.RegisterAction( "RangedAttack",			H.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
+	H.RegisterAction( "Attack",					H.CityAttackKey );
 	Listen( Events.InputActionTriggered, H.OnInputActionTriggered );
 
 	Listen( Events.UnitSelectionChanged, Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
