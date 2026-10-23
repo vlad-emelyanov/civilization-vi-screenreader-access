@@ -1,0 +1,14 @@
+# Verified 2026-10-23. The completed-civic popup offers "G or F7" for the government screen, and F7 (the game's own key) opens it.
+# covers: **/TechCivicCompletedPopup.lua **/GovernmentScreen.lua
+# The completed popup only comes with the turn rollover: finish the civic with the tuner, skip all units (so Enter ends the turn), Enter.
+# no-share-load
+load early-t60
+clear-advisors
+lua GameCore_Tuner local c=Players[0]:GetCulture(); c:SetCulturalProgress(c:GetProgressingCivic(), 100000)
+lua InGameAccess local h=GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash; for _,u in Players[0]:GetUnits():Members() do UnitManager.RequestOperation(u,h) end
+key Enter -Settle 9000
+expect (?i)civic completed
+expect G or F7 for
+key F7 -Settle 2500
+expect ^(My government|Policies|Governments)
+no-lua-errors

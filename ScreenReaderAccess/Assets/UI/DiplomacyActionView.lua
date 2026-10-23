@@ -2905,6 +2905,7 @@ function Close()
 	end
 
 	local isCleanExit:boolean = UninitializeView();
+	if isCleanExit then OutputMessageToScreenReader( "Diplomacy closed" ); end		-- ScreenReaderAccess: before the scene-closed event, so an advisor held during diplomacy is spoken after it (it would cut this off)
 	LuaEvents.DiploScene_SceneClosed();
 	
 	ResetPlayerPanel();
@@ -2935,7 +2936,6 @@ function Close()
 	-- game may just be exiting and this screen was never raised.
 	if isCleanExit then
 		LuaEvents.DiplomacyActionView_ShowIngameUI();
-		OutputMessageToScreenReader( "Diplomacy closed" );		-- ScreenReaderAccess
 	end
 end
 

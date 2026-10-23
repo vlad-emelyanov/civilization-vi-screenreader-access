@@ -405,6 +405,7 @@ local function SRA_SayUnavailable( actionId:number )
 		OutputMessageToScreenReader( "City-States are not available yet: meet a city-state first" );
 	elseif actionId == m_ToggleEspId and not m_isEspionageUnlocked and HasCapability("CAPABILITY_ESPIONAGE_VIEW") then
 		local civic:string = SRA_CivicName( "UNIT_SPY" );
+		if civic == nil and GameInfo.Civics["CIVIC_DIPLOMATIC_SERVICE"] ~= nil then civic = Locale.Lookup( GameInfo.Civics["CIVIC_DIPLOMATIC_SERVICE"].Name ); end	-- the spy unit has no prerequisite civic of its own
 		OutputMessageToScreenReader( "Espionage is not available yet" .. ( civic ~= nil and ( ": needs the " .. civic .. " civic" ) or "" ) );
 	elseif actionId == m_ToggleTradeId and not m_isTradeRoutesUnlocked and HasCapability("CAPABILITY_TRADE_VIEW") then
 		local civic:string = SRA_CivicName( "UNIT_TRADER" );

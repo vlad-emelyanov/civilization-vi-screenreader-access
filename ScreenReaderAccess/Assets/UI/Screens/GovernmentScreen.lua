@@ -2891,7 +2891,7 @@ local function SRA_GovernmentItems()
 		if government.NumSlotDiplomatic > 0 then table.insert( slots, government.NumSlotDiplomatic .. " diplomatic" ); end
 		if government.NumSlotWildcard > 0 then table.insert( slots, government.NumSlotWildcard .. " wildcard" ); end
 		table.insert( parts, "slots: " .. table.concat( slots, ", " ) );
-		if unlocked and not isCurrent then table.insert( parts, "Enter to switch to it" ); end
+		if unlocked and not isCurrent and IsAbleToChangeGovernment() then table.insert( parts, "Enter to switch to it" ); end
 		local inherent:string = SRA_Clean( government.BonusInherentText );
 		if inherent ~= "" then table.insert( parts, inherent ); end
 		local accumulated:string = SRA_Clean( government.BonusAccumulatedText );

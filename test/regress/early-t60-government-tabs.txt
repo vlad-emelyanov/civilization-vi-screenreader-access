@@ -1,0 +1,20 @@
+# Verified 2026-10-23. Government screen: Tab and Control+Tab move between the tabs, the Governments tab says it cannot change now (no "Enter to switch" then), leaving without a change does not warn.
+# covers: **/GovernmentScreen.lua
+# no-share-load
+load early-t60
+clear-advisors
+action ToggleGovernment -Settle 2500
+expect ^My government, Autocracy
+key Tab -Settle 1200
+expect ^Policies, Autocracy
+key Tab -Settle 1200
+expect ^Governments, current: Autocracy, can't change now
+expect-not Enter to switch to it
+key Control+Tab -Settle 1200
+expect ^Policies, Autocracy
+key Control+Tab -Settle 1200
+expect ^My government, Autocracy
+key Escape -Settle 1500
+expect ^Government closed
+expect-not (?i)have not been confirmed
+no-lua-errors

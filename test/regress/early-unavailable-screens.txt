@@ -1,0 +1,16 @@
+# Verified 2026-10-23. Hotkeys of screens that are not unlocked yet say why instead of doing nothing (PartialScreenHooks F2/F3/F4, LaunchBar F7/L).
+# covers: **/PartialScreenHooks.lua **/LaunchBar.lua
+# no-share-load
+load early-start
+clear-advisors
+action ToggleCityStates -Settle 1800
+expect ^City-States are not available yet: meet a city-state
+action ToggleEspionage -Settle 1800
+expect ^Espionage is not available yet: needs the .* civic
+action ToggleTradeRoutes -Settle 1800
+expect ^Trade routes are not available yet: needs the .* civic
+action ToggleGovernment -Settle 1800
+expect ^Government is not available yet
+action ToggleReligion -Settle 1800
+expect ^Religion is not available yet
+no-lua-errors
