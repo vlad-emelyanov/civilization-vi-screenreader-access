@@ -1,6 +1,7 @@
 -- Copyright 2016-2019, Firaxis Games
 
 include("PopupManager");
+include("ScreenReader");		-- ScreenReaderAccess mod change
 
 
 -- ===========================================================================
@@ -48,7 +49,9 @@ function OnWonderCompleted( locX:number, locY:number, buildingIndex:number, play
 				locX = locX,
 				locY = locY,
 				buildingIndex = buildingIndex,
-				currentBuildingType = currentBuildingType
+				currentBuildingType = currentBuildingType,
+				playerIndex = playerIndex,		-- ScreenReaderAccess mod change
+				cityId = cityId
 			};
 
 			if not m_kPopupMgr:IsLocked() then								
@@ -103,6 +106,24 @@ function ShowPopup( kData:table )
 	UI.LookAtPlot(locX, locY);
 
 	Controls.ReplayButton:SetHide(UI.GetWorldRenderView() ~= WorldRenderView.VIEW_3D);
+
+	-- Begin ScreenReaderAccess mod change: "Wonder built: Mont St. Michel, by you, in Rome. <quote>. Enter to continue"
+	local who:string = "you";
+	if m_kCurrentPopup.playerIndex ~= nil and m_kCurrentPopup.playerIndex ~= Game.GetLocalPlayer() then
+		local config:table = PlayerConfigurations[m_kCurrentPopup.playerIndex];
+		who = config ~= nil and Locale.Lookup(config:GetCivilizationShortDescription()) or "another civilization";
+	end
+	local cityName:string = "";
+	local pPlayer:table = m_kCurrentPopup.playerIndex ~= nil and Players[m_kCurrentPopup.playerIndex] or nil;
+	local pCity:table = (pPlayer ~= nil and m_kCurrentPopup.cityId ~= nil) and pPlayer:GetCities():FindID(m_kCurrentPopup.cityId) or nil;
+	if pCity ~= nil then cityName = Locale.Lookup(pCity:GetName()); end
+	local text:string = "Wonder built: " .. CleanTextForSpeech(Locale.Lookup(GameInfo.Buildings[buildingIndex].Name)) .. ", by " .. who ..
+		(cityName ~= "" and (", in " .. cityName) or "") .. ".";
+	local quote:string = Locale.Lookup(GameInfo.Buildings[buildingIndex].Quote or "");
+	if quote ~= nil and quote ~= "" then text = text .. " " .. CleanTextForSpeech(quote); end
+	LuaEvents.SRA_SpeechHold( "WonderBuilt", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );		-- the hub's announcements wait until this popup closes
+	OutputMessageToScreenReader(text .. " Enter to continue");
+	-- End ScreenReaderAccess mod change
 end
 
 
@@ -125,6 +146,7 @@ end
 function Close()		    
 	
 	StopSound();
+	LuaEvents.SRA_SpeechHold( "WonderBuilt", false );		-- ScreenReaderAccess mod change
 
 	local isDone:boolean  = true;
 
@@ -179,11 +201,11 @@ end
 --	UI Event Handler
 -- ===========================================================================
 function KeyHandler( key:number )
-    if key == Keys.VK_ESCAPE then
+    if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then		-- ScreenReaderAccess mod change: Enter too
 		Close();
 		return true;
     end
-    return false;
+    return ContextPtr:IsVisible();		-- ScreenReaderAccess mod change: modal
 end
 
 -- ===========================================================================

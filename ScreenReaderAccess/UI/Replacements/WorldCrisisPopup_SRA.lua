@@ -4,6 +4,7 @@ include("InstanceManager");
 include("LeaderIcon");
 include("CivilizationIcon");
 include("WorldCrisisSupport");
+include("ScreenReader");		-- ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	CONSTANTS
@@ -30,6 +31,14 @@ local m_targetPlayerID	:number = -1;
 local m_emergencyType	:number = -1;
 local m_isAnswerRequired:boolean = false;
 local m_LeaderIM		:table = InstanceManager:new("LeaderButton", "Root", Controls.LeaderIconStack);
+
+-- Begin ScreenReaderAccess mod change
+local m_srOpening		:string = "";		-- spoken when the popup is shown
+local m_srLines			:table = {};		-- detail lines for Up/Down (scoring, members and scores, rewards)
+local m_srIndex			:number = 0;
+local m_srChoice		:number = 1;		-- answer required: 1 = Join, 2 = Reject
+local m_srHold			:boolean = false;
+-- End ScreenReaderAccess mod change
 
 
 -- ===========================================================================
@@ -218,7 +227,89 @@ function ShowEmergency( kData: table )
 	PopulateWorldCrisisText(g_kRewardsManagers, kData.rewardsDetails, Controls.RewardsDetailsStack, true);
 	PopulateLeaderBar(kData.participantPlayers, kData.participantScores, kData.memberTiers);
 
+	SRA_BuildText( kData );		-- ScreenReaderAccess mod change
+	LuaEvents.SRA_SpeechHold( "WorldCrisisPopup", true, "/InGame/AdditionalUserInterfaces/" .. ContextPtr:GetID() );		-- ScreenReaderAccess mod change: the hub's announcements wait
+	m_srHold = true;
 	UIManager:QueuePopup(ContextPtr, PopupPriority.Low, { DelayShow = true });
+end
+
+-- ===========================================================================
+--	ScreenReaderAccess: "Scored competition ongoing. Target: Dido. <goal>. 12 turns remaining. You are in 2nd place. <how to score>
+--	<members and scores>. <rewards>. Enter to close"
+-- ===========================================================================
+function SRA_Clean( text:string )
+	if text == nil then return ""; end
+	return CleanTextForSpeech( tostring(text) );
+end
+
+function SRA_AddLines( lines:table, details:table )
+	for _, line in ipairs(details or {}) do
+		local text:string = SRA_Clean(line.string);
+		if text ~= "" then table.insert(lines, text); end
+	end
+end
+
+function SRA_BuildText( kData:table )
+	local head:table = {};
+	local function add( text:string )
+		text = SRA_Clean(text);
+		if text ~= "" then table.insert(head, text); end
+	end
+	add(kData.titleString);
+	if GameInfo.Emergencies_XP2[kData.emergencyType].Hostile or kData.targetPlayer >= 0 then add(kData.crisisTargetTitle); end
+	add(kData.targetCityName);
+	add(kData.crisisTrinketTitle);
+	add(kData.trinketString);
+	if kData.timeRemaining > 0 then
+		add(kData.timeRemaining == 1 and Locale.Lookup("LOC_EMERGENCY_NO_TURNS_REMAINING") or Locale.Lookup("LOC_EMERGENCY_TURNS_REMAINING", kData.timeRemaining));
+	else
+		add(Locale.Lookup("LOC_EMERGENCY_TURNS_OVER"));
+		add(Controls.VictorTitle:GetText());
+		add(Controls.VictorTier:GetText());
+	end
+	if kData.placeString ~= nil and kData.targetPlayer ~= Game.GetLocalPlayer() then add(kData.placeString); end
+
+	local lines:table = {};
+	SRA_AddLines(lines, kData.crisisDetails);
+	local members:table = {};
+	for _, playerID in ipairs(kData.participantPlayers or {}) do
+		if playerID ~= -1 then
+			local score = kData.participantScores ~= nil and kData.participantScores[playerID] or nil;
+			local name:string = (playerID == Game.GetLocalPlayer()) and "You" or SRA_Clean(GetVisiblePlayerName(playerID));
+			table.insert(members, name .. (score ~= nil and (" " .. tostring(score)) or ""));
+		end
+	end
+	if #members > 0 then
+		table.insert(lines, SRA_Clean(Controls.MemberLabel:GetText()) .. ": " .. table.concat(members, ", "));
+	end
+	SRA_AddLines(lines, kData.rewardsDetails);
+
+	m_srLines = lines;
+	m_srIndex = 0;
+	m_srChoice = 1;
+	local text:string = table.concat(head, ". ") .. ".";
+	if #lines > 0 then text = text .. " " .. table.concat(lines, ". ") .. "."; end
+	if kData.inputRequired then
+		text = text .. " Join: Enter. Down for Reject.";
+	else
+		text = text .. " Enter to close.";
+	end
+	m_srOpening = text;
+end
+
+function SRA_ReadLine( step:number )
+	if #m_srLines == 0 then return; end
+	m_srIndex = m_srIndex + step;
+	if m_srIndex < 1 then m_srIndex = #m_srLines; end
+	if m_srIndex > #m_srLines then m_srIndex = 1; end
+	OutputMessageToScreenReader(m_srLines[m_srIndex] .. ", " .. m_srIndex .. " of " .. #m_srLines);
+end
+
+function SRA_ReleaseHold()
+	if m_srHold then
+		m_srHold = false;
+		LuaEvents.SRA_SpeechHold( "WorldCrisisPopup", false );
+	end
 end
 
 -- ===========================================================================
@@ -228,6 +319,7 @@ function OnShow()
 	Controls.AnimSoundOnShow:Play();	
 	Controls.SlideOnShow:Play();	
 	UI.PlaySound("ScoredCompetition_open");
+	if m_srOpening ~= "" then OutputMessageToScreenReader(m_srOpening); end		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -285,6 +377,7 @@ end
 
 -- ===========================================================================
 function Close()
+	SRA_ReleaseHold();		-- ScreenReaderAccess mod change
 	if (not m_isAnswerRequired) then
 		local kParameters:table = {};
 		kParameters[PlayerOperations.PARAM_OTHER_PLAYER] = m_targetPlayerID;
@@ -342,8 +435,25 @@ function OnInputHandler( pInputStruct:table )
 	local key = pInputStruct:GetKey();
 	local msg = pInputStruct:GetMessageType();
 	if msg == KeyEvents.KeyUp and key == Keys.VK_ESCAPE then 
-		Close();
+		if not Controls.SlideOnShow:IsReversing() then Close(); end		-- ScreenReaderAccess mod change: not while it is already closing
+	-- Begin ScreenReaderAccess mod change: Enter closes (or answers), Up/Down read the details or choose Join / Reject
+	elseif msg == KeyEvents.KeyUp and not Controls.SlideOnShow:IsReversing() then
+		if key == Keys.VK_RETURN then
+			if m_isAnswerRequired then
+				if m_srChoice == 1 then OnJoinClicked(); else OnRejectClicked(); end
+			else
+				Close();
+			end
+		elseif key == Keys.VK_UP or key == Keys.VK_DOWN then
+			if m_isAnswerRequired then
+				m_srChoice = 3 - m_srChoice;
+				OutputMessageToScreenReader(m_srChoice == 1 and "Join" or "Reject");
+			else
+				SRA_ReadLine(key == Keys.VK_UP and -1 or 1);
+			end
+		end
 	end
+	-- End ScreenReaderAccess mod change
 
 	return true; -- consume all input
 end

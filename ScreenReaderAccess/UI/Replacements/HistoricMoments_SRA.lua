@@ -87,6 +87,7 @@ local m_isOpenFromEndGame	:boolean = false;
 local m_kQueuedPopups		: table	 = {};
 
 local m_srEntries	:table = {};		-- ScreenReaderAccess: spoken text of every moment on the timeline, oldest first
+local m_srIsTimeline	:boolean = false;		-- ScreenReaderAccess: the timeline view is open (not a single new-moment popup)
 local m_srIndex		:number = 0;		-- ScreenReaderAccess: entry last read with Up/Down
 
 -- Cause nil access on DATA_ILLUSTRATIONS_MAP to return m_LargeIllustrationIM
@@ -472,6 +473,8 @@ function Close()
 	if ContextPtr:IsVisible() then
 		UIManager:DequeuePopup(ContextPtr);
 		UI.PlaySound("UI_Screen_Close");
+		if m_srIsTimeline then OutputMessageToScreenReader("Timeline closed"); end		-- ScreenReaderAccess
+		m_srIsTimeline = false;		-- ScreenReaderAccess
 		LuaEvents.HistoricMoments_Closed();
 	end
 end
@@ -553,6 +556,7 @@ function ToggleHistoricMomentsScreen(showAnim:boolean)
 		m_isOpenFromEndGame = false;
 		m_CurrentMoment = -1;
 		DisplayTimeline(showAnim);
+		m_srIsTimeline = true;		-- ScreenReaderAccess
 		SRA_AnnounceTimeline();		-- ScreenReaderAccess
 	else
 		Close()
@@ -565,6 +569,7 @@ function ToggleFromEndGame(parentControl)
 		m_isOpenFromEndGame = true;
 		m_CurrentMoment = -1;
 		DisplayTimeline();
+		m_srIsTimeline = true;		-- ScreenReaderAccess
 		SRA_AnnounceTimeline();		-- ScreenReaderAccess
 	else
 		Close()

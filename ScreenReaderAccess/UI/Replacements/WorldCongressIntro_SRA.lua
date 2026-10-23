@@ -30,6 +30,14 @@ function OnClose()
 	LuaEvents.WorldCongressIntro_ShowWorldCongress();
 end
 
+-- ScreenReaderAccess mod change: the intro line, also repeated after a popup on top of the intro closed
+function SRA_SayIntro()
+	local popup = ContextPtr:LookUpControl("/InGame/WorldPopups/InGamePopup");
+	if popup ~= nil and popup:IsVisible() then return; end		-- the other popup speaks first, the intro again once it is closed
+	OutputMessageToScreenReader( CleanTextForSpeech( Controls.Title:GetText() ) .. ". " .. CleanTextForSpeech( Controls.Body1:GetText() ) .. " " ..
+		CleanTextForSpeech( Controls.Body2:GetText() ) .. " Enter to begin voting.", true );
+end
+
 -- ===========================================================================
 --	OnOpen: Opens the popup 
 -- ===========================================================================
@@ -46,10 +54,7 @@ function OnOpen(stageNum:number)
 
 		m_currStageNum = stageNum;
 
-		-- Begin ScreenReaderAccess mod change
-		OutputMessageToScreenReader( CleanTextForSpeech( Controls.Title:GetText() ) .. ". " .. CleanTextForSpeech( Controls.Body1:GetText() ) .. " " ..
-			CleanTextForSpeech( Controls.Body2:GetText() ) .. " Enter to begin voting.", true );
-		-- End ScreenReaderAccess mod change
+		SRA_SayIntro();		-- ScreenReaderAccess mod change
 	end
 end
 
@@ -110,6 +115,15 @@ function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	local key = pInputStruct:GetKey();
 	if uiMsg == KeyEvents.KeyUp and (key == Keys.VK_ESCAPE or key == Keys.VK_RETURN) then
+		-- Begin ScreenReaderAccess mod change: a modal InGamePopup (e.g. UNIT CAPTURED) is on top of this intro and does not get the key
+		-- first; hand it the key, then say the intro again. Closing the intro now would hide the Congress behind that popup, silently.
+		local popup = ContextPtr:LookUpControl("/InGame/WorldPopups/InGamePopup");
+		if popup ~= nil and popup:IsVisible() then
+			LuaEvents.SRA_InGamePopupKey( key );
+			SRA_SayIntro();
+			return true;
+		end
+		-- End ScreenReaderAccess mod change
 		OnClose();
 	end
 	return true;

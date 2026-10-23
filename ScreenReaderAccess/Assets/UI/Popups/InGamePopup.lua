@@ -61,32 +61,42 @@ end
 -- ===========================================================================
 -- ESC handler
 -- ===========================================================================
+-- ScreenReaderAccess mod change: the key handling is a function so another popup that sits above (WorldCongressIntro) can pass Enter/Escape on
+function SRA_HandleKeyUp( wParam:number )
+	if wParam == Keys.VK_ESCAPE then -- Try CANCEL. Then DEFAULT. Then give up and close window.
+		if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_CANCEL ) ) then
+			if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_DEFAULT ) ) then
+				OnClosePopup();
+			end
+		end
+	-- ScreenReaderAccess mod change: Up/Down move between the buttons (spoken); Enter on the focused Cancel button
+	-- (a Yes/No question starts on No) activates it instead of always confirming
+	elseif wParam == Keys.VK_UP or wParam == Keys.VK_DOWN then
+		m_PopupDialog:KeyHandler( wParam );
+	elseif wParam == Keys.VK_RETURN and SRA_FocusedCancel() then
+		m_PopupDialog:KeyHandler( wParam );
+	elseif wParam == Keys.VK_RETURN then -- Try CONFIRM. Then DEFAULT. Then give up and close window.
+		if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_CONFIRM ) ) then
+			if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_DEFAULT ) ) then
+				OnClosePopup();
+			end
+		end
+	end
+end
+
 function InputHandler( uiMsg, wParam, lParam )
 	if(m_PopupDialog and m_PopupDialog:IsOpen()) then
 		if uiMsg == KeyEvents.KeyUp then
-			if wParam == Keys.VK_ESCAPE then -- Try CANCEL. Then DEFAULT. Then give up and close window.
-				if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_CANCEL ) ) then
-					if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_DEFAULT ) ) then
-						OnClosePopup();
-					end
-				end
-			-- ScreenReaderAccess mod change: Up/Down move between the buttons (spoken); Enter on the focused Cancel button
-			-- (a Yes/No question starts on No) activates it instead of always confirming
-			elseif wParam == Keys.VK_UP or wParam == Keys.VK_DOWN then
-				m_PopupDialog:KeyHandler( wParam );
-			elseif wParam == Keys.VK_RETURN and SRA_FocusedCancel() then
-				m_PopupDialog:KeyHandler( wParam );
-			elseif wParam == Keys.VK_RETURN then -- Try CONFIRM. Then DEFAULT. Then give up and close window.
-				if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_CONFIRM ) ) then
-					if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_DEFAULT ) ) then
-						OnClosePopup();
-					end
-				end
-			end
+			SRA_HandleKeyUp( wParam );
 		end
 		return true; -- eat all the input, just in case. popups are blocking!
 	end
 	return false;
+end
+
+-- ScreenReaderAccess mod change: WorldCongressIntro receives the keys before this popup (it is shown while this modal is up) and passes them on
+function SRA_OnKeyFromAbove( key:number )
+	if m_PopupDialog and m_PopupDialog:IsOpen() then SRA_HandleKeyUp( key ); end
 end
 
 -- ===========================================================================
@@ -94,6 +104,7 @@ function Initialize()
 	m_PopupDialog = PopupDialog:new("InGamePopup");
 	ContextPtr:SetInputHandler(InputHandler);
 	LuaEvents.OnRaisePopupInGame.Add(OnPopupOpen);
+	LuaEvents.SRA_InGamePopupKey.Add(SRA_OnKeyFromAbove);		-- ScreenReaderAccess mod change
 	LuaEvents.Tutorial_TutorialEndHideBulkUI.Add(OnClosePopup);
 end
 Initialize();
