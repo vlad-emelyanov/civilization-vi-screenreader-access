@@ -115,6 +115,7 @@ class Step:
 class Steps(list):
     fresh = False  # '# no-share-load' in the script
     text = ""      # the script source (record mode rewrites it)
+    manual = False # '# manual' in the script: only run when named (all / changed skip it)
     covers = ()    # globs of '# covers:' headers (empty = none given: `regress changed` always runs the script)
 
 
@@ -132,6 +133,7 @@ def parse_script(text, name="script"):
     steps = Steps()
     steps.fresh = bool(re.search(r"^#\s*no-share-load", text, re.M))
     steps.text = text
+    steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
     steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
     scenario = False
     for no, raw in enumerate(text.splitlines(), 1):
@@ -762,7 +764,7 @@ def git_changed_since(base):
 
 def discover(names):
     if not names or names == ["all"]:
-        files = sorted(glob.glob(os.path.join(REGRESS_DIR, "*.txt")))
+        files = sorted(f for f in glob.glob(os.path.join(REGRESS_DIR, "*.txt")) if not f.endswith(".recorded.txt"))
     else:
         files = []
         for n in names:
@@ -774,7 +776,10 @@ def discover(names):
     for p in files:
         name = os.path.splitext(os.path.basename(p))[0]
         with open(p, encoding="utf-8-sig") as f:
-            scripts.append((name, parse_script(f.read(), name)))
+            steps = parse_script(f.read(), name)
+        if steps.manual and (not names or names == ["all"]):
+            continue   # manual scripts run only when named
+        scripts.append((name, steps))
     return scripts
 
 
