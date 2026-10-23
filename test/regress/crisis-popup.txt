@@ -1,0 +1,11 @@
+# Written blind (2026-10-23, round 9): WorldCrisisPopup (Scored Competition) was completely silent. Fixture bug-crisis-popup-silent (turn 132, popup open after the congress results).
+# covers: **/WorldCrisisPopup_SRA.lua
+# no-share-load: closes the popup
+load bug-crisis-popup-silent
+expect (?i)competition.*enter to close
+key Down -Settle 600
+expect \d+ of \d+
+key Up -Settle 600
+expect \d+ of \d+
+key Enter -Settle 2000
+no-lua-errors

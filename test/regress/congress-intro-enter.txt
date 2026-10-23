@@ -1,0 +1,9 @@
+# Written blind (2026-10-23, round 9): UNIT CAPTURED popup on top of the World Congress intro: the first Enter closes the popup and the intro is spoken again. Fixture bug-congress-intro-enter (turn 130).
+# covers: **/WorldCongressIntro_SRA.lua **/InGamePopup.lua
+# no-share-load: opens the congress
+load bug-congress-intro-enter
+key Enter -Settle 1500
+expect (?i)enter to begin voting
+key Enter -Settle 2500
+expect Resolutions: \d+ to vote on
+no-lua-errors

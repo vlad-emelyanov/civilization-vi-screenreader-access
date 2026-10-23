@@ -30,6 +30,28 @@ function OnClose()
 	LuaEvents.WorldCongressIntro_ShowWorldCongress();
 end
 
+-- ScreenReaderAccess mod change: the intro line, also repeated after a popup on top of the intro closed
+function SRA_InGamePopupOpen()
+	local root = ContextPtr:LookUpControl("/InGame/WorldPopups/InGamePopup/PopupRoot");
+	return root ~= nil and not root:IsHidden();
+end
+
+local m_srRecheck :number = -1;		-- seconds until the intro is spoken again after a key was passed to the InGamePopup
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_srRecheck < 0 then return; end
+	m_srRecheck = m_srRecheck - deltaTime;
+	if m_srRecheck > 0 then return; end
+	m_srRecheck = -1;
+	if not ContextPtr:IsHidden() then SRA_SayIntro(); end
+end
+
+function SRA_SayIntro()
+	if SRA_InGamePopupOpen() then return; end		-- the other popup speaks first, the intro again once it is closed
+	OutputMessageToScreenReader( CleanTextForSpeech( Controls.Title:GetText() ) .. ". " .. CleanTextForSpeech( Controls.Body1:GetText() ) .. " " ..
+		CleanTextForSpeech( Controls.Body2:GetText() ) .. " Enter to begin voting.", true );
+end
+
 -- ===========================================================================
 --	OnOpen: Opens the popup 
 -- ===========================================================================
@@ -46,10 +68,7 @@ function OnOpen(stageNum:number)
 
 		m_currStageNum = stageNum;
 
-		-- Begin ScreenReaderAccess mod change
-		OutputMessageToScreenReader( CleanTextForSpeech( Controls.Title:GetText() ) .. ". " .. CleanTextForSpeech( Controls.Body1:GetText() ) .. " " ..
-			CleanTextForSpeech( Controls.Body2:GetText() ) .. " Enter to begin voting.", true );
-		-- End ScreenReaderAccess mod change
+		SRA_SayIntro();		-- ScreenReaderAccess mod change
 	end
 end
 
@@ -110,6 +129,14 @@ function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
 	local key = pInputStruct:GetKey();
 	if uiMsg == KeyEvents.KeyUp and (key == Keys.VK_ESCAPE or key == Keys.VK_RETURN) then
+		-- Begin ScreenReaderAccess mod change: a modal InGamePopup (e.g. UNIT CAPTURED) is on top of this intro and does not get the key
+		-- first; hand it the key, then say the intro again. Closing the intro now would hide the Congress behind that popup, silently.
+		if SRA_InGamePopupOpen() then
+			LuaEvents.SRA_InGamePopupKey( key );
+			m_srRecheck = 0.3;		-- the dialog may still look open right now: check again shortly
+			return true;
+		end
+		-- End ScreenReaderAccess mod change
 		OnClose();
 	end
 	return true;
@@ -147,6 +174,7 @@ function Initialize()
 	ContextPtr:SetHide(true); -- PRODUCTION
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
+	ContextPtr:SetUpdate(SRA_OnUpdate);		-- ScreenReaderAccess
 	ContextPtr:SetInputHandler(OnInputHandler, true);
 
 	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
