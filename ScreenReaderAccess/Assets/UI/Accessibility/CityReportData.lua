@@ -314,7 +314,9 @@ local function CitizensItem( d:table )
 		table.insert( detail, "No specialists" );
 	end
 	if c.favored ~= nil and #c.favored > 0 then table.insert( detail, "Citizens favor " .. Join( c.favored ) ); end
-	table.insert( detail, "Choosing which tiles the citizens work is not available from the keyboard yet" );
+	if d.manage ~= nil then
+		table.insert( detail, "The Focus, Tiles and Specialists items below let you change this" );
+	end
 	return { key = "citizens", text = text, detail = Join( detail, ". " ) };
 end
 
@@ -361,6 +363,116 @@ local function TradingPostsItem( d:table )
 	return { key = "tradingposts", text = text, detail = "Trading posts of " .. Join( t ) .. ". A trade route to this city adds a post for its owner." };
 end
 
+-- ---------------------------------------------------------------------------
+-- 11. City management: focus, tiles, specialists (items of the report; Enter opens a sub-list in InGameAccess)
+--	d.manage (CityManage_Gather): focus = { { key, name, state = "normal"|"favored"|"ignored" } },
+--	tiles = { { key, plotIndex, relative, desc, count, max, locked } } (worked first),
+--	districts = { { key, plotIndex, name, count, max, perSlot, locked } }, buy = { { key, plotIndex, relative, desc, cost } },
+--	gold = the player's gold.
+-- ---------------------------------------------------------------------------
+local function FocusItem( d:table )
+	local m:table = d.manage;
+	if m == nil or m.focus == nil or #m.focus == 0 then return nil; end
+	local favored:table, ignored:table = {}, {};
+	for _, f in ipairs( m.focus ) do
+		if f.state == "favored" then table.insert( favored, string.lower( f.name ) ); end
+		if f.state == "ignored" then table.insert( ignored, string.lower( f.name ) ); end
+	end
+	local text:string = "Focus: " .. ( #favored > 0 and Join( favored, " and " ) or "none" );
+	if #ignored > 0 then text = text .. ", ignoring " .. Join( ignored, " and " ); end
+	return { key = "focus", manage = "focus", text = text .. ". Enter to change",
+		detail = "Favored yields make the citizens prefer tiles with that yield, ignored yields make them avoid it. Enter opens the list" };
+end
+
+local function TilesItem( d:table )
+	local m:table = d.manage;
+	if m == nil or m.tiles == nil then return nil; end
+	local c:table = d.citizens;
+	local text:string = "Tiles: " .. c.working .. " of " .. Plural( c.total, "citizen", "citizens" ) .. " on tiles";
+	local detail:string = text .. ". " .. Plural( #m.tiles, "workable tile", "workable tiles" );
+	if m.buy ~= nil and #m.buy > 0 then detail = detail .. ", " .. Plural( #m.buy, "tile", "tiles" ) .. " to buy"; end
+	return { key = "tiles", manage = "tiles", text = text .. ". Enter to manage", detail = detail .. ". Enter opens the list" };
+end
+
+local function SpecialistsItem( d:table )
+	local m:table = d.manage;
+	if m == nil or m.districts == nil or #m.districts == 0 then return nil; end
+	local filled:number, slots:number = 0, 0;
+	for _, dist in ipairs( m.districts ) do filled = filled + dist.count; slots = slots + dist.max; end
+	local where:string = ( #m.districts == 1 ) and m.districts[1].name or Plural( #m.districts, "district", "districts" );
+	return { key = "specialists", manage = "specialists",
+		text = "Specialists: " .. filled .. " of " .. Plural( slots, "slot", "slots" ) .. " in " .. where .. ". Enter to manage",
+		detail = "Specialists work in districts instead of on tiles. Enter opens the list" };
+end
+
+-- The city's totals after a change: "Food plus 5, production 13"
+function CityManage_Totals( d:table )
+	return "Food " .. Signed( d.foodSurplus ) .. ", production " .. Num( d.yields.production.value );
+end
+
+-- "Locked" / "Worked, not locked" / "Not worked" for a tile record
+function CityManage_TileState( t:table )
+	if t.count ~= nil and t.count > 0 then return t.locked and "Locked" or "Worked, not locked"; end
+	return "Not worked";
+end
+
+-- Up/Down line of a tile: "2 tiles north-east, Grassland Farm, 3 Food 1 Production, worked, locked"
+function CityManage_TileText( t:table )
+	local parts:table = {};
+	if t.relative ~= nil then table.insert( parts, t.relative ); end
+	if t.desc ~= nil and t.desc ~= "" then table.insert( parts, t.desc ); end
+	if t.cost ~= nil then
+		table.insert( parts, "can buy, " .. t.cost .. " gold" );
+	elseif t.count ~= nil and t.count > 0 then
+		table.insert( parts, t.locked and "worked, locked" or "worked" );
+	else
+		table.insert( parts, "not worked" );
+	end
+	return Join( parts );
+end
+
+function CityManage_TileItems( m:table )
+	local items:table = {};
+	for _, t in ipairs( m.tiles or {} ) do
+		table.insert( items, { key = t.key, text = CityManage_TileText( t ), tile = t } );
+	end
+	for _, t in ipairs( m.buy or {} ) do
+		local text:string = CityManage_TileText( t );
+		if m.gold ~= nil and t.cost > m.gold then text = text .. ", need " .. ( t.cost - m.gold ) .. " more"; end
+		table.insert( items, { key = t.key, text = text, tile = t } );
+	end
+	return items;
+end
+
+-- "Campus, 1 of 2 specialists, +2 science each"
+function CityManage_DistrictText( dist:table )
+	local text:string = dist.name .. ", " .. dist.count .. " of " .. dist.max .. ( dist.max == 1 and " specialist" or " specialists" );
+	if dist.perSlot ~= nil and dist.perSlot ~= "" then text = text .. ", " .. dist.perSlot .. " each"; end
+	return text;
+end
+
+function CityManage_DistrictItems( m:table )
+	local items:table = {};
+	for _, dist in ipairs( m.districts or {} ) do
+		table.insert( items, { key = dist.key, text = CityManage_DistrictText( dist ), district = dist } );
+	end
+	return items;
+end
+
+-- Two items per yield: "Food focus, off" (Enter toggles favored) and "Ignore food, off" (Enter toggles ignored)
+function CityManage_FocusItems( m:table )
+	local items:table = {};
+	for _, f in ipairs( m.focus or {} ) do
+		table.insert( items, { key = "favor_" .. f.key, text = f.name .. " focus, " .. ( f.state == "favored" and "on" or "off" ),
+			yield = f, ignore = false, detail = "Citizens prefer tiles with " .. string.lower( f.name ) } );
+	end
+	for _, f in ipairs( m.focus or {} ) do
+		table.insert( items, { key = "ignore_" .. f.key, text = "Ignore " .. string.lower( f.name ) .. ", " .. ( f.state == "ignored" and "on" or "off" ),
+			yield = f, ignore = true, detail = "Citizens avoid tiles with " .. string.lower( f.name ) } );
+	end
+	return items;
+end
+
 function CityReport_BuildItems( d:table )
 	local items:table = {};
 	local function Add( item:table )
@@ -378,6 +490,9 @@ function CityReport_BuildItems( d:table )
 	Guard( function() Add( ProductionItem( d ) ); end );
 	Guard( function() Add( DistrictsItem( d ) ); end );
 	Guard( function() Add( CitizensItem( d ) ); end );
+	Guard( function() Add( FocusItem( d ) ); end );
+	Guard( function() Add( TilesItem( d ) ); end );
+	Guard( function() Add( SpecialistsItem( d ) ); end );
 	Guard( function() Add( ReligionItem( d ) ); end );
 	Guard( function() Add( GreatWorksItem( d ) ); end );
 	Guard( function() Add( TradingPostsItem( d ) ); end );

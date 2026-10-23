@@ -135,3 +135,61 @@ test("a broken section loses only itself", function()
 	eq(find(items, "defense"), nil)
 	istrue(find(items, "citizens") ~= nil)
 end)
+
+local function manage()
+	return {
+		focus = { { key = "food", name = "Food", state = "normal" }, { key = "gold", name = "Gold", state = "ignored" } },
+		tiles = {
+			{ key = "t5", plotIndex = 5, relative = "2 tiles north-east", desc = "Grassland, Farm, 3 Food 1 Production", count = 1, max = 1, locked = true },
+			{ key = "t6", plotIndex = 6, relative = "1 tile west", desc = "Plains, 1 Food 1 Production", count = 0, max = 1, locked = false },
+		},
+		districts = { { key = "d9", plotIndex = 9, name = "Campus", count = 1, max = 2, perSlot = "+2 science", locked = false } },
+		buy = { { key = "b7", plotIndex = 7, relative = "3 tiles east", desc = "Hills, 2 Production", cost = 60 } },
+		gold = 40,
+	}
+end
+
+test("management items are absent without d.manage", function()
+	local items = CityReport_BuildItems(city())
+	eq(find(items, "focus"), nil)
+	eq(find(items, "tiles"), nil)
+	eq(find(items, "specialists"), nil)
+end)
+
+test("management items: focus, tiles, specialists", function()
+	local d = city()
+	d.manage = manage()
+	local items = CityReport_BuildItems(d)
+	eq(find(items, "focus").text, "Focus: none, ignoring gold. Enter to change")
+	eq(find(items, "focus").manage, "focus")
+	eq(find(items, "tiles").text, "Tiles: 5 of 6 citizens on tiles. Enter to manage")
+	eq(find(items, "specialists").text, "Specialists: 1 of 2 slots in Campus. Enter to manage")
+	d.manage.focus[1].state = "favored"
+	d.manage.focus[2].state = "normal"
+	eq(find(CityReport_BuildItems(d), "focus").text, "Focus: food. Enter to change")
+	d.manage.districts = {}
+	eq(find(CityReport_BuildItems(d), "specialists"), nil)
+end)
+
+test("tile lines", function()
+	local items = CityManage_TileItems(manage())
+	eq(#items, 3)
+	eq(items[1].text, "2 tiles north-east, Grassland, Farm, 3 Food 1 Production, worked, locked")
+	eq(items[2].text, "1 tile west, Plains, 1 Food 1 Production, not worked")
+	eq(items[3].text, "3 tiles east, Hills, 2 Production, can buy, 60 gold, need 20 more")
+	eq(CityManage_TileState(items[1].tile), "Locked")
+	eq(CityManage_TileState(items[2].tile), "Not worked")
+	items[1].tile.locked = false
+	eq(CityManage_TileState(items[1].tile), "Worked, not locked")
+end)
+
+test("district and focus lines, totals", function()
+	local m = manage()
+	eq(CityManage_DistrictItems(m)[1].text, "Campus, 1 of 2 specialists, +2 science each")
+	local f = CityManage_FocusItems(m)
+	eq(#f, 4)
+	eq(f[1].text, "Food focus, off")
+	eq(f[3].text, "Ignore food, off")
+	eq(f[4].text, "Ignore gold, on")
+	eq(CityManage_Totals(city()), "Food plus 4, production 12")
+end)

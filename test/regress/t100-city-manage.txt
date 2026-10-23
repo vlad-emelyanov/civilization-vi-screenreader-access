@@ -1,0 +1,34 @@
+# UNVERIFIED (written without the game): city management in the city report. Read only: nothing is changed.
+# medieval-t100: CapitalCity selects the capital, Control+I opens the report; Down x9 reaches Focus (9th) and Tiles (10th)
+# when the report has the loyalty item; Enter on Tiles opens the tile list, Space reads the plot, Escape goes back.
+# no-share-load
+load medieval-t100
+clear-advisors
+action CapitalCity -Settle 1500
+expect ^\S.*, Population \d+
+key Control+I -Settle 2500
+expect ^.+ report, \d+ options
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect ^Focus: .*\. Enter to change, \d+ of \d+
+key Down -Settle 600
+expect ^Tiles: \d+ of \d+ citizens? on tiles\. Enter to manage, \d+ of \d+
+key Enter -Settle 1500
+expect ^Tiles, \d+ options?
+expect , worked(, locked)?, 1 of \d+|not worked, 1 of \d+|can buy, \d+ gold, 1 of \d+
+key Down -Settle 600
+expect ^\d+ tiles? .*, \d+ of \d+
+key Space -Settle 1200
+expect .{10,}
+key Escape -Settle 1000
+expect ^Tiles: \d+ of \d+ citizens? on tiles
+key Escape -Settle 1500
+expect ^Closed
+no-lua-errors
