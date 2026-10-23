@@ -12,6 +12,8 @@ local fakeUnit = { GetID = function() return 7 end, GetX = function() return uni
 local fakeCity = { GetID = function() return 9 end, GetBuildQueue = function() return { GetCurrentProductionTypeHash = function() return production end } end }
 local function members(obj) return function() return function(_, last) if last == nil then return 1, obj end end, nil, nil end end
 
+UnitManager = UnitManager or {}
+UnitManager.GetActivityType = function() return 0 end
 Game.GetLocalPlayer = function() return 0 end
 Game.GetCurrentGameTurn = function() return 50 end
 InterfaceModeTypes = { SELECTION = 1 }

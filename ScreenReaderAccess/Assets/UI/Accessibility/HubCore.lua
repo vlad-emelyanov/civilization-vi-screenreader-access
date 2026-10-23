@@ -145,7 +145,7 @@ local function TestSnapshot()
 	local parts:table = {};
 	for _, unit in player:GetUnits():Members() do
 		table.insert( parts, "u" .. unit:GetID() .. "," .. unit:GetX() .. "," .. unit:GetY() .. "," .. unit:GetMovesRemaining()
-			.. "," .. unit:GetDamage() .. "," .. tostring( unit:GetActivityType() ) );
+			.. "," .. unit:GetDamage() .. "," .. tostring( UnitManager.GetActivityType( unit ) ) );
 	end
 	for _, city in player:GetCities():Members() do
 		table.insert( parts, "c" .. city:GetID() .. "," .. tostring( city:GetBuildQueue():GetCurrentProductionTypeHash() ) );
