@@ -44,3 +44,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavYields','Read yields','Read gold, scie
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavYields',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_G');
 INSERT INTO "InputActions" VALUES ('KeyNavCityReport','City report','Open a keyboard list about the selected city (or your city on the map cursor): yields, growth, amenities, loyalty, defense, production, districts, citizens, religion','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavCityReport',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_I');
+INSERT INTO "InputActions" VALUES ('KeyNavReports','Reports screen','Open or close the Reports screen (yields, resources, city status, gossip)','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavReports',0,'KBMouse','LOC_OPTIONS_KEY_F8');

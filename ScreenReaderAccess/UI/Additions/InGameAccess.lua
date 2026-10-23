@@ -1093,6 +1093,16 @@ end
 -- ===========================================================================
 --	TARGET MODES: entering, confirming (Enter) and cancelling (Escape)
 -- ===========================================================================
+-- F8: the Reports screen has no input action of its own; the top panel button toggles it through these events.
+function H.ToggleReports()
+	local screen = ContextPtr:LookUpControl( "/InGame/ReportScreen" );
+	if screen ~= nil and not screen:IsHidden() then
+		LuaEvents.TopPanel_CloseReportsScreen();
+	else
+		LuaEvents.TopPanel_OpenReportsScreen();
+	end
+end
+
 H.lastModeLine = -1;		-- the target mode of the last mode line and when it was spoken
 H.lastModeTime = -100;
 H.attackTime = -100;		-- UI.GetElapsedTime() of the last confirmed attack
@@ -3040,6 +3050,7 @@ function Initialize()
 	H.RegisterAction( "KeyNavNotifications",		ToggleNotifications );
 	H.RegisterAction( "KeyNavYields",				SpeakYields );
 	H.RegisterAction( "KeyNavCityReport",			ToggleCityReport );
+	H.RegisterAction( "KeyNavReports",			H.ToggleReports );
 	H.RegisterAction( "RangedAttack",			H.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
 	H.RegisterAction( "Attack",					H.CityAttackKey );
 	Listen( Events.InputActionTriggered, H.OnInputActionTriggered );
