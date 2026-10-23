@@ -46,6 +46,16 @@ function HubRegions.SpeakYields()
 	OutputMessageToScreenReader( TopPanelData_Summary() );
 end
 
+-- Control+W: the Great Works screen has no input action of its own; the launch bar toggles it through these events.
+function HubRegions.ToggleGreatWorks()
+	local screen = ContextPtr:LookUpControl( "/InGame/GreatWorksOverview" );
+	if screen ~= nil and not screen:IsHidden() then
+		LuaEvents.LaunchBar_CloseGreatWorksOverview();
+	else
+		LuaEvents.LaunchBar_OpenGreatWorksOverview();
+	end
+end
+
 function HubRegions.OnNotificationsReceived( list:table )
 	m_notifData = list or {};
 	m_notifAnswered = true;

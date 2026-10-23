@@ -220,6 +220,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavYields",				HubRegions.SpeakYields );
 	Hub.RegisterAction( "KeyNavCityReport",			HubCityReport.ToggleCityReport );
 	Hub.RegisterAction( "KeyNavReports",			HubTargets.ToggleReports );
+	Hub.RegisterAction( "KeyNavGreatWorks",		HubRegions.ToggleGreatWorks );
 	Hub.RegisterAction( "RangedAttack",			HubTargets.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
 	Hub.RegisterAction( "Attack",					HubTargets.CityAttackKey );
 	HubCore.Listen( Events.InputActionTriggered, Hub.OnInputActionTriggered );

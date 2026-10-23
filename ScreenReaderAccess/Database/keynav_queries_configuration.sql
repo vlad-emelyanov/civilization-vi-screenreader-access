@@ -46,3 +46,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavCityReport','City report','Open a keyb
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavCityReport',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_I');
 INSERT INTO "InputActions" VALUES ('KeyNavReports','Reports screen','Open or close the Reports screen (yields, resources, city status, gossip)','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavReports',0,'KBMouse','LOC_OPTIONS_KEY_F8');
+INSERT INTO "InputActions" VALUES ('KeyNavGreatWorks','Great Works screen','Open or close the Great Works screen (works, slots, themes)','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavGreatWorks',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_W');
