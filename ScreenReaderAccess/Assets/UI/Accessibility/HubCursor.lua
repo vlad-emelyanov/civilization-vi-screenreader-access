@@ -262,7 +262,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 					local plotIndex:number = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex();
 					local entry:table = byPlot[ plotIndex ];
 					if entry == nil then
-						entry = { key = tostring( plotIndex ), x = unit:GetX(), y = unit:GetY(), distance = distance, hostile = false };
+						entry = { key = tostring( plotIndex ), index = plotIndex, x = unit:GetX(), y = unit:GetY(), distance = distance, hostile = false };
 						byPlot[ plotIndex ] = entry;
 						table.insert( found, entry );
 					end
@@ -278,7 +278,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	table.sort( found, function( a, b )
 		if a.hostile ~= b.hostile then return a.hostile; end
 		if a.distance ~= b.distance then return a.distance < b.distance; end
-		return a.key < b.key;
+		return a.index < b.index;		-- stable: the same order every time the scan is opened
 	end );
 	local next:number = 1;
 	for i, entry in ipairs( found ) do
@@ -286,6 +286,9 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	end
 	m_scanKey = found[ next ].key;
 	HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt );
+	if next == #found and #found > 1 then
+		OutputMessageToScreenReader( "Last target, X wraps to the first", true );
+	end
 end
 
 -- I: details of the cursor plot.

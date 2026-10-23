@@ -74,6 +74,8 @@ function Hub.EnterFallback()
 			return nil;
 		end );
 		if okHint and hint ~= nil and hint ~= "" then text = text .. ". Cannot skip: " .. hint; end
+		local promotion:string = HubAnnounce.PromotionHint( unit );
+		if promotion ~= nil then text = text .. ". " .. promotion; end
 		HubCore.SayResult( text );
 	else
 		HubCore.SayResult( HubCore.Capitalize( CleanTextForSpeech( m_enterLabel ) ) );

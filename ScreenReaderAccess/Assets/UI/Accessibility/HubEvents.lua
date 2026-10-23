@@ -162,6 +162,7 @@ function HubEvents.CombatSide( data:table )
 		end
 		side.name = Locale.Lookup( city:GetName() );
 		side.short = side.name;
+		side.isCity = true;
 	end
 	if data.playerID == Game.GetLocalPlayer() and not side.unseen then side.name = "Your " .. side.name; end
 	return side;
@@ -244,6 +245,15 @@ function HubEvents.OnUnitKilledInCombat( killedPlayer:number, killedId:number, k
 	end
 	local killed:string = NameOf( killedPlayer, killedId ) or "unit";
 	local killer:string = NameOf( killerPlayer, killerId );
+	-- a city or district shot (bombard): the killer is no unit, but the fight announced just before names it
+	local fight:table = m_combat;
+	if killer == nil and fight ~= nil and fight.attacker.isCity and fight.attacker.player == killerPlayer
+			and fight.defender.player == killedPlayer and fight.defender.id == killedId and UI.GetElapsedTime() - fight.time < 15 then
+		killer = fight.attacker.short;
+		OutputMessageToScreenReader( ( killedPlayer == localPlayer and ( "Your " .. killed .. " was killed" ) or ( killed .. " killed" ) ) .. " by " .. killer, true );
+		LuaEvents.SRA_CombatSpoken();
+		return;
+	end
 	local text:string;
 	if killedPlayer == localPlayer then
 		text = "Your " .. killed .. " was killed";

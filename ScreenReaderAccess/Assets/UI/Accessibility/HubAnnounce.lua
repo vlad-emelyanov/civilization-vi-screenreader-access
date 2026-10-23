@@ -62,6 +62,30 @@ function HubAnnounce.UnitText( unit:table )
 	return table.concat( parts, ", " );
 end
 
+-- "in Rome" / "2 tiles south-east of Rome": where a plot is, seen from the nearest own city (nil without cities).
+function HubAnnounce.PositionText( plot:table )
+	local owner:table = Players[ Game.GetLocalPlayer() ];
+	if owner == nil or plot == nil then return nil; end
+	local bestDistance:number, bestCity:table = 99, nil;
+	for _, city in owner:GetCities():Members() do
+		local distance:number = Map.GetPlotDistance( plot:GetX(), plot:GetY(), city:GetX(), city:GetY() );
+		if distance < bestDistance then bestDistance, bestCity = distance, city; end
+	end
+	if bestCity == nil then return nil; end
+	local name:string = Locale.Lookup( bestCity:GetName() );
+	if bestDistance == 0 then return "in " .. name; end
+	local relative:string = PlotDescription_GetRelative( Map.GetPlot( bestCity:GetX(), bestCity:GetY() ), plot );
+	if relative == nil then return nil; end
+	return relative .. " of " .. name;
+end
+
+-- " Promotion available, Shift+U" for a unit that can be promoted (empty otherwise).
+function HubAnnounce.PromotionHint( unit:table )
+	local ok:boolean, can = pcall( function() return unit:GetExperience():CanPromote(); end );
+	if ok and can then return "Promotion available, Shift+U"; end
+	return nil;
+end
+
 -- The settle sentence for a selected settler (after the unit announcement, so it does not interrupt it).
 local m_lastSettleSpoken:string = nil;	-- unit, plot, turn and moves of the last settle sentence
 
@@ -95,6 +119,10 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 	if plot == nil then return; end
 	HubCursor.SetCursor( plot:GetX(), plot:GetY(), false );
 	local text:string = HubAnnounce.UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } );
+	local position:string = HubAnnounce.PositionText( plot );
+	if position ~= nil then text = text .. ", " .. position; end
+	local promotion:string = HubAnnounce.PromotionHint( unit );
+	if promotion ~= nil then text = text .. ". " .. promotion; end
 	if not HubCore.m_ready then
 		-- the game is still loading: it would be spoken before "CONTINUE GAME. Press Enter to start."; said once ready, see OnLoadScreenClose
 		m_pendingUnit = unitID;

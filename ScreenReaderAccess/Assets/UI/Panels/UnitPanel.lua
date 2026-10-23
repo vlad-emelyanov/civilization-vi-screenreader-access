@@ -4362,11 +4362,38 @@ local function SRBuildActions()
 			end
 		end
 	end
-	-- A unit that needs orders but has no Skip Turn (a settler in a besieged city ...): say why, and what else ends the loop
+	-- Fortify / Sleep the engine accepts but the panel did not list (seen on a crossbowman that needed orders while
+	-- D and S worked): add them, so the menu matches the hotkeys.
+	if unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:IsReadyToMove() then
+		for _, opName in ipairs( { "UNITOPERATION_FORTIFY", "UNITOPERATION_SLEEP" } ) do
+			local row = GameInfo.UnitOperations[opName];
+			local listed:boolean = false;
+			for _, entry in ipairs( plain ) do
+				if entry.typeName == opName then listed = true; end
+			end
+			if row ~= nil and not listed then
+				local okStart:boolean, canStart = pcall( function() return ( UnitManager.CanStartOperation( unit, row.Hash, nil, false ) ) end );
+				if okStart and canStart then
+					local hotkey:string = "";
+					local hotkeyId = ( row.HotkeyId ~= nil ) and Input.GetActionId( row.HotkeyId ) or nil;
+					if hotkeyId ~= nil then hotkey = Input.GetGestureDisplayString( hotkeyId, 0 ) or ""; end
+					local unitID:number = unit:GetID();
+					table.insert( m_srActions, { callback = function()
+						local u = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( unitID );
+						if u ~= nil then UnitManager.RequestOperation( u, row.Hash ); end
+					end } );
+					table.insert( plain, {
+						id = #m_srActions, name = Locale.Lookup( row.Description ), hotkey = hotkey, disabled = false, reason = "",
+						detail = "", category = "INPLACE", tag = row.Hash, typeName = opName } );
+				end
+			end
+		end
+	end
+	-- A unit that needs orders but cannot skip, sleep or fortify (a settler in a besieged city ...): say why, and what else ends the loop
 	if unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:IsReadyToMove() then
 		local hasSkip:boolean = false;
 		for _, entry in ipairs( plain ) do
-			if entry.typeName == "UNITOPERATION_SKIP_TURN" then hasSkip = true; end
+			if not entry.disabled and ( entry.typeName == "UNITOPERATION_SKIP_TURN" or entry.typeName == "UNITOPERATION_SLEEP" or entry.typeName == "UNITOPERATION_FORTIFY" ) then hasSkip = true; end
 		end
 		if not hasSkip then
 			local why:string = SRRefusalReason( unit, GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash );
@@ -4382,6 +4409,21 @@ local function SRBuildActions()
 				category = "INPLACE", tag = GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash, typeName = "UNITOPERATION_SKIP_TURN" } );
 		end
 	end
+	-- Main actions first (promotion, build, found, attack, move, fortify, sleep, skip), formation / upgrade / delete last.
+	-- The ids stay valid: they index m_srActions, only the order of the list changes.
+	local function MenuRank( entry:table )
+		local typeName:string = entry.typeName or "";
+		if entry.typeName == "PROMOTION" or typeName == "UNITCOMMAND_PROMOTE" then return 0; end
+		for _, word in ipairs( { "FORMATION", "ESCORT", "CORPS", "ARMY", "UPGRADE", "DELETE", "DISBAND" } ) do
+			if string.find( typeName, word, 1, true ) ~= nil then return 2; end
+		end
+		if string.find( string.lower( entry.name or "" ), "formation", 1, true ) ~= nil then return 2; end
+		return 1;
+	end
+	local ranked:table = {};
+	for i, entry in ipairs( plain ) do ranked[i] = { entry = entry, rank = MenuRank( entry ), index = i }; end
+	table.sort( ranked, function( a, b ) if a.rank ~= b.rank then return a.rank < b.rank; end return a.index < b.index; end );
+	for i, item in ipairs( ranked ) do plain[i] = item.entry; end
 	return plain;
 end
 

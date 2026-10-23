@@ -4074,7 +4074,17 @@ function OnInputActionTriggered( actionId:number )
 		end
 
 		if(capital) then
-			UI.SelectNextCity(capital);
+			-- Begin ScreenReaderAccess mod change
+			-- The game's SelectNextCity(capital) selects the city AFTER the capital, so repeated presses cycled Rome, Ostia, ...:
+			-- select the capital itself, and say so when it already is selected (no selection event then).
+			local selectedCity :table = UI.GetHeadSelectedCity();
+			if selectedCity ~= nil and selectedCity:GetOwner() == capital:GetOwner() and selectedCity:GetID() == capital:GetID() then
+				OutputMessageToScreenReader("Capital: " .. Locale.Lookup(capital:GetName()));
+			else
+				UI.DeselectAllUnits();
+				UI.SelectCity(capital);
+			end
+			-- End ScreenReaderAccess mod change
 			UI.PlaySound("Play_UI_Click");
 		end
 	elseif actionId == m_actionHotkeyOnlinePause then

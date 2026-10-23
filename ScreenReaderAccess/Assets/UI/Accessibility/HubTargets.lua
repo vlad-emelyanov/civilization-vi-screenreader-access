@@ -140,6 +140,25 @@ local function CombatPreviewText( unit:table, plot:table, combatType )
 	return table.concat( parts, ", " );
 end
 
+-- "Attacking Barbarian Horseman": the name of what stands on the plot (a visible foreign unit, else the city).
+local function TargetName( plot:table )
+	if not HubCore.IsPlotVisibleToLocal( plot ) then return nil; end
+	for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+		if other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ) then return PlotDescription_GetUnitName( other ); end
+	end
+	if plot:IsCity() then
+		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+		if city ~= nil then return Locale.Lookup( city:GetName() ); end
+	end
+	return nil;
+end
+
+local function AttackingText( plot:table, fallback:string )
+	local name:string = TargetName( plot );
+	if name == nil then return fallback; end
+	return "Attacking " .. name;
+end
+
 -- Players the move or attack of this unit onto the plot would declare war on (nil: none).
 function HubTargets.WarTargets( unit:table, plot:table )
 	if unit == nil or plot == nil or not HubCore.IsPlotVisibleToLocal( plot ) then return nil; end
@@ -257,6 +276,34 @@ end
 HubTargets.lastModeLine = -1;		-- the target mode of the last mode line and when it was spoken
 HubTargets.lastModeTime = -100;
 HubTargets.attackTime = -100;		-- UI.GetElapsedTime() of the last confirmed attack
+HubTargets.warReturn = nil;			-- { mode, intent, cursor, time }: Enter opened the declare-war dialog; Escape there ends the game's mode
+
+-- Enter on a target that needs a war declaration: remember the mode, so that cancelling the dialog goes back to it.
+local function RememberWarReturn( mode:number )
+	local x:number, y:number = HubCursor.GetCursor();
+	HubTargets.warReturn = { mode = mode, intent = m_attackIntent, x = x, y = y, time = UI.GetElapsedTime() };
+end
+
+-- The mode ended while a war dialog was pending: once the dialog is gone and the war was not declared, choose the target again.
+local function WatchWarReturn( tries:number )
+	local record:table = HubTargets.warReturn;
+	if record == nil then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil or tries > 40 or HubTargets.GetTargetMode() ~= nil then HubTargets.warReturn = nil; return; end
+	local plot:table = Map.GetPlot( record.x, record.y );
+	if plot == nil or HubTargets.WarTargets( unit, plot ) == nil then HubTargets.warReturn = nil; return; end		-- war declared (or the target is gone)
+	local dialog = nil;
+	pcall( function() dialog = ContextPtr:LookUpControl( "/InGame/DeclareWarPopup" ); end );
+	if ( dialog ~= nil and not dialog:IsHidden() ) or ( dialog == nil and tries < 4 ) then
+		HubCore.After( 0.5, function() WatchWarReturn( tries + 1 ); end );
+		return;
+	end
+	HubTargets.warReturn = nil;
+	m_attackIntent = record.intent;
+	UI.SetInterfaceMode( record.mode );
+	HubCursor.SetCursor( record.x, record.y, false );
+	OutputMessageToScreenReader( "War not declared. Still choosing a target: Enter to confirm, Escape to cancel" );
+end
 
 -- City ranged attack: the cursor starts on the nearest tile the city can hit (Enter on the city itself says "No valid target").
 function HubTargets.CursorToNearestCityTarget()
@@ -281,6 +328,45 @@ function HubTargets.CursorToNearestCityTarget()
 	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
 end
 
+-- Why a city cannot make its ranged attack: the engine's own failure reasons first, then damaged walls / district,
+-- then "already attacked" (targets in range but refused) or "no enemy in range".
+function HubTargets.CityAttackReason( city:table )
+	local reasons:table = {};
+	pcall( function()
+		local ok, results = CityManager.CanStartCommand( city, CityCommandTypes.RANGE_ATTACK, true );
+		if type( results ) == "table" and results[CityCommandResults.FAILURE_REASONS] ~= nil then
+			for _, key in ipairs( results[CityCommandResults.FAILURE_REASONS] ) do
+				local text:string = CleanTextForSpeech( Locale.Lookup( key ) );
+				if text ~= "" then table.insert( reasons, text ); end
+			end
+		end
+	end );
+	if #reasons > 0 then return table.concat( reasons, ", " ); end
+	local damaged:string = nil;
+	pcall( function()
+		local district:table = Players[ city:GetOwner() ]:GetDistricts():FindID( city:GetDistrictID() );
+		if district == nil then return; end
+		local wallsMax:number = district:GetMaxDamage( DefenseTypes.DISTRICT_OUTER );
+		local walls:number = district:GetDamage( DefenseTypes.DISTRICT_OUTER );
+		local healthMax:number = district:GetMaxDamage( DefenseTypes.DISTRICT_GARRISON );
+		local health:number = district:GetDamage( DefenseTypes.DISTRICT_GARRISON );
+		if wallsMax > 0 and walls >= wallsMax then
+			damaged = "its walls are destroyed and must be repaired";
+		elseif wallsMax > 0 and walls > 0 then
+			damaged = "its walls are damaged, " .. ( wallsMax - walls ) .. " of " .. wallsMax .. " left";
+		elseif health > 0 and healthMax > 0 then
+			damaged = "the city is damaged, " .. ( healthMax - health ) .. " of " .. healthMax .. " health";
+		end
+	end );
+	local targets:table = GetCityAttackTargets( city );
+	local hasTargets:boolean = targets ~= nil and next( targets ) ~= nil;
+	if hasTargets then
+		return "it already attacked this turn" .. ( damaged ~= nil and ( ", or " .. damaged ) or "" );
+	end
+	if damaged ~= nil and not hasTargets then return "no enemy in range, and " .. damaged; end
+	return "no enemy in range";
+end
+
 -- R and W with a city selected (UnitPanel is hidden then and says nothing): open the city's ranged attack, or say why not.
 function HubTargets.CityAttackKey()
 	if not HubCore.IsLocalPlayerActive() or HubTargets.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
@@ -290,7 +376,7 @@ function HubTargets.CityAttackKey()
 	if CityManager.CanStartCommand( city, CityCommandTypes.RANGE_ATTACK ) then
 		UI.SetInterfaceMode( InterfaceModeTypes.CITY_RANGE_ATTACK );
 	else
-		OutputMessageToScreenReader( name .. " can't attack: no enemy in range, or it already attacked this turn" );
+		OutputMessageToScreenReader( name .. " can't attack: " .. HubTargets.CityAttackReason( city ) );
 	end
 end
 
@@ -308,6 +394,9 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 		return;
 	end
 	HubCore.m_enterWatch = -1;
+	if HubTargets.warReturn ~= nil and m_targetModes[ newMode ] == nil and UI.GetElapsedTime() - HubTargets.warReturn.time < 3 then
+		HubCore.After( 0.5, function() WatchWarReturn( 0 ); end );
+	end
 	if newMode ~= InterfaceModeTypes.MOVE_TO then m_attackIntent = false; end
 	local label:string = m_targetModes[ newMode ];
 	if label == nil then return; end
@@ -389,31 +478,44 @@ function HubTargets.ConfirmTarget()
 		end
 		local war:table = HubTargets.WarTargets( unit, plot );
 		local enemy:boolean = EnemyVisibleAt( plot );
+		local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
+		local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
 		if war == nil then
 			if m_attackIntent and not enemy then
 				HubCore.SayResult( "No enemy there, choose a target" );
 				return;
 			end
-			local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
-			if path == nil or path.plots == nil or #path.plots < 2 then
+			if not reachable then
 				HubCore.SayResult( "Unreachable" );
 				return;
 			end
 		end
+		local attackName:string = ( enemy or war ~= nil ) and TargetName( plot ) or nil;
+		if war ~= nil then RememberWarReturn( mode ); end
 		HubTargets.IssueMoveOrder( unit, plot, war, enemy );
 		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+		-- an attack move from afar is a move order first (the settler's "Moving, N turns" has its own line in HubEvents)
+		if war == nil and enemy and reachable then
+			local turns:number = path.turns[ #path.turns ] or 1;
+			if turns > 1 or #path.plots > 2 then
+				HubCore.SayResult( "Moving to attack" .. ( attackName ~= nil and ( " " .. attackName ) or "" ) .. ", " .. HubCore.Plural( turns, "turn", "turns" ) );
+			else
+				HubCore.SayResult( AttackingText( plot, "Attacking" ) );
+			end
+		end
 	elseif mode == InterfaceModeTypes.RANGE_ATTACK and unit ~= nil then
 		local parameters:table = {};
 		parameters[UnitOperationTypes.PARAM_X] = x;
 		parameters[UnitOperationTypes.PARAM_Y] = y;
 		local war:table = HubTargets.WarTargets( unit, plot );
 		if war ~= nil then
+			RememberWarReturn( mode );
 			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
 		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.RANGE_ATTACK, nil, parameters ) then
 			UnitManager.RequestOperation( unit, UnitOperationTypes.RANGE_ATTACK, parameters );
 			HubTargets.attackTime = UI.GetElapsedTime();
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-			HubCore.SayResult( "Ranged attack" );
+			HubCore.SayResult( AttackingText( plot, "Ranged attack" ) );		-- the combat line arrives seconds later
 		else
 			HubCore.SayResult( "No valid target there" );
 		end
@@ -423,11 +525,12 @@ function HubTargets.ConfirmTarget()
 		parameters[UnitOperationTypes.PARAM_Y] = y;
 		local war:table = HubTargets.WarTargets( unit, plot );
 		if war ~= nil then
+			RememberWarReturn( mode );
 			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
 		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.AIR_ATTACK, nil, parameters ) then
 			UnitManager.RequestOperation( unit, UnitOperationTypes.AIR_ATTACK, parameters );
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-			HubCore.SayResult( "Air attack" );
+			HubCore.SayResult( AttackingText( plot, "Air attack" ) );
 		else
 			HubCore.SayResult( "No valid target there" );
 		end
@@ -440,7 +543,7 @@ function HubTargets.ConfirmTarget()
 			return;
 		end
 		HubTargets.attackTime = UI.GetElapsedTime();
-		HubCore.SayResult( "Attacking" );		-- the combat line arrives seconds later
+		HubCore.SayResult( AttackingText( plot, "Attacking" ) );		-- the combat line arrives seconds later
 		-- the same request WorldInput's CityRangeAttack/DistrictRangeAttack send on a click; the click itself depends on
 		-- the real mouse hover (UI.GetCursorPlotID) and did not reach the target in the 2026-10-23 test
 		local params:table = {};
