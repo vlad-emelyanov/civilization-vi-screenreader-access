@@ -39,103 +39,11 @@ local m_enterLabel			:string = "";		-- what the action panel said Enter would do
 local m_menuItems			:table = {};		-- items of the unit actions menu, fetched when it opens
 local m_spottedTurn			:number = -1;		-- turn m_spottedCount counts
 local m_spottedCount		:number = 0;
-local m_settleItems			:table = {};		-- its items, from the scan made when it opened
 local m_notifData			:table = {};		-- notifications sent by NotificationPanel (SRA_Notifications), plain data
 local m_notifAnswered		:boolean = false;	-- NotificationPanel answered the last SRA_RequestNotifications
 local m_placeScan			:table = nil;		-- PlacementScan result of the open placement mode (district / wonder browser)
 local m_placeParams			:table = nil;		-- insert-mode parameters read from the interface mode when placement began
 local m_placeBusy			:boolean = false;	-- a tile purchase is waiting for its rescan: Enter says "Wait"
-
--- ===========================================================================
---	SETTLE SPOT BROWSER (X with a settler selected): candidates from SettleScan, best first
--- ===========================================================================
-local m_settleList:table;
-
--- Browsing moved the cursor over the candidates: back to the settler (not when the mode went stale).
-local function SettleClosed( quiet:boolean )
-	if quiet then return; end
-	local unit:table = UI.GetHeadSelectedUnit();
-	if unit ~= nil then HubCursor.SetCursor( unit:GetX(), unit:GetY(), false ); end
-end
-
-local function BuildSettleItems()
-	return m_settleItems;
-end
-
--- "2 tiles north-east, 1 turn, river, coast, silk, recommended" / "Here, river, wine"
-local function SettleItemText( c:table )
-	local text:string = c.here and "Here" or ( c.relative .. ", " .. HubCore.Plural( c.turns, "turn", "turns" ) );
-	text = text .. HubCore.SettleReasons( c, 3, 2 );
-	if c.recommended then text = text .. ", recommended"; end
-	return text;
-end
-
-local function OpenSettleBrowser( unit:table )
-	local scan:table = SettleScan_Scan( unit, true );		-- the player asked: look again, the map may have changed
-	m_settleItems = {};
-	for _, c in ipairs( scan.list ) do
-		table.insert( m_settleItems, { key = c.key, text = SettleItemText( c ), detail = c.detail, candidate = c } );
-	end
-	if #m_settleItems == 0 then
-		OutputMessageToScreenReader( "No spot to settle found nearby" .. ( ( scan.hereReason ~= nil and scan.hereReason ~= "" ) and ( ", here: " .. scan.hereReason ) or "" ) );
-		return;
-	end
-	HubCore.OpenMode( "settle", m_settleList, "Settle spots", SettleClosed );
-end
-
--- Enter on a spot: the settler walks there (the same path as the move-to mode), or on the spot it stands on: B founds.
-local function SettleGo( item:table )
-	local unit:table = UI.GetHeadSelectedUnit();
-	HubCore.CloseMode( false, false );
-	if not HubCore.IsSettler( unit ) then
-		HubCore.SayResult( "No settler selected" );
-		return;
-	end
-	local c:table = item.candidate;
-	local plot:table = Map.GetPlotByIndex( c.plotIndex );
-	local ok:boolean, extra = SettleScan_CanFound( unit, plot );
-	if c.here or ( unit:GetX() == c.x and unit:GetY() == c.y ) then
-		if not ok then
-			HubCore.SayResult( "Cannot settle here" .. ( ( extra ~= nil and extra ~= "" ) and ( ": " .. extra ) or "" ) );
-		elseif extra == true then
-			HubCore.SayResult( "B to found next turn" );
-		else
-			HubCore.SayResult( "B to found the city here" );
-		end
-		return;
-	end
-	if not ok then
-		HubCore.SayResult( "Cannot settle there any more" .. ( ( extra ~= nil and extra ~= "" ) and ( ": " .. extra ) or "" ) );
-		return;
-	end
-	local war:table = HubTargets.WarTargets( unit, plot );
-	local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
-	if war == nil and ( path == nil or path.plots == nil or #path.plots < 2 ) then
-		HubCore.SayResult( "Unreachable" );
-		return;
-	end
-	HubTargets.IssueMoveOrder( unit, plot, war, false );
-end
-
-m_settleList = KeyNavList_Create{
-	build		= BuildSettleItems,
-	isActive	= function() return HubCore.IsModeOpen( "settle" ); end,
-	onActivate	= SettleGo,
-	onClose		= function() HubCore.CloseMode( true, false ); end,
-	onFocus		= function( item ) HubCursor.SetCursor( item.candidate.x, item.candidate.y, false, nil, true ); end,
-};
-
--- X: with a settler selected the spot browser, otherwise the scan for foreign units.
-local function ScanKey()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	if HubCore.IsModeOpen( "settle" ) then HubCore.CloseMode( true, false ); return; end
-	local unit:table = UI.GetHeadSelectedUnit();
-	if HubCore.IsSettler( unit ) and HubTargets.GetTargetMode() == nil then
-		OpenSettleBrowser( unit );
-		return;
-	end
-	HubCursor.ScanUnits( true );
-end
 
 -- ===========================================================================
 --	PLACEMENT BROWSER: district and wonder placement by keyboard. The game enters DISTRICT_PLACEMENT / BUILDING_PLACEMENT
@@ -1725,6 +1633,7 @@ include( "HubCore" );
 include( "HubCursor" );
 include( "HubTargets" );
 include( "HubAnnounce" );
+include( "HubSettle" );
 
 -- ===========================================================================
 function Initialize()
@@ -1751,7 +1660,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavUnitActions",		ToggleUnitMenu );
 	Hub.RegisterAction( "KeyNavSelectAtCursor",		HubCursor.SelectAtCursor );
 	Hub.RegisterAction( "KeyNavCycleAllUnits",		HubCursor.CycleAllUnits );
-	Hub.RegisterAction( "KeyNavScanUnits",			ScanKey );
+	Hub.RegisterAction( "KeyNavScanUnits",			HubSettle.ScanKey );
 	Hub.RegisterAction( "KeyNavDiplomacy",			ToggleCivMenu );
 	Hub.RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
 	Hub.RegisterAction( "KeyNavNotifications",		ToggleNotifications );
