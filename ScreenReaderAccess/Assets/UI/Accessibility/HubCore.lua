@@ -329,7 +329,12 @@ function HubCore.UpdateSpeech( deltaTime:number )
 			local queue:table = speech.queue;
 			speech.queue = {};
 			speech.releaseTimer = -1;
-			for _, entry in ipairs( queue ) do OutputMessageToScreenReader( entry.text, true ); end
+			for _, entry in ipairs( queue ) do
+				-- "All done" that waited for a popup is only true if nothing blocks the turn now
+				if entry.kind ~= "ready" or HubAnnounce == nil or HubAnnounce.IsReadyNow == nil or HubAnnounce.IsReadyNow() then
+					OutputMessageToScreenReader( entry.text, true );
+				end
+			end
 		end
 	end
 	if HubAnnounce ~= nil and HubAnnounce.UpdateReadyWatch ~= nil then HubAnnounce.UpdateReadyWatch( deltaTime ); end

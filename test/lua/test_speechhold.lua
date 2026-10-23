@@ -139,3 +139,28 @@ test("description comes first, name once", function()
 	eq(SRDescriptionFirst("Granary", "A store.", "GRANARY"), "Granary: A store.")
 	Locale.Lookup = Lookup
 end)
+
+test("a queued ready sentence is dropped when the turn is no longer ready", function()
+	reset()
+	local ready = true
+	local real = HubAnnounce.IsReadyNow
+	local realWatch = HubAnnounce.UpdateReadyWatch
+	HubAnnounce.UpdateReadyWatch = function() end
+	HubAnnounce.IsReadyNow = function() return ready end
+	HubCore.SetSpeechHold("a", true)
+	HubCore.Announce("All done. Enter ends the turn", true, "ready")
+	HubCore.Announce("Settler", true, "selection")
+	ready = false
+	HubCore.SetSpeechHold("a", false)
+	tick(0.5)
+	eq(table.concat(Spoken(), "|"), "Settler")
+	reset()
+	ready = true
+	HubCore.SetSpeechHold("a", true)
+	HubCore.Announce("All done. Enter ends the turn", true, "ready")
+	HubCore.SetSpeechHold("a", false)
+	tick(0.5)
+	eq(table.concat(Spoken(), "|"), "All done. Enter ends the turn")
+	HubAnnounce.IsReadyNow = real
+	HubAnnounce.UpdateReadyWatch = realWatch
+end)

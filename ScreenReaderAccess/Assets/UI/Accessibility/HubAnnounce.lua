@@ -308,13 +308,18 @@ local function IsNextTurnLabel()
 	return string.lower( CleanTextForSpeech( text ) ) == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEXT_TURN" ) ) );
 end
 
+-- Is the turn ready right now (also used when a queued "All done" is released)?
+function HubAnnounce.IsReadyNow()
+	local player:table = Players[ Game.GetLocalPlayer() or -1 ];
+	return HubCore.m_ready and player ~= nil and player:IsTurnActive() and IsNextTurnLabel();
+end
+
 function HubAnnounce.UpdateReadyWatch( deltaTime:number )
 	m_ready.poll = m_ready.poll - deltaTime;
 	if m_ready.poll > 0 then return; end
 	local elapsed:number = READY_POLL - m_ready.poll;		-- time since the last poll (at least READY_POLL)
 	m_ready.poll = READY_POLL;
-	local player:table = Players[ Game.GetLocalPlayer() or -1 ];
-	local isReady:boolean = HubCore.m_ready and player ~= nil and player:IsTurnActive() and IsNextTurnLabel();
+	local isReady:boolean = HubAnnounce.IsReadyNow();
 	if not isReady then
 		m_ready.stable = 0;
 		m_ready.armed = true;
