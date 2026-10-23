@@ -6,6 +6,10 @@ include("InstanceManager");
 include("SupportFunctions");
 include("TabSupport");
 include("LeaderIcon");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
+include("ReportText");		-- ScreenReaderAccess
+print("ScreenReaderAccess: ReportScreen copy loaded");		-- ScreenReaderAccess
 
 
 -- ===========================================================================
@@ -84,12 +88,416 @@ local m_uiGossipFilterInstance:table = {};
 
 local m_kGossipGroupTypes:table	= {};
 
+-- ScreenReaderAccess
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech for the Reports screen
+--	Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs (the game's own tab callbacks, so the data is refreshed),
+--	Up/Down/Home/End walk the items of the tab, Space (or Enter) reads the details, Escape closes. Every keyboard event is
+--	swallowed while the screen is open except the function keys.
+--	Items are built from the screen's own data at key time: m_kCityData, m_kResourceData, m_kUnitData, m_kDealData and the
+--	gossip log are file-local tables filled by Open/GetData; the rows that only exist as controls (the yield breakdown per
+--	city, the totals, the expenses) are recorded as plain values by the SRA_Record* hooks inside ViewYieldsPage.
+--	The wording is in Accessibility/ReportText.lua.
+-- ===========================================================================
+local m_srList					:table = nil;
+local m_srCityLines				:table = {};		-- city id -> { { name, yields } } breakdown rows of the city income group
+local m_srPendingLine			:table = nil;		-- last line item created: its cells are read when the next one starts (some are set after creation)
+local m_srCurrentCity			= nil;
+local m_srBuildingExpenses		:table = {};
+local m_srUnitExpenses			:table = {};
+local m_srTotals				:table = nil;
+local m_srErrorHandler			= KeyNavErrorHandler;
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Safe( fn, what:string )
+	local ok:boolean, err = xpcall( fn, m_srErrorHandler );
+	if not ok then print( "ReportScreen " .. what .. " error: " .. tostring( err ) ); end
+end
+
+local function SRA_Text( key:string )
+	return CleanTextForSpeech( Locale.Lookup( key ) );
+end
+
+-- ---------------------------------------------------------------------------
+--	Hooks in ViewYieldsPage
+-- ---------------------------------------------------------------------------
+local function SRA_FlushLine()
+	local pending:table = m_srPendingLine;
+	m_srPendingLine = nil;
+	if pending == nil or m_srCurrentCity == nil then return; end
+	local inst:table = pending.inst;
+	local yields:table = {
+		{ label = "production",	value = inst.Production:GetText() },
+		{ label = "food",		value = inst.Food:GetText() },
+		{ label = "gold",		value = inst.Gold:GetText() },
+		{ label = "science",	value = inst.Science:GetText() },
+		{ label = "culture",	value = inst.Culture:GetText() },
+		{ label = "faith",		value = inst.Faith:GetText() },
+	};
+	table.insert( m_srCityLines[ m_srCurrentCity ], { name = pending.name, yields = yields } );
+end
+
+local function SRA_BeginYields()
+	m_srCityLines = {};
+	m_srPendingLine = nil;
+	m_srCurrentCity = nil;
+	m_srBuildingExpenses = {};
+	m_srUnitExpenses = {};
+	m_srTotals = nil;
+end
+
+local function SRA_BeginCity( kCityData:table )
+	SRA_FlushLine();
+	m_srCurrentCity = kCityData.City:GetID();
+	m_srCityLines[ m_srCurrentCity ] = {};
+end
+
+local function SRA_RecordLine( name:string, lineInstance:table )
+	SRA_FlushLine();
+	local clean:string = CleanTextForSpeech( name );
+	m_srPendingLine = { name = clean, inst = lineInstance };
+end
+
+local function SRA_RecordBuildingExpense( cityName:string, buildingName:string, maintenance:number )
+	table.insert( m_srBuildingExpenses, { city = SRA_Text( cityName ), name = SRA_Text( buildingName ), maintenance = maintenance } );
+end
+
+local function SRA_RecordUnitExpense( unitName:string, count:number, maintenance:number )
+	table.insert( m_srUnitExpenses, { name = SRA_Text( unitName ), count = count, maintenance = maintenance } );
+end
+
+local function SRA_RecordTotals( totals:table )
+	SRA_FlushLine();
+	m_srTotals = totals;
+end
+
+-- ---------------------------------------------------------------------------
+--	Items per tab
+-- ---------------------------------------------------------------------------
+local function SRA_Cities()
+	return m_kCityData or {};
+end
+
+local function SRA_YieldsItems()
+	local items:table = {};
+	for _, d in ipairs( SRA_Cities() ) do
+		local id:number = d.City:GetID();
+		local lines:table = {};
+		for _, line in ipairs( m_srCityLines[ id ] or {} ) do
+			table.insert( lines, ReportText_LineItem( line.name, line.yields ) );
+		end
+		local detail:string = table.concat( lines, ". " );
+		table.insert( items, {
+			key = "city:" .. id, section = "City income",
+			text = ReportText_CityIncome( SRA_Text( d.CityName ), {
+				{ label = "production", value = d.ProductionPerTurn }, { label = "food", value = d.FoodPerTurn },
+				{ label = "gold", value = d.GoldPerTurn }, { label = "science", value = d.SciencePerTurn },
+				{ label = "culture", value = d.CulturePerTurn }, { label = "faith", value = d.FaithPerTurn },
+				{ label = "tourism", value = d.WorkedTileYields and d.WorkedTileYields["TOURISM"] or 0 } } ),
+			detail = ( detail ~= "" ) and detail or nil } );
+	end
+
+	local totals:table = m_srTotals;
+	if totals ~= nil then
+		local c:table = totals.cities;
+		table.insert( items, { key = "total:cities", section = "Totals",
+			text = "All cities: " .. ReportText_YieldList( {
+				{ label = "gold", value = c.gold }, { label = "science", value = c.science }, { label = "culture", value = c.culture },
+				{ label = "faith", value = c.faith }, { label = "tourism", value = c.tourism } }, true ) } );
+		local currencies:table = { { "gold", "Gold" }, { "science", "Science" }, { "culture", "Culture" }, { "faith", "Faith" }, { "tourism", "Tourism" } };
+		for _, pair in ipairs( currencies ) do
+			local t:table = totals[ pair[1] ];
+			if t ~= nil then
+				table.insert( items, { key = "total:" .. pair[1], section = "Totals",
+					text = ReportText_Currency( pair[2], t.income, t.expense, t.net, t.balance ) } );
+			end
+		end
+	end
+
+	if #m_srBuildingExpenses > 0 then
+		local sum:number = 0;
+		local lines:table = {};
+		for _, e in ipairs( m_srBuildingExpenses ) do
+			sum = sum + e.maintenance;
+			table.insert( lines, ReportText_BuildingExpense( e.city, e.name, e.maintenance ) );
+		end
+		table.insert( items, { key = "bexp:total", section = "Building expenses",
+			text = "Building expenses: minus " .. sum .. " gold in total, " .. ReportText_Plural( #lines, "entry", "entries" ),
+			detail = table.concat( lines, ". " ) } );
+		for i, e in ipairs( m_srBuildingExpenses ) do
+			table.insert( items, { key = "bexp:" .. i, section = "Building expenses", text = ReportText_BuildingExpense( e.city, e.name, e.maintenance ) } );
+		end
+	end
+
+	if #m_srUnitExpenses > 0 then
+		local sorted:table = {};
+		local sum:number = 0;
+		for _, e in ipairs( m_srUnitExpenses ) do
+			table.insert( sorted, e );
+			sum = sum + e.maintenance;
+		end
+		table.sort( sorted, function( a, b ) return a.name < b.name; end );
+		table.insert( items, { key = "uexp:total", section = "Unit expenses", text = "Unit maintenance: minus " .. sum .. " gold in total" } );
+		for _, e in ipairs( sorted ) do
+			table.insert( items, { key = "uexp:" .. e.name, section = "Unit expenses", text = ReportText_UnitExpense( e.name, e.count, e.maintenance ) } );
+		end
+	end
+
+	for i, deal in ipairs( m_kDealData or {} ) do
+		local thing:string;
+		if deal.Type == DealItemTypes.GOLD then
+			thing = deal.Amount .. " gold per turn";
+		else
+			local info:table = GameInfo.Resources[ deal.ResourceType ];
+			thing = deal.Amount .. " " .. ( info and SRA_Text( info.Name ) or "resources" );
+		end
+		table.insert( items, { key = "deal:" .. i, section = "Diplomatic deals",
+			text = ReportText_Deal( SRA_Text( deal.Name ), deal.IsOutgoing, thing, deal.Duration ) } );
+	end
+	return items;
+end
+
+local SRA_RESOURCE_KINDS:table = {
+	LOC_HUD_REPORTS_TRADE_OWNED = "owned", LOC_HUD_REPORTS_TRADE_EXPORTED = "exported",
+	LOC_HUD_REPORTS_TRADE_IMPORTED = "imported", LOC_CITY_STATES_SUZERAIN = "city-state", ["-"] = "",
+};
+
+local function SRA_ResourcesItems()
+	local items:table = {};
+	local localPlayer:table = Players[ Game.GetLocalPlayer() ];
+	local classes:table = { { "IsLuxury", "luxury" }, { "IsStrategic", "strategic" }, { "IsBonus", "bonus" } };
+	for _, class in ipairs( classes ) do
+		local group:table = {};
+		for eResourceType, kRes in pairs( m_kResourceData or {} ) do
+			if kRes[ class[1] ] then table.insert( group, { type = eResourceType, data = kRes, name = SRA_Text( GameInfo.Resources[ eResourceType ].Name ) } ); end
+		end
+		table.sort( group, function( a, b ) return a.name < b.name; end );
+		for _, entry in ipairs( group ) do
+			local kRes:table = entry.data;
+			local exported:number, imported:number = 0, 0;
+			local entries:table = {};
+			for _, kEntry in ipairs( kRes.EntryList ) do
+				local kind:string = SRA_RESOURCE_KINDS[ kEntry.ControlText ] or string.lower( SRA_Text( kEntry.ControlText ) );
+				if kind == "exported" then exported = exported - kEntry.Amount; end
+				if kind == "imported" then imported = imported + kEntry.Amount; end
+				table.insert( entries, { source = SRA_Text( kEntry.EntryText ), kind = kind, amount = kEntry.Amount } );
+			end
+			local allocations:table = {};
+			local cityCount:number = 0;
+			if localPlayer ~= nil then
+				local provided:table = localPlayer:GetResources():GetResourceAllocationCities( entry.type );
+				local playerCities:table = localPlayer:GetCities();
+				for _, city in ipairs( provided or {} ) do
+					local pCity:table = playerCities:FindID( city.CityID );
+					if pCity ~= nil then
+						cityCount = cityCount + 1;
+						table.insert( allocations, city.AllocationAmount .. " to " .. SRA_Text( pCity:GetName() ) );
+					end
+				end
+			end
+			table.insert( items, { key = "res:" .. entry.type, section = ( class[2] == "luxury" and "Luxuries" or class[2] == "strategic" and "Strategic resources" or "Bonus resources" ),
+				text = ReportText_Resource{ name = entry.name, class = class[2], total = kRes.Total, stockpile = kRes.Stockpile, maximum = kRes.Maximum,
+					amenityCities = cityCount, exported = exported, imported = imported },
+				detail = ReportText_ResourceDetail( entry.name, entries, allocations ) } );
+		end
+	end
+	return items;
+end
+
+local function SRA_GrowthStatus( d:table )
+	local key:string;
+	if d.HousingMultiplier == 0 or d.Occupied then
+		key = "LOC_HUD_REPORTS_STATUS_HALTED";
+	elseif d.HousingMultiplier <= 0.5 then
+		key = "LOC_HUD_REPORTS_STATUS_SLOWED";
+	elseif d.HappinessGrowthModifier > 0 then
+		key = "LOC_HUD_REPORTS_STATUS_ACCELERATED";
+	else
+		key = "LOC_HUD_REPORTS_STATUS_NORMAL";
+	end
+	return SRA_Text( key );
+end
+
+local function SRA_CityStatusItem( d:table )
+	local status:table = {
+		name = SRA_Text( d.CityName ), population = d.Population, housing = d.Housing, growthStatus = SRA_GrowthStatus( d ),
+		turnsUntilGrowth = d.TurnsUntilGrowth, amenities = d.AmenitiesNum, amenitiesRequired = d.AmenitiesRequiredNum,
+		warWeariness = d.AmenitiesLostFromWarWeariness, siege = d.IsUnderSiege, occupied = d.Occupied,
+		strength = d.Defense, damage = d.Damage,
+	};
+	local happiness:table = GameInfo.Happinesses[ d.Happiness ];
+	if happiness ~= nil then status.happiness = SRA_Text( happiness.Name ); end
+	local q:table = d.ProductionQueue and d.ProductionQueue[1] or nil;
+	if q == nil or ( q.Cost or 0 ) == 0 then
+		status.production = "nothing";
+	else
+		status.production = SRA_Text( q.Name );
+		status.productionTurns = q.Turns;
+	end
+	local identity = d.City.GetCulturalIdentity and d.City:GetCulturalIdentity() or nil;		-- Rise and Fall and later
+	if identity ~= nil then
+		status.loyalty = identity:GetLoyalty();
+		status.maxLoyalty = identity:GetMaxLoyalty();
+		status.loyaltyPerTurn = identity:GetLoyaltyPerTurn();
+	end
+	local amenityText:string = ReportText_YieldList( {
+		{ label = "from luxuries", value = d.AmenitiesFromLuxuries }, { label = "from entertainment", value = d.AmenitiesFromEntertainment },
+		{ label = "from civics", value = d.AmenitiesFromCivics }, { label = "from great people", value = d.AmenitiesFromGreatPeople },
+		{ label = "from city-states", value = d.AmenitiesFromCityStates }, { label = "from religion", value = d.AmenitiesFromReligion },
+		{ label = "from national parks", value = d.AmenitiesFromNationalParks }, { label = "from the era", value = d.AmenitiesFromStartingEra },
+		{ label = "from improvements", value = d.AmenitiesFromImprovements }, { label = "from governors", value = d.AmenitiesFromGovernors } }, true );
+	local detail = nil;
+	if amenityText ~= "" then detail = status.name .. ", amenities " .. amenityText; end
+	return { key = "city:" .. d.City:GetID(), text = ReportText_CityStatus( status ), detail = detail };
+end
+
+local function SRA_CityStatusItems()
+	local items:table = {};
+	for _, d in ipairs( SRA_Cities() ) do table.insert( items, SRA_CityStatusItem( d ) ); end
+	return items;
+end
+
+local function SRA_GossipItems()
+	local items:table = {};
+	for i, entry in ipairs( m_kGossipLogFiltered or {} ) do
+		local detail:string = nil;
+		local config:table = PlayerConfigurations[ entry[4] ];
+		if config ~= nil then detail = "About " .. SRA_Text( config:GetLeaderName() ); end
+		table.insert( items, { key = "gossip:" .. i .. ":" .. tostring( entry[2] ), text = ReportText_Gossip( entry[2], entry[1] ), detail = detail } );
+	end
+	return items;
+end
+
+local SRA_EMPTY:table = {};
+SRA_EMPTY[ REPORT_PAGES.YIELDS ]		= "No cities";
+SRA_EMPTY[ REPORT_PAGES.RESOURCES ]		= "No resources";
+SRA_EMPTY[ REPORT_PAGES.CITY_STATUS ]	= "No cities";
+SRA_EMPTY[ REPORT_PAGES.GOSSIP ]		= "No gossip yet";
+
+local function SRA_Items()
+	local items:table;
+	if m_CurrentReportTab == REPORT_PAGES.RESOURCES then
+		items = SRA_ResourcesItems();
+	elseif m_CurrentReportTab == REPORT_PAGES.CITY_STATUS then
+		items = SRA_CityStatusItems();
+	elseif m_CurrentReportTab == REPORT_PAGES.GOSSIP then
+		items = SRA_GossipItems();
+	else
+		items = SRA_YieldsItems();
+	end
+	if #items == 0 then
+		items = { { key = "none", text = SRA_EMPTY[ m_CurrentReportTab ] or "Nothing to show" } };
+	end
+	return items;
+end
+
+-- ---------------------------------------------------------------------------
+--	Tabs, open, input
+-- ---------------------------------------------------------------------------
+local function SRA_Tabs()
+	local labels:table = {};
+	local current:number = 0;
+	if m_kTabs == nil then return labels, current; end
+	for i, control in ipairs( m_kTabs.tabControls ) do
+		table.insert( labels, CleanTextForSpeech( control:GetTextControl():GetText() ) );
+		if control == m_kTabs.selectedControl then current = i; end
+	end
+	return labels, current;
+end
+
+local function SRA_ReadDetail()
+	local items:table = SRA_Items();
+	local key = m_srList.GetFocusKey();
+	for _, item in ipairs( items ) do
+		if item.key == key then
+			SRA_Say( item.detail or "No further details" );
+			return;
+		end
+	end
+	SRA_Say( "No further details" );
+end
+
+local function SRA_EnsureList()
+	if m_srList ~= nil then return; end
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = SRA_ReadDetail,
+	};
+end
+
+local function SRA_AnnounceTab( prefix:string, nointerrupt:boolean )
+	SRA_EnsureList();
+	local labels:table, current:number = SRA_Tabs();
+	m_srList.Reset();
+	local items:table = SRA_Items();
+	m_srList.Open( "Reports", items[1].key, true );
+	local tab:string = ( current > 0 ) and ( ReportText_Tab( labels[ current ], current, #labels ) .. ". " ) or "";
+	local first:string = items[1].text;
+	if items[1].section ~= nil then first = items[1].section .. ": " .. first; end
+	SRA_Say( ( prefix or "" ) .. tab .. first .. ", 1 of " .. #items, nointerrupt );
+end
+
+local function SRA_SwitchTab( delta:number )
+	local labels:table, current:number = SRA_Tabs();
+	if #labels == 0 then SRA_Say( "No tabs" ); return; end
+	local target:number;
+	if current == 0 then
+		target = ( delta > 0 ) and 1 or #labels;
+	else
+		target = current + delta;
+		if target < 1 then target = #labels; end
+		if target > #labels then target = 1; end
+	end
+	m_kTabs.SelectTab( target );		-- the tab's own callback: shows it and refills the rows
+	SRA_AnnounceTab( "", false );
+end
+
+local function SRA_Opened()
+	SRA_Safe( function() SRA_AnnounceTab( "Reports. ", true ); end, "announce" );
+end
+
+local function SRA_Closed()
+	SRA_Say( "Reports closed" );
+end
+
+local function SRA_IsFunctionKey( key:number )
+	for n = 1, 12 do
+		if Keys[ "VK_F" .. n ] ~= nil and Keys[ "VK_F" .. n ] == key then return true; end
+	end
+	return false;
+end
+
+local function SRA_HandleInput( input:table )
+	if ContextPtr:IsHidden() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = input:GetKey();
+	if SRA_IsFunctionKey( key ) then return false; end
+	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+	if key == Keys.VK_TAB then
+		if isUp then SRA_Safe( function() SRA_SwitchTab( ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1 ); end, "tab" ); end
+		return true;
+	elseif key == Keys.VK_ESCAPE then
+		if isUp then SRA_Safe( Close, "close" ); end
+		return true;
+	end
+	SRA_EnsureList();
+	m_srList.HandleInput( input );
+	return true;		-- everything else is swallowed while the screen is open
+end
+-- End ScreenReaderAccess
+
 -- ===========================================================================
 --	Single exit point for display
 -- ===========================================================================
 function Close()
 	if not ContextPtr:IsHidden() then
 		UI.PlaySound("UI_Screen_Close");
+		SRA_Closed();		-- ScreenReaderAccess
 	end
 
 	UIManager:DequeuePopup(ContextPtr);
@@ -122,6 +530,7 @@ function Open( tabToOpen:number )
 	
 	Resize();
 	m_kTabs.SelectTab( tabToOpen );
+	SRA_Opened();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -742,6 +1151,7 @@ function ViewYieldsPage()
 
 	m_CurrentReportTab = REPORT_PAGES.YIELDS;
 	ResetTabForNewPageContent();
+	SRA_Safe( SRA_BeginYields, "begin" );		-- ScreenReaderAccess
 
 	local instance:table = nil;
 	instance = NewCollapsibleGroupInstance();
@@ -770,6 +1180,7 @@ function ViewYieldsPage()
 		lineInstance.Science:SetText( toPlusMinusNoneString(science));
 		lineInstance.Culture:SetText( toPlusMinusNoneString(culture));
 
+		SRA_Safe( function() SRA_RecordLine( name, lineInstance ); end, "line" );		-- ScreenReaderAccess
 		return lineInstance;
 	end
 
@@ -779,6 +1190,7 @@ function ViewYieldsPage()
 		ContextPtr:BuildInstanceForControl( "CityIncomeInstance", pCityInstance, instance.ContentStack ) ;
 		pCityInstance.LineItemStack:DestroyAllChildren();
 		TruncateStringWithTooltip(pCityInstance.CityName, 230, Locale.Lookup(kCityData.CityName)); 
+		SRA_Safe( function() SRA_BeginCity( kCityData ); end, "city" );		-- ScreenReaderAccess
 
 		--Great works
 		local greatWorks:table = GetGreatWorksForCity(kCityData.City);
@@ -1042,6 +1454,7 @@ function ViewYieldsPage()
 				pBuildingInstance.BuildingName:SetText( Locale.Lookup(kBuilding.Name) );
 				pBuildingInstance.Gold:SetText( "-"..tostring(kBuilding.Maintenance));
 				iTotalBuildingMaintenance = iTotalBuildingMaintenance - kBuilding.Maintenance;
+				SRA_Safe( function() SRA_RecordBuildingExpense( cityName, kBuilding.Name, kBuilding.Maintenance ); end, "building expense" );		-- ScreenReaderAccess
 			end
 		end
 		for _,kDistrict in ipairs(kCityData.BuildingsAndDistricts) do
@@ -1052,6 +1465,7 @@ function ViewYieldsPage()
 				pDistrictInstance.BuildingName:SetText( Locale.Lookup(kDistrict.Name) );
 				pDistrictInstance.Gold:SetText( "-"..tostring(kDistrict.Maintenance));
 				iTotalBuildingMaintenance = iTotalBuildingMaintenance - kDistrict.Maintenance;
+				SRA_Safe( function() SRA_RecordBuildingExpense( cityName, kDistrict.Name, kDistrict.Maintenance ); end, "district expense" );		-- ScreenReaderAccess
 			end
 		end
 	end
@@ -1081,6 +1495,7 @@ function ViewYieldsPage()
 			pUnitInstance.UnitCount:SetText(kUnitData.Count);
 			pUnitInstance.Gold:SetText("-" .. kUnitData.Maintenance);
 			iTotalUnitMaintenance = iTotalUnitMaintenance + kUnitData.Maintenance;
+			SRA_Safe( function() SRA_RecordUnitExpense( kUnitData.Name, kUnitData.Count, kUnitData.Maintenance ); end, "unit expense" );		-- ScreenReaderAccess
 		end
 
 		-- Footer
@@ -1161,6 +1576,19 @@ function ViewYieldsPage()
 	--Tourism. We don't talk about this one much.
 	Controls.TourismIncome:SetText( toPlusMinusNoneString( m_kCityTotalData.Income["TOURISM"] ));	
 	Controls.TourismBalance:SetText( m_kCityTotalData.Treasury["TOURISM"] );
+	-- ScreenReaderAccess
+	SRA_Safe( function()
+		SRA_RecordTotals{
+			cities = { gold = goldCityTotal, science = scienceCityTotal, culture = cultureCityTotal, faith = faithCityTotal, tourism = tourismCityTotal },
+			gold = { income = playerTreasury:GetGoldYield(), expense = -playerTreasury:GetTotalMaintenance(),
+				net = playerTreasury:GetGoldYield() - playerTreasury:GetTotalMaintenance(), balance = m_kCityTotalData.Treasury[YieldTypes.GOLD] },
+			science = { income = playerTechnology:GetScienceYield(), balance = m_kCityTotalData.Treasury[YieldTypes.SCIENCE] },
+			culture = { income = playerCulture:GetCultureYield(), balance = m_kCityTotalData.Treasury[YieldTypes.CULTURE] },
+			faith = { income = playerReligion:GetFaithYield(), balance = m_kCityTotalData.Treasury[YieldTypes.FAITH] },
+			tourism = { income = m_kCityTotalData.Income["TOURISM"], balance = m_kCityTotalData.Treasury["TOURISM"] },
+		};
+	end, "totals" );
+	-- End ScreenReaderAccess
 	
 	Controls.CollapseAll:SetHide(false);
 	Controls.BottomYieldTotals:SetHide( false );
@@ -1731,6 +2159,7 @@ end
 --	UI Callback
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg :number = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then 
 		local uiKey = pInputStruct:GetKey();

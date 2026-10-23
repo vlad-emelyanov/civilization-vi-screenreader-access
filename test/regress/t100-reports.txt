@@ -1,0 +1,33 @@
+# UNVERIFIED (written offline, never run in game; record with --record after the first green run). medieval-t100: the Reports screen
+# has no default hotkey, so the script opens it the way the top panel button does (LuaEvents.TopPanel_OpenReportsScreen); if a hotkey
+# is added to the hub, switch to `key <hotkey>`. Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs, Space = details,
+# Escape closes. Needs the build with ReportScreen.lua loaded ("ScreenReaderAccess: ReportScreen copy loaded" in Lua.log).
+# no-share-load
+load medieval-t100
+clear-advisors
+lua InGame LuaEvents.TopPanel_OpenReportsScreen()
+wait Reports. Yields -Timeout 10
+expect ^Reports\. Yields, 1 of 4 tabs\. City income: .+: .+, 1 of \d+
+key Down -Settle 600
+expect , 2 of \d+
+key Space -Settle 600
+expect .{8,}
+key End -Settle 600
+expect , (\d+) of \1$
+key Tab -Settle 1000
+expect ^Resources, 2 of 4 tabs\. .+, 1 of \d+
+key Down -Settle 600
+key Space -Settle 600
+expect .{8,}
+key Tab -Settle 1000
+expect ^City Status, 3 of 4 tabs\. .*population \d+, housing \d+.*, 1 of \d+
+key Space -Settle 600
+key Tab -Settle 1000
+expect ^Gossip, 4 of 4 tabs\. (Turn \d+: .+|No gossip yet), 1 of \d+
+key Tab -Settle 1000
+expect ^Yields, 1 of 4 tabs\.
+key Control+Tab -Settle 1000
+expect ^Gossip, 4 of 4 tabs\.
+key Escape -Settle 1500
+expect ^Reports closed
+no-lua-errors
