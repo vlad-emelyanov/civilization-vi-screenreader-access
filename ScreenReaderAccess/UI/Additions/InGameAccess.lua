@@ -1966,18 +1966,14 @@ end
 -- City management inside the report (Enter on the Focus, Tiles or Specialists item opens a sub-list; Escape goes back to the
 -- report). The commands are the ones the game's mouse UI sends, replicated parameter for parameter (the originals live in
 -- other contexts: PlotInfo.lua, CityPanel.lua), see the Request* functions. UNVERIFIED in game.
-local m_manageView:string = nil;		-- nil: the report itself; "focus", "tiles" or "specialists"
-local m_manageConfirm:string = nil;		-- key of the buyable tile that waits for its second Enter
-local m_manageBusy:boolean = false;		-- a request was sent and its result is not known yet
-local m_focusList:table;
-local m_tilesList:table;
-local m_specList:table;
-local m_reportFacade:table;
-local RequestYieldIgnore;
+local MG:table = {};
+MG.m_manageView = nil;		-- nil: the report itself; "focus", "tiles" or "specialists"
+MG.m_manageConfirm = nil;		-- key of the buyable tile that waits for its second Enter
+MG.m_manageBusy = false;		-- a request was sent and its result is not known yet
 
 -- Mirrors PlotInfo.OnClickCitizen (Base/Assets/UI/WorldView/PlotInfo.lua:55-67): the click on a citizen button of a tile.
 -- The game's click toggles work/lock on a tile and adds specialists to a district.
-local function RequestCitizenClick( city:table, plot:table )
+function MG.RequestCitizenClick( city:table, plot:table )
 	local params:table = {};
 	params[ CityCommandTypes.PARAM_MANAGE_CITIZEN ] = UI.GetInterfaceModeParameter( CityCommandTypes.PARAM_MANAGE_CITIZEN );
 	params[ CityCommandTypes.PARAM_X ] = plot:GetX();
@@ -1986,7 +1982,7 @@ local function RequestCitizenClick( city:table, plot:table )
 end
 
 -- Mirrors PlotInfo.OnClickPurchasePlot (PlotInfo.lua:83-98). False when the engine refuses.
-local function RequestPlotPurchase( city:table, plot:table )
+function MG.RequestPlotPurchase( city:table, plot:table )
 	local params:table = {};
 	params[ CityCommandTypes.PARAM_PLOT_PURCHASE ] = UI.GetInterfaceModeParameter( CityCommandTypes.PARAM_PLOT_PURCHASE );
 	params[ CityCommandTypes.PARAM_X ] = plot:GetX();
@@ -1997,7 +1993,7 @@ local function RequestPlotPurchase( city:table, plot:table )
 end
 
 -- Mirror CityPanel.SetYieldFocus / SetYieldIgnore (Base/Assets/UI/Panels/CityPanel.lua:445-478), g_pCity = city.
-local function RequestYieldFocus( city:table, yieldType:number )
+function MG.RequestYieldFocus( city:table, yieldType:number )
 	local citizens:table = city:GetCitizens();
 	local params:table = {};
 	params[ CityCommandTypes.PARAM_FLAGS ] = 0;				-- Set Favored
@@ -2005,13 +2001,13 @@ local function RequestYieldFocus( city:table, yieldType:number )
 	if citizens:IsFavoredYield( yieldType ) then
 		params[ CityCommandTypes.PARAM_DATA0 ] = 0;
 	else
-		if citizens:IsDisfavoredYield( yieldType ) then RequestYieldIgnore( city, yieldType ); end
+		if citizens:IsDisfavoredYield( yieldType ) then MG.RequestYieldIgnore( city, yieldType ); end
 		params[ CityCommandTypes.PARAM_DATA0 ] = 1;
 	end
 	CityManager.RequestCommand( city, CityCommandTypes.SET_FOCUS, params );
 end
 
-RequestYieldIgnore = function( city:table, yieldType:number )
+MG.RequestYieldIgnore = function( city:table, yieldType:number )
 	local citizens:table = city:GetCitizens();
 	local params:table = {};
 	params[ CityCommandTypes.PARAM_FLAGS ] = 1;				-- Set Ignored
@@ -2019,20 +2015,20 @@ RequestYieldIgnore = function( city:table, yieldType:number )
 	if citizens:IsDisfavoredYield( yieldType ) then
 		params[ CityCommandTypes.PARAM_DATA0 ] = 0;
 	else
-		if citizens:IsFavoredYield( yieldType ) then RequestYieldFocus( city, yieldType ); end
+		if citizens:IsFavoredYield( yieldType ) then MG.RequestYieldFocus( city, yieldType ); end
 		params[ CityCommandTypes.PARAM_DATA0 ] = 1;
 	end
 	CityManager.RequestCommand( city, CityCommandTypes.SET_FOCUS, params );
 end
 
-local function ManageData()
+function MG.ManageData()
 	local city:table = GetReportCity();
 	if city == nil then return nil, nil; end
 	return CityManage_Gather( city ), city;
 end
 
 -- "Food plus 5, production 13" of the city as it is now
-local function ManageTotals( city:table )
+function MG.ManageTotals( city:table )
 	local data:table = CityReport_Gather( city );
 	if data == nil then return ""; end
 	return CityManage_Totals( data );
@@ -2040,19 +2036,19 @@ end
 
 -- After a request: waits until read() differs from before (the engine applies the command a moment later), then say( now ).
 -- Gives up after 2 s with "Nothing changed".
-local function ManageWatch( read, before:string, say )
-	m_manageBusy = true;
+function MG.ManageWatch( read, before:string, say )
+	MG.m_manageBusy = true;
 	m_lastKeyTime = UI.GetElapsedTime();
 	local function Poll( tries:number )
 		After( 0.4, function()
-			if not IsModeOpen( "cityreport" ) then m_manageBusy = false; return; end
+			if not IsModeOpen( "cityreport" ) then MG.m_manageBusy = false; return; end
 			local ok:boolean, now = pcall( read );
 			if ok and now ~= before then
-				m_manageBusy = false;
+				MG.m_manageBusy = false;
 				local ok2:boolean, err = pcall( say, now );
 				if not ok2 then print( "InGameAccess city management error: " .. tostring( err ) ); end
 			elseif tries >= 5 then
-				m_manageBusy = false;
+				MG.m_manageBusy = false;
 				print( "InGameAccess: the city management request changed nothing" );
 				OutputMessageToScreenReader( "Nothing changed" );
 			else
@@ -2063,65 +2059,65 @@ local function ManageWatch( read, before:string, say )
 	Poll( 1 );
 end
 
-local function FindByPlot( list:table, plotIndex:number )
+function MG.FindByPlot( list:table, plotIndex:number )
 	for _, entry in ipairs( list or {} ) do
 		if entry.plotIndex == plotIndex then return entry; end
 	end
 	return nil;
 end
 
-local function EnterManageView( view:string )
+function MG.EnterManageView( view:string )
 	local city:table = GetReportCity();
 	if city == nil then return; end
-	m_manageView = view;
-	m_manageConfirm = nil;
-	m_manageBusy = false;
+	MG.m_manageView = view;
+	MG.m_manageConfirm = nil;
+	MG.m_manageBusy = false;
 	if view == "focus" then
-		m_focusList.Reset();
-		m_focusList.Open( "Focus" );
+		MG.m_focusList.Reset();
+		MG.m_focusList.Open( "Focus" );
 	elseif view == "tiles" then
-		m_tilesList.Reset();
-		m_tilesList.Open( "Tiles" );
+		MG.m_tilesList.Reset();
+		MG.m_tilesList.Open( "Tiles" );
 	else
-		m_specList.Reset();
-		m_specList.Open( "Specialists" );
+		MG.m_specList.Reset();
+		MG.m_specList.Open( "Specialists" );
 	end
 end
 
-local function LeaveManageView()
-	local view:string = m_manageView;
-	m_manageView = nil;
-	m_manageConfirm = nil;
-	m_manageBusy = false;
-	m_focusList.Reset();
-	m_tilesList.Reset();
-	m_specList.Reset();
+function MG.LeaveManageView()
+	local view:string = MG.m_manageView;
+	MG.m_manageView = nil;
+	MG.m_manageConfirm = nil;
+	MG.m_manageBusy = false;
+	MG.m_focusList.Reset();
+	MG.m_tilesList.Reset();
+	MG.m_specList.Reset();
 	local city:table = GetReportCity();
 	if city ~= nil and view ~= "focus" then SetCursor( city:GetX(), city:GetY(), false, nil, true ); end
 	m_reportList.Focus( view );
 end
 
-local function CursorToPlotIndex( plotIndex:number )
+function MG.CursorToPlotIndex( plotIndex:number )
 	local plot:table = Map.GetPlotByIndex( plotIndex );
 	if plot ~= nil then SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
 end
 
-local function FocusState( city:table, yieldType:number )
+function MG.FocusState( city:table, yieldType:number )
 	local citizens:table = city:GetCitizens();
 	if citizens:IsFavoredYield( yieldType ) then return "favored"; end
 	if citizens:IsDisfavoredYield( yieldType ) then return "ignored"; end
 	return "normal";
 end
 
-local function FocusEnter( item:table )
-	if m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
+function MG.FocusEnter( item:table )
+	if MG.m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
 	local city:table = GetReportCity();
 	if city == nil then return; end
 	local f:table = item.yield;
 	local name:string = string.lower( f.name );
-	local before:string = FocusState( city, f.yieldType );
-	if item.ignore then RequestYieldIgnore( city, f.yieldType ); else RequestYieldFocus( city, f.yieldType ); end
-	ManageWatch( function() return FocusState( city, f.yieldType ); end, before, function( now )
+	local before:string = MG.FocusState( city, f.yieldType );
+	if item.ignore then MG.RequestYieldIgnore( city, f.yieldType ); else MG.RequestYieldFocus( city, f.yieldType ); end
+	MG.ManageWatch( function() return MG.FocusState( city, f.yieldType ); end, before, function( now )
 		local text:string;
 		if now == "favored" then
 			text = f.name .. " focus on";
@@ -2132,12 +2128,12 @@ local function FocusEnter( item:table )
 		else
 			text = f.name .. " focus off";
 		end
-		OutputMessageToScreenReader( text .. ". " .. ManageTotals( city ) );
+		OutputMessageToScreenReader( text .. ". " .. MG.ManageTotals( city ) );
 	end );
 end
 
-local function TilesEnter( item:table )
-	if m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
+function MG.TilesEnter( item:table )
+	if MG.m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
 	local city:table = GetReportCity();
 	local t:table = item.tile;
 	local plot:table = Map.GetPlotByIndex( t.plotIndex );
@@ -2146,69 +2142,69 @@ local function TilesEnter( item:table )
 		local gold:number = math.floor( Players[ Game.GetLocalPlayer() ]:GetTreasury():GetGoldBalance() );
 		-- CanStartCommand does not look at the balance (docs/engine-notes.md)
 		if gold < t.cost then
-			m_manageConfirm = nil;
+			MG.m_manageConfirm = nil;
 			OutputMessageToScreenReader( "Can't buy this tile, need " .. ( t.cost - gold ) .. " more gold" );
 			return;
 		end
-		if m_manageConfirm ~= t.key then
-			m_manageConfirm = t.key;
+		if MG.m_manageConfirm ~= t.key then
+			MG.m_manageConfirm = t.key;
 			OutputMessageToScreenReader( "Buy this tile for " .. t.cost .. " gold? Enter to confirm, Escape to go back" );
 			return;
 		end
-		m_manageConfirm = nil;
-		if not RequestPlotPurchase( city, plot ) then
+		MG.m_manageConfirm = nil;
+		if not MG.RequestPlotPurchase( city, plot ) then
 			OutputMessageToScreenReader( "Can't buy this tile" );
 			return;
 		end
-		ManageWatch( function() return tostring( plot:GetOwner() ); end, tostring( plot:GetOwner() ), function()
-			m_tilesList.Focus( "t" .. t.plotIndex, "Bought for " .. t.cost .. " gold" );
+		MG.ManageWatch( function() return tostring( plot:GetOwner() ); end, tostring( plot:GetOwner() ), function()
+			MG.m_tilesList.Focus( "t" .. t.plotIndex, "Bought for " .. t.cost .. " gold" );
 		end );
 		return;
 	end
 	local function Sig()
-		local m:table = ManageData();
-		local now:table = m ~= nil and FindByPlot( m.tiles, t.plotIndex ) or nil;
+		local m:table = MG.ManageData();
+		local now:table = m ~= nil and MG.FindByPlot( m.tiles, t.plotIndex ) or nil;
 		if now == nil then return "gone"; end
 		return now.count .. ":" .. tostring( now.locked );
 	end
 	local before:string = Sig();
-	RequestCitizenClick( city, plot );
-	ManageWatch( Sig, before, function()
-		local m:table = ManageData();
-		local now:table = m ~= nil and FindByPlot( m.tiles, t.plotIndex ) or nil;
+	MG.RequestCitizenClick( city, plot );
+	MG.ManageWatch( Sig, before, function()
+		local m:table = MG.ManageData();
+		local now:table = m ~= nil and MG.FindByPlot( m.tiles, t.plotIndex ) or nil;
 		local state:string = ( now ~= nil ) and CityManage_TileState( now ) or "Changed";
-		OutputMessageToScreenReader( state .. ". " .. ManageTotals( city ) );
+		OutputMessageToScreenReader( state .. ". " .. MG.ManageTotals( city ) );
 	end );
 end
 
-local function SpecialistsEnter( item:table )
-	if m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
+function MG.SpecialistsEnter( item:table )
+	if MG.m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
 	local city:table = GetReportCity();
 	local dist:table = item.district;
 	local plot:table = Map.GetPlotByIndex( dist.plotIndex );
 	if city == nil or plot == nil then return; end
 	local function Count()
-		local m:table = ManageData();
-		local now:table = m ~= nil and FindByPlot( m.districts, dist.plotIndex ) or nil;
+		local m:table = MG.ManageData();
+		local now:table = m ~= nil and MG.FindByPlot( m.districts, dist.plotIndex ) or nil;
 		return now ~= nil and tostring( now.count ) or "gone";
 	end
 	local before:string = Count();
-	RequestCitizenClick( city, plot );
-	ManageWatch( Count, before, function()
-		local m:table = ManageData();
-		local now:table = m ~= nil and FindByPlot( m.districts, dist.plotIndex ) or nil;
+	MG.RequestCitizenClick( city, plot );
+	MG.ManageWatch( Count, before, function()
+		local m:table = MG.ManageData();
+		local now:table = m ~= nil and MG.FindByPlot( m.districts, dist.plotIndex ) or nil;
 		if now == nil then return; end
-		OutputMessageToScreenReader( CityManage_DistrictText( now ) .. ". " .. ManageTotals( city ) );
+		OutputMessageToScreenReader( CityManage_DistrictText( now ) .. ". " .. MG.ManageTotals( city ) );
 	end );
 end
 
 -- Backspace / Delete: one specialist less. The game has no "remove one" click (a click adds, and past the last slot the
 -- district empties), so this clicks until the count has dropped by one (at most as many clicks as slots plus one).
-local function SpecialistsRemove()
-	if m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
-	local m:table, city:table = ManageData();
+function MG.SpecialistsRemove()
+	if MG.m_manageBusy then OutputMessageToScreenReader( "Wait" ); return; end
+	local m:table, city:table = MG.ManageData();
 	if m == nil then return; end
-	local focusKey = m_specList.GetFocusKey();
+	local focusKey = MG.m_specList.GetFocusKey();
 	local dist:table = nil;
 	for _, candidate in ipairs( m.districts ) do
 		if candidate.key == focusKey then dist = candidate; end
@@ -2222,21 +2218,21 @@ local function SpecialistsRemove()
 	local goal:number = dist.count - 1;
 	local clicks:number = 0;
 	local function Count()
-		local fresh:table = ManageData();
-		local now:table = fresh ~= nil and FindByPlot( fresh.districts, dist.plotIndex ) or nil;
+		local fresh:table = MG.ManageData();
+		local now:table = fresh ~= nil and MG.FindByPlot( fresh.districts, dist.plotIndex ) or nil;
 		return now ~= nil and tostring( now.count ) or "gone";
 	end
 	local function Say()
-		local fresh:table = ManageData();
-		local now:table = fresh ~= nil and FindByPlot( fresh.districts, dist.plotIndex ) or nil;
+		local fresh:table = MG.ManageData();
+		local now:table = fresh ~= nil and MG.FindByPlot( fresh.districts, dist.plotIndex ) or nil;
 		if now == nil then return; end
-		OutputMessageToScreenReader( CityManage_DistrictText( now ) .. ". " .. ManageTotals( city ) );
+		OutputMessageToScreenReader( CityManage_DistrictText( now ) .. ". " .. MG.ManageTotals( city ) );
 	end
 	local function Step()
 		clicks = clicks + 1;
 		local before:string = Count();
-		RequestCitizenClick( city, plot );
-		ManageWatch( Count, before, function( now )
+		MG.RequestCitizenClick( city, plot );
+		MG.ManageWatch( Count, before, function( now )
 			if tonumber( now ) == goal or clicks > dist.max then Say(); else Step(); end
 		end );
 	end
@@ -2251,28 +2247,28 @@ m_reportList = KeyNavList_Create{
 		if data == nil then return {}; end
 		return CityReport_BuildItems( data );
 	end,
-	isActive	= function() return IsModeOpen( "cityreport" ) and m_manageView == nil; end,
+	isActive	= function() return IsModeOpen( "cityreport" ) and MG.m_manageView == nil; end,
 	onActivate	= function( item )
-		if item.manage ~= nil then EnterManageView( item.manage ); return; end
+		if item.manage ~= nil then MG.EnterManageView( item.manage ); return; end
 		OutputMessageToScreenReader( "Nothing to open here. Space reads the details" );
 	end,
 	onClose		= function() CloseMode( true, false ); end,
 };
 
-m_focusList = KeyNavList_Create{
+MG.m_focusList = KeyNavList_Create{
 	build		= function()
-		local m:table = ManageData();
+		local m:table = MG.ManageData();
 		if m == nil then return {}; end
 		return CityManage_FocusItems( m );
 	end,
-	isActive	= function() return IsModeOpen( "cityreport" ) and m_manageView == "focus"; end,
-	onActivate	= FocusEnter,
-	onClose		= LeaveManageView,
+	isActive	= function() return IsModeOpen( "cityreport" ) and MG.m_manageView == "focus"; end,
+	onActivate	= MG.FocusEnter,
+	onClose		= MG.LeaveManageView,
 };
 
-m_tilesList = KeyNavList_Create{
+MG.m_tilesList = KeyNavList_Create{
 	build		= function()
-		local m:table = ManageData();
+		local m:table = MG.ManageData();
 		if m == nil then return {}; end
 		local items:table = CityManage_TileItems( m );
 		for _, item in ipairs( items ) do
@@ -2285,18 +2281,18 @@ m_tilesList = KeyNavList_Create{
 		end
 		return items;
 	end,
-	isActive	= function() return IsModeOpen( "cityreport" ) and m_manageView == "tiles"; end,
-	onActivate	= TilesEnter,
-	onClose		= LeaveManageView,
+	isActive	= function() return IsModeOpen( "cityreport" ) and MG.m_manageView == "tiles"; end,
+	onActivate	= MG.TilesEnter,
+	onClose		= MG.LeaveManageView,
 	onFocus		= function( item )
-		m_manageConfirm = nil;
-		CursorToPlotIndex( item.tile.plotIndex );
+		MG.m_manageConfirm = nil;
+		MG.CursorToPlotIndex( item.tile.plotIndex );
 	end,
 };
 
-m_specList = KeyNavList_Create{
+MG.m_specList = KeyNavList_Create{
 	build		= function()
-		local m:table = ManageData();
+		local m:table = MG.ManageData();
 		if m == nil then return {}; end
 		local items:table = CityManage_DistrictItems( m );
 		for _, item in ipairs( items ) do
@@ -2304,27 +2300,27 @@ m_specList = KeyNavList_Create{
 		end
 		return items;
 	end,
-	isActive	= function() return IsModeOpen( "cityreport" ) and m_manageView == "specialists"; end,
-	onActivate	= SpecialistsEnter,
-	onClose		= LeaveManageView,
-	onFocus		= function( item ) CursorToPlotIndex( item.district.plotIndex ); end,
-	extraKeys	= { [Keys.VK_BACK] = SpecialistsRemove, [Keys.VK_DELETE] = SpecialistsRemove },
+	isActive	= function() return IsModeOpen( "cityreport" ) and MG.m_manageView == "specialists"; end,
+	onActivate	= MG.SpecialistsEnter,
+	onClose		= MG.LeaveManageView,
+	onFocus		= function( item ) MG.CursorToPlotIndex( item.district.plotIndex ); end,
+	extraKeys	= { [Keys.VK_BACK] = MG.SpecialistsRemove, [Keys.VK_DELETE] = MG.SpecialistsRemove },
 };
 
 -- What the mode holds: the report list and its sub-lists (each handles keys only while it is the active view).
-m_reportFacade = {
-	Open		= function( title:string ) m_manageView = nil; m_reportList.Open( title ); end,
+MG.m_reportFacade = {
+	Open		= function( title:string ) MG.m_manageView = nil; m_reportList.Open( title ); end,
 	Reset		= function()
-		m_manageView = nil;
-		m_manageConfirm = nil;
-		m_manageBusy = false;
+		MG.m_manageView = nil;
+		MG.m_manageConfirm = nil;
+		MG.m_manageBusy = false;
 		m_reportList.Reset();
-		m_focusList.Reset();
-		m_tilesList.Reset();
-		m_specList.Reset();
+		MG.m_focusList.Reset();
+		MG.m_tilesList.Reset();
+		MG.m_specList.Reset();
 	end,
 	HandleInput	= function( input:table )
-		return m_reportList.HandleInput( input ) or m_focusList.HandleInput( input ) or m_tilesList.HandleInput( input ) or m_specList.HandleInput( input );
+		return m_reportList.HandleInput( input ) or MG.m_focusList.HandleInput( input ) or MG.m_tilesList.HandleInput( input ) or MG.m_specList.HandleInput( input );
 	end,
 };
 
@@ -2348,7 +2344,7 @@ local function ToggleCityReport()
 		return;
 	end
 	m_reportCity = { owner = city:GetOwner(), id = city:GetID() };
-	OpenMode( "cityreport", m_reportFacade, Locale.Lookup( city:GetName() ) .. " report", function() m_reportCity = nil; end );
+	OpenMode( "cityreport", MG.m_reportFacade, Locale.Lookup( city:GetName() ) .. " report", function() m_reportCity = nil; end );
 end
 
 local function OnNotificationsReceived( list:table )
