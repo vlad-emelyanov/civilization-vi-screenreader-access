@@ -2752,7 +2752,7 @@ local function SRA_OnClose()
 	end
 end
 
-local function SRA_Announce()
+local function SRA_Announce( keepGuard:boolean )
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
 	local mode:number = m_CurrentListMode;
@@ -2781,7 +2781,7 @@ local function SRA_Announce()
 		end
 	end
 	m_srList.Reset();
-	m_srList.Open( title, initialKey or firstChoosable );
+	m_srList.Open( title, initialKey or firstChoosable, false, keepGuard );
 end
 
 -- Tab: next tab of the panel (Production, Queue, Purchase gold, Purchase faith), like clicking it.
@@ -2799,7 +2799,7 @@ local function SRA_NextTab()
 	local nextEntry:table = tabs[ current % #tabs + 1 ];
 	m_srPending = nil;
 	m_tabs.SelectTab( nextEntry.tab );
-	SRA_Announce();
+	SRA_Announce( true );		-- a tab switch keeps the Enter guard of the real open
 end
 
 -- Called by the handlers that open the panel, once they have selected the tab (a SetUpdate callback never ran here).

@@ -293,12 +293,13 @@ local function WatchWarReturn( tries:number )
 	local plot:table = Map.GetPlot( record.x, record.y );
 	if plot == nil or HubTargets.WarTargets( unit, plot ) == nil then HubTargets.warReturn = nil; return; end		-- war declared (or the target is gone)
 	local dialog = nil;
-	pcall( function() dialog = ContextPtr:LookUpControl( "/InGame/DeclareWarPopup" ); end );
+	pcall( function() dialog = ContextPtr:LookUpControl( "/InGame/Diplomacy/DeclareWarPopup" ); end );
 	if ( dialog ~= nil and not dialog:IsHidden() ) or ( dialog == nil and tries < 4 ) then
 		HubCore.After( 0.5, function() WatchWarReturn( tries + 1 ); end );
 		return;
 	end
 	HubTargets.warReturn = nil;
+	if dialog == nil then return; end		-- cannot tell whether the dialog was cancelled: leave the mode alone
 	m_attackIntent = record.intent;
 	UI.SetInterfaceMode( record.mode );
 	HubCursor.SetCursor( record.x, record.y, false );

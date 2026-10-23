@@ -240,6 +240,9 @@ local function SRA_SlotDetail( b:table, slot:number )
 		end, KeyNavErrorHandler );
 		local work:table = SRA_WorkData( b.bldgs, idx );
 		if ok and tip ~= nil and tip ~= "" then
+			-- "[ICON_CultureLarge]2 [ICON_TourismLarge]2" -> "2 Culture, 2 Tourism" (the icon words alone would come out as "Provides 2 2")
+			tip = string.gsub( tip, "%[ICON_(%a+)Large%]%s*(%d+)%s*", function( word:string, n:string ) return n .. " " .. word .. ", "; end );
+			tip = string.gsub( tip, ",%s+per", " per" );
 			table.insert( parts, SRA_Clean( tip ) );
 		elseif work ~= nil then
 			table.insert( parts, GreatWorksText_Work( work ) );

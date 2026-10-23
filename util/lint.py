@@ -149,6 +149,11 @@ def main(argv):
         files = [os.path.join(d, f) for d, _, fs in os.walk(os.path.join(ROOT, "ScreenReaderAccess"))
                  for f in fs if f.endswith(".lua")]
     files = [rel(f) for f in files]
+    # allow_defined_top only sees globals defined in the files of the same luacheck run: always run on the whole mod
+    # (a single-file lint reported undefined g_kItemDefaults & co.) and report only the requested files.
+    wanted = set(files)
+    files = sorted(set(files) | set(rel(os.path.join(d, f)) for d, _, fs in os.walk(os.path.join(ROOT, "ScreenReaderAccess"))
+                                    for f in fs if f.endswith(".lua")))
     tmp = os.path.join(ROOT, "util", "tools", "stripped")
     shutil.rmtree(tmp, ignore_errors=True)
     for f in files:
@@ -160,6 +165,8 @@ def main(argv):
             fh.write(strip_annotations(src))
     compile_errors = []
     for f in files:
+        if f not in wanted:
+            continue
         with open(os.path.join(tmp, f), encoding="utf-8") as fh:
             stripped = fh.read()
         e = compile_check(f, stripped)
@@ -177,6 +184,8 @@ def main(argv):
         if not m:
             continue
         path, code = m.group(1).replace("\\", "/"), m.group(4)
+        if path not in wanted:
+            continue
         if code == "E" or path.startswith(STRICT):
             errors.append(line)
         else:
@@ -188,7 +197,7 @@ def main(argv):
         for l in warns:
             print("warn  " + l)
     print("lint: %d file(s), %d error(s), %d upstream warning(s)%s" % (
-        len(files), len(errors), len(warns), "" if verbose else " (use -v to list)"))
+        len(wanted), len(errors), len(warns), "" if verbose else " (use -v to list)"))
     if r.returncode > 2:
         print(r.stderr, file=sys.stderr)
         return 2

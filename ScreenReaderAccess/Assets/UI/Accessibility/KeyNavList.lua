@@ -69,8 +69,8 @@ function KeyNavList_Create( config:table )
 	end
 
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
-	function list.Open( title:string, initialKey, silent:boolean )
-		if UI ~= nil and UI.GetElapsedTime ~= nil then m_openedAt = UI.GetElapsedTime(); end
+	function list.Open( title:string, initialKey, silent:boolean, keepGuard:boolean )
+		if not keepGuard and UI ~= nil and UI.GetElapsedTime ~= nil then m_openedAt = UI.GetElapsedTime(); end
 		local items:table = Build();
 		m_lastSection = nil;
 		if initialKey ~= nil then m_focusKey = initialKey; end
