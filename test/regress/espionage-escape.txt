@@ -5,7 +5,7 @@
 # Expect on show: "<Spy> was discovered in <City>. Choose an escape route: <first available route>, <Turns to return: N>, i of 4"
 # Verifier: Down/Up move over Airplane, Boat, Vehicle, Foot ("not available, No Aerodrome in city" for missing districts), Space says loot and pursuers, Enter says "Escaping by <route>"
 # and the popup hides (SET_ESCAPE_ROUTE sent), Escape says "Closed" (the game's OnClose: no route chosen). Foot is always available.
-# no-share-load
+# no-share-load: scenario spy-ready
 # manual (the popup needs a spy that failed a mission; no deterministic trigger; run by name)
 # covers: **/EspionageEscape.lua **/NotificationPanel.lua
 load medieval-t100

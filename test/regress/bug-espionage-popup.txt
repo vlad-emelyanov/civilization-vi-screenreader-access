@@ -2,7 +2,7 @@
 # covers: **/EspionagePopup.lua **/EspionageText.lua **/EspionageChooser.lua
 # Verifier: let a spy finish (or abort) a mission, then expect "<mission title>. Success|Failure. <description> ... Enter to continue",
 # and after Enter the popup is gone (no "Escape opens the menu" needed).
-# no-share-load
+# no-share-load: unique fixture, nothing to share with
 load pt-t113
 clear-advisors
 no-lua-errors

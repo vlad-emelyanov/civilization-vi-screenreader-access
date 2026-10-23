@@ -1,6 +1,6 @@
 # Verified 2026-10-22. Scenario envoys-to-give on early-t60: 3 envoys to give; F2 opens the city-states screen with them.
 # covers: **/CityStates.lua
-# no-share-load
+# no-share-load: scenario envoys-to-give
 load early-t60
 scenario envoys-to-give
 clear-advisors

@@ -1,6 +1,5 @@
 # Verified 2026-10-23. Hotkeys of screens that are not unlocked yet say why instead of doing nothing (PartialScreenHooks F2/F3/F4, LaunchBar F7/L).
 # covers: **/PartialScreenHooks.lua **/LaunchBar.lua
-# no-share-load
 load early-start
 clear-advisors
 action ToggleCityStates -Settle 1800

@@ -2,7 +2,6 @@
 # covers: **/ReportScreen.lua **/ReportText.lua
 # F8 (KeyNavReports) toggles the Reports screen like the top panel button. Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs,
 # Space = details, Escape and F8 close.
-# no-share-load
 load medieval-t100
 clear-advisors
 key F8 -Settle 2500

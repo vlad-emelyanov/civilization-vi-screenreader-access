@@ -1,6 +1,6 @@
 # Verified in game 2026-10-22. O opens the Great People popup on medieval-t100 (GreatPeoplePopup.lua override).
 # covers: **/GreatPeoplePopup.lua **/GreatPeopleText.lua
-# no-share-load
+# no-share-load: tuner grants points and recruits a great person
 load medieval-t100
 clear-advisors
 action ToggleGreatPeople -Settle 2500

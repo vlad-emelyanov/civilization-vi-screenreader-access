@@ -23,6 +23,27 @@ class FakeRunner:
         return self.default
 
 
+class HubRunner(FakeRunner):
+    """FakeRunner that also plays the hub's reset check (lua InGameAccess -File <tmp>): 'snap ...' for the baseline,
+    then the next of `verdicts` (default: clean) for each reset check; the checks are recorded in .checks."""
+
+    def __init__(self, table=None, verdicts=(), default=(0, [])):
+        FakeRunner.__init__(self, table, default)
+        self.verdicts, self.checks = list(verdicts), []
+
+    def run(self, args):
+        if args[:2] == ["lua", "InGameAccess"] and "-File" in args:
+            self.calls.append(list(args))
+            with open(args[args.index("-File") + 1], encoding="utf-8") as f:
+                code = f.read()
+            if "TestSnapshotText()" in code and "TestResetState" not in code:
+                self.checks.append("snap")
+                return 0, ["snap t=1;g=5|none"]
+            self.checks.append(code)
+            return self.verdicts.pop(0) if self.verdicts else (0, ["clean t=1;g=5|none"])
+        return FakeRunner.run(self, args)
+
+
 class ParserTests(unittest.TestCase):
     def test_parse(self):
         steps = cr.parse_script("# c\n\nload early-start\nKey Enter -Settle 2000\nexpect ^Turn \\d+\n")
@@ -170,7 +191,7 @@ class AdvisorAndSkipTests(unittest.TestCase):
     def test_skipped_all(self):
         text = "load x" + chr(10) + "expect ^T"
         scripts = [("a", cr.parse_script(text)), ("b", cr.parse_script(text))]
-        r = FakeRunner([(["load"], (0, ["SR> Turn 1"]))])
+        r = HubRunner([(["load"], (0, ["SR> Turn 1"]))])
         log = []
         res = cr.run_all(scripts, r, share_load=True, out=log.append)
         self.assertFalse(res[0].skipped_all)
@@ -233,7 +254,7 @@ class OrderTests(unittest.TestCase):
         ordered = cr.order_scripts(scripts)
         self.assertEqual([n for n, _ in ordered], ["a", "c", "b", "n"])
         out = []
-        r = FakeRunner()
+        r = HubRunner()
         cr.run_all(ordered, r, share_load=True, out=out.append)
         loads = [c for c in r.calls if c[0] == "load"]
         self.assertEqual(loads, [["load", "x", "-KeepAdvisors"], ["load", "y", "-KeepAdvisors"]])
@@ -252,7 +273,7 @@ class OrderTests(unittest.TestCase):
         scripts = [("a", mk("load x\nkey A")), ("s", mk("load x\nscenario foo\nkey A")), ("m", mk("# no-share-load\nload x\nkey A")),
                    ("b", mk("load x\nkey A")), ("c", mk("load x\nkey A"))]
         self.assertTrue(scripts[1][1].fresh)
-        r = FakeRunner()
+        r = HubRunner()
         orig = cr.civctl_args
         try:
             cr.civctl_args = lambda st, o=orig: (["scenario", "foo"], None) if st.kind == "scenario" else o(st)
@@ -265,7 +286,7 @@ class OrderTests(unittest.TestCase):
     def test_failed_shared_script_is_retried_with_own_load(self):
         scripts = [("a", cr.parse_script("load x\nkey A")), ("b", cr.parse_script("load x\nkey B\nexpect ^ok$"))]
         outputs = iter([(0, ["SR> drifted"]), (0, ["SR> ok"])])
-        r = FakeRunner([(["key", "B"], lambda: next(outputs))])
+        r = HubRunner([(["key", "B"], lambda: next(outputs))])
         res = cr.run_all(scripts, r, share_load=True, out=lambda s: None)
         self.assertTrue(res[1].ok and res[1].retried)
         self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 2)
@@ -281,6 +302,122 @@ class OrderTests(unittest.TestCase):
         r = FakeRunner([(["key"], (6, ["busy"]))])
         res = cr.run_all(scripts, r, out=lambda s: None)
         self.assertEqual(len(res), 1)
+
+
+class ResetCheckTests(unittest.TestCase):
+    def three(self):
+        mk = cr.parse_script
+        return [("a", mk("load x\nclear-advisors\nkey A")), ("b", mk("load x\nclear-advisors\nkey B\nexpect ^ok$")),
+                ("c", mk("load x\nkey C"))]
+
+    def loads(self, r):
+        return len([c for c in r.calls if c[0] == "load"])
+
+    def run_three(self, r, scripts=None):
+        log = []
+        res = cr.run_all(scripts or self.three(), r, share_load=True, out=log.append)
+        return res, log
+
+    def test_clean_check_shares_and_counts(self):
+        r = HubRunner([(["key", "B"], (0, ["SR> ok"]))])
+        res, log = self.run_three(r)
+        self.assertEqual(self.loads(r), 1)
+        self.assertEqual([x.load_skipped for x in res], [False, True, True])
+        self.assertEqual(r.checks.count("snap"), 1)          # one baseline, taken right after the single real load
+        self.assertEqual(len(r.checks), 3)                   # + one reset check after a and one after b (not after the last)
+        self.assertIn("(1 loads, 2 saved by sharing; reset checks: 3,", cr.breakdown_total(res))
+        self.assertTrue(any("reset check: clean" in l for l in log))
+        # the reset check asks the hub with the baseline of the load
+        self.assertIn("TestResetState('t=1;g=5|none')", r.checks[1])
+
+    def test_clean_check_is_followed_by_an_sr_drain(self):
+        r = HubRunner([(["key", "B"], (0, ["SR> ok"]))])
+        self.run_three(r)
+        names = [c[0] if c[:2] != ["lua", "InGameAccess"] else "hub" for c in r.calls]
+        for i, n in enumerate(names):
+            if n == "hub" and r.checks[names[:i + 1].count("hub") - 1] != "snap":
+                self.assertEqual(names[i + 1], "sr")         # the reset's speech is read away before the next script
+        # a dirty check drains nothing
+        r = HubRunner(verdicts=[(0, ["dirty not our turn"])])
+        self.run_three(r, [("a", cr.parse_script("load x\nkey A")), ("b", cr.parse_script("load x\nkey B"))])
+        self.assertNotIn("sr", [c[0] for c in r.calls])
+
+    def test_script_needs_fresh_is_the_predicate_when_it_exists(self):
+        cr.script_needs_fresh = lambda steps: True
+        try:
+            self.assertFalse(cr.shares_game(cr.parse_script("load x")))
+        finally:
+            del cr.script_needs_fresh
+
+    def test_baseline_taken_after_advisors_before_first_key(self):
+        r = HubRunner([(["key", "B"], (0, ["SR> ok"]))])
+        self.run_three(r)
+        order = [c[0] if c[:2] != ["lua", "InGameAccess"] else "hub" for c in r.calls]
+        self.assertLess(order.index("lua"), order.index("hub"))      # the advisor close comes first
+        self.assertLess(order.index("hub"), order.index("key"))
+
+    def test_dirty_check_loads_fresh_and_never_fails_the_script(self):
+        r = HubRunner([(["key", "B"], (0, ["SR> ok"]))], verdicts=[(0, ["dirty open: Screens/GovernmentScreen"])])
+        res, log = self.run_three(r)
+        self.assertEqual(self.loads(r), 2)                   # b loaded fresh, c shared b's game
+        self.assertEqual([x.load_skipped for x in res], [False, False, True])
+        self.assertTrue(all(x.ok for x in res))
+        self.assertTrue(any("DIRTY (open: Screens/GovernmentScreen)" in l for l in log))
+        self.assertIn("(2 loads, 1 saved by sharing", cr.breakdown_total(res))
+
+    def test_unanswered_or_failed_check_is_dirty(self):
+        for answer in [(0, []), (1, ["boom"]), (0, ["hub has no test helper"])]:
+            r = HubRunner(verdicts=[answer])
+            self.run_three(r, self.three()[:2])
+            self.assertEqual(self.loads(r), 2, answer)
+
+    def test_failure_on_a_shared_game_is_retried_after_a_clean_check(self):
+        outputs = iter([(0, ["SR> drifted"]), (0, ["SR> ok"])])
+        r = HubRunner([(["key", "B"], lambda: next(outputs))])
+        res, log = self.run_three(r)
+        self.assertTrue(res[1].ok and res[1].retried)
+        self.assertTrue(any("RETRY b" in l for l in log))
+        self.assertEqual(self.loads(r), 2)                   # a, then b's retry; c shares the retry's game
+        self.assertFalse(res[1].load_skipped)
+        self.assertTrue(res[2].load_skipped)
+
+    def test_retry_then_dirty_check_loads_fresh(self):
+        # a clean, b fails on the shared game and is retried (fresh load), then the check after b is dirty: c loads fresh
+        outputs = iter([(0, ["SR> drifted"]), (0, ["SR> ok"])])
+        r = HubRunner([(["key", "B"], lambda: next(outputs))], verdicts=[(0, ["clean t=1;g=5|none"]), (0, ["dirty not our turn"])])
+        res, _ = self.run_three(r)
+        self.assertEqual(self.loads(r), 3)
+        self.assertEqual([x.retried for x in res], [False, True, False])
+
+    def test_no_check_when_the_next_script_cannot_share(self):
+        mk = cr.parse_script
+        r = HubRunner()
+        cr.run_all([("a", mk("load x\nkey A")), ("b", mk("# no-share-load: buys\nload x\nkey B")), ("c", mk("load y\nkey C"))],
+                   r, share_load=True, out=lambda s: None)
+        self.assertEqual(r.checks, [])
+        self.assertEqual(self.loads(r), 3)
+
+    def test_options_header_never_shares(self):
+        mk = cr.parse_script
+        self.assertFalse(cr.shares_game(mk("# options: Foo=1\nload x")))
+        self.assertTrue(cr.shares_game(mk("# covers: **/X.lua\nload x")))
+        r = HubRunner()
+        cr.run_all([("a", mk("load x\nkey A")), ("b", mk("# options: Foo=1\nload x\nkey B"))], r, share_load=True, out=lambda s: None)
+        self.assertEqual(self.loads(r), 2)
+
+    def test_lock_during_check_stops_the_run(self):
+        r = HubRunner(verdicts=[(6, ["game in use by x"])])
+        res, _ = self.run_three(r)
+        self.assertEqual(res[-1].aborted, "locked")
+
+    def test_order_puts_sharing_scripts_before_fresh_ones(self):
+        mk = cr.parse_script
+        scripts = [("f1", mk("# no-share-load: x\nload x")), ("s1", mk("load x")), ("f2", mk("# no-share-load: x\nload x")),
+                   ("s2", mk("load x")), ("o", mk("load y"))]
+        self.assertEqual([n for n, _ in cr.order_scripts(scripts)], ["s1", "s2", "f1", "f2", "o"])
+
+    def test_marker_with_reason_is_recognised(self):
+        self.assertTrue(cr.parse_script("# no-share-load: buys a tile\nload x").fresh)
 
 
 class RecordTests(unittest.TestCase):

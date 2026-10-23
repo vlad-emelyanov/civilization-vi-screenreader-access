@@ -2,7 +2,7 @@
 # covers: **/EspionageOverview.lua **/EspionageText.lua **/EspionageChooser.lua **/EspionagePopup.lua
 # (OnCivicCompleted in PartialScreenHooks). The setup makes the game show a Historic Moment popup (Escape closes it).
 # F3 opens the Espionage overview; Tab / Control+Tab switch tabs; Enter on the spy opens the chooser; Escape and F3 close.
-# no-share-load
+# no-share-load: scenario spy-ready
 load medieval-t100
 clear-advisors
 scenario spy-ready

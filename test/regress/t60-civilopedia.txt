@@ -1,7 +1,6 @@
 # Verified 2026-10-23 (Units is the 7th of 18 sections here). early-t60: F9 opens the Civilopedia on the section list (Concepts first), Tab walks sections
 # covers: **/CivilopediaSupport.lua **/PediaText.lua **/AdvisorPopup.lua
 # (Units is the 8th in the base game), Enter opens a page, Down reads lines, Escape goes back to the list, Escape again closes.
-# no-share-load
 load early-t60
 clear-advisors
 action OpenCivilopedia -Settle 2500

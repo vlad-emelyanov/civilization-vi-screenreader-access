@@ -1,7 +1,7 @@
 # Verified in game 2026-10-22. Fixture bug-promotion-tree-silent: turn 109, a Pikeman can be promoted.
 # covers: **/UnitPromotionPopup.lua **/PromotionText.lua
 # The unit is selected through InGameAccess (UI.SelectUnit); Shift+U opens the promotion tree (UnitPromotionPopup.lua override).
-# no-share-load
+# no-share-load: promotion popup; unique fixture
 load bug-promotion-tree-silent
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if UnitManager.CanStartCommand(u, UnitCommandTypes.PROMOTE, true) then UI.SelectUnit(u) break end end

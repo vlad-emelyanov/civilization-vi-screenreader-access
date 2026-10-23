@@ -1,7 +1,6 @@
 # Verified in game 2026-10-22. medieval-t100: F1 opens World Rankings on the first tab (Overall); Tab / Control+Tab
 # covers: **/WorldRankings.lua **/RankingsText.lua
 # switch tabs (Shift+Tab is the Steam overlay), Space = details, F1 and Escape close.
-# no-share-load
 load medieval-t100
 clear-advisors
 key F1 -Settle 2500

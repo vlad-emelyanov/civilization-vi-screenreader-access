@@ -1,7 +1,7 @@
 # Verified in game 2026-10-22. Fixture bug-dedication-blocker: the Make Dedication notification blocks the turn.
 # covers: **/DedicationPopup_SRA.lua **/EraReviewPopup_SRA.lua **/HistoricMoments_SRA.lua **/NotificationPanel.lua
 # Next Action (Enter) activates the blocker, which opens the era review popup; Continue leads to the dedication chooser.
-# no-share-load
+# no-share-load: Enter picks a dedication
 load bug-dedication-blocker
 clear-advisors
 key Enter -Settle 2500

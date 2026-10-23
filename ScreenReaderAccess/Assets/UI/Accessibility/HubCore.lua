@@ -99,6 +99,128 @@ function HubCore.IsGamePopupOpen()
 	return false;
 end
 
+-- ===========================================================================
+--	TEST HARNESS (util/civregress.py): between two regression scripts on one loaded fixture. TestResetState says whether the
+--	game is back in the state a fresh load gives and puts the cheap state (map cursor, selection) back. It never changes
+--	game state (no orders, no turn); anything it cannot restore is reported as "dirty <reason>" and the next script loads fresh.
+-- ===========================================================================
+local TEST_SCREEN_PARENTS:table = { "WorldPopups", "FakePopups", "Screens", "PartialScreens", "Diplomacy", "EndGame", "AdditionalUserInterfaces" };
+local TEST_SCREEN_SINGLES:table = { "Civilopedia", "EraReviewPopup", "DedicationPopup", "WorldCongressPopup", "WorldCongressIntro", "WorldCongressBetweenTurns", "AdvisorPopup" };
+
+-- The names of the open popups and screens (the options menu included), empty when none.
+function HubCore.TestOpenScreens()
+	local open:table = {};
+	local menu = ContextPtr:LookUpControl( "/InGame/TopOptionsMenu" );
+	if menu ~= nil and not menu:IsHidden() then table.insert( open, "TopOptionsMenu" ); end
+	for _, name in ipairs( TEST_SCREEN_PARENTS ) do
+		local parent = ContextPtr:LookUpControl( "/InGame/" .. name );
+		if parent ~= nil then
+			for _, child in ipairs( parent:GetChildren() ) do
+				if not child:IsHidden() and not ALWAYS_SHOWN[ child:GetID() ] then table.insert( open, name .. "/" .. child:GetID() ); end
+			end
+		end
+	end
+	for _, name in ipairs( TEST_SCREEN_SINGLES ) do
+		for _, path in ipairs( { "/InGame/" .. name, "/InGame/Popups/" .. name, "/TutorialUIRoot/" .. name } ) do
+			local c = ContextPtr:LookUpControl( path );
+			if c ~= nil and not c:IsHidden() then table.insert( open, name ); break; end
+		end
+	end
+	return open;
+end
+
+local function TestSelectionTag()
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit ~= nil then return "u:" .. unit:GetID(); end
+	local city:table = UI.GetHeadSelectedCity();
+	if city ~= nil then return "c:" .. city:GetID(); end
+	return "none";
+end
+
+-- "t=<turn>;g=<gold>;u=<units>;c=<cities>" (what a script that only browses leaves untouched) and the selection tag.
+local function TestSnapshot()
+	local id:number = Game.GetLocalPlayer();
+	local player:table = Players[ id ];
+	-- h=: hash of every unit (id, plot, moves, damage, activity), every city (id, production), research, civic and policy slots
+	local parts:table = {};
+	for _, unit in player:GetUnits():Members() do
+		table.insert( parts, "u" .. unit:GetID() .. "," .. unit:GetX() .. "," .. unit:GetY() .. "," .. unit:GetMovesRemaining()
+			.. "," .. unit:GetDamage() .. "," .. tostring( unit:GetActivityType() ) );
+	end
+	for _, city in player:GetCities():Members() do
+		table.insert( parts, "c" .. city:GetID() .. "," .. tostring( city:GetBuildQueue():GetCurrentProductionTypeHash() ) );
+	end
+	table.insert( parts, "r" .. tostring( player:GetTechs():GetResearchingTech() ) );
+	local culture:table = player:GetCulture();
+	table.insert( parts, "v" .. tostring( culture:GetProgressingCivic() ) );
+	local ok:boolean, slots = pcall( function()
+		local list:table = {};
+		for i = 0, ( culture:GetNumPolicySlots() or 0 ) - 1 do table.insert( list, tostring( culture:GetSlotPolicy( i ) ) ); end
+		return table.concat( list, "," );
+	end );
+	table.insert( parts, "p" .. ( ok and slots or "?" ) );
+	local text:string, hash:number = table.concat( parts, ";" ), 17;
+	for i = 1, #text do hash = ( hash * 31 + string.byte( text, i ) ) % 2147483629; end
+	return "t=" .. Game.GetCurrentGameTurn() .. ";g=" .. math.floor( player:GetTreasury():GetGoldBalance() )
+		.. ";u=" .. player:GetUnits():GetCount() .. ";c=" .. player:GetCities():GetCount() .. ";h=" .. hash;
+end
+
+-- Why the game is not in plain map mode, or nil.
+function HubCore.TestDirtyReason()
+	if not HubCore.IsLocalPlayerActive() then return "no local player"; end
+	if not HubCore.m_ready then return "hub not ready (no game loaded)"; end
+	if not Players[ Game.GetLocalPlayer() ]:IsTurnActive() then return "not our turn"; end
+	local open:table = HubCore.TestOpenScreens();
+	if #open > 0 then return "open: " .. table.concat( open, ", " ); end
+	if HubCore.m_mode ~= nil then return "hub mode " .. tostring( HubCore.m_mode.name ); end
+	if UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then return "interface mode " .. tostring( UI.GetInterfaceMode() ); end
+	if #HubCore.m_delayed > 0 then return "pending delayed calls"; end
+	if #HubCore.m_arrivals > 0 or HubCore.m_arrivalTimer >= 0 then return "pending arrival announcements"; end
+	if next( HubCore.m_movers ) ~= nil then return "pending move orders"; end
+	if HubCore.m_enterWatch >= 0 then return "Enter watch pending"; end
+	return nil;
+end
+
+-- The snapshot and selection of a game as it is (no checks, nothing changed): the baseline TestResetState compares with.
+function HubCore.TestSnapshotText()
+	local ok:boolean, result = xpcall( function() return "snap " .. TestSnapshot() .. "|" .. TestSelectionTag(); end, KeyNavErrorHandler or tostring );
+	if not ok then return "dirty error: " .. tostring( result ); end
+	return result;
+end
+
+-- baseline: nil to just look, or the text a previous call returned after "clean " (taken right after a load). Returns
+-- "clean <snapshot>|<selection>" or "dirty <reason>". Puts the map cursor and the selection back when it is clean.
+local function TestResetStateInner( baseline )
+	local reason:string = HubCore.TestDirtyReason();
+	if reason ~= nil then return "dirty " .. reason; end
+	local snapshot:string = TestSnapshot();
+	if baseline ~= nil then
+		local baseSnapshot:string, baseSel:string = string.match( baseline, "^(.*)|(.*)$" );
+		if baseSnapshot ~= snapshot then return "dirty changed: " .. snapshot .. " (was " .. tostring( baseSnapshot ) .. ")"; end
+		if TestSelectionTag() ~= baseSel then
+			if UI.DeselectAll ~= nil then UI.DeselectAll(); else UI.DeselectAllUnits(); UI.DeselectAllCities(); end
+			local kind:string, objectId:string = string.match( baseSel, "^(%a):(%d+)$" );
+			local player:table = Players[ Game.GetLocalPlayer() ];
+			if kind == "u" then
+				local unit:table = player:GetUnits():FindID( tonumber( objectId ) );
+				if unit ~= nil then UI.SelectUnit( unit ); end
+			elseif kind == "c" then
+				local city:table = player:GetCities():FindID( tonumber( objectId ) );
+				if city ~= nil then UI.SelectCity( city ); end
+			end
+			if TestSelectionTag() ~= baseSel then return "dirty selection " .. TestSelectionTag() .. " not restored to " .. baseSel; end
+		end
+	end
+	HubCursor.ResetCursor();
+	return "clean " .. snapshot .. "|" .. TestSelectionTag();
+end
+
+function HubCore.TestResetState( baseline )
+	local ok:boolean, result = xpcall( function() return TestResetStateInner( baseline ); end, KeyNavErrorHandler or tostring );
+	if not ok then return "dirty error: " .. tostring( result ); end
+	return result;
+end
+
 -- Runs fn after the given seconds (from the update loop).
 function HubCore.After( seconds:number, fn )
 	table.insert( HubCore.m_delayed, { time = seconds, fn = fn } );
