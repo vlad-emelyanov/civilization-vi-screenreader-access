@@ -1,11 +1,13 @@
-# Written blind 2026-10-23 (round 8, not yet recorded). M on a city in the places list opens the "send a unit" chooser (or says nobody can reach it); Escape goes back to the places list. Nothing is ordered.
+# Written blind 2026-10-23 (round 8, not yet recorded). M on a city in the places list opens the "send a unit" chooser (items say "next to Rome" when the city itself cannot be entered); Escape goes back to the places list. Nothing is ordered.
 # covers: **/HubPlaces.lua **/HubTargets.lua UI/Additions/InGameAccess.lua
 load early-t60
 clear-advisors
 action KeyNavPlaces -Settle 1500
 expect ^Places\.
 key M -Settle 2000
-expect ^(Send a unit to Rome, \d+ options?|No unit can reach it)
+expect (?i)^Send a unit to Rome, \d+ options?
+# Rome is occupied (a scout and Boudica stand in it): the units approach it
+expect (?i)(next to Rome|turns?)
 key Escape -Settle 1500
 expect ^(Places\.|Closed)
 no-lua-errors

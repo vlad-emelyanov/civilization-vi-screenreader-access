@@ -15,7 +15,7 @@ expect ^Closed
 action KeyNavPlaces -Settle 1500
 expect ^Places\.
 key Enter -Settle 1500
-expect (?i)(here|turns?)
+expect (?i)(next to Rome|here|turns?)
 key Escape -Settle 1500
 expect ^Cancelled
 no-lua-errors
