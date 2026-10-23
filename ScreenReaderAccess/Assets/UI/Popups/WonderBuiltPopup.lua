@@ -107,7 +107,7 @@ function ShowPopup( kData:table )
 
 	Controls.ReplayButton:SetHide(UI.GetWorldRenderView() ~= WorldRenderView.VIEW_3D);
 
-	-- Begin ScreenReaderAccess mod change: "Wonder built: Mont St. Michel, by you, in Rome. <quote>. Enter to continue"
+	-- Begin ScreenReaderAccess mod change (this popup only shows for the local player's own wonders; a rival's wonder comes as a WONDER_COMPLETED notification, so "by" is normally "you"): "Wonder built: Mont St. Michel, by you, in Rome. <quote>. Enter to continue"
 	local who:string = "you";
 	if m_kCurrentPopup.playerIndex ~= nil and m_kCurrentPopup.playerIndex ~= Game.GetLocalPlayer() then
 		local config:table = PlayerConfigurations[m_kCurrentPopup.playerIndex];
@@ -202,6 +202,7 @@ end
 -- ===========================================================================
 function KeyHandler( key:number )
     if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then		-- ScreenReaderAccess mod change: Enter too
+		if m_kCurrentPopup == nil then return false; end
 		Close();
 		return true;
     end

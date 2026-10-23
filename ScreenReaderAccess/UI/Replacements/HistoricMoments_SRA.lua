@@ -132,6 +132,7 @@ end
 
 -- ===========================================================================
 function ShowNewTimelineMoment(popupData:table)
+	m_srIsTimeline = false;		-- ScreenReaderAccess: a single moment, not the timeline view
 	m_CurrentMoment = popupData.momentID;
 	DisplayTimeline(popupData.showAnim);
 	UI.PlaySound("UI_Screen_Open");
@@ -599,6 +600,7 @@ end
 
 -- ===========================================================================
 function OnEndGame()
+	m_srIsTimeline = false;		-- ScreenReaderAccess
 	if UIManager:IsInPopupQueue(ContextPtr) then
 		UIManager:DequeuePopup(ContextPtr)
 	end

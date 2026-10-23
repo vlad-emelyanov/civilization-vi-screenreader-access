@@ -435,7 +435,9 @@ function OnInputHandler( pInputStruct:table )
 	local key = pInputStruct:GetKey();
 	local msg = pInputStruct:GetMessageType();
 	if msg == KeyEvents.KeyUp and key == Keys.VK_ESCAPE then 
-		if not Controls.SlideOnShow:IsReversing() then Close(); end		-- ScreenReaderAccess mod change: not while it is already closing
+		if m_isAnswerRequired then		-- ScreenReaderAccess mod change: Escape must not decide the answer
+			OutputMessageToScreenReader("Not answered yet, Up and Down choose Join or Reject, Enter confirms");
+		elseif not Controls.SlideOnShow:IsReversing() then Close(); end
 	-- Begin ScreenReaderAccess mod change: Enter closes (or answers), Up/Down read the details or choose Join / Reject
 	elseif msg == KeyEvents.KeyUp and not Controls.SlideOnShow:IsReversing() then
 		if key == Keys.VK_RETURN then
