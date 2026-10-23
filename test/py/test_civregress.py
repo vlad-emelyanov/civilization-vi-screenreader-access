@@ -140,30 +140,31 @@ class FlowTests(unittest.TestCase):
 
 
 class AdvisorAndSkipTests(unittest.TestCase):
-    def test_no_popup_presses_nothing(self):
-        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["false"]))])
+    def test_no_popup_closes_nothing(self):
+        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["none"]))])
         res = cr.run_script("t", cr.parse_script("clear-advisors"), r, lambda s: None)
+        self.assertEqual(len(r.calls), 1)
         self.assertFalse([c for c in r.calls if c[0] == "key"])
         self.assertTrue(res.ok)
 
-    def test_presses_while_popup_up(self):
+    def test_closes_while_popup_up(self):
         state = {"up": 2}
 
-        def probe():
-            return 0, ["true" if state["up"] > 0 else "false"]
-
-        def press():
-            state["up"] -= 1
-            return 0, ["SR> ADVISOR: x"]
-        r = FakeRunner([(["lua", "AdvisorPopup"], probe), (["key", "Enter"], press)])
+        def close():
+            if state["up"] > 0:
+                state["up"] -= 1
+                return 0, ["closed"]
+            return 0, ["none"]
+        r = FakeRunner([(["lua", "AdvisorPopup"], close)])
         cr.run_script("t", cr.parse_script("clear-advisors"), r, lambda s: None)
-        self.assertEqual(len([c for c in r.calls if c[0] == "key"]), 2)
+        self.assertEqual(len([c for c in r.calls if c[0] == "lua"]), 3)
+        self.assertFalse([c for c in r.calls if c[0] == "key"])
 
     def test_cap_warns(self):
-        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["true"]))])
+        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["closed"]))])
         log = []
         cr.run_script("t", cr.parse_script("clear-advisors"), r, log.append)
-        self.assertEqual(len([c for c in r.calls if c[0] == "key"]), cr.MAX_ADVISOR_PRESSES)
+        self.assertEqual(len([c for c in r.calls if c[0] == "lua"]), cr.MAX_ADVISOR_PRESSES)
         self.assertTrue(any("WARNING" in l and "still up" in l for l in log))
 
     def test_skipped_all(self):
@@ -211,16 +212,15 @@ class ShiftTabTests(unittest.TestCase):
 
 
 class ClearAdvisorsTests(unittest.TestCase):
-    def test_standalone_function_presses_until_gone(self):
-        ups = iter([(0, ["true"]), (0, ["true"]), (0, ["false"])])
-        r = FakeRunner([(["lua", "AdvisorPopup"], lambda: next(ups)), (["key", "Enter"], (0, ["SR> Advisor text"]))])
+    def test_standalone_function_closes_until_gone(self):
+        ups = iter([(0, ["closed"]), (0, ["closed"]), (0, ["none"])])
+        r = FakeRunner([(["lua", "AdvisorPopup"], lambda: next(ups))])
         status, lines = cr.clear_advisors(r, lambda s: None)
         self.assertEqual(status, "ok")
-        self.assertEqual(len([c for c in r.calls if c[0] == "key"]), 2)
-        self.assertEqual(lines, ["SR> Advisor text"] * 2)
+        self.assertEqual(len([c for c in r.calls if c[0] == "lua"]), 3)
 
     def test_crash_and_lock_statuses(self):
-        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["true"])), (["key", "Enter"], (5, ["GAME HUNG"]))])
+        r = FakeRunner([(["lua", "AdvisorPopup"], (5, ["GAME HUNG"]))])
         self.assertEqual(cr.clear_advisors(r, lambda s: None)[0], "crashed")
         r = FakeRunner([(["lua", "AdvisorPopup"], (6, ["game in use by x"]))])
         self.assertEqual(cr.clear_advisors(r, lambda s: None)[0], "locked")

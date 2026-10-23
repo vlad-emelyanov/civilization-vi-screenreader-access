@@ -14,10 +14,9 @@ Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' 
                           An unbound action fails the step (civctl exit 1).
   wait <args>             civctl wait <args>             e.g. wait Turn \\d+ -Timeout 30 (no | or & in the regex: cmd.exe)
   lua <state> <expr>      civctl lua <state> <expr>      (the expression goes through a temp -File: quotes are safe)
-  clear-advisors          presses Enter only while the AdvisorPopup context is visible (tuner probe, max 12 presses): the
-                          advisor popups that a loaded or tuner-changed game queues swallow keys. With no popup up it presses
-                          nothing (Enter would end the turn). Warns when the cap is hit with a popup still up. Its lines
-                          stay in the window.
+  clear-advisors          closes the advisor popups of the game, one tuner call each (KeyNavActivate(1) in AdvisorPopup, like Escape on
+                          the popup; max 12): the advisor popups that a loaded or tuner-changed game queues swallow keys. With no
+                          popup up it does nothing. Warns when the cap is hit. ~1.7 s per popup (was ~4.5 s with probe + real Enter).
   no-lua-errors           PASS if Lua.log got no new "Runtime Error" line since the script began (put it last)
   expect <regex>          PASS if some SR> line since the last check matches (re.search, case-sensitive, use (?i))
   expect-not <regex>      PASS if no SR> line since the last check matches
@@ -281,11 +280,12 @@ def new_lua_errors(path, offset):
     return [l.rstrip() for l in data.splitlines() if "Runtime Error" in l]
 
 
-def advisor_popup_up(runner):
-    """Asks the game whether the AdvisorPopup context is visible. Returns (rc, up, lines)."""
+def advisor_close_if_up(runner):
+    """One tuner call that closes the visible advisor popup like its first button (KeyNavActivate(1), what Escape does) and says
+    what it saw. Returns (rc, was_up, lines). Much cheaper than a probe plus a real Enter (1.7 s instead of 4.5 s per popup)."""
     fd, tmp = tempfile.mkstemp(suffix=".lua", prefix="regress_")
     with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write("return tostring(not ContextPtr:IsHidden())")
+        f.write("if ContextPtr:IsHidden() then return 'none' end KeyNavActivate(1) return 'closed'")
     try:
         rc, lines = runner.run(["lua", "AdvisorPopup", "-File", tmp])
     finally:
@@ -293,33 +293,26 @@ def advisor_popup_up(runner):
             os.remove(tmp)
         except OSError:
             pass
-    return rc, rc == 0 and any(l.strip() == "true" for l in lines), lines
+    return rc, rc == 0 and any(l.strip() == "closed" for l in lines), lines
 
 
 def clear_advisors(runner, out=print, line=0):
-    """Presses Enter while the AdvisorPopup context is visible (max MAX_ADVISOR_PRESSES). Returns (status, civctl output lines of
-    the presses); status: ok | crashed (civctl exit 5 / timeout) | locked (exit 6/7; the last line is civctl's message)."""
+    """Closes the advisor popups that a loaded or tuner-changed game queues (max MAX_ADVISOR_PRESSES), one tuner call each.
+    Returns (status, output lines); status: ok | crashed (civctl exit 5 / timeout) | locked (exit 6/7; the last line is civctl's message)."""
     collected, presses = [], 0
     while True:
-        rc, up, lines = advisor_popup_up(runner)
+        rc, was_up, lines = advisor_close_if_up(runner)
         if rc in (6, 7):
             return "locked", collected + [chr(10).join(lines)]
         if rc != 0:
-            out("  WARNING line %d: advisor probe failed (exit %d), no Enter pressed: %s" % (line, rc, " ".join(l.strip() for l in lines[-2:])))
+            out("  WARNING line %d: advisor probe failed (exit %d), nothing closed: %s" % (line, rc, " ".join(l.strip() for l in lines[-2:])))
             return ("crashed" if rc in (5, TIMEOUT_RC) else "ok"), collected
-        if not up:
+        if not was_up:
             return "ok", collected
-        if presses >= MAX_ADVISOR_PRESSES:
-            out("  WARNING line %d: advisor popup still up after %d Enter presses" % (line, presses))
-            return "ok", collected
-        rc, lines = runner.run(["key", "Enter", "-Settle", "1500"])
         presses += 1
-        collected += lines
-        if rc in (6, 7):
-            return "locked", collected + [chr(10).join(lines)]
-        if rc in (5, TIMEOUT_RC):
-            return "crashed", collected
-        if rc != 0:
+        collected += [l for l in lines if l.strip() not in ("closed", "none")]
+        if presses >= MAX_ADVISOR_PRESSES:
+            out("  WARNING line %d: advisor popup still up after %d closes" % (line, presses))
             return "ok", collected
 
 
