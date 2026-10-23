@@ -134,3 +134,7 @@ The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goe
 - A unit created by the tuner and given `UnitManager.RestoreMovement` has its moves in the UI at once (the trader-in-capital scenario works without ending the turn).
 - The ActionPanel label stays "End turn" after Escape closed the World Congress popup while the Resume Congress blocker is pending, and says "Please wait" while the congress is in session: the hub's N checks `Game.GetWorldCongress():IsInSession()`.
 - Make Trade Route / Transfer to Another City have no tooltip when disabled; the Tab menu text is composed from `GetNumOutgoingRoutes` / `GetOutgoingRouteCapacity` (UnitPanel).
+
+- Shift+Tab leaves Shift logically held in the game after the overlay swallowed its key-up: afterwards Down/Up do nothing and Tab goes backwards in every screen. `civctl key LShiftKey` then `RShiftKey` releases it (a plain `Shift` key name does not). Use Control+Tab for "previous" in our screens.
+- The in-game top options menu (Escape) does not receive the real mouse: hover and clicks go to the map under it (a Coast tooltip shows). Everything there must work by direct calls (announce on Up/Down, Enter calls the button's handler), not through KEYNAV_MOVE/KEYNAV_CLICK.
+- A context that was hidden gets no `SetUpdate` ticks: a result that is spoken from an update loop after the screen closed never fires. Keep the popup shown until the result is spoken (Great People: `Close()` is deferred while a request is pending).
