@@ -1,0 +1,17 @@
+# UNVERIFIED (written offline, never run in the game). medieval-t100: F1 opens World Rankings on the first tab (Overview).
+# no-share-load
+load medieval-t100
+clear-advisors
+key F1 -Settle 2500
+expect ^World Rankings\. [^,]+, 1 of \d+ tabs?\. .*, 1 of \d+
+key Down -Settle 500
+expect , 2 of \d+$
+key Space -Settle 500
+expect \S
+key Tab -Settle 800
+expect ^[^,]+, 2 of \d+ tabs?\. .*, 1 of \d+
+key Shift+Tab -Settle 800
+expect ^[^,]+, 1 of \d+ tabs?\. .*, 1 of \d+
+key Escape -Settle 1500
+expect ^World Rankings closed
+no-lua-errors

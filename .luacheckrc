@@ -23,7 +23,7 @@ read_globals = {
 	"Network", "NetworkPlatform", "NotificationManager", "NotificationTypes", "Options", "PlayerComponentTypes",
 	"PlayerConfigurations", "PlayerManager", "PlayerOperations", "PlayerTypes", "Players", "PlayersVisibility",
 	"PopupDialog", "PopupPriority", "ReportingStatusTypes", "RevealedState", "RiverManager", "SaveFileTypes",
-	"SaveLocationOptions", "SaveLocations", "SaveTypes", "ServerType", "SlotStatus", "TTManager", "TeamTypes",
+	"SaveLocationOptions", "SaveLocations", "SaveTypes", "ServerType", "SlotStatus", "TTManager", "TeamTypes", "Teams",
 	"TerrainManager", "TouchManager", "UI", "UILens", "UIManager", "UITutorialManager", "UnitCommandResults",
 	"UnitCommandTypes", "UnitManager", "UnitOperationResults", "UnitOperationTypes", "Units", "UserConfiguration",
 	-- provided by game files pulled in with include(): ToolTipHelper_PlayerYields, Civ6Common
@@ -59,4 +59,8 @@ globals = {
 	"TradeText_Detail", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
 	"CityReport_BuildItems", "CityReport_Gather", "TXT_NO_PRODUCTION", "SIZE_PRODUCTION_ICON",
 	"WCText_CostList", "WCText_Letter", "WCText_Missing", "WCText_Plural", "WCText_ProposalLine", "WCText_ReviewProposal", "WCText_ReviewResolution", "WCText_ResolutionLine", "WCText_Strip", "WCText_VoteBlock", "WCText_VotesPhrase",
+	"TopPanelData_Summary", "RankingsText_Ordinal", "RankingsText_Count", "RankingsText_And", "RankingsText_Join", "RankingsText_Clean",
+	"RankingsText_Percent", "RankingsText_Label", "RankingsText_ScoreLine", "RankingsText_PositionOf", "RankingsText_OverviewLine",
+	"RankingsText_OverviewDetail", "RankingsText_Science", "RankingsText_Culture", "RankingsText_Domination",
+	"RankingsText_Religion", "RankingsText_Diplomatic", "RankingsText_Tab",
 }

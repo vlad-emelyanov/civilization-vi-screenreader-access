@@ -10,6 +10,11 @@ include("AnimSidePanelSupport");
 include("TeamSupport");
 include("CivilizationIcon");
 include("Colors");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
+include("RankingsText");	-- ScreenReaderAccess
+print("ScreenReaderAccess: WorldRankings copy loaded");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	DEBUG
@@ -269,6 +274,390 @@ TTManager:GetTypeControlTable("TeamTooltip", m_TeamTooltip);
 -- Track the number of turns till the closest cultural victory
 local m_iTurnsTillCulturalVictory:number = -1;
 
+-- ScreenReaderAccess
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech for World Rankings
+--	Tab / Shift+Tab switch tabs (the game's own tab callbacks, so the data is refreshed), Up/Down/Home/End walk the
+--	rows of the tab, Space reads the row's details (score breakdown, science project checklist, tourist tooltip ...),
+--	H reads what the victory type is about, Escape closes. Every keyboard event is swallowed while the screen is
+--	open except the function keys (so the key that opened the screen can close it again).
+--	The rows are recorded by hooks around the game's populate functions (SRA_InstallHooks, run on the first Open:
+--	the expansion's WorldRankings_Expansion2.lua redefines several of them after including this file, so hooking
+--	at load time would be lost), so what is spoken is what the screen shows. The local copy of the text helpers
+--	is Accessibility/RankingsText.lua.
+-- ===========================================================================
+local m_srRows					:table = {};		-- rows of the active tab, in the order the screen shows them
+local m_srHeader				:table = nil;		-- { text } of the active tab's header (what the victory is about)
+local m_srOverallPlayers		:table = {};		-- icons of the overview row being populated
+local m_srHooked				:boolean = false;
+local m_srList					:table = nil;
+local m_srOpenPending			:boolean = false;
+local m_srOpenDelay				:number = 0;
+local m_srErrorHandler			= KeyNavErrorHandler;
+
+local SRA_SCIENCE_STAGES		:table = { "Earth satellite", "Moon landing", "Mars colony", "Exoplanet expedition" };
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Safe( fn, what:string )
+	local ok:boolean, err = xpcall( fn, m_srErrorHandler );
+	if not ok then print( "WorldRankings " .. what .. " error: " .. tostring( err ) ); end
+end
+
+local function SRA_Name( playerID:number )
+	local name:string = GetCivNameAndIcon( playerID, false );
+	return CleanTextForSpeech( name );
+end
+
+local function SRA_Label( playerID:number )
+	return RankingsText_Label( SRA_Name( playerID ), playerID == g_LocalPlayerID );
+end
+
+-- in a list of civs the local player is just "You"
+local function SRA_ShortName( playerID:number )
+	if playerID == g_LocalPlayerID then return "You"; end
+	return SRA_Name( playerID );
+end
+
+local function SRA_Names( ids:table )
+	local names:table = {};
+	for _, id in ipairs( ids ) do table.insert( names, SRA_ShortName( id ) ); end
+	return names;
+end
+
+local function SRA_AddRow( row:table )
+	for _, existing in ipairs( m_srRows ) do
+		if existing.key == row.key then return; end
+	end
+	table.insert( m_srRows, row );
+end
+
+-- Called by ResetState: every tab (re)populates from scratch.
+function SRA_ResetRows()
+	m_srRows = {};
+	m_srHeader = nil;
+	m_srOverallPlayers = {};
+end
+
+-- ---------------------------------------------------------------------------
+--	Recording (called after the game's own populate function ran)
+-- ---------------------------------------------------------------------------
+local function SRA_RecordHeader( title:string, subTitle:string, details:string )
+	local parts:table = {};
+	for _, text in ipairs( { title or "", subTitle or "", details or "" } ) do
+		if text ~= "" then table.insert( parts, RankingsText_Clean( Locale.Lookup( text ) ) ); end
+	end
+	m_srHeader = { text = RankingsText_Join( parts, ". " ) };
+end
+
+local function SRA_RecordOverall( instance:table, victoryType:string )
+	local info:table = GameInfo.Victories[ victoryType ];
+	local leading:string = instance.VictoryLeading:GetText() or "";
+	local position:number = RankingsText_PositionOf( m_srOverallPlayers, function( e ) return e.isYou; end );
+	SRA_AddRow{
+		key = "v:" .. victoryType, kind = "overview",
+		victory = Locale.Lookup( info.Name ), leading = leading,
+		position = position, youLeading = ( position == 1 ),
+		entries = m_srOverallPlayers,
+	};
+end
+
+local function SRA_RecordOverallPlayer( victoryType:string, teamData:table )
+	local playerID:number = Teams[ teamData.TeamID ][1];
+	local playerData:table = teamData.PlayerData[ playerID ];
+	if playerData == nil then return; end
+	local summary:table = { RankingsText_Clean( playerData.FirstTiebreakSummary ) };
+	if playerData.FirstTiebreakSummary ~= playerData.SecondTiebreakSummary then
+		table.insert( summary, RankingsText_Clean( playerData.SecondTiebreakSummary ) );
+	end
+	table.insert( summary, RankingsText_Clean( playerData.AdditionalSummary ) );
+	table.insert( m_srOverallPlayers, { label = SRA_Label( playerID ), isYou = ( playerID == g_LocalPlayerID ), summary = RankingsText_Join( summary, ", " ) } );
+end
+
+local function SRA_RecordOverallTeam( teamData:table )
+	local label:string = CleanTextForSpeech( Locale.Lookup( "LOC_WORLD_RANKINGS_TEAM", GameConfiguration.GetTeamName( teamData.TeamID ) ) );
+	table.insert( m_srOverallPlayers, { label = label, isYou = ( teamData.PlayerData[ g_LocalPlayerID ] ~= nil ), summary = "" } );
+end
+
+local function SRA_RecordScore( playerData:table )
+	local categories:table = {};
+	for _, category in ipairs( playerData.Categories or {} ) do
+		local info:table = GameInfo.ScoringCategories[ category.CategoryID ];
+		table.insert( categories, CleanTextForSpeech( Locale.Lookup( info.Name ) ) .. " " .. category.CategoryScore );
+	end
+	SRA_AddRow{ key = "p:" .. playerData.PlayerID, kind = "score", id = playerData.PlayerID, score = playerData.PlayerScore, categories = categories };
+end
+
+local function SRA_RecordScience( instance:table, progressData:table )
+	local stages:table = {};
+	for i, total in ipairs( progressData.projectTotals ) do
+		table.insert( stages, { name = SRA_SCIENCE_STAGES[ i ], progress = progressData.projectProgresses[ i ], total = total } );
+	end
+	local tips:table = {};
+	for i = 1, #stages do
+		local ok:boolean, tip = pcall( function() return instance[ "ObjBG_" .. i ]:GetToolTipString(); end );
+		tips[ i ] = ( ok and tip ) and RankingsText_Clean( tip ) or "";
+	end
+	local lightYears:string = nil;
+	local last:table = stages[ #stages ];
+	if #stages == 4 and last.total > 0 and last.progress >= last.total then
+		local ok:boolean, text = pcall( function()
+			local stats:table = Players[ progressData.playerID ]:GetStats();
+			return stats:GetScienceVictoryPoints() .. " of " .. g_LocalPlayer:GetStats():GetScienceVictoryPointsTotalNeeded() .. " light years travelled";
+		end );
+		if ok then lightYears = text; end
+	end
+	SRA_AddRow{ key = "p:" .. progressData.playerID, kind = "science", id = progressData.playerID, stages = stages,
+		hasSpaceport = progressData.bHasSpaceport, tips = tips, lightYears = lightYears };
+end
+
+local function SRA_RecordCulture( instance:table, playerData:table )
+	local turns:number = nil;
+	if instance.TurnsTillVictory ~= nil and not instance.TurnsTillVictory:IsHidden() then turns = playerData.TurnsTillCulturalVictory; end
+	local fromYou:number = nil;
+	local tip:string = "";
+	if g_LocalPlayer ~= nil and playerData.PlayerID ~= g_LocalPlayerID then
+		local culture:table = g_LocalPlayer:GetCulture();
+		fromYou = culture:GetTouristsFrom( playerData.PlayerID );
+		tip = RankingsText_Clean( culture:GetTouristsFromTooltip( playerData.PlayerID ) );
+	end
+	SRA_AddRow{ key = "p:" .. playerData.PlayerID, kind = "culture", id = playerData.PlayerID, visiting = playerData.NumVisitingUs,
+		needed = playerData.NumRequiredTourists, domestic = playerData.NumStaycationers, turns = turns, fromYou = fromYou, tip = tip };
+end
+
+local function SRA_RecordDomination( playerData:table )
+	SRA_AddRow{ key = "p:" .. playerData.PlayerID, kind = "domination", id = playerData.PlayerID,
+		hasCapital = playerData.HasOriginalCapital, captured = playerData.CapturedCapitals };
+end
+
+local function SRA_RecordReligion( playerData:table, totalCivs:number )
+	SRA_AddRow{ key = "p:" .. playerData.PlayerID, kind = "religion", id = playerData.PlayerID, total = totalCivs,
+		religion = CleanTextForSpeech( Locale.Lookup( Game.GetReligion():GetName( playerData.ReligionType ) ) ),
+		converted = playerData.ConvertedCivs };
+end
+
+local function SRA_RecordGeneric( instance:table, playerData:table, victoryType:string )
+	local row:table = { key = "p:" .. playerData.PlayerID, kind = "generic", id = playerData.PlayerID, details = RankingsText_Clean( instance.Details:GetText() ) };
+	if victoryType == "VICTORY_DIPLOMATIC" then
+		local ok:boolean, err = pcall( function()
+			local stats:table = Players[ playerData.PlayerID ]:GetStats();
+			row.points = stats:GetDiplomaticVictoryPoints();
+			row.total = GlobalParameters.DIPLOMATIC_VICTORY_POINTS_REQUIRED;
+			row.tip = RankingsText_Clean( stats:GetDiplomaticVictoryPointsTooltip() );
+		end );
+		if not ok then print( "WorldRankings diplomatic data: " .. tostring( err ) ); end
+	end
+	SRA_AddRow( row );
+end
+
+-- Wraps a populate function: the original runs first (and its results are returned), then record( args ) sees the arguments.
+local function SRA_Wrapped( original, record )
+	return function( ... )
+		local a, b = original( ... );
+		local args:table = { ... };
+		SRA_Safe( function() record( args ); end, "hook" );
+		return a, b;
+	end
+end
+
+-- Installed on the first Open: by then the expansion has redefined its versions of these functions.
+function SRA_InstallHooks()
+	if m_srHooked then return; end
+	m_srHooked = true;
+
+	local originalOverall = PopulateOverallInstance;
+	PopulateOverallInstance = function( instance, victoryType, typeText )
+		m_srOverallPlayers = {};
+		originalOverall( instance, victoryType, typeText );
+		SRA_Safe( function() SRA_RecordOverall( instance, victoryType ); end, "overview hook" );
+	end;
+	PopulateOverallPlayerIconInstance = SRA_Wrapped( PopulateOverallPlayerIconInstance, function( a ) SRA_RecordOverallPlayer( a[2], a[3] ); end );
+	PopulateOverallTeamIconInstance = SRA_Wrapped( PopulateOverallTeamIconInstance, function( a ) SRA_RecordOverallTeam( a[2] ); end );
+	PopulateScoreInstance = SRA_Wrapped( PopulateScoreInstance, function( a ) SRA_RecordScore( a[2] ); end );
+	PopulateScienceProgressMeters = SRA_Wrapped( PopulateScienceProgressMeters, function( a ) SRA_RecordScience( a[1], a[2] ); end );
+	PopulateCultureInstance = SRA_Wrapped( PopulateCultureInstance, function( a ) SRA_RecordCulture( a[1], a[2] ); end );
+	PopulateDominationInstance = SRA_Wrapped( PopulateDominationInstance, function( a ) SRA_RecordDomination( a[2] ); end );
+	PopulateReligionInstance = SRA_Wrapped( PopulateReligionInstance, function( a ) SRA_RecordReligion( a[2], a[3] ); end );
+	PopulateGenericInstance = SRA_Wrapped( PopulateGenericInstance, function( a ) SRA_RecordGeneric( a[1], a[2], a[3] ); end );
+	PopulateGenericHeader = SRA_Wrapped( PopulateGenericHeader, function( a ) SRA_RecordHeader( a[2], a[3], a[4] ); end );
+end
+
+-- ---------------------------------------------------------------------------
+--	Tabs
+-- ---------------------------------------------------------------------------
+local function SRA_Tabs()
+	local labels:table = {};
+	local current:number = 0;
+	if g_TabSupport == nil then return labels, current; end
+	for i, control in ipairs( g_TabSupport.tabControls ) do
+		table.insert( labels, CleanTextForSpeech( control:GetTextControl():GetText() ) );
+		if control == g_TabSupport.selectedControl then current = i; end
+	end
+	return labels, current;
+end
+
+-- ---------------------------------------------------------------------------
+--	List items
+-- ---------------------------------------------------------------------------
+local function SRA_ScoreRank( row:table )
+	local rank:number = 0;
+	for _, other in ipairs( m_srRows ) do
+		rank = rank + 1;
+		if other == row then return rank; end
+	end
+	return rank;
+end
+
+local function SRA_RowItem( row:table )
+	local item:table = { key = row.key };
+	if row.kind == "overview" then
+		item.text = RankingsText_OverviewLine( row.victory, row.leading, row.position, row.youLeading );
+		if #row.entries > 0 then item.detail = RankingsText_OverviewDetail( row.entries ); end
+	elseif row.kind == "score" then
+		item.text = RankingsText_ScoreLine( SRA_ScoreRank( row ), SRA_Label( row.id ), row.score );
+		if #row.categories > 0 then item.detail = SRA_Label( row.id ) .. ": " .. table.concat( row.categories, ", " ); end
+	elseif row.kind == "science" then
+		item.text = RankingsText_Science( SRA_Label( row.id ), row.stages, row.hasSpaceport );
+		if row.lightYears ~= nil then item.text = item.text .. ", " .. row.lightYears; end
+		local parts:table = { SRA_Label( row.id ) };
+		for i, stage in ipairs( row.stages ) do
+			if row.tips[ i ] ~= "" then table.insert( parts, stage.name .. ": " .. row.tips[ i ] ); end
+		end
+		if #parts > 1 then item.detail = table.concat( parts, ". " ); end
+	elseif row.kind == "culture" then
+		item.text = RankingsText_Culture( SRA_Label( row.id ), row.visiting, row.needed, row.domestic, row.turns, row.fromYou );
+		if row.tip ~= nil and row.tip ~= "" then item.detail = SRA_Label( row.id ) .. ": " .. row.tip; end
+	elseif row.kind == "domination" then
+		item.text = RankingsText_Domination( SRA_Label( row.id ), row.hasCapital, SRA_Names( row.captured ) );
+	elseif row.kind == "religion" then
+		item.text = RankingsText_Religion( SRA_Label( row.id ), row.religion, SRA_Names( row.converted ), row.total );
+	else
+		if row.points ~= nil then
+			item.text = RankingsText_Diplomatic( SRA_Label( row.id ), row.points, row.total );
+			if row.tip ~= nil and row.tip ~= "" then item.detail = row.tip; end
+		else
+			item.text = RankingsText_Join( { SRA_Label( row.id ), row.details }, ": " );
+		end
+	end
+	return item;
+end
+
+function SRA_Items()
+	local items:table = {};
+	for _, row in ipairs( m_srRows ) do
+		local item:table = SRA_RowItem( row );
+		-- Space without row details reads what the victory type is about
+		if item.detail == nil and m_srHeader ~= nil then item.detail = m_srHeader.text; end
+		table.insert( items, item );
+	end
+	if #items == 0 then
+		local labels:table, current:number = SRA_Tabs();
+		local text:string = "Nothing to show";
+		if labels[ current ] == TAB_RELIGION then text = "No civilization has founded a religion yet"; end
+		table.insert( items, { key = "none", text = text, detail = m_srHeader and m_srHeader.text or nil } );
+	end
+	return items;
+end
+
+-- "<tab line>. <first item>, 1 of n": the tab's first row is focused
+local function SRA_AnnounceTab( prefix:string, nointerrupt:boolean )
+	local labels:table, current:number = SRA_Tabs();
+	m_srList.Reset();
+	local items:table = SRA_Items();
+	m_srList.Open( "World Rankings", items[1].key, true );
+	local tab:string = ( current > 0 ) and ( RankingsText_Tab( labels[ current ], current, #labels ) .. ". " ) or "";
+	SRA_Say( ( prefix or "" ) .. tab .. items[1].text .. ", 1 of " .. #items, nointerrupt );
+end
+
+local function SRA_SwitchTab( delta:number )
+	local labels:table, current:number = SRA_Tabs();
+	if #labels == 0 then SRA_Say( "No tabs" ); return; end
+	local target:number;
+	if current == 0 then
+		target = ( delta > 0 ) and 1 or #labels;
+	else
+		target = current + delta;
+		if target < 1 then target = #labels; end
+		if target > #labels then target = 1; end
+	end
+	g_TabSupport.SelectTab( target );		-- the tab's own callback: shows it and refills the rows
+	SRA_AnnounceTab( "", false );
+end
+
+local function SRA_ReadHeader()
+	if m_srHeader ~= nil and m_srHeader.text ~= "" then
+		SRA_Say( m_srHeader.text );
+	else
+		SRA_Say( "No description for this tab" );
+	end
+end
+
+-- ---------------------------------------------------------------------------
+--	Open / update / input
+-- ---------------------------------------------------------------------------
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return m_AnimSupport ~= nil and m_AnimSupport.IsVisible(); end,
+		onActivate = function() SRA_ReadHeader(); end,
+	};
+end
+
+-- The announcement comes from the update loop once the data has settled (OpenCulture selects its tab right after Open).
+function SRA_ArmOpen()
+	m_srOpenPending = true;
+	m_srOpenDelay = 0.4;
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_srOpenPending and not ContextPtr:IsHidden() then
+		m_srOpenDelay = m_srOpenDelay - deltaTime;
+		if m_srOpenDelay > 0 then return; end
+		m_srOpenPending = false;
+		SRA_Safe( function() SRA_AnnounceTab( "World Rankings. ", true ); end, "announce" );
+	end
+end
+
+local function SRA_IsFunctionKey( key:number )
+	for n = 1, 12 do
+		if Keys[ "VK_F" .. n ] ~= nil and Keys[ "VK_F" .. n ] == key then return true; end
+	end
+	return false;
+end
+
+function SRA_HandleInput( input:table )
+	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = input:GetKey();
+	if SRA_IsFunctionKey( key ) then return false; end
+	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+	if key == Keys.VK_TAB then
+		if isUp then SRA_Safe( function() SRA_SwitchTab( input:IsShiftDown() and -1 or 1 ); end, "tab" ); end
+		return true;
+	elseif key == Keys.VK_ESCAPE then
+		if isUp then SRA_Safe( Close, "close" ); end
+		return true;
+	elseif key == Keys.H then
+		if isUp then SRA_Safe( SRA_ReadHeader, "header" ); end
+		return true;
+	end
+	m_srList.HandleInput( input );
+	return true;		-- everything else is swallowed while the screen is open
+end
+
+function SRA_InputHandler( input:table )
+	if SRA_HandleInput( input ) then return true; end
+	return m_AnimSupport.OnInputHandler( input );
+end
+
+function SRA_Closed()
+	SRA_Say( "World Rankings closed" );
+end
+-- End ScreenReaderAccess
+
 -- Helper method to quickly generate a list of teams of living major players.
 function GetAliveMajorTeamIDs()
 	local ti = 1;
@@ -452,6 +841,7 @@ end
 --	Called anytime player switches tabs
 -- ===========================================================================
 function ResetState(newView:ifunction)
+	SRA_ResetRows();		-- ScreenReaderAccess
 	g_activeheader = nil;
 	m_ActiveViewUpdate = newView;
 	Controls.OverallView:SetHide(true);
@@ -2414,8 +2804,10 @@ function Open()
 		return
 	end
 
+	SRA_InstallHooks();		-- ScreenReaderAccess
 	UpdateData();
 	m_AnimSupport.Show();
+	SRA_ArmOpen();			-- ScreenReaderAccess
 	UI.PlaySound("CityStates_Panel_Open");
 	-- Ensure we're the only partial screen currenly up
 	LuaEvents.WorldRankings_CloseCityStates();
@@ -2423,6 +2815,7 @@ end
 
 -- ===========================================================================
 function Close()	
+	if m_AnimSupport.IsVisible() then SRA_Closed(); end		-- ScreenReaderAccess
 	m_AnimSupport.Hide();
     if not ContextPtr:IsHidden() then
         UI.PlaySound("CityStates_Panel_Close");
@@ -2464,6 +2857,7 @@ end
 --	HOT-RELOADING EVENTS
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isHidden", ContextPtr:IsHidden());
 	if(g_TabSupport ~= nil and g_TabSupport.selectedControl ~= nil) then
 		LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "selectedTabText", g_TabSupport.selectedControl:GetTextControl():GetText());
@@ -2595,10 +2989,12 @@ function LateInitialize()
 	-- Hot-Reload Events
 	
 	ContextPtr:SetShutdown(OnShutdown);
-	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
+	SRListen(LuaEvents.GameDebug_Return, OnGameDebugReturn);		-- ScreenReaderAccess (was LuaEvents.GameDebug_Return.Add)
 
 	-- UI Callbacks
-	ContextPtr:SetInputHandler(m_AnimSupport.OnInputHandler, true);
+	ContextPtr:SetInputHandler(SRA_InputHandler, true);		-- ScreenReaderAccess (was m_AnimSupport.OnInputHandler)
+	ContextPtr:SetUpdate(SRA_OnUpdate);						-- ScreenReaderAccess
+	SRA_CreateList();										-- ScreenReaderAccess
 
 	Controls.CloseButton:SetOffsetY(50);		-- Move close button down to account for TabHeader
 	Controls.CloseButton:RegisterCallback(Mouse.eLClick, Close);
@@ -2611,17 +3007,17 @@ function LateInitialize()
 	Controls.TabHeader:ChangeParent(Controls.Background);		-- To make it render beneath the banner image
 
 	-- Game Events
-	Events.CapitalCityChanged.Add(OnCapitalCityChanged);
-	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
-	Events.LocalPlayerTurnEnd.Add(OnLocalPlayerTurnEnd);
-	Events.SystemUpdateUI.Add(m_AnimSupport.OnUpdateUI);	
+	SRListen(Events.CapitalCityChanged, OnCapitalCityChanged);		-- ScreenReaderAccess
+	SRListen(Events.InterfaceModeChanged, OnInterfaceModeChanged);		-- ScreenReaderAccess
+	SRListen(Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd);		-- ScreenReaderAccess
+	SRListen(Events.SystemUpdateUI, m_AnimSupport.OnUpdateUI);		-- ScreenReaderAccess
 
 	-- Lua Events
-	LuaEvents.PartialScreenHooks_ToggleWorldRankings.Add(Toggle);
-	LuaEvents.PartialScreenHooks_OpenWorldRankings.Add(Open);
-	LuaEvents.PartialScreenHooks_OpenWorldRankingsCulture.Add(OpenCulture);
-	LuaEvents.PartialScreenHooks_CloseWorldRankings.Add(Close);
-	LuaEvents.PartialScreenHooks_CloseAllExcept.Add(OnCloseAllExcept);
+	SRListen(LuaEvents.PartialScreenHooks_ToggleWorldRankings, Toggle);		-- ScreenReaderAccess
+	SRListen(LuaEvents.PartialScreenHooks_OpenWorldRankings, Open);		-- ScreenReaderAccess
+	SRListen(LuaEvents.PartialScreenHooks_OpenWorldRankingsCulture, OpenCulture);		-- ScreenReaderAccess
+	SRListen(LuaEvents.PartialScreenHooks_CloseWorldRankings, Close);		-- ScreenReaderAccess
+	SRListen(LuaEvents.PartialScreenHooks_CloseAllExcept, OnCloseAllExcept);		-- ScreenReaderAccess
 
 	UpdatePlayerData();
 	PopulateTabs();
