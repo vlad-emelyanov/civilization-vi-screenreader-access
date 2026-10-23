@@ -22,7 +22,15 @@ local m_quote_audio:table;
 local m_srGovernmentAction = nil;		-- ScreenReaderAccess mod change: what the "Change policies" / "Government unlocked" button does
 
 -- ScreenReaderAccess mod change: speaks the completed tech or civic, a short list of what it unlocks and the keys.
+local m_srSpokenKey:string = nil;		-- tech or civic and turn of the last announcement: the popup is shown again after an advisor popup closes
+
 local function SRAnnounce( unlockables:table, headerKey:string )
+	if m_kCurrentData ~= nil then
+		local key:string = ( m_kCurrentData.tech ~= nil and ( "tech" .. tostring( m_kCurrentData.tech ) ) or ( "civic" .. tostring( m_kCurrentData.civic ) ) )
+			.. ":" .. tostring( Game.GetCurrentGameTurn() );
+		if key == m_srSpokenKey then return; end
+		m_srSpokenKey = key;
+	end
 	local names:table = {};
 	for _, v in ipairs( unlockables or {} ) do
 		local name:string = v[2] ~= nil and Locale.Lookup( v[2] ) or tostring( v[1] );

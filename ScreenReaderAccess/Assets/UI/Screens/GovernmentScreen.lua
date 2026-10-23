@@ -1504,6 +1504,7 @@ function Close()
 		end
 		UIManager:DequeuePopup(ContextPtr);
 		m_srOpenPending = false;		-- ScreenReaderAccess
+		OutputMessageToScreenReader( "Government closed" );		-- ScreenReaderAccess
 		m_governmentChangeType	= "";
 		m_isPoliciesChanged		= false;
 		LuaEvents.Government_CloseGovernment();

@@ -394,6 +394,17 @@ function PopupDialog:Open( optionalID:string )
 	end
 	self.KeyNavElements = keyNavElements
 	self.ActiveKeyNavElement = 0;
+	-- A Yes/No question starts on No: a second Enter must not confirm a deletion by accident.
+	local srExtra = nil;
+	for i, element in ipairs(keyNavElements) do
+		if element.Command == PopupDialog.COMMAND_CANCEL and #keyNavElements == 2 then
+			local other = keyNavElements[3 - i];
+			if other.Command == PopupDialog.COMMAND_CONFIRM and other.Label == Locale.Lookup("LOC_YES") then
+				self.ActiveKeyNavElement = i - 1;
+				srExtra = other.Label;
+			end
+		end
+	end
 	local checkStable = nil
 	if #self.AnimsOnOpen ~= 0 then
 		checkStable = function()
@@ -411,7 +422,7 @@ function PopupDialog:Open( optionalID:string )
 	if first ~= nil then
 		if first.Label ~= nil then
 			m_suppressControl = first.Control;
-			OutputMessageToScreenReader(first.Label, true);
+			OutputMessageToScreenReader(first.Label .. (srExtra ~= nil and (", selected. Up or Down for " .. srExtra) or ""), true);
 		end
 		KeyNavMoveMouse(first.Control, checkStable);
 	end
