@@ -20,7 +20,7 @@ expect ^Your items, \d+ items?
 key Down -Settle 800
 expect ^Gold, \d+ available, 2 of \d+
 key Enter -Settle 2000
-expect ^Added: You give: \d+ gold
+expect ^Added: You give: \d+ gold\. They give nothing\.
 key Control+Tab -Settle 800
 expect ^Deal, 1 item
 key S -Settle 800

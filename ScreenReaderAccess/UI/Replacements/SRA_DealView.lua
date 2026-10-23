@@ -3469,10 +3469,27 @@ local function SRA_SpeakChange( before:table, fallback:string )
 	local give:table, get:table = SRA_DealRecords();
 	local summary:string = DealSpeech_Summary( give, get );
 	m_srSpokenSig = summary;
-	-- A deal of exactly the added item: the change text already says "You give: X", so only name the empty side
-	if change ~= nil and #before == 0 and #give + #get == 1 then
-		SRA_Say( change .. ". " .. ( #give == 1 and "They give nothing." or "You give nothing." ) );
-		return;
+	-- "Added: X" already says which side gives X: name only the rest of the deal, not X again
+	if change ~= nil and string.sub( change, 1, 7 ) == "Added: " then
+		local added:string = string.sub( change, 8 );
+		local rest:table = {};
+		local skipped:boolean = false;
+		for _, rec in ipairs( give ) do
+			local text:string = DealSpeech_DealItemText( rec, true );
+			if text == added and not skipped then skipped = true; else table.insert( rest, text ); end
+		end
+		for _, rec in ipairs( get ) do
+			local text:string = DealSpeech_DealItemText( rec, false );
+			if text == added and not skipped then skipped = true; else table.insert( rest, text ); end
+		end
+		if skipped then
+			if #rest == 0 then
+				SRA_Say( change .. ". " .. ( string.sub( added, 1, 9 ) == "You give:" and "They give nothing." or "You give nothing." ) );
+			else
+				SRA_Say( change .. ". Also: " .. table.concat( rest, "; " ) );
+			end
+			return;
+		end
 	end
 	SRA_Say( ( change or fallback or "Nothing changed" ) .. ". " .. summary );
 end
