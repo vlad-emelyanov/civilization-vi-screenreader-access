@@ -34,10 +34,8 @@ class CoversTests(unittest.TestCase):
         self.assertEqual(script("key A").covers, ())
 
     def test_manual_header(self):
-        self.assertTrue(script("# manual (reason)
-key A").manual)
-        self.assertFalse(script("# x
-key A").manual)
+        self.assertTrue(script("# manual (reason)"+chr(10)+"key A").manual)
+        self.assertFalse(script("# x"+chr(10)+"key A").manual)
         names = [n for n, _ in cr.discover(["all"])]
         self.assertNotIn("espionage-escape", names)
         self.assertFalse([n for n in names if n.endswith(".recorded")])
