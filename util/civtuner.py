@@ -146,14 +146,26 @@ async def execute(conn: Conn, idx: int, code: str, timeout: float) -> tuple[list
 
 
 async def run(state: str | None, code: str | None, timeout: float, collect: list | None = None, quiet_missing_state: bool = False) -> int:
+    # The game needs a moment to drop the previous client (a batch host calls back to back): an empty state list right after a
+    # connect is retried a few times before it is reported as "busy".
+    conn = None
+    states: dict[int, str] = {}
+    for attempt in range(5):
+        try:
+            reader, writer = await asyncio.wait_for(asyncio.open_connection(HOST, PORT), 5.0)
+        except (OSError, asyncio.TimeoutError):
+            print("Cannot connect to the tuner on 127.0.0.1:4318. Is the game running with EnableTuner 1?", file=sys.stderr)
+            return 2
+        conn = Conn(reader, writer)
+        try:
+            states = await handshake(conn)
+        except ConnectionError:
+            states = {}
+        if states:
+            break
+        conn.close()
+        await asyncio.sleep(0.7)
     try:
-        reader, writer = await asyncio.wait_for(asyncio.open_connection(HOST, PORT), 5.0)
-    except (OSError, asyncio.TimeoutError):
-        print("Cannot connect to the tuner on 127.0.0.1:4318. Is the game running with EnableTuner 1?", file=sys.stderr)
-        return 2
-    conn = Conn(reader, writer)
-    try:
-        states = await handshake(conn)
         if not states:
             print("No Lua states returned: FireTuner busy (another client connected?) or not enabled (EnableTuner 1 in AppOptions.txt, then restart the game).", file=sys.stderr)
             return 2
