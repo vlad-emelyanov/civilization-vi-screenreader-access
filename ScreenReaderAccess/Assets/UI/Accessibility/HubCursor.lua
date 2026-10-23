@@ -103,7 +103,13 @@ local function DescribeCursorPlot( plot:table )
 		if build ~= nil then text = text .. ", " .. build; end
 	elseif HubCore.IsSettler( unit ) then
 		local ok:boolean, reason = SettleScan_CanFound( unit, plot );
-		text = text .. ( ok and ", can settle" or ( ", " .. SettleScan_CannotText( reason ) ) );
+		if ok then
+			text = text .. ", can settle";
+			local ring1:table = SettleScan_Ring1Resources( plot );		-- what the city would own at once
+			if #ring1 > 0 then text = text .. ", ring 1: " .. table.concat( ring1, ", " ); end
+		else
+			text = text .. ", " .. SettleScan_CannotText( reason );
+		end
 	elseif unit ~= nil then
 		local build:string = HubCore.BuilderBuildText( unit, plot );
 		if build ~= nil then text = text .. ", " .. build; end

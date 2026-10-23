@@ -1,0 +1,17 @@
+# Written blind 2026-10-23 (round 8), run with --record first. Scenario builder-by-forest on early-t60 (builder selected through InGameAccess, as t60-builder-by-forest): X opens the tile browser of the city that owns the builder's tile.
+# covers: **/BuildScan.lua **/HubSettle.lua **/HubCore.lua
+# no-share-load: scenario builder-by-forest
+load early-t60
+scenario builder-by-forest
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key X -Settle 2000
+expect ^Tiles to improve near \w+, \d+ tiles?
+expect (?i)plus \d+ \w+|repair
+key Down -Settle 800
+key Space -Settle 800
+expect (?i)can build
+key Left -Settle 800
+key Escape -Settle 800
+expect ^Closed
+no-lua-errors

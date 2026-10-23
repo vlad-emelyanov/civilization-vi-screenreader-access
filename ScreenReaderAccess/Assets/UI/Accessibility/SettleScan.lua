@@ -26,7 +26,11 @@
 --	  food        average food of the known ring 1-2 plots < 1.3: -4 "poor food"; < 1.8 with production < 0.7: -2
 --	              "poor land"; fewer than 4 workable land plots (no water, no mountain) in rings 1-2: -3 "little land"
 --	  explored    fewer than 8 known plots in rings 1-2: -2 "little explored"
---	  resources   within 2 tiles: luxury +3, strategic +2, bonus +1; the third ring counts half. The city plot itself: -1
+--	  resources   per ring around the city (ring 1 = the 6 neighbours, owned at once; rings 2 and 3 come with border growth):
+--	              ring 1: luxury +4, strategic +2.5, bonus +2; ring 2: +2.5 / +1.5 / +1; ring 3: +1.2 / +0.8 / +0.5 (artifacts
+--	              a quarter of a bonus). Each resource counts once, in the closest ring. Plots owned by a city already
+--	              (ours or foreign) do not count: they stay with that city (named "taken by <city>" in the detail).
+--	              The reasons say "ring 1: wheat, silk" (one reason per ring, ring 3 only in the detail). The city plot itself: -1
 --	  site        hills +2 (production, defense); mountain next to it +1 each (max 2); natural wonder within 3: +3
 --	  hazards     (Gathering Storm API, when present) flooding river or coastal lowlands on the city plot -3, volcano
 --	              within 2 -4
@@ -192,6 +196,14 @@ local function _HostileUnits()
 	return list;
 end
 
+-- Weight of one resource by class and ring (1-3)
+local RING_WEIGHTS:table = {
+	luxury		= { 4, 2.5, 1.2 },
+	strategic	= { 2.5, 1.5, 0.8 },
+	bonus		= { 2, 1, 0.5 },
+	artifact	= { 1, 0.5, 0.25 },
+};
+
 -- Name of the resource on the plot when the local player can see it: name, class ("luxury" ...). nil if none.
 local function _Resource( plot:table )
 	local resourceType:number = plot:GetResourceType();
@@ -226,6 +238,18 @@ local function _OwnerName( owner:number )
 		end
 	end
 	return PlotDescription_GetCivName( owner );
+end
+
+-- The city that owns the plot ("Rome"), else the owner's civilization; for the "taken by" notes.
+local function _TakenBy( plot:table )
+	if Cities ~= nil and Cities.GetPlotPurchaseCity ~= nil then
+		local ok:boolean, city = pcall( Cities.GetPlotPurchaseCity, plot );
+		if ok and city ~= nil then
+			local cityPlot:table = Map.GetPlot( city:GetX(), city:GetY() );
+			if cityPlot ~= nil and _IsRevealed( cityPlot ) then return Locale.Lookup( city:GetName() ); end
+		end
+	end
+	return _OwnerName( plot:GetOwner() );
 end
 
 -- ===========================================================================
@@ -280,6 +304,27 @@ function SettleScan_CanFound( unit:table, plot:table, cities:table )
 		return false, "the game does not allow a city here";
 	end
 	return true;
+end
+
+-- Names (lower case) of the resources a city on this plot would own at once: the 6 neighbours that no city owns yet.
+-- Cheap (reads only those plots), for the map cursor.
+function SettleScan_Ring1Resources( plot:table )
+	local names:table = {};
+	if plot == nil then return names; end
+	if m_gridWidth == nil then _RefreshGrid(); end
+	local seen:table = {};
+	for _, around in ipairs( _Around( plot:GetX(), plot:GetY(), 1, Map.GetPlot ) ) do
+		local p:table = around.plot;
+		if around.d == 1 and _IsRevealed( p ) then
+			local owner:number = p:GetOwner();
+			local name:string = _Resource( p );
+			if name ~= nil and ( owner == nil or owner < 0 ) and not seen[ name ] then
+				seen[ name ] = true;
+				table.insert( names, string.lower( name ) );
+			end
+		end
+	end
+	return names;
 end
 
 function SettleScan_CannotText( reason:string )
@@ -411,6 +456,7 @@ local function _Score( plot:table, ctx:table )
 	local camp:boolean = false;
 	local wonder:string = nil;
 	local resources:table = {};
+	local ringStats:table = { { food = 0, production = 0, known = 0 }, { food = 0, production = 0, known = 0 } };
 	for _, around in ipairs( ctx.GetAround( x, y, 3 ) ) do
 		local p:table = around.plot;
 		local d:number = around.d;
@@ -420,6 +466,9 @@ local function _Score( plot:table, ctx:table )
 			local weight:number = ( d == 1 ) and 1 or 0.5;
 			if info.revealed then
 				known = known + 1;
+				ringStats[ d ].food = ringStats[ d ].food + info.food;
+				ringStats[ d ].production = ringStats[ d ].production + info.prod;
+				ringStats[ d ].known = ringStats[ d ].known + 1;
 				foodTotal = foodTotal + info.food;
 				prodTotal = prodTotal + info.prod;
 				weighted = weighted + weight * ( info.food + 0.7 * info.prod );
@@ -430,12 +479,8 @@ local function _Score( plot:table, ctx:table )
 		end
 		if info.revealed then
 			if d >= 1 then
-				if info.resource ~= nil then
-					local class:string = info.resourceClass;
-					local value:number = 1;
-					if class == "luxury" then value = 3; elseif class == "strategic" then value = 2; elseif class == "artifact" then value = 0.5; end
-					if d > 2 then value = value / 2; end
-					table.insert( resources, { name = info.resource, class = class, value = value, d = d } );
+				if info.resource ~= nil and d <= 3 then
+					table.insert( resources, { name = info.resource, class = info.resourceClass, d = d, owner = info.owner, plot = p } );
 				end
 				if d == 1 and info.mountain then mountains = mountains + 1; end
 				if info.wonder then
@@ -460,13 +505,34 @@ local function _Score( plot:table, ctx:table )
 		Add( -2, "little explored", "little explored around" );
 	end
 
-	-- resources: best first, each name once
-	table.sort( resources, function( a, b ) return a.value > b.value; end );
+	-- resources by ring, the closest ring first, each name once; plots a city owns already do not count
+	table.sort( resources, function( a, b )
+		if a.d ~= b.d then return a.d < b.d; end
+		return a.name < b.name;
+	end );
+	local rings:table = { { free = {}, taken = {}, weight = 0 }, { free = {}, taken = {}, weight = 0 }, { free = {}, taken = {}, weight = 0 } };
 	local seen:table = {};
 	for _, r in ipairs( resources ) do
-		if not seen[ r.name ] then
+		if ( r.owner == nil or r.owner < 0 ) and not seen[ r.name ] then
 			seen[ r.name ] = true;
-			Add( r.value, string.lower( r.name ), r.name .. " (" .. r.class .. "), " .. r.d .. ( r.d == 1 and " tile" or " tiles" ) .. " away" );
+			table.insert( rings[ r.d ].free, { name = r.name, class = r.class } );
+			rings[ r.d ].weight = rings[ r.d ].weight + ( RING_WEIGHTS[ r.class ] or RING_WEIGHTS.bonus )[ r.d ];
+		end
+	end
+	for _, r in ipairs( resources ) do
+		if r.owner ~= nil and r.owner >= 0 and not seen[ r.name ] then
+			seen[ r.name ] = true;
+			table.insert( rings[ r.d ].taken, { name = r.name, class = r.class, by = _TakenBy( r.plot ) } );
+		end
+	end
+	for ring = 1, 3 do
+		local names:table = {};
+		for _, r in ipairs( rings[ ring ].free ) do table.insert( names, string.lower( r.name ) ); end
+		if #names > 0 then
+			score = score + rings[ ring ].weight;
+			if ring <= 2 then		-- ring 3 is in the detail only
+				table.insert( items, { weight = rings[ ring ].weight, text = "ring " .. ring .. ": " .. table.concat( names, ", " ), long = "", ring = true } );
+			end
 		end
 	end
 	if mountains > 0 then Add( math.min( mountains, 2 ), "mountains", mountains .. " mountain" .. ( mountains > 1 and "s" or "" ) .. " next to it" ); end
@@ -507,7 +573,7 @@ local function _Score( plot:table, ctx:table )
 		if math.abs( a.weight ) ~= math.abs( b.weight ) then return math.abs( a.weight ) > math.abs( b.weight ); end
 		return a.weight > b.weight;
 	end );
-	return score, items, { food = foodTotal, production = prodTotal, known = known, total = total };
+	return score, items, { food = foodTotal, production = prodTotal, known = known, total = total, rings = rings, ringStats = ringStats };
 end
 
 -- ===========================================================================
@@ -528,10 +594,28 @@ local function _Detail( c:table )
 		end
 	end
 	for _, item in ipairs( c.items ) do
-		table.insert( parts, ( item.weight < 0 and "minus: " or "" ) .. item.long );
+		if not item.ring then table.insert( parts, ( item.weight < 0 and "minus: " or "" ) .. item.long ); end
 	end
-	if c.totals ~= nil and c.totals.known > 0 then
-		table.insert( parts, "within 2 tiles " .. c.totals.food .. " food and " .. c.totals.production .. " production on " .. c.totals.known .. " known tiles" );
+	if c.totals ~= nil and c.totals.rings ~= nil then
+		for ring = 1, 3 do
+			local entries:table = {};
+			for _, r in ipairs( c.totals.rings[ ring ].free ) do table.insert( entries, r.name .. " (" .. r.class .. ")" ); end
+			for _, r in ipairs( c.totals.rings[ ring ].taken ) do table.insert( entries, r.name .. " (" .. r.class .. ", taken by " .. r.by .. ")" ); end
+			local label:string = ( ring == 1 ) and "Ring 1, the city's first tiles" or ( "Ring " .. ring );
+			if #entries > 0 then
+				table.insert( parts, label .. ": " .. table.concat( entries, ", " ) );
+			elseif ring == 1 then
+				table.insert( parts, label .. ": no resources" );
+			end
+		end
+	end
+	if c.totals ~= nil and c.totals.ringStats ~= nil then
+		for ring = 1, 2 do
+			local st:table = c.totals.ringStats[ ring ];
+			if st.known > 0 then
+				table.insert( parts, "ring " .. ring .. ": " .. st.food .. " food, " .. st.production .. " production on " .. st.known .. ( st.known == 1 and " tile" or " tiles" ) );
+			end
+		end
 	end
 	return table.concat( parts, ". " );
 end
