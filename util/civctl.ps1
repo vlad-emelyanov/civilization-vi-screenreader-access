@@ -425,6 +425,7 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
 function Invoke-Shot {
     $game = Get-GameProcess
     $path = if ($Out) { $Out } else { Join-Path $StateDir ("shot_{0:yyyyMMdd_HHmmss}.png" -f (Get-Date)) }
+    if (-not $Out) { Get-ChildItem $StateDir -Filter 'shot_*.png' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -Skip 19 | Remove-Item -Force -ErrorAction SilentlyContinue }   # keep the newest 20 (incl. the one taken now)
     if ($game) {
         [CivCtl.Native]::Focus($game.MainWindowHandle) | Out-Null
         $r = New-Object CivCtl.Native+RECT
