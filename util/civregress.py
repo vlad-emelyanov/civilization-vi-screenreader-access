@@ -878,6 +878,9 @@ def main(argv=None):
     except ScriptError as e:
         print("ERROR: %s" % e, file=sys.stderr)
         return 2
+    if not scripts and changed_mode:
+        print("changed: no script is affected by the changes; nothing to run (exit 0)")
+        return 0
     if not scripts:
         print("no scripts in %s" % REGRESS_DIR)
         return 2
