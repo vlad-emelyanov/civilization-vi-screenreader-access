@@ -4369,7 +4369,7 @@ local function SRBuildActions()
 			if entry.typeName == "UNITOPERATION_SKIP_TURN" then hasSkip = true; end
 		end
 		if not hasSkip then
-			local why:string = SRRefusalReason( unit, UnitOperationTypes.SKIP_TURN );
+			local why:string = SRRefusalReason( unit, GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash );
 			if why == "" then why = "the game offers no skip for this unit now"; end
 			local alternatives:string = ( GameInfo.Units[unit:GetUnitType()].FoundCity ) and "move it, found a city or delete it" or "move it or delete it";
 			local hotkey:string = "";
@@ -4379,7 +4379,7 @@ local function SRBuildActions()
 			table.insert( m_srActions, { callback = function() OutputMessageToScreenReader( "Cannot skip: " .. reason ); end } );
 			table.insert( plain, {
 				id = #m_srActions, name = "Skip Turn", hotkey = hotkey, disabled = true, reason = reason, detail = reason,
-				category = "INPLACE", tag = UnitOperationTypes.SKIP_TURN, typeName = "UNITOPERATION_SKIP_TURN" } );
+				category = "INPLACE", tag = GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash, typeName = "UNITOPERATION_SKIP_TURN" } );
 		end
 	end
 	return plain;

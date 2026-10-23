@@ -313,6 +313,7 @@
     <Folder Include="Assets\UI" />
     <Folder Include="Assets\UI\Accessibility" />
     <Folder Include="Assets\UI\Choosers\" />
+    <Folder Include="Assets\UI\Civilopedia\" />
     <Folder Include="Assets\UI\Frontend" />
     <Folder Include="Assets\UI\Menus" />
     <Folder Include="Assets\UI\PartialScreens\" />

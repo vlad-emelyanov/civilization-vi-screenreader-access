@@ -1847,7 +1847,7 @@ local function FetchMenuItems( refresh:boolean )
 			text = text .. ", unavailable" .. ( action.reason ~= "" and ( ": " .. action.reason ) or "" );
 		end
 		table.insert( items, {
-			key = action.tag .. "|" .. action.name, text = text, detail = action.detail,
+			key = tostring( action.tag ) .. "|" .. action.name, text = text, detail = action.detail,
 			choosable = not action.disabled, reason = ( action.reason ~= "" ) and action.reason or "Not available",
 			action = action } );
 	end
