@@ -35,6 +35,7 @@ local m_isNeedRestoreLoadGameMenu	: boolean = false;
 
 local m_keyNavElements: table = {};
 local m_selectedKeyNavElement: number = 0;
+local m_announcedButton:table = nil;	-- last button spoken (by key or by hover): the hover that follows our own mouse move is not spoken again
 local m_saveAnnouncePending: boolean = false;	-- a quick save was started and its completion is not announced yet
 local m_saveAnnounceTimer: number = 0;
 
@@ -537,10 +538,12 @@ function KeyHandler( key:number )
 
 	if key == Keys.VK_UP then
 		m_selectedKeyNavElement = (m_selectedKeyNavElement - 1 + menuSize) % menuSize;
+		KeyNavAnnounceSelected();
 		KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
 		return true;
 	elseif key == Keys.VK_DOWN then
 		m_selectedKeyNavElement = (m_selectedKeyNavElement + 1) % menuSize;
+		KeyNavAnnounceSelected();
 		KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
 		return true;
 	end
@@ -656,6 +659,7 @@ function OnShow()
 
 	SetupButtons();
 	m_selectedKeyNavElement = 0;
+	m_announcedButton = m_keyNavElements[1];	-- "In game menu" stands for the first item; its hover is not spoken
 	KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
 	OutputMessageToScreenReader("In game menu", true);
 
@@ -786,6 +790,16 @@ end
 -- ===========================================================================
 function AnnounceButton(control:table)
 	if m_kPopupDialog:IsOpen() then return; end
+	if m_announcedButton == control then return; end
+	m_announcedButton = control;
+	OutputMessageToScreenReader(GetButtonText(control));
+end
+
+-- Keyboard focus moved to m_keyNavElements[m_selectedKeyNavElement + 1]: speak it now (not via the mouse hover)
+function KeyNavAnnounceSelected()
+	local control:table = m_keyNavElements[m_selectedKeyNavElement + 1];
+	if control == nil then return; end
+	m_announcedButton = control;
 	OutputMessageToScreenReader(GetButtonText(control));
 end
 
