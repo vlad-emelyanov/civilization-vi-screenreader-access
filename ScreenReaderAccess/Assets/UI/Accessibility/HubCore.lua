@@ -422,44 +422,18 @@ function HubCore.IsSettler( unit:table )
 	return row ~= nil and row.FoundCity == true;
 end
 
--- Builders (non-combat units with build charges: Builder, Military Engineer): the improvements each unit type can ever
--- build, from Improvement_ValidBuildUnits, cached per unit type.
-local m_builderLists:table = {};
-
-local function BuilderImprovements( unit:table )
-	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return nil; end
-	local unitType:number = unit:GetUnitType();
-	local cached = m_builderLists[ unitType ];
-	if cached ~= nil then return cached.list; end
-	local entry:table = { list = nil };
-	local row:table = GameInfo.Units[ unitType ];
-	if row ~= nil and row.BuildCharges ~= nil and row.BuildCharges > 0 and ( row.Combat or 0 ) == 0 then
-		local found:table = {};
-		for valid in GameInfo.Improvement_ValidBuildUnits() do
-			local improvement:table = ( valid.UnitType == row.UnitType ) and GameInfo.Improvements[ valid.ImprovementType ] or nil;
-			if improvement ~= nil then table.insert( found, { hash = improvement.Hash, name = Locale.Lookup( improvement.Name ) } ); end
-		end
-		if #found > 0 then entry.list = found; end
-	end
-	m_builderLists[ unitType ] = entry;
-	return entry.list;
-end
-
 -- "Builder can build: Farm, Mine" / "Builder can build nothing here" for the plot, as the engine answers for this unit
 -- (the same check the unit panel makes). Nil when the unit is no builder or the plot is not known.
 function HubCore.BuilderBuildText( unit:table, plot:table )
-	local list:table = BuilderImprovements( unit );
+	local list:table = BuildScan_Improvements( unit );
 	if list == nil or plot == nil then return nil; end
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
 	if vis == nil or not vis:IsRevealed( plot:GetIndex() ) then return nil; end
 	local name:string = Locale.Lookup( GameInfo.Units[ unit:GetUnitType() ].Name );
 	if unit:GetMovesRemaining() <= 0 then return name .. " has no moves left"; end
-	local operation:number = UnitOperationTypes.BUILD_IMPROVEMENT;
 	local names:table = {};
 	for _, improvement in ipairs( list ) do
-		local params:table = {};
-		params[ UnitOperationTypes.PARAM_IMPROVEMENT_TYPE ] = improvement.hash;
-		if UnitManager.CanStartOperation( unit, operation, plot, params, false ) then table.insert( names, improvement.name ); end
+		if BuildScan_CanBuild( unit, plot, improvement ) then table.insert( names, improvement.name ); end
 	end
 	if #names == 0 then return name .. " can build nothing here"; end
 	if #names > 6 then

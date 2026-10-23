@@ -15,6 +15,7 @@ function M.new(opts)
 	self.width, self.height, self.wrap = opts.width or 12, opts.height or 10, opts.wrap or false
 	self.plots, self.cities, self.units = {}, {}, {}
 	self.at_war = {}
+	self.resourceNames = {}		-- plot.resource = "Wheat" (+ plot.rclass = "bonus" | "luxury" | "strategic", default bonus)
 	self.revealed_all = true
 	for y = 0, self.height - 1 do
 		for x = 0, self.width - 1 do
@@ -72,9 +73,16 @@ function M:install()
 			return false
 		end
 		function o:GetOwner() return p.owner end
-		function o:GetResourceType() return -1 end
+		function o:GetResourceType()
+			if not p.resource then return -1 end
+			for i, name in ipairs(world.resourceNames) do if name == p.resource then return i end end
+			table.insert(world.resourceNames, p.resource)
+			return #world.resourceNames
+		end
 		function o:GetFeatureType() return -1 end
-		function o:GetImprovementType() return -1 end
+		function o:GetImprovementType() return p.improvement or -1 end
+		function o:IsImprovementPillaged() return p.pillaged == true end
+		function o:GetDistrictType() return p.district or -1 end
 		function o:GetTerrainType() return TERRAIN_INDEX[p.terrain] end
 		function o:GetYield(i) if i == 0 then return p.food end return p.prod end
 		p.object = o
@@ -101,7 +109,14 @@ function M:install()
 	GameInfo = {
 		Yields = { YIELD_FOOD = { Index = 0 }, YIELD_PRODUCTION = { Index = 1 } },
 		Terrains = setmetatable({}, { __index = function(_, i) return TERRAINS[i + 1] and { TerrainType = TERRAINS[i + 1] } end }),
-		Features = {}, Improvements = {}, Resources = {},
+		Features = {}, Improvements = {},
+		Resources = setmetatable({}, { __index = function(_, id)
+			local name = world.resourceNames[id]
+			if not name then return nil end
+			local class = "bonus"
+			for _, p in pairs(world.plots) do if p.resource == name then class = p.rclass or "bonus"; break end end
+			return { Hash = id, Name = name, ResourceType = "RESOURCE_" .. string.upper(name), ResourceClassType = "RESOURCECLASS_" .. string.upper(class) }
+		end }),
 	}
 
 	PlayersVisibility = { [0] = {
@@ -119,6 +134,7 @@ function M:install()
 			GetOwner = function() return u.owner end, GetMovesRemaining = function() return u.moves or 2 end,
 			GetCombat = function() return u.combat or 0 end, GetRangedCombat = function() return u.ranged or 0 end,
 			GetName = function() return u.name or "LOC_UNIT_SETTLER_NAME" end,
+			GetUnitType = function() return u.unitType or 0 end,
 		}
 	end
 	local function playerObject(id)
