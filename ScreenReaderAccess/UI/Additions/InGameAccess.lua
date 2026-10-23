@@ -882,6 +882,17 @@ local function SpeakWhatsNext()
 		OutputMessageToScreenReader( "Next action unknown" );
 		return;
 	end
+	-- The game's "Please wait" while a World Congress session is open: say what actually blocks the turn
+	local okWait:boolean, isWait:boolean = pcall( function()
+		return text == CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_PLEASE_WAIT" ) );
+	end );
+	if okWait and isWait then
+		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
+		if okCongress and inSession then
+			OutputMessageToScreenReader( "World Congress in session. Enter or Control+N resumes it" );
+			return;
+		end
+	end
 	OutputMessageToScreenReader( Capitalize( text ) );
 end
 

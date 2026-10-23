@@ -395,7 +395,12 @@ end
 local function KeyNavFocus(item:table, items:table, prefix:string, noInterrupt:boolean)
 	m_focus = { ref = item.ref };
 	if item.kind == "file" then
-		if g_iSelectedFileEntry ~= item.index then SetSelected(item.index); end
+		-- Browsing must not copy the save's name into the Name field (Enter on the save does that, see KeyNavActivate).
+		if g_iSelectedFileEntry ~= item.index then
+			SetDontUpdateFileName(true);
+			pcall(SetSelected, item.index);
+			SetDontUpdateFileName(false);
+		end
 		EnsureCarouselSelectionVisible(item.index);
 		local entry = g_FileEntryInstanceList[item.index];
 		m_moveTarget = entry and entry.Button or nil;
@@ -489,6 +494,15 @@ local function KeyNavActivate(item:table, items:table, key:number)
 		KeyNavEditName();
 	elseif item.kind == "file" then
 		if g_iSelectedFileEntry ~= item.index then SetSelected(item.index); end
+		-- Enter on a save is the explicit "use this name / overwrite" action
+		pcall(function()
+			local displayName:string = GetDisplayName(g_FileList[item.index]);
+			if displayName ~= nil and Controls.FileName:GetText() ~= displayName then
+				Controls.FileName:SetText(displayName);
+				g_FilenameIsValid = ValidateFileName(displayName);
+				UpdateActionButtonState();
+			end
+		end);
 		if Controls.ActionButton:IsHidden() or Controls.ActionButton:IsDisabled() then
 			OutputMessageToScreenReader("Cannot save over this one", false);
 		else

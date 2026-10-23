@@ -348,7 +348,7 @@ function OnShutdown()
 end
 function OnGameDebugReturn(context:string, reloadState:table)
 	if context == RELOAD_CACHE_ID then
-		if not reloadState.isHidden then
+		if not reloadState.isHidden and OnGameEraChanged ~= nil then	-- ScreenReaderAccess: upstream calls a function that does not exist
 			OnGameEraChanged(reloadState.m_PreviousEraIndex, reloadState.m_CurrentEraIndex);
 		end
 	end
