@@ -212,6 +212,10 @@ for _, name in ipairs({"WorldPopups", "FakePopups", "Screens", "PartialScreens",
 end
 local pedia = ContextPtr:LookUpControl("/InGame/Civilopedia")
 if pedia and not pedia:IsHidden() then table.insert(open, "Civilopedia") end
+for _, path in ipairs({"/TutorialUIRoot/AdvisorPopup", "/InGame/AdvisorPopup", "/InGame/Popups/AdvisorPopup"}) do
+  local a = ContextPtr:LookUpControl(path)
+  if a and not a:IsHidden() then table.insert(open, "ADVISOR:AdvisorPopup") break end
+end
 table.insert(lines, #open > 0 and ("POPUP/SCREEN OPEN: " .. table.concat(open, ", ")) or "no popup or screen open")
 return table.concat(lines, "|")
 '''

@@ -31,7 +31,7 @@
   .\util\civctl.ps1 key-release          # release Shift/Control/Alt (both sides) in case the game thinks one is stuck (key does it itself after a chord)
   .\util\civctl.ps1 advance 5            # SETUP/VERIFICATION only: the autoplay AI plays our civ for exactly 5 turns (it resolves every blocker), then control returns; play-tests never use it
   .\util\civctl.ps1 endturn              # SETUP/VERIFICATION only: request the end of the turn (refuses while a blocker is pending); play-tests press Enter
-  .\util\civctl.ps1 wait-turn 62 -Timeout 300   # wait until the game is at turn 62 and your turn is active; prints SR> lines, reports open popups, presses nothing
+  .\util\civctl.ps1 wait-turn 62 -Timeout 300   # (default 600 s) wait until the game is at turn 62 and your turn is active; prints SR> lines, reports open popups, presses nothing
   .\util\civctl.ps1 clear-advisors       # close the advisor popups of the loaded game (Enter only while the AdvisorPopup is visible)
   .\util\civctl.ps1 fixture-info early-t60   # with that fixture loaded: append a `facts:` block (cities, units, trade slots, spies, ...) to test\fixtures\early-t60.txt
 
@@ -946,6 +946,7 @@ function Invoke-WaitTurn([string]$n) {
     if ($n -notmatch '^\d+$') { throw 'Usage: civctl.ps1 wait-turn <turn> [-Timeout s]' }
     $deadline = (Get-Date).AddSeconds($Timeout)
     $lastMsg = ''
+    $lastProgress = Get-Date
     while ($true) {
         Update-Lock
         Assert-GameHealthy -Grace 150 -Block
@@ -957,6 +958,7 @@ function Invoke-WaitTurn([string]$n) {
         if ($code -eq 1) { Write-Output $msg; Quit-Civctl 1 }
         if ($code -eq 11 -and $msg -ne $lastMsg) { Write-Output "popup> $msg" }   # reported, never answered with a key
         $lastMsg = $msg
+        if (((Get-Date) - $lastProgress).TotalSeconds -ge 30) { Write-Output "waiting for turn $n ($([int]($deadline - (Get-Date)).TotalSeconds) s left): $msg"; $lastProgress = Get-Date }
         if ((Get-Date) -gt $deadline) { Write-Output "Timed out after $Timeout s: $msg"; Quit-Civctl 1 }
         Start-Sleep -Seconds 2
     }
@@ -1026,7 +1028,7 @@ switch ($Command) {
     'status' { Show-Status }
     'key-release' { Invoke-KeyRelease }
     'endturn' { Invoke-EndTurn }
-    'wait-turn' { Invoke-WaitTurn $Arg }
+    'wait-turn' { if (-not $PSBoundParameters.ContainsKey('Timeout')) { $Timeout = 600 }; Invoke-WaitTurn $Arg }   # default 600 s: AI turns during wars are slow
     'clear-advisors' { Invoke-ClearAdvisors; if ($script:PyExit -ne 0) { Quit-Civctl $script:PyExit } }
     'fixture-info' { Invoke-FixtureInfo $Arg }
 }
