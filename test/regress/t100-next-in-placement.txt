@@ -1,0 +1,15 @@
+# Written blind (2026-10-23). N while placing a district says what Enter does there, not the end-turn label.
+# covers: **/HubAnnounce.lua **/HubPlacement.lua
+# no-share-load: Enter can choose production
+load medieval-t100
+clear-advisors
+key Enter -Count 2 -Fast -Settle 100
+key Tab -Settle 100
+key Enter -Settle 1500
+expect ^Place .* for Rome
+key N -Settle 600
+expect ^Placing .*Enter on a tile asks to place it
+key Escape -Settle 1200
+key Escape -Settle 1200
+key Escape -Settle 1200
+no-lua-errors
