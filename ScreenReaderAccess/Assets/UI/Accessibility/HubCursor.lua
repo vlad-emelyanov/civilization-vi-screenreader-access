@@ -116,6 +116,7 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 		local build:string = HubCore.BuilderBuildText( unit, plot );
 		if build ~= nil then text = text .. ", " .. build; end
 	end
+	text = LensText_Prefix( text, plot, HubCore.IsSettler( unit ) );		-- a map lens is on: its value first
 	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
 	if relative ~= nil then text = text .. ". " .. relative; end
 	if jump and mode == nil then

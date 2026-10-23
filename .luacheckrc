@@ -51,6 +51,7 @@ globals = {
 	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "ReligionText_Beliefs", "ReligionText_Capital", "ReligionText_CityLine", "ReligionText_Count", "ReligionText_Followers", "ReligionText_Founder", "ReligionText_Join", "ReligionText_ToChoose", "PrintKeyMap",
 	"PrintKeyboardNavigationElements", "SRListen", "SRUnlistenAll", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
 	"SettleScan_CheckPlot", "SettleScan_Scan", "SettleScan_Ring1Resources", "BuildScan_Improvements", "BuildScan_CanBuild",
+	"LensText_Actions", "LensText_ActiveLens", "LensText_Legend", "LensText_PlotText", "LensText_Prefix", "LensText_Toggled",
 	"BuildScan_Cities", "BuildScan_DefaultCity", "BuildScan_Scan", "StringifyCity", "StringifyUnit", "TopPanelData_BuildItems",
 	"TopPanelData_Summary",
 	"GreatPeopleText_Actions", "GreatPeopleText_ActionsTitle", "GreatPeopleText_Afford", "GreatPeopleText_Detail",

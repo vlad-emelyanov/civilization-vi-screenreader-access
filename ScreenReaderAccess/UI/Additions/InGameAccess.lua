@@ -19,6 +19,7 @@ include( "PlotDescription" );
 include( "KeyNavList" );
 include( "Civ6Common" );		-- MoveUnitToPlot (war declaration check + the right move/attack operation)
 include( "SettleScan" );		-- settler: can settle here, best spots
+include( "LensText" );		-- map lenses (number keys): on/off and legend, lens value in the cursor text
 include( "PlacementScan" );		-- city: where a district or wonder can go
 include( "TopPanelData" );		-- top panel values as sentences (Control+Y, Control+G)
 -- City report (Control+I): CityReportGather includes the game's CitySupport (GetCityData), which is heavy and may fail in
@@ -227,6 +228,15 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavReports",			HubTargets.ToggleReports );
 	Hub.RegisterAction( "KeyNavPlaces",				HubPlaces.TogglePlaces );
 	Hub.RegisterAction( "KeyNavGreatWorks",		HubRegions.ToggleGreatWorks );
+	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): speak once the game has switched, whether it is in lens mode tells on/off
+	for action, _ in pairs( LensText_Actions ) do
+		Hub.RegisterAction( action, function()
+			HubCore.After( 0.3, function()
+				local text:string = LensText_Toggled( action, UI.GetInterfaceMode() == InterfaceModeTypes.VIEW_MODAL_LENS );
+				if text ~= nil then OutputMessageToScreenReader( text ); end
+			end );
+		end );
+	end
 	Hub.RegisterAction( "RangedAttack",			HubTargets.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
 	Hub.RegisterAction( "Attack",					HubTargets.CityAttackKey );
 	HubCore.Listen( Events.InputActionTriggered, Hub.OnInputActionTriggered );
