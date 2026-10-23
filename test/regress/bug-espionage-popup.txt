@@ -1,0 +1,7 @@
+# UNVERIFIED (written blind, never run; no fixture with a finished spy mission exists yet). Item 8: the Espionage popup speaks and Enter closes it.
+# Verifier: let a spy finish (or abort) a mission, then expect "<mission title>. Success|Failure. <description> ... Enter to continue",
+# and after Enter the popup is gone (no "Escape opens the menu" needed).
+# no-share-load
+load pt-t113
+clear-advisors
+no-lua-errors

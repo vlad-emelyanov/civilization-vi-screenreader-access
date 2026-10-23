@@ -1,0 +1,14 @@
+# UNVERIFIED (written blind, run with --record first). Item 6: the Delete Unit confirmation starts on No.
+# no-share-load
+load bug-settler-no-skip
+clear-advisors
+key Enter -Settle 1500
+action DeleteUnit -Settle 1500
+expect (?i)^Popup: .*sure
+expect (?i)^No\b
+# a second Enter keeps the unit
+key Enter -Settle 1500
+expect-not (?i)deleted
+lua InGameAccess return tostring(UI.GetHeadSelectedUnit() ~= nil)
+expect true
+no-lua-errors

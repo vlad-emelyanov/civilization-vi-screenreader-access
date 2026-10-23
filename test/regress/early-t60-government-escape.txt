@@ -1,0 +1,10 @@
+# UNVERIFIED (written blind, run with --record first). Item 5: leaving the Government screen speaks, and Escape does not also open the game menu.
+# no-share-load
+load early-t60
+clear-advisors
+action ToggleGovernment -Settle 2500
+expect (?i)government|policies
+key Escape -Settle 1500
+expect ^Government closed
+expect-not (?i)menu
+no-lua-errors

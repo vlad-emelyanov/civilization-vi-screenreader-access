@@ -1,0 +1,16 @@
+# UNVERIFIED (written blind, run with --record first). Item 2: Enter right after a city ranged attack must not open Governors.
+# Fixture bug-enter-opens-governors: turn 109, Rome can attack.
+# no-share-load
+load bug-enter-opens-governors
+clear-advisors
+lua InGameAccess UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+action RangedAttack -Settle 1500
+expect (?i)^City ranged attack: choose a tile
+# the cursor starts on a valid target, so Enter attacks at once
+expect (?i)valid target
+key Enter -Settle 300
+expect ^Attacking
+# Enter again straight away: no Governors screen
+key Enter -Settle 1200
+expect-not (?i)governors
+no-lua-errors

@@ -139,3 +139,7 @@ The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goe
 - Shift+Tab leaves Shift logically held in the game after the overlay swallowed its key-up: afterwards Down/Up do nothing and Tab goes backwards in every screen. `civctl key LShiftKey` then `RShiftKey` releases it (a plain `Shift` key name does not). Use Control+Tab for "previous" in our screens.
 - The in-game top options menu (Escape) does not receive the real mouse: hover and clicks go to the map under it (a Coast tooltip shows). Everything there must work by direct calls (announce on Up/Down, Enter calls the button's handler), not through KEYNAV_MOVE/KEYNAV_CLICK.
 - A context that was hidden gets no `SetUpdate` ticks: a result that is spoken from an update loop after the screen closed never fires. Keep the popup shown until the result is spoken (Great People: `Close()` is deferred while a request is pending).
+
+## Lua limits
+
+- A chunk holds at most 200 local variables (functions included): `InGameAccess.lua` hit it (the file did not compile: "too many local variables"). New hub handlers go into the `H` table (`function H.Name()`), not `local function`. `util/lint.py` / luacheck did NOT report it; count with `grep -c '^local ' ScreenReaderAccess/UI/Additions/InGameAccess.lua` (keep it under about 195).

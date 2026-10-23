@@ -1,0 +1,12 @@
+# UNVERIFIED (written blind, run with --record first). Item 3: Enter on the City Ranged Attack notification enters the attack mode.
+# no-share-load
+load bug-city-ranged-attack
+clear-advisors
+action KeyNavNotifications -Settle 1500
+expect (?i)notifications
+key Down -Settle 300
+key Down -Settle 300
+key Down -Settle 300
+key Enter -Settle 2000
+expect (?i)city ranged attack
+no-lua-errors

@@ -1,0 +1,10 @@
+# UNVERIFIED (written blind, run with --record first). Item 4: RESEARCH COMPLETED is spoken once, not again after an advisor popup.
+# no-share-load
+load early-t60
+clear-advisors
+lua GameCore_Tuner Players[0]:GetTechs():ChangeCurrentResearchProgress(1000)
+key Enter -Settle 4000
+expect (?i)research complete
+key Enter -Settle 3000
+expect-not (?i)(research|civic) complete.*(research|civic) complete
+no-lua-errors

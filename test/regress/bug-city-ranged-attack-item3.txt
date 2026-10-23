@@ -1,0 +1,17 @@
+# UNVERIFIED (written blind, run with --record first). Item 3: city ranged attack mode.
+# Fixture bug-city-ranged-attack: turn 103, barbarian archers next to Rome, City Ranged Attack notification.
+# no-share-load
+load bug-city-ranged-attack
+clear-advisors
+lua InGameAccess UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+# R with a city selected opens the attack mode (the line is said once) and puts the cursor on the nearest target
+action RangedAttack -Settle 1500
+expect (?i)^City ranged attack: choose a tile
+expect (?i)valid target
+key Escape -Settle 500
+expect ^Cancelled
+# W does the same
+action Attack -Settle 1500
+expect (?i)^City ranged attack: choose a tile
+key Escape -Settle 500
+no-lua-errors
