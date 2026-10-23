@@ -50,6 +50,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REGRESS_DIR = os.path.join(ROOT, "test", "regress")
@@ -57,6 +58,7 @@ SCENARIO_DIR = os.path.join(ROOT, "util", "scenarios")
 CIVCTL = os.path.join(ROOT, "util", "civctl.ps1")
 POWERSHELL = "powershell.exe"
 TIMEOUT_RC = 124
+START_FAILURE_RCS = (0xC0000142, 0xC0000142 - 0x100000000)  # as unsigned and signed exit code
 MAX_ADVISOR_PRESSES = 12
 LUA_LOG = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Firaxis Games", "Sid Meier's Civilization VI", "Logs", "Lua.log")
 
@@ -178,6 +180,17 @@ class CivctlRunner:
         self.env["CIVCTL_OWNER"] = owner or os.environ.get("CIVCTL_OWNER") or ""  # main() refuses an empty owner
 
     def run(self, args):
+        # A process that cannot start (0xC0000142 STATUS_DLL_INIT_FAILED = desktop heap / handle pressure, seen as a burst of
+        # 7 failing scripts in one `regress all`) never reached civctl: nothing was sent to the game, so retrying is safe.
+        for attempt in range(3):
+            rc, lines = self._run_once(args)
+            if rc not in START_FAILURE_RCS:
+                return rc, lines
+            print("  (powershell failed to start, rc=0x%08X: retry %d/2 after %d s)" % (rc & 0xFFFFFFFF, attempt + 1, 3 * (attempt + 1)))
+            time.sleep(3 * (attempt + 1))
+        return rc, lines
+
+    def _run_once(self, args):
         # powershell.exe -File directly: going through civctl.cmd (%*) loses '^' and quotes in regexes.
         cmd = [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", self.cmd] + args
         p = subprocess.Popen(cmd, cwd=ROOT, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
