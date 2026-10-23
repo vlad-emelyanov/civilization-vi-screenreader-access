@@ -7,6 +7,10 @@ include( "SupportFunctions" );
 include( "EspionageSupport" );
 include( "TabSupport" );
 include( "Colors" );
+include( "ScreenReader" );		-- ScreenReaderAccess
+include( "KeyNavList" );		-- ScreenReaderAccess
+include( "SRListen" );		-- ScreenReaderAccess
+include( "EspionageText" );	-- ScreenReaderAccess
 
 -- ===========================================================================
 -- CONSTANTS
@@ -42,6 +46,7 @@ local m_MissionHistoryIM:table	= InstanceManager:new("MissionHistoryInstance", "
 -- A table of tabs indexed by EspionageTabs enum
 local m_tabs:table = nil;
 local m_selectedTab:number = -1;
+local m_srQuiet:boolean = false;		-- ScreenReaderAccess: Close() without "Espionage closed"
 
 -- ===========================================================================
 function Refresh()
@@ -901,6 +906,7 @@ end
 
 ------------------------------------------------------------------------------------------------
 function Close()
+	if m_AnimSupport.IsVisible() and not m_srQuiet then SRA_Closed(); end		-- ScreenReaderAccess
 	m_AnimSupport:Hide();
     if not ContextPtr:IsHidden() then
         UI.PlaySound("CityStates_Panel_Close");
@@ -923,6 +929,7 @@ function Open(forceTabIndex:number)
 		-- Default to Operatives tab
 		m_tabs.SelectTab( Controls.OperativesTabButton );
 	end
+	SRA_ArmOpen();		-- ScreenReaderAccess
 end
 
 ------------------------------------------------------------------------------------------------
@@ -1009,6 +1016,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isVisible", m_AnimSupport:IsVisible());
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "selectedTab", m_selectedTab);
 end
@@ -1029,6 +1037,410 @@ function OnGameDebugReturn(context:string, contextTable:table)
 end
 
 -- ===========================================================================
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech (F3)
+--	Opens 0.4 s after Open() with "Espionage: 2 of 3 spies, 1 awaiting orders. Operatives. Spy Ana, Recruit, in Rome,
+--	awaiting orders, 1 of 2". Tabs as the screen has them (Operatives, City Activity, Mission History when the game
+--	shows it): Tab / Control+Tab / Left / Right switch. Items are read from the game's data at key time (own spies in
+--	their city, with mission and turns left, travelling and captured spies; revealed cities with districts and your
+--	spies; recent missions with outcome and the enemy spies you hold). Up/Down/Home/End, Space = details. Enter: a spy
+--	selects it (the espionage chooser then opens for an idle spy), a city shows it on the map, a captured spy asks for
+--	a trade through the game's own function. Escape closes. Function keys pass through; every other keyboard event is
+--	swallowed while the screen is open.
+-- ===========================================================================
+local m_srList				:table = nil;
+local m_srOpenPending		:boolean = false;
+local m_srOpenDelay			:number = 0;
+local SRA_OPEN_DELAY		:number = 0.4;
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( text or "" );
+end
+
+local function SRA_TabNames()
+	return {
+		[ EspionageTabs.OPERATIVES ]		= Locale.Lookup( "LOC_ESPIONAGEOVERVIEW_OPERATIVES_HEADER" ),
+		[ EspionageTabs.CITY_ACTIVITY ]		= Locale.Lookup( "LOC_ESPIONAGEOVERVIEW_CITY_ACTIVITY_HEADER" ),
+		[ EspionageTabs.MISSION_HISTORY ]	= Locale.Lookup( "LOC_ESPIONAGEOVERVIEW_MISSION_HISTORY_HEADER" ),
+	};
+end
+
+-- Tab indexes the game currently offers, in order.
+local function SRA_VisibleTabs()
+	local tabs:table = { EspionageTabs.OPERATIVES, EspionageTabs.CITY_ACTIVITY };
+	if not Controls.MissionHistoryTabButton:IsHidden() then table.insert( tabs, EspionageTabs.MISSION_HISTORY ); end
+	return tabs;
+end
+
+local function SRA_OwnerText( ownerID:number )
+	if ownerID == Game.GetLocalPlayer() then return "yours"; end
+	local player:table = Players[ ownerID ];
+	if player ~= nil and player:GetInfluence():CanReceiveInfluence() then return "city-state"; end
+	local config:table = PlayerConfigurations[ ownerID ];
+	if config == nil then return nil; end
+	return Locale.Lookup( config:GetCivilizationShortDescription() );
+end
+
+local function SRA_CityAt( x:number, y:number )
+	return Cities.GetPlotPurchaseCity( Map.GetPlot( x, y ) );
+end
+
+local function SRA_CivName( playerID:number )
+	local config:table = PlayerConfigurations[ playerID ];
+	if config == nil then return nil; end
+	return Locale.Lookup( config:GetCivilizationShortDescription() );
+end
+
+-- ---- Operatives ------------------------------------------------------------------------------
+
+local function SRA_MissionText( spy:table, operationType:number, ownerCity:table )
+	local operationInfo:table = GameInfo.UnitOperations[ operationType ];
+	local text:string = Locale.Lookup( operationInfo.Description );
+	if operationInfo.Hash == UnitOperationTypes.SPY_COUNTERSPY then
+		local districtInfo:table = GameInfo.Districts[ Map.GetPlot( spy:GetX(), spy:GetY() ):GetDistrictType() ];
+		if districtInfo ~= nil then text = text .. ", " .. Locale.Lookup( districtInfo.Name ); end
+	end
+	return text;
+end
+
+local function SRA_SpyItem( spy:table )
+	local operationType:number = spy:GetSpyOperation();
+	local ownerCity:table = SRA_CityAt( spy:GetX(), spy:GetY() );
+	local data:table = {
+		name = Locale.Lookup( spy:GetName() ),
+		rank = Locale.Lookup( GetSpyRankNameByLevel( spy:GetExperience():GetLevel() ) ),
+		state = ( operationType == -1 ) and "idle" or "mission",
+	};
+	if ownerCity ~= nil then
+		data.city = Locale.Lookup( ownerCity:GetName() );
+		local owner:string = SRA_OwnerText( ownerCity:GetOwner() );
+		if owner ~= nil and owner ~= "yours" then data.city = data.city .. " (" .. owner .. ")"; end
+	end
+	local detail:string;
+	if operationType ~= -1 then
+		data.mission = SRA_MissionText( spy, operationType, ownerCity );
+		data.turns = math.max( 0, spy:GetSpyOperationEndTurn() - Game.GetCurrentGameTurn() );
+		local operationInfo:table = GameInfo.UnitOperations[ operationType ];
+		local parts:table = {};
+		if ownerCity ~= nil and operationInfo.Hash ~= UnitOperationTypes.SPY_COUNTERSPY then
+			table.insert( parts, SRA_Clean( GetFormattedOperationDetailText( operationInfo, spy, ownerCity ) ) );
+		elseif operationInfo.Hash == UnitOperationTypes.SPY_COUNTERSPY then
+			local districtInfo:table = GameInfo.Districts[ Map.GetPlot( spy:GetX(), spy:GetY() ):GetDistrictType() ];
+			if districtInfo ~= nil then table.insert( parts, SRA_Clean( Locale.Lookup( "LOC_ESPIONAGECHOOSER_COUNTERSPY", Locale.Lookup( districtInfo.Name ) ) ) ); end
+		end
+		local total:number = UnitManager.GetTimeToComplete( operationType, spy );
+		if total ~= nil and total > 0 then table.insert( parts, ( total - data.turns ) .. " of " .. total .. " turns done" ); end
+		table.insert( parts, "Enter selects the spy" );
+		detail = table.concat( parts, ". " );
+	else
+		detail = "Awaiting orders. Enter selects the spy to choose a destination or mission";
+	end
+	return { key = "spy:" .. spy:GetID(), text = EspionageText_Spy( data ), detail = detail, kind = "spy", id = spy:GetID() };
+end
+
+local function SRA_OperativeItems()
+	local items:table = {};
+	local localID:number = Game.GetLocalPlayer();
+	if localID == -1 then return items, 0, 0; end
+	local player:table = Players[ localID ];
+	local idle:table, active:table = {}, {};
+	for _, unit in player:GetUnits():Members() do
+		if GameInfo.Units[ unit:GetUnitType() ].Spy then
+			if unit:GetSpyOperation() == -1 then table.insert( idle, unit ); else table.insert( active, unit ); end
+		end
+	end
+	for _, spy in ipairs( idle ) do table.insert( items, SRA_SpyItem( spy ) ); end
+	for _, spy in ipairs( active ) do table.insert( items, SRA_SpyItem( spy ) ); end
+	local spies:number = #idle + #active;
+
+	-- our spies captured by others
+	for _, other in ipairs( Game.GetPlayers() ) do
+		local diplomacy:table = other:GetDiplomacy();
+		for i = 0, diplomacy:GetNumSpiesCaptured() - 1 do
+			local spyInfo:table = diplomacy:GetNthCapturedSpy( other:GetID(), i );
+			if spyInfo and spyInfo.OwningPlayer == localID then
+				spies = spies + 1;
+				local byID:number = other:GetID();
+				local atWar:boolean = player:GetDiplomacy():IsAtWarWith( byID );
+				local pending:boolean = DealManager.HasPendingDeal( localID, byID );
+				local nameIndex = spyInfo.NameIndex;
+				table.insert( items, { key = "captured:" .. byID .. ":" .. tostring( nameIndex ), kind = "captured", byID = byID, nameIndex = nameIndex,
+					atWar = atWar, pending = pending,
+					text = EspionageText_Spy{ name = Locale.Lookup( spyInfo.Name ), rank = Locale.Lookup( GetSpyRankNameByLevel( spyInfo.Level ) ), state = "captured", capturedBy = SRA_CivName( byID ) },
+					detail = atWar and "At war, no trade possible" or ( pending and "Another deal with them is pending" or "Enter asks for a trade to get the spy back" ) } );
+			end
+		end
+	end
+
+	-- travelling spies
+	local diplomacy:table = player:GetDiplomacy();
+	if diplomacy then
+		for i = 0, diplomacy:GetNumSpiesOffMap() - 1 do
+			local info:table = diplomacy:GetNthOffMapSpy( localID, i );
+			if info and info.ReturnTurn ~= -1 then
+				spies = spies + 1;
+				local target:table = SRA_CityAt( info.XLocation, info.YLocation );
+				table.insert( items, { key = "off:" .. tostring( info.Name ) .. ":" .. i, kind = "travel",
+					text = EspionageText_Spy{ name = Locale.Lookup( info.Name ), rank = Locale.Lookup( GetSpyRankNameByLevel( info.Level ) ), state = "travel",
+						destination = target ~= nil and Locale.Lookup( target:GetName() ) or nil, turns = math.max( 0, info.ReturnTurn - Game.GetCurrentGameTurn() ) },
+					detail = "On the way, it can not be selected until it arrives" } );
+			end
+		end
+	end
+	return items, spies, #idle;
+end
+
+-- ---- City activity ---------------------------------------------------------------------------
+
+local function SRA_CityItem( city:table )
+	local localID:number = Game.GetLocalPlayer();
+	local player:table = Players[ localID ];
+	local districts:table = {};
+	local cityDistricts:table = city:GetDistricts();
+	if cityDistricts ~= nil then
+		for _, district in cityDistricts:Members() do
+			local def:table = GameInfo.Districts[ district:GetType() ];
+			if district:IsComplete() and def ~= nil and def.DistrictType ~= "DISTRICT_WONDER" then table.insert( districts, Locale.Lookup( def.Name ) ); end
+		end
+	end
+	local spies:table = {};
+	for _, unit in player:GetUnits():Members() do
+		if GameInfo.Units[ unit:GetUnitType() ].Spy and unit:GetSpyOperation() ~= -1 then
+			local there:table = SRA_CityAt( unit:GetX(), unit:GetY() );
+			if there ~= nil and there:GetOwner() == city:GetOwner() and there:GetID() == city:GetID() then
+				table.insert( spies, Locale.Lookup( unit:GetName() ) );
+			end
+		end
+	end
+	local boost:number = 0;
+	local diplomacy:table = player:GetDiplomacy();
+	if diplomacy then boost = diplomacy:GetSourceTurnsRemaining( city ); end
+	local owner:number = city:GetOwner();
+	return { key = "city:" .. owner .. ":" .. city:GetID(), kind = "city", owner = owner, id = city:GetID(),
+		text = EspionageText_City{ name = Locale.Lookup( city:GetName() ), owner = SRA_OwnerText( owner ),
+			capital = city:IsCapital() and Players[ owner ]:IsMajor(), districts = districts, spies = spies, boostTurns = boost },
+		detail = "Enter shows the city on the map" };
+end
+
+local function SRA_CityItems()
+	local items:table = {};
+	local localID:number = Game.GetLocalPlayer();
+	if localID == -1 then return items; end
+	local vis:table = PlayersVisibility[ localID ];
+	local function AddCities( player:table )
+		for _, city in player:GetCities():Members() do
+			if vis:IsRevealed( city:GetX(), city:GetY() ) then table.insert( items, SRA_CityItem( city ) ); end
+		end
+	end
+	AddCities( Players[ localID ] );
+	local minors:table = {};
+	for _, player in ipairs( Game.GetPlayers() ) do
+		if player:GetID() ~= localID then
+			if player:IsMajor() then
+				AddCities( player );
+			elseif player.IsMinor ~= nil and player:IsMinor() then
+				table.insert( minors, player );
+			end
+		end
+	end
+	for _, player in ipairs( minors ) do AddCities( player ); end		-- Expansion: city-states come last
+	return items;
+end
+
+-- ---- Mission history -------------------------------------------------------------------------
+
+local function SRA_HistoryItems()
+	local items:table = {};
+	local localID:number = Game.GetLocalPlayer();
+	if localID == -1 then return items; end
+	local localPlayer:table = Players[ localID ];
+	local diplomacy:table = localPlayer:GetDiplomacy();
+	if diplomacy == nil then return items; end
+	for i = 0, diplomacy:GetNumSpiesCaptured() - 1 do
+		local spyInfo:table = diplomacy:GetNthCapturedSpy( localID, i );
+		if spyInfo then
+			local owning:number = spyInfo.OwningPlayer;
+			local canTrade:boolean = not diplomacy:IsAtWarWith( owning );
+			table.insert( items, { key = "enemy:" .. owning .. ":" .. tostring( spyInfo.NameIndex ), kind = "enemy", owning = owning, nameIndex = spyInfo.NameIndex,
+				canTrade = canTrade, section = "Captured enemy spies",
+				text = EspionageText_EnemySpy{ name = Locale.Lookup( spyInfo.Name ), civ = SRA_CivName( owning ), canTrade = canTrade },
+				detail = canTrade and "Enter offers a trade for this spy" or "At war, no trade possible" } );
+		end
+	end
+	local recent:table = diplomacy:GetRecentMissions( localID, 10, 0 );
+	if recent then
+		for i, mission in pairs( recent ) do
+			local hidden:boolean = ( mission.InitialResult == EspionageResultTypes.SUCCESS_MUST_ESCAPE or mission.InitialResult == EspionageResultTypes.FAIL_MUST_ESCAPE )
+				and mission.EscapeResult == EspionageResultTypes.NO_RESULT;
+			local operationInfo:table = GameInfo.UnitOperations[ mission.Operation ];
+			if not hidden and operationInfo ~= nil then
+				local outcome:table = GetMissionOutcomeDetails( mission ) or {};
+				local city:string = ( mission.CityName ~= nil and mission.CityName ~= "" ) and Locale.Lookup( mission.CityName ) or nil;
+				table.insert( items, { key = "mission:" .. tostring( mission.CompletionTurn ) .. ":" .. tostring( i ), kind = "mission", section = "Recent missions",
+					text = EspionageText_History{ name = Locale.Lookup( mission.Name ), rank = Locale.Lookup( GetSpyRankNameByLevel( mission.LevelAfter ) ),
+						mission = Locale.Lookup( operationInfo.Description ) .. ( city ~= nil and ( " in " .. city ) or "" ),
+						turnsAgo = Game.GetCurrentGameTurn() - mission.CompletionTurn, success = outcome.Success,
+						description = SRA_Clean( outcome.Description ), status = SRA_Clean( outcome.SpyStatus ) },
+					detail = SRA_Clean( outcome.Description ) } );
+			end
+		end
+	end
+	return items;
+end
+
+-- ---- list ------------------------------------------------------------------------------------
+
+function SRA_BuildItems()
+	if m_selectedTab == EspionageTabs.CITY_ACTIVITY then return SRA_CityItems(); end
+	if m_selectedTab == EspionageTabs.MISSION_HISTORY then return SRA_HistoryItems(); end
+	local items:table = SRA_OperativeItems();
+	return items;
+end
+
+local function SRA_EmptyText()
+	if m_selectedTab == EspionageTabs.CITY_ACTIVITY then return Locale.Lookup( "LOC_ESPIONAGE_NO_CITIES" ); end
+	if m_selectedTab == EspionageTabs.MISSION_HISTORY then return Locale.Lookup( "LOC_ESPIONAGE_NO_HISTORY" ); end
+	return Locale.Lookup( "LOC_ESPIONAGE_NO_OPERATIVES" );
+end
+
+-- Opening: "Espionage: 2 of 3 spies, 1 awaiting orders. Operatives. <first>, 1 of 2"; tab switch: "City Activity. <first>, 1 of 9".
+local function SRA_AnnounceTab( opening:boolean )
+	local items:table = SRA_BuildItems();
+	local parts:table = {};
+	if opening and Game.GetLocalPlayer() ~= -1 then
+		local _unused, spies, idle = SRA_OperativeItems();
+		table.insert( parts, EspionageText_Header{ spies = spies, capacity = Players[ Game.GetLocalPlayer() ]:GetDiplomacy():GetSpyCapacity(), idle = idle } );
+	end
+	table.insert( parts, SRA_TabNames()[ m_selectedTab ] or "" );
+	if #items == 0 then
+		table.insert( parts, SRA_Clean( SRA_EmptyText() ) );
+	else
+		m_srList.Open( "", nil, true );
+		local first:string = items[1].text;
+		if items[1].section ~= nil then first = items[1].section .. ": " .. first; end
+		table.insert( parts, first .. ", 1 of " .. #items );
+	end
+	SRA_Say( table.concat( parts, ". " ), opening );
+end
+
+local function SRA_CloseQuiet()
+	m_srQuiet = true;
+	Close();
+	m_srQuiet = false;
+end
+
+local function SRA_SwitchTab( delta:number )
+	local tabs:table = SRA_VisibleTabs();
+	local index:number = 1;
+	for i, tab in ipairs( tabs ) do
+		if tab == m_selectedTab then index = i; end
+	end
+	index = ( index - 1 + delta ) % #tabs + 1;
+	SelectTabByIndex( tabs[ index ] );
+	m_srList.Reset();
+	SRA_AnnounceTab( false );
+end
+
+local function SRA_OnActivate( item:table )
+	if item.kind == "spy" then
+		local unit:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( item.id );
+		if unit == nil then SRA_Say( "Spy not found" ); return; end
+		UI.DeselectAllUnits();
+		UI.DeselectAllCities();
+		UI.SelectUnit( unit );
+		UI.LookAtPlotScreenPosition( unit:GetX(), unit:GetY(), 0.42, 0.5 );
+		SRA_CloseQuiet();		-- the hub announces the selected spy; the chooser opens for an idle one
+	elseif item.kind == "city" then
+		local player:table = Players[ item.owner ];
+		local city:table = player ~= nil and player:GetCities():FindID( item.id ) or nil;
+		if city == nil then SRA_Say( "City not found" ); return; end
+		LookAtCity( item.owner, item.id );
+		LuaEvents.SRA_CursorTo( city:GetX(), city:GetY() );
+		SRA_Say( "Showing " .. Locale.Lookup( city:GetName() ) .. " on the map. The map cursor is there" );
+	elseif item.kind == "captured" then
+		if item.atWar then SRA_Say( "At war, no trade possible" ); return; end
+		if DealManager.HasPendingDeal( Game.GetLocalPlayer(), item.byID ) then SRA_Say( "Another deal with them is pending" ); return; end
+		OnAskForOperativeTradeClicked( item.byID, item.nameIndex );
+		SRA_Say( "Asking for a trade" );
+	elseif item.kind == "enemy" then
+		if not item.canTrade then SRA_Say( "At war, no trade possible" ); return; end
+		OnAskForEnemyOperativeTradeClicked( item.owning, item.nameIndex );
+		SRA_Say( "Offering a trade" );
+	elseif item.kind == "travel" then
+		SRA_Say( "On the way, it can not be selected until it arrives" );
+	else
+		SRA_Say( item.detail or "Nothing to do" );
+	end
+end
+
+function SRA_Closed()
+	SRA_Say( "Espionage closed" );
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build = SRA_BuildItems,
+		isActive = function() return m_AnimSupport ~= nil and m_AnimSupport.IsVisible(); end,
+		onActivate = SRA_OnActivate,
+		onClose = function() Close(); end,
+		extraKeys = {
+			[ Keys.VK_LEFT ] = function() SRA_SwitchTab( -1 ); end,
+			[ Keys.VK_RIGHT ] = function() SRA_SwitchTab( 1 ); end,
+		},
+	};
+end
+
+function SRA_ArmOpen()
+	m_srList.Reset();
+	m_srOpenPending = true;
+	m_srOpenDelay = SRA_OPEN_DELAY;
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if not m_srOpenPending then return; end
+	if ContextPtr:IsHidden() then m_srOpenPending = false; return; end
+	m_srOpenDelay = m_srOpenDelay - deltaTime;
+	if m_srOpenDelay > 0 then return; end
+	m_srOpenPending = false;
+	local ok:boolean, err = xpcall( function() SRA_AnnounceTab( true ); end, KeyNavErrorHandler );
+	if not ok then print( "EspionageOverview announce error: " .. tostring( err ) ); end
+end
+
+local function SRA_IsFunctionKey( key:number )
+	for n = 1, 12 do
+		if Keys[ "VK_F" .. n ] ~= nil and Keys[ "VK_F" .. n ] == key then return true; end
+	end
+	return false;
+end
+
+function SRA_HandleInput( input:table )
+	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = input:GetKey();
+	if SRA_IsFunctionKey( key ) then return false; end
+	if key == Keys.VK_TAB then
+		if msg == KeyEvents.KeyUp then
+			local delta:number = ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1;
+			local ok:boolean, err = xpcall( function() SRA_SwitchTab( delta ); end, KeyNavErrorHandler );
+			if not ok then print( "EspionageOverview tab error: " .. tostring( err ) ); end
+		end
+		return true;
+	end
+	m_srList.HandleInput( input );
+	return true;		-- everything else is swallowed while the screen is open
+end
+
+function SRA_InputHandler( input:table )
+	if SRA_HandleInput( input ) then return true; end
+	return m_AnimSupport.OnInputHandler( input );
+end
+print( "ScreenReaderAccess: EspionageOverview copy loaded" );
+
 function Initialize()
 	Controls.Title:SetText(Locale.Lookup("LOC_ESPIONAGE_TITLE"));
 
@@ -1038,31 +1450,33 @@ function Initialize()
 	Controls.CapturedEnemyOperativeContainer:RegisterSizeChanged( OnCapturedEnemyOperativeContainerSizeChanged );
 
 	-- Lua Events
-	LuaEvents.PartialScreenHooks_OpenEspionage.Add( OnOpen );
-	LuaEvents.PartialScreenHooks_CloseEspionage.Add( OnClose );
-	LuaEvents.PartialScreenHooks_CloseAllExcept.Add( OnCloseAllExcept );
+	SRListen( LuaEvents.PartialScreenHooks_OpenEspionage, OnOpen );		-- ScreenReaderAccess
+	SRListen( LuaEvents.PartialScreenHooks_CloseEspionage, OnClose );		-- ScreenReaderAccess
+	SRListen( LuaEvents.PartialScreenHooks_CloseAllExcept, OnCloseAllExcept );		-- ScreenReaderAccess
 
 	-- Animation Controller
 	m_AnimSupport = CreateScreenAnimation(Controls.SlideAnim);
 
 	-- Rundown / Screen Events
-	Events.SystemUpdateUI.Add(m_AnimSupport.OnUpdateUI);
-	ContextPtr:SetInputHandler(m_AnimSupport.OnInputHandler, true);
+	SRListen( Events.SystemUpdateUI, m_AnimSupport.OnUpdateUI );		-- ScreenReaderAccess
+	ContextPtr:SetInputHandler(SRA_InputHandler, true);		-- ScreenReaderAccess (was m_AnimSupport.OnInputHandler)
+	ContextPtr:SetUpdate(SRA_OnUpdate);		-- ScreenReaderAccess
+	SRA_CreateList();		-- ScreenReaderAccess
 
 	-- Game Engine Events	
-	Events.UnitOperationStarted.Add( OnUnitOperationStarted );
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
+	SRListen( Events.UnitOperationStarted, OnUnitOperationStarted );		-- ScreenReaderAccess
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );		-- ScreenReaderAccess
 
-	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
+	SRListen( Events.InterfaceModeChanged, OnInterfaceModeChanged );		-- ScreenReaderAccess
 	
-	Events.SpyAdded.Add( OnSpyAdded );
-	Events.SpyRemoved.Add( OnSpyRemoved );
-	Events.DiplomacyDealEnacted.Add( OnDiplomacyDealEnacted ); -- Folks may be trading captured spies, if they do we must update the panel
+	SRListen( Events.SpyAdded, OnSpyAdded );		-- ScreenReaderAccess
+	SRListen( Events.SpyRemoved, OnSpyRemoved );		-- ScreenReaderAccess
+	SRListen( Events.DiplomacyDealEnacted, OnDiplomacyDealEnacted );		-- ScreenReaderAccess -- Folks may be trading captured spies, if they do we must update the panel
 
 	-- Hot-Reload Events
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
-	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
+	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );		-- ScreenReaderAccess
 
 	PopulateTabs();
 end

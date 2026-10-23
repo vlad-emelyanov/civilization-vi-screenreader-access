@@ -1,0 +1,30 @@
+# UNVERIFIED (written offline, never run in game). medieval-t100: F4 opens the Trade Routes overview on My routes;
+# Tab / Control+Tab (previous) switch tabs (Shift+Tab is the Steam overlay), Space = details, F4 and Escape close.
+# Needs the build with TradeOverview.lua loaded ("ScreenReaderAccess: TradeOverview copy loaded" in Lua.log).
+# no-share-load
+load medieval-t100
+clear-advisors
+key F4 -Settle 2500
+expect ^Trade routes: \d+ of \d+ used\. My Routes, (no routes|\d+ routes?)
+key Down -Settle 600
+key Space -Settle 600
+expect .{10,}
+key Tab -Settle 1000
+expect ^Routes to my Cities, (no routes|\d+ routes?)
+key Tab -Settle 1500
+expect ^Available Routes, (no routes|\d+ routes?)
+key Control+Tab -Settle 1000
+expect ^Routes to my Cities,
+key Control+Tab -Settle 1000
+expect ^My Routes,
+key B -Settle 600
+expect ^Showing their benefits
+key B -Settle 600
+expect ^Showing my benefits
+key Escape -Settle 1500
+expect ^Trade routes closed
+key F4 -Settle 2500
+expect ^Trade routes: \d+ of \d+ used
+key F4 -Settle 1500
+expect ^Trade routes closed
+no-lua-errors

@@ -1,0 +1,25 @@
+# UNVERIFIED (written offline, never run in game). medieval-t100 probably has no spies (Diplomatic Service comes with
+# the Renaissance era; try industrial-start, turn 128, or give a spy through the tuner): F3 opens the Espionage overview,
+# Tab / Control+Tab switch tabs, Escape and F3 close. With a spy the first line is "Espionage: 1 of N spy, 1 awaiting
+# orders. Operatives. Spy <name>, <rank>, in <city>, awaiting orders, 1 of 1"; Enter selects it and the chooser says
+# "Choose destination for <name>: N cities. ..." (extend this script once a fixture with a spy exists).
+# Needs the build with EspionageOverview.lua loaded ("ScreenReaderAccess: EspionageOverview copy loaded" in Lua.log).
+# no-share-load
+load medieval-t100
+clear-advisors
+key F3 -Settle 2500
+expect ^Espionage: \d+ of \d+ spies?
+key Space -Settle 600
+key Tab -Settle 1000
+expect ^City Activity\.
+key Down -Settle 600
+key Space -Settle 600
+key Control+Tab -Settle 1000
+expect ^Operatives
+key Escape -Settle 1500
+expect ^Espionage closed
+key F3 -Settle 2500
+expect ^Espionage: \d+ of \d+ spies?
+key F3 -Settle 1500
+expect ^Espionage closed
+no-lua-errors

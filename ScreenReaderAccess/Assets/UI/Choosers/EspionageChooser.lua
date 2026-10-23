@@ -8,6 +8,10 @@ include("AnimSidePanelSupport");
 include("SupportFunctions");
 include("EspionageSupport");
 include("Colors");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
+include("EspionageText");	-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -46,6 +50,10 @@ local m_spy					:table = nil;
 -- While in DESTINATION_CHOOSER - Currently selected destination
 -- While in MISSION_CHOOSER - City where the selected spy resides
 local m_city				:table = nil;
+
+-- ScreenReaderAccess: what the game lists, recorded by AddDestination / the Add*Operation functions (see the section before INIT)
+local m_srDestinations		:table = {};	-- { owner, id } in the order AddDestination was called
+local m_srMissions			:table = {};	-- { opHash, plotIndex, counter, reasons } in the order of the mission stack
 
 -- ===========================================================================
 function Refresh()
@@ -138,6 +146,7 @@ function RefreshBottom()
 			Controls.DestinationPanel:SetHide(false);
 			Controls.MissionPanel:SetHide(true);
 			m_RouteChoiceIM:ResetInstances();
+			m_srDestinations = {};		-- ScreenReaderAccess
 			RefreshDestinationList();
 		end
 	else
@@ -189,6 +198,7 @@ end
 -- ===========================================================================
 function RefreshMissionList()
 	m_MissionStackIM:ResetInstances();
+	m_srMissions = {};		-- ScreenReaderAccess
 
 	-- Determine if this is a owned by the local player
 	if m_city:GetOwner() == Game.GetLocalPlayer() then
@@ -244,6 +254,7 @@ end
 
 -- ===========================================================================
 function AddCounterspyOperation(operation:table, districtPlotID:number)
+	SRA_RecordMission( operation, districtPlotID, true, nil );		-- ScreenReaderAccess
 	local missionInstance:table = m_MissionStackIM:GetInstance();
 
 	-- Find district
@@ -312,6 +323,7 @@ end
 
 -- ===========================================================================
 function AddDisabledOffensiveOperation(operation:table, result:table, targetCityPlot:table)
+	SRA_RecordMission( operation, targetCityPlot:GetIndex(), false, result[UnitOperationResults.FAILURE_REASONS] or { "" } );		-- ScreenReaderAccess
 	local missionInstance:table = AddOffensiveOperation(operation, result, targetCityPlot);
 
 	-- Update mission description with reason the mission is disabled
@@ -341,6 +353,7 @@ end
 
 -- ===========================================================================
 function AddAvailableOffensiveOperation(operation:table, result:table, pTargetPlot:table)
+	SRA_RecordMission( operation, pTargetPlot:GetIndex(), false, nil );		-- ScreenReaderAccess
 	local missionInstance:table = AddOffensiveOperation(operation, result, pTargetPlot);
 
 	-- Update mission details
@@ -431,6 +444,7 @@ end
 
 -- ===========================================================================
 function AddDestination(city:table)
+	table.insert( m_srDestinations, { owner = city:GetOwner(), id = city:GetID() } );		-- ScreenReaderAccess
 	local destinationInstance:table = m_RouteChoiceIM:GetInstance();
 
 	-- Update city name and banner color
@@ -661,11 +675,13 @@ function Open()
 	
 	-- Play opening sound
 	UI.PlaySound("Tech_Tray_Slide_Open");
+	SRA_ArmOpen();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
 function Close()
 	if m_AnimSupport:IsVisible() then
+		SRA_ClearConfirm();		-- ScreenReaderAccess
 		m_AnimSupport:Hide();
 		UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);
         UI.PlaySound("Tech_Tray_Slide_Closed");
@@ -819,6 +835,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isVisible", m_AnimSupport:IsVisible());
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "selectedCity", m_city);
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "selectedSpy", m_spy);
@@ -848,11 +865,409 @@ function OnGameDebugReturn(context:string, contextTable:table)
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	Opens 0.4 s after Open() (a spy was selected) in one of the game's two modes.
+--	Destination mode (the spy is in one of your cities): "Choose destination for Ana: 6 cities. Thebes, Egypt, 4 turns,
+--	1 of 6". The list is what AddDestination put on the screen (recorded in m_srDestinations, so the expansion's
+--	RefreshDestinationList decides who is listed). Enter selects the city through OnSelectDestination and asks "Send Ana
+--	to Thebes? Arrives in 4 turns ... Enter to confirm, Escape to go back"; Enter again calls OnConfirmPlacement (one of
+--	your own cities opens the counterspy mission list instead), Escape calls OnCancel. Space reads the districts and the
+--	travel time, or in the question the missions available there.
+--	Mission mode (the spy is in a city): "Choose mission in Thebes: 5 missions. Steal tech boost, 75 percent success,
+--	8 turns, 1 of 5", recorded from AddCounterspyOperation / AddAvailableOffensiveOperation / AddDisabledOffensiveOperation
+--	and re-read from the game (probabilities, turns) at key time. Enter asks "Start ...? Enter to confirm", Enter again
+--	requests the operation exactly like the mission briefing's Accept button (UnitManager.RequestOperation; counterspy
+--	with the district as the target, as OnCounterspySelected does). Space = what the mission does and the chances of
+--	success, failure and losing the spy. Escape in the list closes ("Cancelled"). Every keyboard event is swallowed
+--	while the chooser is shown.
+-- ===========================================================================
+local m_srList				:table = nil;
+local m_srConfirm			:table = nil;		-- { kind = "travel" | "mission", ... } while a question is asked
+local m_srOpenPending		:boolean = false;
+local m_srOpenDelay			:number = 0;
+local SRA_OPEN_DELAY		:number = 0.4;
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( text or "" );
+end
+
+local function SRA_SpyName()
+	if m_spy == nil then return ""; end
+	return Locale.Lookup( m_spy:GetName() );
+end
+
+local function SRA_CityName( city:table )
+	return Locale.Lookup( city:GetName() );
+end
+
+local function SRA_OwnerText( ownerID:number )
+	if ownerID == Game.GetLocalPlayer() then return "yours"; end
+	local player:table = Players[ ownerID ];
+	if player ~= nil and player:GetInfluence():CanReceiveInfluence() then return "city-state"; end
+	local config:table = PlayerConfigurations[ ownerID ];
+	if config == nil then return nil; end
+	return Locale.Lookup( config:GetCivilizationShortDescription() );
+end
+
+local function SRA_Plural( n:number, one:string, many:string )
+	return n .. " " .. ( n == 1 and one or many );
+end
+
+-- ---- recording what the game lists -----------------------------------------------------------
+
+function SRA_RecordMission( operation:table, plotIndex:number, counter:boolean, reasons:table )
+	table.insert( m_srMissions, { opHash = operation.Hash, plotIndex = plotIndex, counter = counter, reasons = reasons } );
+end
+
+-- ---- destinations ----------------------------------------------------------------------------
+
+local function SRA_TravelTimes( city:table )
+	local travel:number = UnitManager.GetTravelTime( m_spy, city );
+	local establish:number = UnitManager.GetEstablishInCityTime( m_spy, city );
+	return travel, establish;
+end
+
+local function SRA_DistrictNames( city:table )
+	local names:table = {};
+	local districts:table = city:GetDistricts();
+	if districts ~= nil then
+		for _, district in districts:Members() do
+			local def:table = GameInfo.Districts[ district:GetType() ];
+			if district:IsComplete() and def ~= nil and def.DistrictType ~= "DISTRICT_WONDER" then table.insert( names, Locale.Lookup( def.Name ) ); end
+		end
+	end
+	return names;
+end
+
+local function SRA_DestinationItems()
+	local items:table = {};
+	if m_spy == nil then return items; end
+	for _, entry in ipairs( m_srDestinations ) do
+		local city:table = CityManager.GetCity( entry.owner, entry.id );
+		if city ~= nil then
+			local travel:number, establish:number = SRA_TravelTimes( city );
+			local cityOwner:number, cityID:number = entry.owner, entry.id;
+			table.insert( items, {
+				key = "d:" .. cityOwner .. ":" .. cityID, owner = cityOwner, id = cityID, name = SRA_CityName( city ),
+				text = EspionageText_Destination{ name = SRA_CityName( city ), owner = SRA_OwnerText( cityOwner ),
+					capital = city:IsCapital() and Players[ cityOwner ]:IsMajor(), turns = travel + establish },
+				detail = function()
+					local parts:table = { "Travel " .. SRA_Plural( travel, "turn", "turns" ) .. " plus " .. SRA_Plural( establish, "turn", "turns" ) .. " to establish" };
+					local districts:table = SRA_DistrictNames( city );
+					if #districts > 0 then table.insert( parts, "Districts: " .. table.concat( districts, ", " ) ); end
+					return table.concat( parts, ". " );
+				end,
+			} );
+		end
+	end
+	return items;
+end
+
+-- ---- missions --------------------------------------------------------------------------------
+
+local function SRA_MissionPlot( entry:table )
+	return Map.GetPlotByIndex( entry.plotIndex );
+end
+
+local function SRA_MissionDistrict( entry:table, plot:table )
+	if plot == nil then return nil; end
+	local def:table = GameInfo.Districts[ plot:GetDistrictType() ];
+	if def == nil then return nil; end
+	if not entry.counter and def.DistrictType == "DISTRICT_CITY_CENTER" then return nil; end
+	return Locale.Lookup( def.Name );
+end
+
+-- { success, failure, lost } in whole percents, nil when the game gives no odds for this mission
+local function SRA_Outcomes( operation:table, plot:table )
+	if m_spy == nil or plot == nil then return nil; end
+	local probability:table = UnitManager.GetResultProbability( operation.Index, m_spy, plot );
+	if probability == nil or probability[ "ESPIONAGE_SUCCESS_UNDETECTED" ] == nil then return nil; end
+	local success:number = probability[ "ESPIONAGE_SUCCESS_UNDETECTED" ] + ( probability[ "ESPIONAGE_SUCCESS_MUST_ESCAPE" ] or 0 );
+	success = math.floor( success * 100 + 0.5 );
+	local failure:number = ( probability[ "ESPIONAGE_FAIL_UNDETECTED" ] or 0 ) + ( probability[ "ESPIONAGE_FAIL_MUST_ESCAPE" ] or 0 );
+	failure = math.floor( failure * 100 + 0.5 );
+	return { success = success, failure = failure, lost = math.max( 0, 100 - success - failure ) };
+end
+
+local function SRA_MissionData( entry:table )
+	local operation:table = GameInfo.UnitOperations[ entry.opHash ];
+	if operation == nil then return nil; end
+	local plot:table = SRA_MissionPlot( entry );
+	local data:table = { operation = operation, plot = plot, name = Locale.Lookup( operation.Description ),
+		district = SRA_MissionDistrict( entry, plot ) };
+	if entry.reasons ~= nil then
+		data.reason = SRA_Clean( table.concat( entry.reasons, ". " ) );
+		if data.reason == "" then data.reason = "not possible now"; end
+		return data;
+	end
+	data.turns = UnitManager.GetTimeToComplete( operation.Index, m_spy );
+	if not entry.counter then
+		local outcomes:table = SRA_Outcomes( operation, plot );
+		if outcomes ~= nil then data.chance = outcomes.success; data.outcomes = outcomes; end
+	end
+	return data;
+end
+
+local function SRA_MissionDetail( entry:table, data:table )
+	local parts:table = {};
+	if data.reason ~= nil then
+		table.insert( parts, "Unavailable: " .. data.reason );
+	elseif entry.counter then
+		table.insert( parts, SRA_Clean( Locale.Lookup( "LOC_ESPIONAGECHOOSER_COUNTERSPY", data.district or "" ) ) );
+	elseif m_city ~= nil then
+		table.insert( parts, SRA_Clean( GetFormattedOperationDetailText( data.operation, m_spy, m_city ) ) );
+	end
+	if data.outcomes ~= nil then table.insert( parts, EspionageText_Outcomes( data.outcomes ) ); end
+	if data.turns ~= nil then table.insert( parts, SRA_Plural( data.turns, "turn", "turns" ) .. " to complete" ); end
+	return table.concat( parts, ". " );
+end
+
+local function SRA_MissionItems()
+	local items:table = {};
+	if m_spy == nil or m_city == nil then return items; end
+	for _, entry in ipairs( m_srMissions ) do
+		local data:table = SRA_MissionData( entry );
+		if data ~= nil then
+			local recorded:table = entry;
+			table.insert( items, {
+				key = "m:" .. entry.opHash .. ":" .. entry.plotIndex, entry = recorded, name = data.name, district = data.district,
+				choosable = ( data.reason == nil ), reason = data.reason and ( data.name .. " is unavailable: " .. data.reason ) or nil,
+				text = EspionageText_Mission{ name = data.name, district = data.district, chance = data.chance, turns = data.turns, reason = data.reason },
+				detail = function() return SRA_MissionDetail( recorded, data ); end,
+			} );
+		end
+	end
+	return items;
+end
+
+-- ---- the list --------------------------------------------------------------------------------
+
+local function SRA_IsDestinationList()
+	return m_currentChooserMode == EspionageChooserModes.DESTINATION_CHOOSER and m_city == nil;
+end
+
+function SRA_BuildItems()
+	if m_spy == nil then return {}; end
+	if SRA_IsDestinationList() then return SRA_DestinationItems(); end
+	return SRA_MissionItems();
+end
+
+local function SRA_Head()
+	if SRA_IsDestinationList() then return "Choose destination for " .. SRA_SpyName(); end
+	if m_city ~= nil then return "Choose mission in " .. SRA_CityName( m_city ); end
+	return "Choose";
+end
+
+local function SRA_AnnounceList()
+	local items:table = SRA_BuildItems();
+	local noun:string = SRA_IsDestinationList() and "cities" or "missions";
+	local single:string = SRA_IsDestinationList() and "city" or "mission";
+	if #items == 0 then
+		SRA_Say( SRA_Head() .. ": no " .. noun .. ". Escape to cancel", true );
+		return;
+	end
+	m_srList.Open( "", nil, true );
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == m_srList.GetFocusKey() then index = i; end
+	end
+	SRA_Say( SRA_Head() .. ": " .. SRA_Plural( #items, single, noun ) .. ". " .. items[ index ].text .. ", " .. index .. " of " .. #items, true );
+end
+
+-- ---- questions (Enter on an item) ------------------------------------------------------------
+
+local function SRA_SpyIsInCity( city:table )
+	if m_spy == nil then return false; end
+	local spyCity:table = Cities.GetPlotPurchaseCity( Map.GetPlot( m_spy:GetX(), m_spy:GetY() ) );
+	return spyCity ~= nil and spyCity:GetOwner() == city:GetOwner() and spyCity:GetID() == city:GetID();
+end
+
+local function SRA_AskTravel()
+	local pending:table = m_srConfirm;
+	local city:table = CityManager.GetCity( pending.owner, pending.id );
+	if city == nil then return; end
+	if pending.counter then
+		SRA_Say( SRA_CityName( city ) .. " is your city where " .. SRA_SpyName() .. " is. Enter to choose a counterspy mission, Escape to go back" );
+		return;
+	end
+	local travel:number, establish:number = SRA_TravelTimes( city );
+	local missions:number = #SRA_MissionItems();
+	SRA_Say( "Send " .. SRA_SpyName() .. " to " .. SRA_CityName( city ) .. "? Arrives in " .. SRA_Plural( travel + establish, "turn", "turns" )
+		.. ". " .. SRA_Plural( missions, "mission", "missions" ) .. " possible there, Space lists them. Enter to confirm, Escape to go back" );
+end
+
+local function SRA_AskMission()
+	local pending:table = m_srConfirm;
+	local data:table = SRA_MissionData( pending.entry );
+	if data == nil then return; end
+	SRA_Say( "Start " .. EspionageText_Mission{ name = data.name, district = data.district, chance = data.chance, turns = data.turns }
+		.. " in " .. SRA_CityName( m_city ) .. "? Enter to confirm, Escape to go back, Space for details" );
+end
+
+local function SRA_SelectDestination( item:table )
+	local city:table = CityManager.GetCity( item.owner, item.id );
+	if city == nil then SRA_Say( "That city is no longer available" ); return; end
+	OnSelectDestination( city );		-- the game: remember the city, look at it, show its missions
+	local counter:boolean = ( city:GetOwner() == Game.GetLocalPlayer() ) and SRA_SpyIsInCity( city );
+	m_srConfirm = { kind = "travel", owner = item.owner, id = item.id, key = item.key, counter = counter };
+	SRA_AskTravel();
+end
+
+local function SRA_SelectMission( item:table )
+	m_srConfirm = { kind = "mission", entry = item.entry, key = item.key };
+	SRA_AskMission();
+end
+
+local function SRA_ConfirmTravel()
+	local pending:table = m_srConfirm;
+	local city:table = CityManager.GetCity( pending.owner, pending.id );
+	if city == nil or m_city == nil or m_spy == nil then
+		m_srConfirm = nil;
+		SRA_Say( "That city is no longer available" );
+		return;
+	end
+	if pending.counter then
+		m_srConfirm = nil;
+		OnConfirmPlacement();		-- own city with the spy in it: the game switches to the mission chooser
+		m_srList.Reset();
+		SRA_AnnounceList();
+		return;
+	end
+	local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
+	local params:table = {};
+	params[ UnitOperationTypes.PARAM_X ] = city:GetX();
+	params[ UnitOperationTypes.PARAM_Y ] = city:GetY();
+	if not UnitManager.CanStartOperation( m_spy, UnitOperationTypes.SPY_TRAVEL_NEW_CITY, plot, params ) then
+		SRA_Say( "Can't send " .. SRA_SpyName() .. " to " .. SRA_CityName( city ) .. ". Escape to go back" );
+		return;
+	end
+	local travel:number, establish:number = SRA_TravelTimes( city );
+	local spyName:string, cityName:string = SRA_SpyName(), SRA_CityName( city );
+	m_srConfirm = nil;
+	OnConfirmPlacement();		-- the game: TeleportToSelectedCity, which requests the operation and leaves the chooser mode
+	SRA_Say( spyName .. " travels to " .. cityName .. ", arrives in " .. SRA_Plural( travel + establish, "turn", "turns" ) );
+end
+
+local function SRA_ConfirmMission()
+	local pending:table = m_srConfirm;
+	local entry:table = pending.entry;
+	local data:table = SRA_MissionData( entry );
+	if data == nil or data.reason ~= nil or m_spy == nil or m_city == nil then
+		m_srConfirm = nil;
+		SRA_Say( "That mission is no longer available. Back to the list" );
+		return;
+	end
+	local text:string = data.name .. ( data.district ~= nil and ( ", " .. data.district ) or "" ) .. " in " .. SRA_CityName( m_city );
+	local turns:number = data.turns;
+	m_srConfirm = nil;
+	if entry.counter then
+		OnCounterspySelected( SRA_MissionPlot( entry ) );
+	else
+		UnitManager.RequestOperation( m_spy, data.operation.Hash );		-- what the mission briefing's Accept button does
+		UI.PlaySound( "UI_Spy_Mission_Accepted" );
+	end
+	SRA_Say( "Mission started: " .. text .. ( turns ~= nil and ( ", " .. SRA_Plural( turns, "turn", "turns" ) ) or "" ) );
+end
+
+local function SRA_Back()
+	local pending:table = m_srConfirm;
+	m_srConfirm = nil;
+	if pending.kind == "travel" then OnCancel(); end		-- the game: forget the chosen city, back to the destination list
+	m_srList.Focus( pending.key, "Back to the list" );
+end
+
+local function SRA_ReadConfirmDetail()
+	local pending:table = m_srConfirm;
+	if pending.kind == "mission" then
+		local data:table = SRA_MissionData( pending.entry );
+		SRA_Say( data ~= nil and SRA_MissionDetail( pending.entry, data ) or "No further details" );
+		return;
+	end
+	local lines:table = {};
+	for _, item in ipairs( SRA_MissionItems() ) do table.insert( lines, item.text ); end
+	if #lines == 0 then SRA_Say( "No missions possible there" ); return; end
+	SRA_Say( table.concat( lines, ". " ) );
+end
+
+local function SRA_Cancel()
+	OnClose();
+	SRA_Say( "Cancelled" );
+end
+
+local function SRA_OnActivate( item:table )
+	if SRA_IsDestinationList() then SRA_SelectDestination( item ); else SRA_SelectMission( item ); end
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build = SRA_BuildItems,
+		isActive = function() return m_AnimSupport ~= nil and m_AnimSupport.IsVisible() and m_srConfirm == nil; end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_Cancel,
+	};
+end
+
+-- Called at the end of Open(): the game has just (re)built its lists; announce a moment later.
+function SRA_ArmOpen()
+	m_srConfirm = nil;
+	m_srList.Reset();
+	m_srOpenPending = true;
+	m_srOpenDelay = SRA_OPEN_DELAY;
+end
+
+function SRA_ClearConfirm()
+	m_srConfirm = nil;
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if not m_srOpenPending then return; end
+	if ContextPtr:IsHidden() or not m_AnimSupport.IsVisible() then m_srOpenPending = false; return; end
+	m_srOpenDelay = m_srOpenDelay - deltaTime;
+	if m_srOpenDelay > 0 then return; end
+	m_srOpenPending = false;
+	local ok:boolean, err = xpcall( SRA_AnnounceList, KeyNavErrorHandler );
+	if not ok then print( "EspionageChooser announce error: " .. tostring( err ) ); end
+end
+
+function SRA_HandleInput( input:table )
+	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	if m_srConfirm ~= nil then
+		if msg == KeyEvents.KeyUp then
+			local key:number = input:GetKey();
+			local action = nil;
+			if key == Keys.VK_RETURN then action = ( m_srConfirm.kind == "travel" ) and SRA_ConfirmTravel or SRA_ConfirmMission;
+			elseif key == Keys.VK_ESCAPE then action = SRA_Back;
+			elseif key == Keys.VK_SPACE then action = SRA_ReadConfirmDetail;
+			end
+			if action ~= nil then
+				local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
+				if not ok then print( "EspionageChooser error: " .. tostring( err ) ); end
+			end
+		end
+		return true;
+	end
+	m_srList.HandleInput( input );
+	return true;		-- everything else is swallowed while the chooser is shown
+end
+
+function SRA_InputHandler( input:table )
+	if SRA_HandleInput( input ) then return true; end
+	return m_AnimSupport.OnInputHandler( input );
+end
+print( "ScreenReaderAccess: EspionageChooser copy loaded" );
+
+-- ===========================================================================
 --	INIT
 -- ===========================================================================
 function Initialize()
 	-- Lua Events
-	LuaEvents.EspionagePopup_MissionBriefingClosed.Add( OnMissionBriefingClosed );
+	SRListen( LuaEvents.EspionagePopup_MissionBriefingClosed, OnMissionBriefingClosed );		-- ScreenReaderAccess
 
 	-- Control Events
 	Controls.ConfirmButton:RegisterCallback( Mouse.eLClick, OnConfirmPlacement );
@@ -863,21 +1278,23 @@ function Initialize()
 	Controls.CloseButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 
 	-- Game Engine Events	
-	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
-	Events.UnitSelectionChanged.Add( OnUnitSelectionChanged );
-	Events.UnitActivityChanged.Add( OnUnitActivityChanged );
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
+	SRListen( Events.InterfaceModeChanged, OnInterfaceModeChanged );		-- ScreenReaderAccess
+	SRListen( Events.UnitSelectionChanged, OnUnitSelectionChanged );		-- ScreenReaderAccess
+	SRListen( Events.UnitActivityChanged, OnUnitActivityChanged );		-- ScreenReaderAccess
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );		-- ScreenReaderAccess
 
 	-- Animation controller
 	m_AnimSupport = CreateScreenAnimation(Controls.SlideAnim);
 
 	-- Animation controller events
-	Events.SystemUpdateUI.Add(m_AnimSupport.OnUpdateUI);
-	ContextPtr:SetInputHandler(m_AnimSupport.OnInputHandler, true);
+	SRListen( Events.SystemUpdateUI, m_AnimSupport.OnUpdateUI );		-- ScreenReaderAccess
+	ContextPtr:SetInputHandler(SRA_InputHandler, true);		-- ScreenReaderAccess (was m_AnimSupport.OnInputHandler)
+	ContextPtr:SetUpdate(SRA_OnUpdate);		-- ScreenReaderAccess
+	SRA_CreateList();		-- ScreenReaderAccess
 
 	-- Hot-Reload Events
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
-	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
+	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );		-- ScreenReaderAccess
 end
 Initialize();

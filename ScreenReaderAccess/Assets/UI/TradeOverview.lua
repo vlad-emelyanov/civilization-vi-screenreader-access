@@ -8,6 +8,10 @@ include("AnimSidePanelSupport");
 include("InstanceManager");
 include("SupportFunctions");
 include("TradeSupport");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
+include("TradeOverviewText");	-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -34,6 +38,11 @@ local m_HeaderInstanceIM:table			= InstanceManager:new("HeaderInstance", "Top", 
 local m_SimpleButtonInstanceIM:table	= InstanceManager:new("SimpleButtonInstance", "Top", Controls.BodyStack);
 
 local m_AnimSupport:table; -- AnimSidePanelSupport
+
+-- ScreenReaderAccess: what the game's View* functions put on the screen, as plain ids (see the section before Initialize)
+local m_srRecords:table = {};
+local m_srSection:string = nil;
+local m_srQuiet:boolean = false;		-- Close() without "Trade routes closed"
 
 -- Show My Routes Tab
 function ViewMyRoutes()
@@ -289,6 +298,7 @@ function AddChooseRouteButton( tradeUnit:table )
 	local simpleButtonInstance:table = m_SimpleButtonInstanceIM:GetInstance();
 	simpleButtonInstance.GridButton:SetText(Locale.Lookup("LOC_TRADE_OVERVIEW_CHOOSE_ROUTE"));
 	simpleButtonInstance.GridButton:SetDisabled(false);
+	table.insert( m_srRecords, { kind = "slot", section = m_srSection, traderID = tradeUnit:GetID(), n = #m_srRecords + 1 } );		-- ScreenReaderAccess
 	simpleButtonInstance.GridButton:RegisterCallback( Mouse.eLClick, 
 		function()
 			SelectUnit( tradeUnit );
@@ -312,6 +322,7 @@ function AddProduceTradeUnitButton()
 	local simpleButtonInstance:table = m_SimpleButtonInstanceIM:GetInstance();
 	simpleButtonInstance.GridButton:SetText(Locale.Lookup("LOC_TRADE_OVERVIEW_PRODUCE_TRADE_UNIT"));
 	simpleButtonInstance.GridButton:SetDisabled(true);
+	table.insert( m_srRecords, { kind = "slot", section = m_srSection, n = #m_srRecords + 1 } );		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -323,11 +334,14 @@ function AddRouteFromRouteInfo(routeInfo:table)
 	local destinationCity:table = destinationPlayer:GetCities():FindID(routeInfo.DestinationCityID);
 
 	AddRoute(originPlayer, originCity, destinationPlayer, destinationCity, routeInfo.TraderUnitID);
+	m_srRecords[ #m_srRecords ].info = routeInfo;		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
 function AddRoute(originPlayer:table, originCity:table, destinationPlayer:table, destinationCity:table, traderUnitID:number)
 	local routeInstance:table = m_RouteInstanceIM:GetInstance();
+	table.insert( m_srRecords, { kind = "route", section = m_srSection, tab = m_currentTab, traderID = traderUnitID,
+		op = originPlayer:GetID(), oc = originCity:GetID(), dp = destinationPlayer:GetID(), dc = destinationCity:GetID() } );		-- ScreenReaderAccess
 						
 	-- Update Route Label
 	routeInstance.RouteLabel:SetText(Locale.ToUpper(originCity:GetName()) .. " " .. Locale.ToUpper("LOC_TRADE_OVERVIEW_TO") .. " " .. Locale.ToUpper(destinationCity:GetName()));
@@ -564,6 +578,9 @@ function PreRefresh()
 	m_RouteInstanceIM:ResetInstances();
 	m_HeaderInstanceIM:ResetInstances();
 	m_SimpleButtonInstanceIM:ResetInstances();
+
+	m_srRecords = {};		-- ScreenReaderAccess
+	m_srSection = nil;		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -595,6 +612,7 @@ function CreatePlayerHeader(player:table)
 
 	local pPlayerConfig:table = PlayerConfigurations[player:GetID()];
 	headerInstance.HeaderLabel:SetText(Locale.ToUpper(pPlayerConfig:GetPlayerName()));
+	m_srSection = Locale.Lookup(pPlayerConfig:GetPlayerName());		-- ScreenReaderAccess
 
 	-- Determine are diplomatic visibility status
 	local visibilityIndex:number = Players[Game.GetLocalPlayer()]:GetDiplomacy():GetVisibilityOn(player);
@@ -647,6 +665,7 @@ function CreateCityStateHeader()
 	local headerInstance:table = m_HeaderInstanceIM:GetInstance();
 
 	headerInstance.HeaderLabel:SetText(Locale.ToUpper("LOC_TRADE_OVERVIEW_CITY_STATES"));
+	m_srSection = Locale.Lookup("LOC_TRADE_OVERVIEW_CITY_STATES");		-- ScreenReaderAccess
 
 	headerInstance.VisibilityBonusGrid:SetHide(true);
 	headerInstance.TourismBonusGrid:SetHide(true);
@@ -657,6 +676,7 @@ function CreateUnusedRoutesHeader()
 	local headerInstance:table = m_HeaderInstanceIM:GetInstance();
 
 	headerInstance.HeaderLabel:SetText(Locale.ToUpper("LOC_TRADE_OVERVIEW_UNUSED_ROUTES"));
+	m_srSection = Locale.Lookup("LOC_TRADE_OVERVIEW_UNUSED_ROUTES");		-- ScreenReaderAccess
 
 	headerInstance.VisibilityBonusGrid:SetHide(true);
 	headerInstance.TourismBonusGrid:SetHide(true);
@@ -701,6 +721,7 @@ function Close()
     if not ContextPtr:IsHidden() then
         UI.PlaySound("CityStates_Panel_Close");
     end
+	if m_AnimSupport.IsVisible() and not m_srQuiet then SRA_Closed(); end		-- ScreenReaderAccess
 	m_AnimSupport.Hide();
 end
 
@@ -710,6 +731,7 @@ function OnOpen()
 	OnMyRoutesButton();
 
 	Open();
+	SRA_ArmOpen();		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -782,6 +804,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isHidden", ContextPtr:IsHidden());
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "currentTab", m_currentTab);
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "showMyBenefits", m_showMyBenefits);
@@ -823,6 +846,335 @@ function OnPolicyChanged( ePlayer )
 end
 
 -- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech (F4)
+--	The game's own View* functions decide what is listed (they run on every Refresh); PreRefresh/AddRoute/the header
+--	functions record each route, slot and section as plain ids in m_srRecords. Item texts are derived from the game's
+--	state at key time (lazily: only the spoken item is computed). Opens 0.4 s after OnOpen with "Trade routes: 2 of 3
+--	used. My routes, 2 routes. <first>, 1 of 2". Up/Down/Home/End move, Space = benefits, tooltip, distance, Left/Right
+--	or Tab/Control+Tab switch the tab, B toggles my/their benefits, Enter: a route of mine selects its trader, an
+--	available route selects an idle trader in the origin city and preselects the route in the route chooser, a free
+--	slot selects its idle trader. Escape closes. Function keys pass through (F4 toggles the screen); every other
+--	keyboard event is swallowed while the screen is open.
+--	Turns left: the screen shows none; the route table is searched for a "turns remaining" field and its field names
+--	are printed once to Lua.log ("TradeOverview route fields") for the next iteration.
+-- ===========================================================================
+local m_srList				:table = nil;
+local m_srOpenPending		:boolean = false;
+local m_srOpenDelay			:number = 0;
+local m_srFieldsPrinted		:boolean = false;
+local SRA_OPEN_DELAY		:number = 0.4;
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_City( playerID:number, cityID:number )
+	local player:table = Players[ playerID ];
+	if player == nil then return nil; end
+	return player:GetCities():FindID( cityID );
+end
+
+local function SRA_TabName()
+	if m_currentTab == TRADE_TABS.ROUTES_TO_CITIES then return Locale.Lookup( "LOC_TRADE_OVERVIEW_ROUTES_TO_MY_CITIES" ); end
+	if m_currentTab == TRADE_TABS.AVAILABLE_ROUTES then return Locale.Lookup( "LOC_TRADE_OVERVIEW_AVAILABLE_ROUTES" ); end
+	return Locale.Lookup( "LOC_TRADE_OVERVIEW_MY_ROUTES" );
+end
+
+-- { { name, amount } } of the non-zero yields of a GetYieldsForRoute result
+local function SRA_YieldList( kRouteInfo:table )
+	local list:table = {};
+	for yieldIndex = 1, #kRouteInfo.kYieldValues do
+		local value = kRouteInfo.kYieldValues[ yieldIndex ];
+		local yieldInfo = GameInfo.Yields[ yieldIndex - 1 ];
+		if value ~= 0 and yieldInfo ~= nil then
+			table.insert( list, { name = Locale.Lookup( yieldInfo.Name ), amount = value } );
+		end
+	end
+	return list;
+end
+
+local function SRA_Pressure( kRouteInfo:table )
+	if kRouteInfo.MajorityReligion > 0 and kRouteInfo.ReligionPressure > 0 then
+		local religionInfo = GameInfo.Religions[ kRouteInfo.MajorityReligion ];
+		if religionInfo ~= nil then
+			return { name = Locale.Lookup( Game.GetReligion():GetName( religionInfo.Index ) ), amount = math.floor( kRouteInfo.ReligionPressure + 0.5 ) };
+		end
+	end
+	return nil;
+end
+
+-- The route table of the game may carry a "turns remaining" number; no documented field, so look for one.
+local function SRA_TurnsLeft( info:table )
+	if info == nil then return nil; end
+	if not m_srFieldsPrinted then
+		m_srFieldsPrinted = true;
+		local names:table = {};
+		for k, v in pairs( info ) do table.insert( names, tostring( k ) .. "=" .. type( v ) ); end
+		table.sort( names );
+		print( "TradeOverview route fields: " .. table.concat( names, ", " ) );
+	end
+	for k, v in pairs( info ) do
+		local name:string = string.lower( tostring( k ) );
+		if type( v ) == "number" and string.find( name, "turn", 1, true ) ~= nil
+			and ( string.find( name, "remain", 1, true ) ~= nil or string.find( name, "left", 1, true ) ~= nil ) then
+			return v;
+		end
+	end
+	return nil;
+end
+
+local function SRA_CityNameAt( unit:table )
+	local city:table = Cities.GetCityInPlot( unit:GetX(), unit:GetY() );
+	if city ~= nil then return Locale.Lookup( city:GetName() ); end
+	return nil;
+end
+
+local function SRA_TraderText( rec:table )
+	if rec.traderID == nil or rec.traderID == -1 then return nil; end
+	local owner:table = Players[ rec.op ];
+	local unit:table = owner ~= nil and owner:GetUnits():FindID( rec.traderID ) or nil;
+	if unit == nil then return nil; end
+	local city:string = SRA_CityNameAt( unit );
+	if city ~= nil then return "trader in " .. city; end
+	local near:table = Cities.GetPlotPurchaseCity( Map.GetPlot( unit:GetX(), unit:GetY() ) );
+	if near ~= nil then return "trader near " .. Locale.Lookup( near:GetName() ); end
+	return "trader on the way";
+end
+
+-- Everything one route item says, from the game's state now.
+local function SRA_RouteView( rec:table )
+	local oCity:table, dCity:table = SRA_City( rec.op, rec.oc ), SRA_City( rec.dp, rec.dc );
+	if oCity == nil or dCity == nil then return nil; end
+	-- same XOR as AddRoute: whose benefits the shown yields are
+	local showOrigin:boolean = ( m_showMyBenefits == not ( rec.tab == TRADE_TABS.ROUTES_TO_CITIES ) );
+	local originInfo:table = GetYieldsForRoute( oCity, dCity );
+	local destInfo:table = GetYieldsForRoute( oCity, dCity, true );
+	local shown:table, other:table = destInfo, originInfo;
+	if showOrigin then shown, other = originInfo, destInfo; end
+	return {
+		oCity = oCity, dCity = dCity,
+		oName = Locale.Lookup( oCity:GetName() ), dName = Locale.Lookup( dCity:GetName() ),
+		shownName = Locale.Lookup( ( showOrigin and oCity or dCity ):GetName() ),
+		otherName = Locale.Lookup( ( showOrigin and dCity or oCity ):GetName() ),
+		shown = shown, other = other,
+		distance = Map.GetPlotDistance( oCity:GetX(), oCity:GetY(), dCity:GetX(), dCity:GetY() ),
+		tradingPost = dCity:GetTrade():HasActiveTradingPost( oCity:GetOwner() ),
+	};
+end
+
+local function SRA_RouteText( rec:table )
+	local view:table = SRA_RouteView( rec );
+	if view == nil then return "Route no longer available"; end
+	return TradeOverviewText_Route{
+		origin = view.oName, destination = view.dName, yields = SRA_YieldList( view.shown ), pressure = SRA_Pressure( view.shown ),
+		tradingPost = view.tradingPost, turns = SRA_TurnsLeft( rec.info ), trader = SRA_TraderText( rec ),
+		distance = ( rec.tab == TRADE_TABS.AVAILABLE_ROUTES ) and view.distance or nil,
+	};
+end
+
+local function SRA_RouteDetail( rec:table )
+	local view:table = SRA_RouteView( rec );
+	if view == nil then return "Route no longer available"; end
+	return TradeOverviewText_Detail{
+		tooltip = "Benefits for " .. view.shownName .. ". " .. CleanTextForSpeech( view.shown.TooltipText or "" ),
+		theirName = view.otherName, theirYields = SRA_YieldList( view.other ),
+		distance = view.distance, tradingPost = view.tradingPost, trader = SRA_TraderText( rec ),
+	};
+end
+
+local function SRA_SlotTrader( rec:table )
+	if rec.traderID == nil then return nil; end
+	local unit:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( rec.traderID );
+	if unit == nil then return nil; end
+	return unit, SRA_CityNameAt( unit );
+end
+
+function SRA_BuildItems()
+	local items:table = {};
+	if Game.GetLocalPlayer() == -1 then return items; end
+	for _, rec in ipairs( m_srRecords ) do
+		local item:table;
+		if rec.kind == "route" then
+			item = { key = "r:" .. rec.tab .. ":" .. rec.op .. ":" .. rec.oc .. ":" .. rec.dp .. ":" .. rec.dc .. ":" .. tostring( rec.traderID ),
+				section = rec.section, rec = rec, detail = function() return SRA_RouteDetail( rec ); end };
+			setmetatable( item, { __index = function( t, k )
+				if k == "text" then
+					local v:string = SRA_RouteText( rec );
+					rawset( t, "text", v );
+					return v;
+				end
+			end } );
+		else
+			local unit:table, where:string = SRA_SlotTrader( rec );
+			item = { key = "slot:" .. rec.n, section = rec.section, rec = rec, text = TradeOverviewText_Slot{ trader = where },
+				detail = unit ~= nil and "Enter selects the trader so you can choose a route" or "Build a trader in one of your cities, then choose its route" };
+		end
+		table.insert( items, item );
+	end
+	return items;
+end
+
+local function SRA_CountRoutes( items:table )
+	local n:number = 0;
+	for _, item in ipairs( items ) do
+		if item.rec.kind == "route" then n = n + 1; end
+	end
+	return n;
+end
+
+-- Says the tab (with the screen's head when opening) and its first item; the focus goes to the first item.
+local function SRA_AnnounceTab( opening:boolean )
+	local items:table = SRA_BuildItems();
+	local d:table = { tab = SRA_TabName(), count = SRA_CountRoutes( items ), total = #items, short = not opening };
+	if opening and m_currentTab == TRADE_TABS.MY_ROUTES and Game.GetLocalPlayer() ~= -1 then
+		local playerTrade:table = Players[ Game.GetLocalPlayer() ]:GetTrade();
+		d.used, d.capacity = playerTrade:GetNumOutgoingRoutes(), playerTrade:GetOutgoingRouteCapacity();
+	end
+	if #items > 0 then
+		m_srList.Open( "", nil, true );
+		d.first, d.index = items[1].text, 1;
+		if items[1].section ~= nil then d.first = items[1].section .. ": " .. d.first; end
+	end
+	SRA_Say( TradeOverviewText_Opening( d ), opening );
+end
+
+local function SRA_CloseQuiet()
+	m_srQuiet = true;
+	Close();
+	m_srQuiet = false;
+end
+
+local function SRA_FindUnit( playerID:number, unitID:number )
+	local player:table = Players[ playerID ];
+	if player == nil or unitID == nil or unitID == -1 then return nil; end
+	return player:GetUnits():FindID( unitID );
+end
+
+local function SRA_StartAvailable( rec:table )
+	local oCity:table, dCity:table = SRA_City( rec.op, rec.oc ), SRA_City( rec.dp, rec.dc );
+	if oCity == nil or dCity == nil then SRA_Say( "Route no longer available" ); return; end
+	local traders:table = GetIdleTradeUnits( Game.GetLocalPlayer() );
+	local chosen:table = nil;
+	for _, unit in ipairs( traders ) do
+		local city:table = Cities.GetCityInPlot( unit:GetX(), unit:GetY() );
+		if city ~= nil and city:GetOwner() == oCity:GetOwner() and city:GetID() == oCity:GetID() then chosen = unit; break; end
+	end
+	if chosen == nil then
+		if #traders == 0 then
+			SRA_Say( "No idle trader. Build a trader first" );
+		else
+			SRA_Say( "No idle trader in " .. Locale.Lookup( oCity:GetName() ) .. ". Move a trader there first" );
+		end
+		return;
+	end
+	SelectUnit( chosen );
+	LuaEvents.TradeOverview_SelectRouteFromOverview( rec.dp, rec.dc );
+	SRA_CloseQuiet();
+end
+
+local function SRA_OnActivate( item:table )
+	local rec:table = item.rec;
+	if rec.kind == "slot" then
+		local unit:table = SRA_FindUnit( Game.GetLocalPlayer(), rec.traderID );
+		if unit == nil then SRA_Say( "No idle trader. Build a trader in one of your cities first" ); return; end
+		SelectUnit( unit );
+		SRA_CloseQuiet();
+	elseif rec.tab == TRADE_TABS.AVAILABLE_ROUTES then
+		SRA_StartAvailable( rec );
+	elseif rec.tab == TRADE_TABS.MY_ROUTES then
+		local unit:table = SRA_FindUnit( rec.op, rec.traderID );
+		if unit == nil then SRA_Say( "Trader not found" ); return; end
+		SelectUnit( unit );
+		SRA_CloseQuiet();
+	else
+		SRA_Say( "A route of another civilization. Space reads the details" );
+	end
+end
+
+local function SRA_SwitchTab( delta:number )
+	local tab:number = ( m_currentTab + delta ) % 3;
+	if tab == TRADE_TABS.MY_ROUTES then
+		OnMyRoutesButton();
+	elseif tab == TRADE_TABS.ROUTES_TO_CITIES then
+		OnRoutesToCitiesButton();
+	else
+		OnAvailableRoutesButton();
+	end
+	m_srList.Reset();
+	SRA_AnnounceTab( false );
+end
+
+local function SRA_ToggleBenefits()
+	OnBenefitsButton();
+	SRA_Say( m_showMyBenefits and "Showing my benefits" or "Showing their benefits" );
+end
+
+function SRA_Closed()
+	SRA_Say( "Trade routes closed" );
+end
+
+function SRA_CreateList()
+	m_srList = KeyNavList_Create{
+		build = SRA_BuildItems,
+		isActive = function() return m_AnimSupport ~= nil and m_AnimSupport.IsVisible(); end,
+		onActivate = SRA_OnActivate,
+		onClose = function() Close(); end,
+		extraKeys = {
+			[ Keys.VK_LEFT ] = function() SRA_SwitchTab( -1 ); end,
+			[ Keys.VK_RIGHT ] = function() SRA_SwitchTab( 1 ); end,
+			[ Keys.B ] = SRA_ToggleBenefits,
+		},
+	};
+end
+
+function SRA_ArmOpen()
+	m_srList.Reset();
+	m_srOpenPending = true;
+	m_srOpenDelay = SRA_OPEN_DELAY;
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if not m_srOpenPending then return; end
+	if ContextPtr:IsHidden() then m_srOpenPending = false; return; end
+	m_srOpenDelay = m_srOpenDelay - deltaTime;
+	if m_srOpenDelay > 0 then return; end
+	m_srOpenPending = false;
+	local ok:boolean, err = xpcall( function() SRA_AnnounceTab( true ); end, KeyNavErrorHandler );
+	if not ok then print( "TradeOverview announce error: " .. tostring( err ) ); end
+end
+
+local function SRA_IsFunctionKey( key:number )
+	for n = 1, 12 do
+		if Keys[ "VK_F" .. n ] ~= nil and Keys[ "VK_F" .. n ] == key then return true; end
+	end
+	return false;
+end
+
+function SRA_HandleInput( input:table )
+	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = input:GetKey();
+	if SRA_IsFunctionKey( key ) then return false; end
+	if key == Keys.VK_TAB then
+		if msg == KeyEvents.KeyUp then
+			local delta:number = ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1;
+			local ok:boolean, err = xpcall( function() SRA_SwitchTab( delta ); end, KeyNavErrorHandler );
+			if not ok then print( "TradeOverview tab error: " .. tostring( err ) ); end
+		end
+		return true;
+	end
+	m_srList.HandleInput( input );
+	return true;		-- everything else is swallowed while the screen is open
+end
+
+function SRA_InputHandler( input:table )
+	if SRA_HandleInput( input ) then return true; end
+	return m_AnimSupport.OnInputHandler( input );
+end
+print( "ScreenReaderAccess: TradeOverview copy loaded" );
+
+-- ===========================================================================
 function Initialize()
 	-- Control Events
 	Controls.CloseButton:RegisterCallback(Mouse.eLClick, OnClose);
@@ -837,30 +1189,32 @@ function Initialize()
 	Controls.BenefitsButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
 
 	-- Lua Events
-	LuaEvents.PartialScreenHooks_OpenTradeOverview.Add( OnOpen );
-	LuaEvents.PartialScreenHooks_CloseTradeOverview.Add( OnClose );
-	LuaEvents.PartialScreenHooks_CloseAllExcept.Add( OnCloseAllExcept );
+	SRListen( LuaEvents.PartialScreenHooks_OpenTradeOverview, OnOpen );		-- ScreenReaderAccess
+	SRListen( LuaEvents.PartialScreenHooks_CloseTradeOverview, OnClose );		-- ScreenReaderAccess
+	SRListen( LuaEvents.PartialScreenHooks_CloseAllExcept, OnCloseAllExcept );		-- ScreenReaderAccess
 
 	-- Animation Controller
 	m_AnimSupport = CreateScreenAnimation(Controls.SlideAnim);
 
 	-- Rundown / Screen Events
-	Events.SystemUpdateUI.Add(m_AnimSupport.OnUpdateUI);
-	ContextPtr:SetInputHandler(m_AnimSupport.OnInputHandler, true);
+	SRListen( Events.SystemUpdateUI, m_AnimSupport.OnUpdateUI );		-- ScreenReaderAccess
+	ContextPtr:SetInputHandler(SRA_InputHandler, true);		-- ScreenReaderAccess (was m_AnimSupport.OnInputHandler)
+	ContextPtr:SetUpdate(SRA_OnUpdate);		-- ScreenReaderAccess
+	SRA_CreateList();		-- ScreenReaderAccess
 
 	Controls.Title:SetText(Locale.Lookup("LOC_TRADE_OVERVIEW_TITLE"));
 
 	-- Game Engine Events	
-	Events.UnitOperationStarted.Add( OnUnitOperationStarted );
-	Events.GovernmentPolicyChanged.Add( OnPolicyChanged );
-	Events.GovernmentPolicyObsoleted.Add( OnPolicyChanged );
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
-	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
+	SRListen( Events.UnitOperationStarted, OnUnitOperationStarted );		-- ScreenReaderAccess
+	SRListen( Events.GovernmentPolicyChanged, OnPolicyChanged );		-- ScreenReaderAccess
+	SRListen( Events.GovernmentPolicyObsoleted, OnPolicyChanged );		-- ScreenReaderAccess
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );		-- ScreenReaderAccess
+	SRListen( Events.InterfaceModeChanged, OnInterfaceModeChanged );		-- ScreenReaderAccess
 
 
 	-- Hot-Reload Events
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
-	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
+	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );		-- ScreenReaderAccess
 end
 Initialize();

@@ -65,4 +65,7 @@ globals = {
 	"RankingsText_Percent", "RankingsText_Label", "RankingsText_ScoreLine", "RankingsText_PositionOf", "RankingsText_OverviewLine",
 	"RankingsText_OverviewDetail", "RankingsText_Science", "RankingsText_Culture", "RankingsText_Domination",
 	"RankingsText_Religion", "RankingsText_Diplomatic", "RankingsText_Tab",
+	"TradeOverviewText_Opening", "TradeOverviewText_Tab", "TradeOverviewText_Route", "TradeOverviewText_Slot", "TradeOverviewText_Detail",
+	"EspionageText_Plural", "EspionageText_Header", "EspionageText_Spy", "EspionageText_City", "EspionageText_History",
+	"EspionageText_EnemySpy", "EspionageText_Destination", "EspionageText_Mission", "EspionageText_Outcomes",
 }
