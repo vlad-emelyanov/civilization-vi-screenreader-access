@@ -10,7 +10,6 @@ ignore = { "21[1-5]", "231", "232", "233", "311", "312", "313", "314", "43[1-3]"
 
 -- Engine globals (read-only)
 read_globals = {
-	"Hub", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubCityReport", "HubEvents",
 	"ActivityTypes", "Automation", "Benchmark", "BoostSources", "Calendar", "Challenges", "ChatTargetTypes",
 	"CityCommandResults", "CityCommandTypes", "CityManager", "CityOperationResults", "CityOperationTypes",
 	"Cities", "CivilizationLevelTypes", "CloudNotifyTypes", "CombatManager", "CombatResultParameters",
@@ -34,6 +33,7 @@ read_globals = {
 
 -- Globals the mod defines in Assets/UI/Accessibility/*.lua (shared via include()). Keep in sync.
 globals = {
+	"Hub", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubCityReport", "HubEvents",
 	"CleanTextForSpeech", "DealSpeech_AvailableText", "DealSpeech_ChangeText", "DealSpeech_DealItemText", "DealSpeech_Intro",
 	"DealSpeech_ItemText", "DealSpeech_Summary", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
 	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",
