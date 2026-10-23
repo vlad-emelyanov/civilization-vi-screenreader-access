@@ -71,6 +71,8 @@ util\civctl.cmd unlock              # release the lease (no owner needed, frees 
 ```
 python util/lint.py [-v] [files...]   # luacheck (fetches util/tools/luacheck.exe on first use; ~1 s). Exit 1 = syntax error anywhere or any warning in mod-only files (Accessibility/, UI/Additions/); 2 = tool problem. -v lists upstream warnings
 python -m unittest discover test/py   # tooling tests (keybindings, regress runner), no game
+python util/overridecheck.py [-v]      # static check of the .civ6proj registrations against the game install (CIV_GAME_DIR or the Steam path; skipped with a warning if absent; lint.py runs it too). Run it before committing a new override. Exit 1 = ImportFiles copy that loses to an expansion (use ReplaceUIScript, see docs/engine-notes.md), DLC UI/Additions overridden with ImportFiles, file name that a wildcard include("Prefix_", true) would load, missing/unregistered/duplicate files or Content entries, Accessibility helper missing from FrontEndActionData/InGameActionData
+python util/civregress.py <name> --record     # (with a game) run a regress script and write test/regress/<name>.recorded.txt = the SR> lines every expect saw; --update also rewrites failing expect lines in place (.bak kept). Use it for the first run of an unverified, blind-written script
 python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install lupa on first use), test/lua/test_*.lua with stubs in test/lua/stubs/; <1 s. Exit 1 = failure
 ```
 

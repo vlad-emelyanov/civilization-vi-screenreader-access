@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Speech regression runner: replays key scripts against a loaded fixture and checks the SR> lines.
 
-  python util/civregress.py [name ...|all] [--share-load] [--dry-run] [--list]
+  python util/civregress.py [name ...|all] [--share-load] [--dry-run] [--list] [--record] [--update]
 
 Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' comments are ignored):
 
@@ -39,6 +39,13 @@ Loads: by default every script does its own `load`, because keys change the game
 `load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script loaded the same fixture and finished without an abort (faster, but state
 drifts: use it for read-only scripts). Scripts are run grouped by their first fixture so shared loads are adjacent.
 
+Record mode (for a script written blind, never run against the game): `--record` runs the script (never shares loads) and
+writes test/regress/<name>.recorded.txt: the script with, under every expect/expect-not line, comment lines with PASS/FAIL
+and the SR> texts of the window that check saw. `--update` does the same and also rewrites the script in place (the original
+is kept as <name>.txt.bak): each FAILING `expect` gets the regex of the most similar window line (escaped, digit runs -> \\d+,
+anchored) and the old line stays above it as `# was: ...`. Failing expect-not lines and checks with an empty window are left
+alone (see the sidecar). Review the diff: a recorded line can be the wrong one. Through civctl: `civctl regress <name> --record`.
+
 Env: CIVCTL_OWNER (or --owner) is the lock owner passed to civctl and is REQUIRED (no default; refused with exit 7 without
 it). Through `civctl regress` it is the caller's owner, so the caller's lock lease is reused.
 Exit code: 0 all passed, 1 something failed, 2 usage/parse error, 7 no owner.
@@ -47,6 +54,7 @@ import argparse
 import glob
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -82,12 +90,14 @@ class Step:
 
 class Steps(list):
     fresh = False  # '# no-share-load' in the script
+    text = ""      # the script source (record mode rewrites it)
 
 
 def parse_script(text, name="script"):
     """Text -> [Step]. Raises ScriptError with file:line for unknown steps, missing arguments and bad regexes."""
     steps = Steps()
     steps.fresh = bool(re.search(r"^#\s*no-share-load", text, re.M))
+    steps.text = text
     for no, raw in enumerate(text.splitlines(), 1):
         line = raw.strip().lstrip("﻿")
         if not line or line.startswith("#"):
@@ -252,6 +262,7 @@ class ScriptResult:
         self.skipped_all = False
         self.aborted = None  # reason string
         self.loaded = None   # fixture the game is in at the end (None after an abort)
+        self.records = []    # record mode: {"line", "kind", "pattern", "ok", "window": [text]} per check that ran
 
     @property
     def ok(self):
@@ -276,6 +287,8 @@ def run_script(name, steps, runner, out=print, skip_load=False):
         if s.kind in CHECKS:
             checked = True
             ok, hit = check(s.kind, s.arg, window)
+            res.records.append({"line": s.line, "kind": s.kind, "pattern": s.arg, "ok": ok,
+                                "window": [t for _, t in window]})
             label = "%s %s" % (s.kind, s.arg)
             if ok:
                 res.passed += 1
@@ -396,6 +409,81 @@ def run_script(name, steps, runner, out=print, skip_load=False):
     return res
 
 
+# ---------------------------------------------------------------- record mode
+
+def regex_for(text):
+    """A regex that matches exactly this SR> text: escaped, digit runs generalised, anchored."""
+    esc = re.escape(text).replace("\\ ", " ")
+    return "^" + re.sub(r"\d+", lambda m: "DIGITS", esc).replace("DIGITS", r"\d+") + "$"
+
+
+def _plain(pattern):
+    """The literal-ish content of a regex, for similarity scoring."""
+    return re.sub(r"\\[A-Za-z]|[\^$.*+?()\[\]{}|]", " ", pattern.replace("(?i)", "")).strip().lower()
+
+
+def best_line(pattern, window):
+    """The window text most similar to the pattern (difflib), or None if nothing is similar enough."""
+    import difflib
+    want = _plain(pattern)
+    best, score = None, 0.0
+    for t in window:
+        r = difflib.SequenceMatcher(None, want, t.lower()).ratio()
+        if r > score:
+            best, score = t, r
+    return best if score >= 0.3 else None
+
+
+def render_sidecar(text, records):
+    """The script text with the observed lines under each check that ran (as comments, so it is still a valid script)."""
+    by_line = {r["line"]: r for r in records}
+    out = []
+    for no, raw in enumerate(text.splitlines(), 1):
+        out.append(raw)
+        r = by_line.get(no)
+        if r:
+            out.append("#   -> %s; window had %d SR> line(s):" % ("PASS" if r["ok"] else "FAIL", len(r["window"])))
+            out.extend("#      | " + t for t in r["window"])
+    return "\n".join(out) + "\n"
+
+
+def propose_update(text, records):
+    """Rewrites the failing `expect` lines to match the most similar line they saw. Returns (new text, [(line, old, new)])."""
+    by_line = {r["line"]: r for r in records if r["kind"] == "expect" and not r["ok"]}
+    out, changes = [], []
+    for no, raw in enumerate(text.splitlines(), 1):
+        r = by_line.get(no)
+        pick = best_line(r["pattern"], r["window"]) if r else None
+        if pick is None:
+            out.append(raw)
+            continue
+        new = "expect " + regex_for(pick)
+        out.append("# was: " + raw.strip())
+        out.append(new)
+        changes.append((no, raw.strip(), new))
+    return "\n".join(out) + "\n", changes
+
+
+def write_record(name, steps, result, update, out=print, directory=None):
+    d = directory or REGRESS_DIR
+    side = os.path.join(d, name + ".recorded.txt")
+    with open(side, "w", encoding="utf-8", newline="\n") as f:
+        f.write(render_sidecar(steps.text, result.records))
+    out("  recorded: %s" % side)
+    if update:
+        new, changes = propose_update(steps.text, result.records)
+        if changes:
+            path = os.path.join(d, name + ".txt")
+            shutil.copyfile(path, path + ".bak")
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(new)
+            for no, old, nw in changes:
+                out("  updated line %d:\n    - %s\n    + %s" % (no, old, nw))
+            out("  original kept as %s.bak" % path)
+        else:
+            out("  nothing to update")
+
+
 def order_scripts(scripts):
     """scripts: [(name, steps)] -> grouped by first load fixture (groups in order of first appearance; no-load last)."""
     groups, order = {}, []
@@ -458,6 +546,8 @@ def main(argv=None):
     ap.add_argument("--share-load", action="store_true", help="skip the load when the previous script loaded the same fixture")
     ap.add_argument("--dry-run", action="store_true", help="parse and list the scripts, do not touch the game")
     ap.add_argument("--list", action="store_true", help="same as --dry-run")
+    ap.add_argument("--record", action="store_true", help="write test/regress/<name>.recorded.txt with the SR> lines each check saw (no shared loads)")
+    ap.add_argument("--update", action="store_true", help="like --record, and rewrite the failing expect lines in place (.bak kept)")
     ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
     a = ap.parse_args(argv)
     try:
@@ -476,7 +566,12 @@ def main(argv=None):
     if not owner:
         print("REFUSED: set CIVCTL_OWNER=<your agent name> (or -Owner <name>) before driving the game")
         return 7
-    results = run_all(scripts, CivctlRunner(owner=owner), a.share_load)
+    record = a.record or a.update
+    results = run_all(scripts, CivctlRunner(owner=owner), a.share_load and not record)
+    if record:
+        steps_by_name = dict(scripts)
+        for r in results:
+            write_record(r.name, steps_by_name[r.name], r, a.update)
     p = sum(r.passed for r in results)
     f = sum(r.failed for r in results)
     print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (

@@ -227,5 +227,69 @@ class OrderTests(unittest.TestCase):
         self.assertEqual(len(res), 1)
 
 
+class RecordTests(unittest.TestCase):
+    SCRIPT = ("# blind script\nload f\nexpect ^Turn 1\nkey Down\nexpect ^Rome, 2 tiles away$\nexpect-not Rome\n"
+              "key Enter\nexpect Closed\nexpect ^Nothing like it$\n")
+
+    def record(self, table):
+        steps = cr.parse_script(self.SCRIPT)
+        res = cr.run_script("t", steps, FakeRunner(table), lambda s: None)
+        return steps, res
+
+    TABLE = [(["load"], (0, ["SR> Turn 1, 4000 BC"])), (["key", "Down"], (0, ["SR> Rome, 3 tiles away"])),
+             (["key", "Enter"], (0, ["SR> [NOINTERRUPT] Closed menu"]))]
+
+    def test_records_collected(self):
+        _, res = self.record(self.TABLE)
+        self.assertEqual([(r["line"], r["ok"]) for r in res.records],
+                         [(3, True), (5, False), (6, False), (8, True), (9, False)])
+        self.assertEqual(res.records[1]["window"], ["Rome, 3 tiles away"])
+
+    def test_sidecar_is_still_a_valid_script(self):
+        steps, res = self.record(self.TABLE)
+        side = cr.render_sidecar(steps.text, res.records)
+        self.assertIn("#   -> FAIL; window had 1 SR> line(s):\n#      | Rome, 3 tiles away", side)
+        again = cr.parse_script(side)
+        self.assertEqual([s.kind for s in again], [s.kind for s in steps])
+
+    def test_update_rewrites_failing_expects_only(self):
+        steps, res = self.record(self.TABLE)
+        new, changes = cr.propose_update(steps.text, res.records)
+        self.assertEqual([c[0] for c in changes], [5])  # line 9 shares no text with any line; expect-not is never touched
+        self.assertIn("# was: expect ^Rome, 2 tiles away$", new)
+        lines = new.splitlines()
+        proposed = [l for l in lines if l.startswith("expect ") and "Rome" in l]
+        self.assertEqual(len(proposed), 1)
+        import re
+        self.assertTrue(re.search(proposed[0][len("expect "):], "Rome, 3 tiles away"))
+        self.assertIn("expect ^Nothing like it$", lines)  # untouched
+        cr.parse_script(new)  # still parses
+
+    def test_regex_for_generalises_numbers(self):
+        import re
+        rx = cr.regex_for("Turn 5, 3600 BC (Warrior)")
+        self.assertEqual(rx, r"^Turn \d+, \d+ BC \(Warrior\)$")
+        self.assertTrue(re.search(rx, "Turn 6, 10 BC (Warrior)"))
+
+    def test_write_record_makes_bak(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        try:
+            path = os.path.join(d, "t.txt")
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(self.SCRIPT)
+            steps, res = self.record(self.TABLE)
+            cr.write_record("t", steps, res, update=True, out=lambda s: None, directory=d)
+            self.assertTrue(os.path.isfile(path + ".bak"))
+            with open(path + ".bak", encoding="utf-8") as f:
+                self.assertEqual(f.read(), self.SCRIPT)
+            self.assertTrue(os.path.isfile(os.path.join(d, "t.recorded.txt")))
+            with open(path, encoding="utf-8") as f:
+                self.assertIn("# was: expect ^Rome, 2 tiles away$", f.read())
+        finally:
+            import shutil
+            shutil.rmtree(d, ignore_errors=True)
+
+
 if __name__ == "__main__":
     unittest.main()
