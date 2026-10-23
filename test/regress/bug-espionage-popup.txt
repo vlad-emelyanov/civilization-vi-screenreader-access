@@ -1,4 +1,4 @@
-# UNVERIFIED (written blind, never run; no fixture with a finished spy mission exists yet). Item 8: the Espionage popup speaks and Enter closes it.
+# UNVERIFIED (2026-10-23: a Fabricate Scandal mission from the spy-ready scenario ended with Unit Killed + the Choose Escape Route popup (FakePopups/EspionageEscape, silent, no override yet); the EspionagePopup completed view was never raised). Item 8: the Espionage popup speaks and Enter closes it.
 # Verifier: let a spy finish (or abort) a mission, then expect "<mission title>. Success|Failure. <description> ... Enter to continue",
 # and after Enter the popup is gone (no "Escape opens the menu" needed).
 # no-share-load
