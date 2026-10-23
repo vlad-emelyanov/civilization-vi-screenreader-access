@@ -3,6 +3,7 @@
 # Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs, Space = details, Escape closes (PageDown closes as well).
 # Needs the build with ClimateScreen_SRA.lua loaded ("ScreenReaderAccess: ClimateScreen copy loaded" in Lua.log).
 # no-share-load
+# covers: **/ClimateScreen_SRA.lua **/ClimateText.lua
 load modern-start
 clear-advisors
 action ToggleWorldClimate -Settle 2500
