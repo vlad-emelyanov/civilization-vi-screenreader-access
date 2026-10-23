@@ -1,0 +1,24 @@
+# UNVERIFIED (written without the game). early-t60: F9 opens the Civilopedia on the section list (Concepts first), Tab walks sections
+# (Units is the 8th in the base game), Enter opens a page, Down reads lines, Escape goes back to the list, Escape again closes.
+# no-share-load
+load early-t60
+clear-advisors
+action OpenCivilopedia -Settle 2500
+expect ^Civilopedia\. Concepts, 1 of \d+ sections
+key Tab -Settle 600
+key Tab -Settle 600
+key Tab -Settle 600
+key Tab -Settle 600
+key Tab -Settle 600
+key Tab -Settle 600
+key Tab -Settle 600
+expect ^Units, 8 of \d+ sections
+key Enter -Settle 1500
+expect page, \d+ lines?\.
+key Down -Settle 600
+expect , 2 of \d+$
+key Escape -Settle 1000
+expect ^Back to Units
+key Escape -Settle 1000
+expect ^Civilopedia closed
+no-lua-errors

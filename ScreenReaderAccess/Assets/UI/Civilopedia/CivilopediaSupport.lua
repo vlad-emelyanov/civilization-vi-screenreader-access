@@ -4,6 +4,36 @@
 -- ===========================================================================
 include( "InstanceManager" );
 include( "SupportFunctions" );
+-- Begin ScreenReaderAccess mod change
+include( "ScreenReader" );
+include( "KeyNavList" );
+include( "KeyNavEditBox" );
+include( "SRListen" );
+include( "PediaText" );
+print("ScreenReaderAccess: Civilopedia copy loaded");
+
+-- The text of the page as the screen builds it, recorded by the layout helpers below (AddChapter, AddHeader, the stat
+-- box methods ...): { text = <clean speech text>, link = <search term the icon's click follows, or nil> } per line.
+local m_srLines:table = {};
+
+local function SRA_AddLine( text:string, link )
+	local clean:string = PediaText_Clean( text );
+	if clean == "" then return #m_srLines; end
+	table.insert( m_srLines, { text = clean, link = link } );
+	return #m_srLines;
+end
+
+-- Localized line from a text key or plain text.
+local function SRA_AddLoc( text:string, link )
+	if text == nil then return #m_srLines; end
+	return SRA_AddLine( Locale.Lookup( text ), link );
+end
+
+local function SRA_IconLink( icon )
+	if type( icon ) == "table" then return icon[3]; end
+	return nil;
+end
+-- End ScreenReaderAccess mod change
 
 
 local LOC_TREE_SEARCH_W_DOTS = Locale.Lookup("LOC_TREE_SEARCH_W_DOTS");
@@ -837,6 +867,9 @@ function ResetPageContent()
 	_RightColumnStatIconLabelManager:ResetInstances();
 	_RightColumnStatIconNumberLabelManager:ResetInstances();
 	_RightColumnStatIconListManager:ResetInstances();
+-- Begin ScreenReaderAccess mod change
+	m_srLines = {};
+-- End ScreenReaderAccess mod change
 
 	-- Set UI elements to default hidden
 	Controls.FrontPageTitle:SetHide(true);
@@ -1074,6 +1107,9 @@ end
 -------------------------------------------------------------------------------
 function OnClose()
 	UIManager:DequeuePopup(ContextPtr);
+-- Begin ScreenReaderAccess mod change
+	SRA_OnClosed();
+-- End ScreenReaderAccess mod change
 	UI.PlaySound("Civilopedia_Close");
 	UI.PlaySound("Stop_Leader_Speech");
 	UI.PlaySound("Stop_Speech_Civics");
@@ -1137,20 +1173,340 @@ function OnOpenCivilopedia(sectionId_or_search, pageId)
 
 	UIManager:QueuePopup(ContextPtr, PopupPriority.Civilopedia);
 	UI.PlaySound("Civilopedia_Open");
+-- Begin ScreenReaderAccess mod change
+	SRA_OnOpened( sectionId_or_search ~= nil );
+-- End ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
-function OnInputHandler( input )
-	local msg = input:GetMessageType();
-	if (msg == KeyEvents.KeyUp) then
-		local key = input:GetKey();
-		if key == Keys.VK_ESCAPE then
-			OnClose();
-			return true;
+-- Begin ScreenReaderAccess mod change
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech for the Civilopedia
+--	Three modes. "list": the entries of one section (Tab / Control+Tab switch sections; Shift+Tab is the Steam overlay),
+--	Enter opens an entry's page. "page": the lines the page layouts recorded (m_srLines), Up/Down/Home/End walk them,
+--	Space reads from the current line on, Enter follows a "Link: ..." line (the game's own search + NavigateTo),
+--	Backspace goes back along followed links (then to the list), Escape to the list. "results": the search results.
+--	F searches (KeyNavEditBox on the pedia's own search box, results spoken after the commit settled). A second Escape
+--	in the list closes the Civilopedia; F9 passes through so the game's toggle still works.
+-- ===========================================================================
+local m_srShown				:boolean = false;
+local m_srMode				:string = "list";		-- "list" | "page" | "results"
+local m_srListSectionId		:string = nil;			-- section the list shows
+local m_srEntryCache		:table = {};			-- sectionId -> list items
+local m_srHistory			:table = {};			-- pages left through a link: { sectionId, pageId, key }
+local m_srResults			:table = {};
+local m_srResultsReturn		:string = "list";
+local m_srSearchText		:string = nil;
+local m_srSearchDelay		:number = 0;
+local m_srEntryList			:table = nil;
+local m_srLineList			:table = nil;
+local m_srResultList		:table = nil;
+local SRA_MAX_HISTORY		:number = 10;
+local SRA_MAX_RESULTS		:number = 50;
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt == true );
+end
+
+-- Sections that have pages, in the game's order.
+local function SRA_Sections()
+	local result:table = {};
+	for _, section in ipairs( GetSections() ) do
+		local pages = GetPages( section.SectionId );
+		if pages ~= nil and #pages > 0 then table.insert( result, section ); end
+	end
+	return result;
+end
+
+local function SRA_SectionIndex( sectionId:string )
+	for i, section in ipairs( SRA_Sections() ) do
+		if section.SectionId == sectionId then return i; end
+	end
+	return 1;
+end
+
+local function SRA_SectionName( sectionId:string )
+	for _, section in ipairs( GetSections() ) do
+		if section.SectionId == sectionId then return PediaText_Clean( section.TabName or sectionId ); end
+	end
+	return sectionId;
+end
+
+local function SRA_Entries( sectionId:string )
+	local items:table = m_srEntryCache[ sectionId ];
+	if items == nil then
+		items = PediaText_Entries( sectionId, GetPages( sectionId ), function( page )
+			local ok:boolean, group = pcall( GetPageGroup, page.SectionId, page.PageGroupId );
+			if ok and group ~= nil then return group.TabName; end
+			return nil;
+		end );
+		m_srEntryCache[ sectionId ] = items;
+	end
+	return items;
+end
+
+local function SRA_PageTitle()
+	local page = GetPage( _CurrentSectionId, _CurrentPageId );
+	if page ~= nil then return page.Title or page.TabName or page.PageId; end
+	return tostring( _CurrentPageId );
+end
+
+local function SRA_LineItems()
+	local items:table = {};
+	for i, line in ipairs( m_srLines ) do
+		local index:number = i;
+		table.insert( items, {
+			key = index,
+			text = line.link ~= nil and PediaText_LinkLine( line.text ) or line.text,
+			link = line.link,
+			detail = function() return PediaText_JoinFrom( m_srLines, index ); end,
+		} );
+	end
+	return items;
+end
+
+local function SRA_CurrentKey()
+	return tostring( _CurrentSectionId ) .. "::" .. tostring( _CurrentPageId );
+end
+
+-- Page view: say the opening line and put the focus on the first line.
+local function SRA_SpeakPage( prefix:string )
+	m_srMode = "page";
+	m_srLineList.Reset();
+	local text:string = PediaText_PageOpening( SRA_PageTitle(), m_srLines );
+	if prefix ~= nil then text = prefix .. text; end
+	SRA_Say( text );
+	if #m_srLines > 0 then m_srLineList.Open( "", 1, true ); end
+end
+
+-- Shows a page through the game's own navigation and enters page view.
+local function SRA_OpenPage( sectionId:string, pageId:string, prefix:string )
+	local ok:boolean, err = pcall( NavigateTo, sectionId, pageId );
+	if not ok then print( "Civilopedia NavigateTo error: " .. tostring( err ) ); end
+	SRA_SpeakPage( prefix );
+end
+
+local function SRA_FollowLink( item:table )
+	if item.link == nil then
+		SRA_Say( "Not a link. Space reads from here" );
+		return;
+	end
+	local results = CivilopediaSearch( item.link, 1 );
+	if results == nil or #results == 0 then
+		SRA_Say( "No page for " .. item.text );
+		return;
+	end
+	table.insert( m_srHistory, { sectionId = _CurrentSectionId, pageId = _CurrentPageId, key = m_srLineList.GetFocusKey() } );
+	if #m_srHistory > SRA_MAX_HISTORY then table.remove( m_srHistory, 1 ); end
+	SRA_OpenPage( results[1].SectionId, results[1].PageId, nil );
+end
+
+-- List view of the current section (the page being shown keeps the focus).
+local function SRA_SpeakList( prefix:string, sectionPrefix:boolean )
+	m_srMode = "list";
+	local sections:table = SRA_Sections();
+	local text:string = nil;
+	if sectionPrefix then
+		text = PediaText_Section( SRA_SectionName( m_srListSectionId ), SRA_SectionIndex( m_srListSectionId ), #sections );
+	end
+	if prefix ~= nil then text = prefix .. ( text or "" ); end
+	local key = nil;
+	if m_srListSectionId == _CurrentSectionId then key = SRA_CurrentKey(); end
+	m_srEntryList.Reset();
+	m_srEntryList.Focus( key, text );
+end
+
+local function SRA_BackToList()
+	m_srHistory = {};
+	m_srListSectionId = _CurrentSectionId;
+	SRA_SpeakList( "Back to " .. SRA_SectionName( m_srListSectionId ) .. ". ", false );
+end
+
+local function SRA_Back()
+	if #m_srHistory == 0 then
+		SRA_BackToList();
+		return;
+	end
+	local h:table = table.remove( m_srHistory );
+	local ok:boolean, err = pcall( NavigateTo, h.sectionId, h.pageId );
+	if not ok then print( "Civilopedia NavigateTo error: " .. tostring( err ) ); end
+	m_srMode = "page";
+	m_srLineList.Reset();
+	m_srLineList.Focus( h.key, "Back to " .. PediaText_Clean( SRA_PageTitle() ) );
+end
+
+local function SRA_SwitchSection( delta:number )
+	local sections:table = SRA_Sections();
+	if #sections == 0 then return; end
+	local index:number = SRA_SectionIndex( m_srListSectionId or _CurrentSectionId ) + delta;
+	if index < 1 then index = #sections; end
+	if index > #sections then index = 1; end
+	m_srListSectionId = sections[ index ].SectionId;
+	m_srHistory = {};
+	SRA_SpeakList( nil, true );
+end
+
+-- Search: the pedia's own search box, typed through KeyNavEditBox. The results are spoken a moment after the commit
+-- (KeyNavEditBox says "Search set to ..." right after it), from the game's full text search.
+local function SRA_BeginSearch()
+	local box = Controls.SearchEditBox;
+	box:SetText( "" );
+	m_srResultsReturn = ( m_srMode == "page" ) and "page" or "list";
+	KeyNavEditBox_Begin( box, {
+		label = "Search",
+		unchangedText = "Search cancelled",
+		commit = function( text )
+			m_srSearchText = box:GetText();
+			m_srSearchDelay = 0.8;
+		end,
+		onEnd = function( committed )
+			-- give the box back to the mouse path of the game
+			box:RegisterCommitCallback( OnSearchCommitCallback );
+			box:RegisterStringChangedCallback( OnSearchCharCallback );
+			box:RegisterHasFocusCallback( OnSearchBarGainFocus );
+		end,
+	} );
+end
+
+local function SRA_SpeakResults( text:string )
+	local raw:table = {};
+	local found = Search.Search( "Civilopedia", text );
+	if found ~= nil then
+		for _, v in ipairs( found ) do table.insert( raw, { key = v[1], name = v[2] } ); end
+	end
+	m_srResults = PediaText_SearchItems( raw, SRA_SectionName, SRA_MAX_RESULTS );
+	if #m_srResults == 0 then
+		SRA_Say( "No results for " .. text );
+		return;
+	end
+	m_srMode = "results";
+	m_srResultList.Reset();
+	m_srResultList.Open( "Search results for " .. text );
+end
+
+local function SRA_EndResults()
+	if m_srResultsReturn == "page" then
+		m_srMode = "page";
+		m_srLineList.Focus( m_srLineList.GetFocusKey(), "Search closed" );
+	else
+		m_srMode = "list";
+		m_srEntryList.Focus( m_srEntryList.GetFocusKey(), "Search closed" );
+	end
+end
+
+local function SRA_CreateLists()
+	m_srEntryList = KeyNavList_Create{
+		build = function() return SRA_Entries( m_srListSectionId or _CurrentSectionId ); end,
+		isActive = function() return m_srShown and m_srMode == "list"; end,
+		onActivate = function( item )
+			m_srHistory = {};
+			SRA_OpenPage( item.sectionId, item.pageId, nil );
+		end,
+		onClose = function() OnClose(); end,
+	};
+	m_srLineList = KeyNavList_Create{
+		build = SRA_LineItems,
+		isActive = function() return m_srShown and m_srMode == "page"; end,
+		onActivate = SRA_FollowLink,
+		onClose = SRA_BackToList,
+	};
+	m_srResultList = KeyNavList_Create{
+		build = function() return m_srResults; end,
+		isActive = function() return m_srShown and m_srMode == "results"; end,
+		onActivate = function( item )
+			m_srHistory = {};
+			SRA_OpenPage( item.sectionId, item.pageId, nil );
+		end,
+		onClose = SRA_EndResults,
+	};
+end
+
+-- Called from OnOpenCivilopedia once the game has navigated: hadArgs = opened on a specific page (advisor, link).
+function SRA_OnOpened( hadArgs:boolean )
+	if m_srEntryList == nil then SRA_CreateLists(); end
+	m_srShown = true;
+	m_srHistory = {};
+	m_srListSectionId = _CurrentSectionId;
+	KeyNavEditBox_Cancel();
+	if hadArgs then
+		SRA_SpeakPage( "Civilopedia. " );
+	else
+		m_srMode = "list";
+		local sections:table = SRA_Sections();
+		local opening:string = PediaText_Opening( SRA_SectionName( m_srListSectionId ), SRA_SectionIndex( m_srListSectionId ), #sections );
+		m_srEntryList.Reset();
+		m_srEntryList.Focus( SRA_CurrentKey(), opening );
+	end
+end
+
+function SRA_OnClosed()
+	if not m_srShown then return; end
+	m_srShown = false;
+	m_srSearchText = nil;
+	KeyNavEditBox_Cancel();
+	SRA_Say( "Civilopedia closed" );
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	KeyNavEditBox_Update( deltaTime );
+	if m_srSearchText ~= nil and m_srShown then
+		m_srSearchDelay = m_srSearchDelay - deltaTime;
+		if m_srSearchDelay <= 0 then
+			local text:string = m_srSearchText;
+			m_srSearchText = nil;
+			local ok:boolean, err = xpcall( function() SRA_SpeakResults( text ); end, KeyNavErrorHandler );
+			if not ok then print( "Civilopedia search error: " .. tostring( err ) ); end
 		end
 	end
-	return false;
 end
+
+local function SRA_HandleInput( input:table )
+	if not m_srShown or ContextPtr:IsHidden() then return false; end
+	local handled = KeyNavEditBox_HandleInput( input );
+	if handled ~= nil then return handled; end
+	if KeyNavEditBox_IsEditing() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = input:GetKey();
+	if Keys.VK_F9 ~= nil and key == Keys.VK_F9 then return false; end		-- the game's toggle (input action) closes it
+	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+
+	if key == Keys.VK_TAB then
+		if isUp then
+			local back:boolean = input:IsControlDown() or input:IsShiftDown();
+			SRA_SwitchSection( back and -1 or 1 );
+		end
+		return true;
+	end
+	if key == Keys.F and not input:IsControlDown() and not input:IsAltDown() then
+		if isUp then SRA_BeginSearch(); end
+		return true;
+	end
+	if key == Keys.VK_BACK then
+		if isUp then
+			if m_srMode == "page" then SRA_Back();
+			elseif m_srMode == "results" then SRA_EndResults(); end
+		end
+		return true;
+	end
+
+	local list:table = m_srEntryList;
+	if m_srMode == "page" then list = m_srLineList;
+	elseif m_srMode == "results" then list = m_srResultList; end
+	list.HandleInput( input );
+	return true;		-- everything else is swallowed while the Civilopedia is shown
+end
+
+function OnInputHandler( input )
+	local ok:boolean, handled = xpcall( function() return SRA_HandleInput( input ); end, KeyNavErrorHandler );
+	if not ok then
+		print( "Civilopedia input error: " .. tostring( handled ) );
+		return true;
+	end
+	return handled == true;
+end
+-- End ScreenReaderAccess mod change
+
 
 -- ===========================================================================
 --	Input Hotkey Event
@@ -1239,6 +1595,9 @@ end
 -------------------------------------------------------------------------------
 
 function Shutdown()
+-- Begin ScreenReaderAccess mod change
+	SRUnlistenAll();
+-- End ScreenReaderAccess mod change
 	Search.DestroyContext("Civilopedia");
 end
 
@@ -1255,15 +1614,20 @@ function Initialize()
 	Controls.ForwardButton:RegisterCallback(Mouse.eLClick, OnNavForward);
 	Controls.BackButton:RegisterCallback(Mouse.eLClick, OnNavBackward);
 
-	LuaEvents.OpenCivilopedia.Add(OnOpenCivilopedia);
-	LuaEvents.ToggleCivilopedia.Add(OnToggleCivilopedia);
+-- Begin ScreenReaderAccess mod change
+	SRListen( LuaEvents.OpenCivilopedia, OnOpenCivilopedia );
+	SRListen( LuaEvents.ToggleCivilopedia, OnToggleCivilopedia );
+-- End ScreenReaderAccess mod change
 	
 	-- Hotkey support
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	m_OpenPediaId = Input.GetActionId("OpenCivilopedia");
 	m_BackNavId = Input.GetActionId("CivilopediaBack");
 	m_ForwardNavId = Input.GetActionId("CivilopediaForward");
-    Events.InputActionTriggered.Add( OnInputActionTriggered );
+-- Begin ScreenReaderAccess mod change
+	SRListen( Events.InputActionTriggered, OnInputActionTriggered );
+	ContextPtr:SetUpdate( SRA_OnUpdate );
+-- End ScreenReaderAccess mod change
 
 	-- Search support
 	Controls.SearchEditBox:RegisterStringChangedCallback(OnSearchCharCallback);
@@ -1285,14 +1649,24 @@ function Do_AddChapterWithParagraphs(chapter_manager, chapter_para_manager, head
 		if(t == "table" and #t > 0) then   
 			local instance = chapter_manager:GetInstance();       
 			instance.Caption:LocalizeAndSetText(header);
-			
+-- Begin ScreenReaderAccess mod change
+			SRA_AddLoc( header );
+-- End ScreenReaderAccess mod change
+
 			for _, para in ipairs(paragraphs) do
 				local para_instance = chapter_para_manager:GetInstance();
 				para_instance.Paragraph:LocalizeAndSetText(para);
+-- Begin ScreenReaderAccess mod change
+				SRA_AddLoc( para );
+-- End ScreenReaderAccess mod change
 			end
 		elseif(t == "string") then
 			local instance = chapter_manager:GetInstance();       
 			instance.Caption:LocalizeAndSetText(header);
+-- Begin ScreenReaderAccess mod change
+			SRA_AddLoc( header );
+			SRA_AddLoc( paragraphs );
+-- End ScreenReaderAccess mod change
 
 			local para_instance = chapter_para_manager:GetInstance();
 			para_instance.Paragraph:LocalizeAndSetText(paragraphs);
@@ -1303,11 +1677,17 @@ end
 function Do_AddHeader(manager, caption)
 	local c = manager:GetInstance();       
 	c.Caption:LocalizeAndSetText(caption);
+-- Begin ScreenReaderAccess mod change
+	SRA_AddLoc( caption );
+-- End ScreenReaderAccess mod change
 end
 
 function Do_AddParagraph(manager, paragraph)
-	local c = manager:GetInstance();       
+	local c = manager:GetInstance();
 	c.Paragraph:LocalizeAndSetText(paragraph);
+-- Begin ScreenReaderAccess mod change
+	SRA_AddLoc( paragraph );
+-- End ScreenReaderAccess mod change
 end
 
 function Do_AddParagraphs(manager, paragraphs)
@@ -1323,6 +1703,10 @@ end
 
 function Do_AddHeaderBody(manager, header, body)
 	local c = manager:GetInstance();
+-- Begin ScreenReaderAccess mod change
+	SRA_AddLoc( header );
+	SRA_AddLoc( body );
+-- End ScreenReaderAccess mod change
 	
 	if(header ~= nil) then
 		c.Header:LocalizeAndSetText(header);
@@ -1348,6 +1732,10 @@ function Do_AddIconHeaderBody(manager, icon, header, body)
 	local c = manager:GetInstance();
 	
 	HookupIcon(icon, c.Icon, c.Button);
+-- Begin ScreenReaderAccess mod change
+	SRA_AddLoc( header, SRA_IconLink( icon ) );
+	SRA_AddLoc( body );
+-- End ScreenReaderAccess mod change
 
 	if(header ~= nil) then
 		c.Header:LocalizeAndSetText(header);
@@ -1448,6 +1836,9 @@ function SetPageHeader(caption)
 end
 
 function SetPageSubHeader(caption)
+-- Begin ScreenReaderAccess mod change
+	SRA_AddLoc( caption );
+-- End ScreenReaderAccess mod change
 	Controls.PageSubHeader:SetHide(not caption);
 	Controls.PageSubHeaderCaption:LocalizeAndSetText(caption or "");
 end
@@ -1619,6 +2010,9 @@ function AddQuote(quote, audio)
 	if(quote and #quote > 0) then
 		local instance = _RightColumnQuoteManager:GetInstance();
 		instance.Quote:LocalizeAndSetText(quote);
+-- Begin ScreenReaderAccess mod change
+		SRA_AddLoc( quote );
+-- End ScreenReaderAccess mod change
 
 		local new_height = math.max(100, instance.Quote:GetSizeY() + 40);
 		instance.Root:SetSizeY(new_height);
@@ -1641,6 +2035,10 @@ end
 function AddRightColumnStatBox(title, populate_method)
 	local instance = _RightColumnStatBoxManager:GetInstance();
 	instance.Title:LocalizeAndSetText(title);
+-- Begin ScreenReaderAccess mod change
+	local srLinesBefore:number = #m_srLines;		-- the title line goes again when the box stays empty
+	SRA_AddLoc( title );
+-- End ScreenReaderAccess mod change
 
 	-- This tracks whether content has been added.
 	-- If no content is actually added, the stat box will be hidden.
@@ -1666,6 +2064,9 @@ function AddRightColumnStatBox(title, populate_method)
 		c.Caption:LocalizeAndSetText(caption);
 		c.Caption:ChangeParent(self.Instance.Content);
 		has_content = true;
+-- Begin ScreenReaderAccess mod change
+		SRA_AddLoc( caption );
+-- End ScreenReaderAccess mod change
 	end
 
 	function stat_box:AddLabel(caption)
@@ -1678,6 +2079,9 @@ function AddRightColumnStatBox(title, populate_method)
 		c.Caption:LocalizeAndSetText(caption);
 		c.Caption:ChangeParent(self.Instance.Content);
 		has_content = true;
+-- Begin ScreenReaderAccess mod change
+		SRA_AddLoc( caption );
+-- End ScreenReaderAccess mod change
 	end
 
 	function stat_box:AddSmallLabel(caption)
@@ -1690,6 +2094,9 @@ function AddRightColumnStatBox(title, populate_method)
 		c.Caption:LocalizeAndSetText(caption);
 		c.Caption:ChangeParent(self.Instance.Content);
 		has_content = true;
+-- Begin ScreenReaderAccess mod change
+		SRA_AddLoc( caption );
+-- End ScreenReaderAccess mod change
 	end
 
 	function stat_box:AddIconLabel(icon, caption)
@@ -1719,6 +2126,9 @@ function AddRightColumnStatBox(title, populate_method)
 		c.Caption:LocalizeAndSetText(caption);
 		c.Root:ChangeParent(self.Instance.Content);
 		has_content = true;
+-- Begin ScreenReaderAccess mod change
+		SRA_AddLoc( caption, SRA_IconLink( icon ) );
+-- End ScreenReaderAccess mod change
 	end
 
 	function stat_box:AddIconNumberLabel(icon, value, caption)
@@ -1738,6 +2148,9 @@ function AddRightColumnStatBox(title, populate_method)
 		c.Caption:LocalizeAndSetText(caption);
 		c.Root:ChangeParent(self.Instance.Content);
 		has_content = true;
+-- Begin ScreenReaderAccess mod change
+		SRA_AddLine( PediaText_StatLine( Locale.Lookup( caption ), value ) );
+-- End ScreenReaderAccess mod change
 	end
 
 	function stat_box:AddIconList(icon1, icon2, icon3, icon4)
@@ -1772,11 +2185,21 @@ function AddRightColumnStatBox(title, populate_method)
 
 		c.Root:ChangeParent(self.Instance.Content);
 		has_content = true;
+-- Begin ScreenReaderAccess mod change
+		for _, icon in ipairs( { icon1 or false, icon2 or false, icon3 or false, icon4 or false } ) do
+			if icon and type( icon ) == "table" and icon[2] ~= nil then SRA_AddLoc( icon[2], icon[3] ); end
+		end
+-- End ScreenReaderAccess mod change
 	end
 
 	if(populate_method) then
 		populate_method(stat_box);
 	end
+-- Begin ScreenReaderAccess mod change
+	if not has_content then
+		while #m_srLines > srLinesBefore do table.remove( m_srLines ); end
+	end
+-- End ScreenReaderAccess mod change
 
 	instance.Content:CalculateSize();
 	instance.Content:ReprocessAnchoring();

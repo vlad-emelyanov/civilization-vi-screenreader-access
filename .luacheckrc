@@ -70,6 +70,8 @@ globals = {
 	"ReportText_ResourceDetail", "ReportText_CityStatus", "ReportText_Gossip",
 	"TradeOverviewText_Opening", "TradeOverviewText_Tab", "TradeOverviewText_Route", "TradeOverviewText_Slot", "TradeOverviewText_Detail",
 	"EspionageText_Plural", "EspionageText_Header", "EspionageText_Spy", "EspionageText_City", "EspionageText_History",
+	"PediaText_Clean", "PediaText_Count", "PediaText_StatLine", "PediaText_LinkLine", "PediaText_Opening", "PediaText_Section",
+	"PediaText_PageOpening", "PediaText_JoinFrom", "PediaText_Entries", "PediaText_SearchItems",
 	"EspionageText_EnemySpy", "EspionageText_Destination", "EspionageText_Mission", "EspionageText_Outcomes",
 	"TreeText_Turns", "TreeText_Ordinal", "TreeText_List", "TreeText_Era", "TreeText_Current", "TreeText_Item", "TreeText_Unlocks",
 	"TreeText_Detail", "TreeText_Queue", "TreeText_Group", "TreeText_Match", "TreeNav_Create", "TreeNav_ItemName", "TreeNav_Round",
