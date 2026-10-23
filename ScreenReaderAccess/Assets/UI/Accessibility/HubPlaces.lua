@@ -8,6 +8,11 @@
 --	points of interest (tribal villages, barbarian camps, natural wonders), notifications with a place, foreign cities.
 --	Tab / Control+Tab change the category, Up/Down/Home/End move, Space reads the plot, Enter acts, M sends a unit there,
 --	Escape closes. Inside a target mode (move to, attack ...) Enter only moves the target cursor and the list closes.
+--
+--	Huts, camps and foreign cities are remembered from what was VISIBLE when the list was last built (m_seen): the live
+--	state of a fogged plot must not leak (a camp that spawned in the fog). The memory is lost on a hot reload or a load
+--	and rebuilt from the plots in view; remembered ones in the fog say "last seen". Natural wonders are read live (revealed
+--	is enough, they never change).
 -- ===========================================================================
 HubPlaces = {};
 
@@ -18,6 +23,8 @@ local CANCEL_HINT_SECONDS	:number = 3;
 local MAX_SEND_PATHS		:number = 30;		-- units tried with path finding, nearest first
 local POINT_IMPROVEMENTS	:table = { IMPROVEMENT_GOODY_HUT = true, IMPROVEMENT_BARBARIAN_CAMP = true };
 
+local m_seen				:table = {};		-- plot index -> { kind = "point" | "foreign", name, owner, id }: what was last seen there
+local m_explorers			:table = {};		-- unit id -> true: the game added the explore operation to it (see OnOperationAdded)
 local m_data				:table = nil;		-- the open list: { cats = { { name, items } }, ctx = { plot, unit }, focusKey }
 local m_cat					:number = 1;		-- the category shown
 local m_send				:table = nil;		-- the open unit chooser: { name, x, y, back, key, items }
@@ -54,12 +61,14 @@ function HubPlaces.UnitActivity( unit:table, forList:boolean )
 	local kinds:table = ActivityTypes or {};
 	local function Is( name:string ) return activity ~= nil and activity == kinds[ name ]; end
 	local awake:boolean = Is( "ACTIVITY_AWAKE" ) or Is( "NO_ACTIVITY" );
+	-- the order of UnitPanel (4055-4059): sleep, hold (skip), then fortified
 	if Is( "ACTIVITY_SLEEP" ) then return "sleeping"; end
+	if Is( "ACTIVITY_HOLD" ) then return "turn skipped"; end
 	if Is( "ACTIVITY_HEAL" ) then return "healing"; end
 	if activity ~= nil and not awake and unit:GetFortifyTurns() > 0 then return "fortified"; end
 	if Is( "ACTIVITY_SENTRY" ) then return "on alert"; end
 	if Is( "ACTIVITY_INTERCEPT" ) then return "intercepting"; end
-	if Is( "ACTIVITY_HOLD" ) then return "turn skipped"; end
+	if m_explorers[ unit:GetID() ] then return "exploring"; end
 	local dest:table = QueuedDestination( unit );
 	if dest ~= nil and ( dest:GetX() ~= unit:GetX() or dest:GetY() ~= unit:GetY() ) then
 		local text:string = "moving to " .. PlaceName( dest );
@@ -74,13 +83,29 @@ function HubPlaces.UnitActivity( unit:table, forList:boolean )
 		if row ~= nil and row.Spy then return "on a mission"; end
 		if row ~= nil and row.MakeTradeRoute then return "on a trade route"; end
 		if row ~= nil and row.BuildCharges ~= nil and row.BuildCharges > 0 then return "building"; end
-		return "exploring";
+		return "busy";
 	end
 	if forList and ( awake or activity == nil ) then
 		if unit:GetMaxMoves() > 0 and unit:GetMovesRemaining() <= 0 then return "no moves left"; end
 		return "needs orders";
 	end
 	return nil;
+end
+
+-- The game adds the explore operation to a unit that is told to explore, and again every turn and after a load, so the flag
+-- survives a hot reload. An order the player gives that unit (cancel, wake, move ...) ends it; the game's own events within
+-- half a second of the flag do not (the explore order may start a move of its own).
+function HubPlaces.OnOperationAdded( owner:number, unitID:number, hOperation:number, operationIndex:number )
+	if owner ~= Game.GetLocalPlayer() then return; end
+	local row:table = GameInfo.UnitOperations[ operationIndex ];
+	if row ~= nil and row.OperationType == "UNITOPERATION_AUTOMATE_EXPLORE" then m_explorers[ unitID ] = UI.GetElapsedTime(); end
+end
+
+function HubPlaces.OnOrderStarted( owner:number, unitID:number )
+	local since:number = m_explorers[ unitID ];
+	if owner ~= Game.GetLocalPlayer() or since == nil then return; end
+	local now:number = UI.GetElapsedTime();
+	if now - since > 0.5 and now - HubCore.m_lastKeyTime < 1.5 then m_explorers[ unitID ] = nil; end
 end
 
 -- True once for a unit that was just picked from the places list: the selection announcement adds how to cancel its orders.
@@ -173,32 +198,41 @@ local function UnitItems( ctx:table )
 	return SortItems( items );
 end
 
--- Revealed tribal villages, barbarian camps and natural wonders (a wonder of several plots is listed once).
-local function PointItems( ctx:table )
-	local items:table = {};
+-- Looks at every revealed plot: what is on a VISIBLE plot is remembered (tribal villages, barbarian camps, foreign cities)
+-- and forgotten once seen gone; fogged plots keep the memory. Returns the natural wonders (read live, once per wonder).
+local function ScanSeen( ctx:table )
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
-	if vis == nil then return items; end
+	local wonders:table = {};
+	if vis == nil then return wonders; end
+	local localID:number = Game.GetLocalPlayer();
 	local width:number, height:number = Map.GetGridSize();
 	local found:table = {};
 	for y = 0, height - 1 do
 		for x = 0, width - 1 do
 			local plot:table = Map.GetPlot( x, y );
-			if plot ~= nil and vis:IsRevealed( plot:GetIndex() ) then
-				local name:string = nil;
-				local feature:number = nil;
-				local improvement:number = plot:GetImprovementType();
-				if improvement ~= nil and improvement >= 0 then
-					local row:table = GameInfo.Improvements[ improvement ];
-					if row ~= nil and POINT_IMPROVEMENTS[ row.ImprovementType ] then name = Locale.Lookup( row.Name ); end
+			local index:number = ( plot ~= nil ) and plot:GetIndex() or -1;
+			if plot ~= nil and vis:IsRevealed( index ) then
+				if vis:IsVisible( index ) then
+					local entry:table = nil;
+					local improvement:number = plot:GetImprovementType();
+					if improvement ~= nil and improvement >= 0 then
+						local row:table = GameInfo.Improvements[ improvement ];
+						if row ~= nil and POINT_IMPROVEMENTS[ row.ImprovementType ] then entry = { kind = "point", name = Locale.Lookup( row.Name ) }; end
+					end
+					if entry == nil and plot:IsCity() then
+						local city:table = Cities.GetCityInPlot( x, y );
+						local owner:table = ( city ~= nil ) and Players[ city:GetOwner() ] or nil;
+						if owner ~= nil and city:GetOwner() ~= localID and not owner:IsBarbarian() then
+							entry = { kind = "foreign", name = Locale.Lookup( city:GetName() ), owner = city:GetOwner(), id = city:GetID() };
+						end
+					end
+					m_seen[ index ] = entry;
 				end
-				if name == nil then
-					local featureType:number = plot:GetFeatureType();
-					local row:table = ( featureType ~= nil and featureType >= 0 ) and GameInfo.Features[ featureType ] or nil;
-					if row ~= nil and row.NaturalWonder then name, feature = Locale.Lookup( row.Name ), featureType; end
-				end
-				if name ~= nil then
-					local item:table = MakeItem( "p:" .. plot:GetIndex(), "point", name, "", plot, ctx );
-					item.feature = feature;
+				local featureType:number = plot:GetFeatureType();
+				local row:table = ( featureType ~= nil and featureType >= 0 ) and GameInfo.Features[ featureType ] or nil;
+				if row ~= nil and row.NaturalWonder then
+					local item:table = MakeItem( "p:" .. index, "point", Locale.Lookup( row.Name ), "", plot, ctx );
+					item.feature = featureType;
 					table.insert( found, item );
 				end
 			end
@@ -207,17 +241,35 @@ local function PointItems( ctx:table )
 	SortItems( found );
 	for _, item in ipairs( found ) do
 		local duplicate:boolean = false;
-		if item.feature ~= nil then
-			for _, other in ipairs( items ) do
-				if other.feature == item.feature and Map.GetPlotDistance( item.x, item.y, other.x, other.y ) <= 2 then duplicate = true; break; end
-			end
+		for _, other in ipairs( wonders ) do
+			if other.feature == item.feature and Map.GetPlotDistance( item.x, item.y, other.x, other.y ) <= 2 then duplicate = true; break; end
 		end
-		if not duplicate then
-			item.text = item.name .. ", " .. Where( Map.GetPlot( item.x, item.y ), ctx );
+		if not duplicate then table.insert( wonders, item ); end
+	end
+	return wonders;
+end
+
+local function IsFogged( index:number )
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	return vis ~= nil and not vis:IsVisible( index );
+end
+
+-- Remembered tribal villages and barbarian camps, and the natural wonders ScanSeen found.
+local function PointItems( ctx:table )
+	local items:table = {};
+	for index, entry in pairs( m_seen ) do
+		local plot:table = Map.GetPlotByIndex( index );
+		if entry.kind == "point" and plot ~= nil then
+			local item:table = MakeItem( "p:" .. index, "point", entry.name, "", plot, ctx );
+			item.text = entry.name .. ( IsFogged( index ) and ", last seen, " or ", " ) .. Where( plot, ctx );
 			table.insert( items, item );
 		end
 	end
-	return items;
+	for _, item in ipairs( ctx.wonders or {} ) do
+		item.text = item.name .. ", " .. Where( Map.GetPlot( item.x, item.y ), ctx );
+		table.insert( items, item );
+	end
+	return SortItems( items );
 end
 
 local function NotificationItems( ctx:table )
@@ -231,28 +283,23 @@ local function NotificationItems( ctx:table )
 	return SortItems( items );
 end
 
--- Cities and city-states of others that we have seen.
+-- Cities and city-states of others that we have seen (remembered, see ScanSeen).
 local function ForeignItems( ctx:table )
 	local items:table = {};
-	local localID:number = Game.GetLocalPlayer();
-	for playerID = 0, 63 do
-		local player:table = Players[ playerID ];
-		if playerID ~= localID and player ~= nil and player:IsAlive() and not player:IsBarbarian() then
-			local civ:string = PlotDescription_GetCivName( playerID );
-			for _, city in player:GetCities():Members() do
-				local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
-				if plot ~= nil and PlotDescription_GetVisibility( plot ) ~= "unexplored" then
-					local name:string = Locale.Lookup( city:GetName() );
-					local text:string = name;
-					if not player:IsMajor() then
-						text = text .. ", city-state";
-					elseif civ ~= "" and civ ~= name then
-						text = text .. ", " .. civ;
-					end
-					text = text .. ", " .. Where( plot, ctx );
-					table.insert( items, MakeItem( "f:" .. playerID .. ":" .. city:GetID(), "foreign", name, text, plot, ctx ) );
-				end
+	for index, entry in pairs( m_seen ) do
+		local plot:table = Map.GetPlotByIndex( index );
+		local player:table = Players[ entry.owner or -1 ];
+		if entry.kind == "foreign" and plot ~= nil and player ~= nil then
+			local civ:string = PlotDescription_GetCivName( entry.owner );
+			local text:string = entry.name;
+			if not player:IsMajor() then
+				text = text .. ", city-state";
+			elseif civ ~= "" and civ ~= entry.name then
+				text = text .. ", " .. civ;
 			end
+			if IsFogged( index ) then text = text .. ", last seen"; end
+			text = text .. ", " .. Where( plot, ctx );
+			table.insert( items, MakeItem( "f:" .. entry.owner .. ":" .. entry.id, "foreign", entry.name, text, plot, ctx ) );
 		end
 	end
 	return SortItems( items );
@@ -261,6 +308,9 @@ end
 -- The categories that have something in them, in this order.
 function HubPlaces.BuildCategories( ctx:table )
 	local cats:table = {};
+	local okScan:boolean, wonders = xpcall( function() return ScanSeen( ctx ); end, KeyNavErrorHandler );
+	if not okScan then print( "HubPlaces scan error: " .. tostring( wonders ) ); end
+	ctx.wonders = okScan and wonders or {};
 	local sources:table = {
 		{ name = "Your cities", build = CityItems }, { name = "Your units", build = UnitItems },
 		{ name = "Points of interest", build = PointItems }, { name = "Notifications", build = NotificationItems },
@@ -503,10 +553,14 @@ local function SendActivate( item:table )
 	local turn:number = Game.GetCurrentGameTurn();
 	HubCore.After( 0.3, function()
 		-- the selection announcement is out; the world may have moved on in the meantime
-		if Game.GetCurrentGameTurn() ~= turn or not HubCore.IsLocalPlayerActive() or HubTargets.GetTargetMode() ~= nil then return; end
+		local function Refuse( reason:string ) HubCore.SayResult( "Order not given, " .. reason ); end
+		if not HubCore.IsLocalPlayerActive() then return; end
+		if Game.GetCurrentGameTurn() ~= turn then Refuse( "the turn changed" ); return; end
+		if HubTargets.GetTargetMode() ~= nil then Refuse( "a target mode is open" ); return; end
 		local mover:table = LocalPlayer():GetUnits():FindID( unitID );
 		local plot:table = Map.GetPlot( place.x, place.y );
-		if mover == nil or plot == nil then return; end
+		if mover == nil then Refuse( "the unit is gone" ); return; end
+		if plot == nil then Refuse( "the place is not on the map" ); return; end
 		local name:string = Locale.Lookup( mover:GetName() );
 		local war:table = HubTargets.WarTargets( mover, plot );
 		local enemy:boolean = HubTargets.EnemyVisibleAt( plot );

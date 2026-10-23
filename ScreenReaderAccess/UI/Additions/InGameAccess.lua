@@ -238,6 +238,9 @@ function Initialize()
 	HubCore.AddEvent( "InterfaceModeChanged",		HubTargets.OnInterfaceModeChanged );
 	HubCore.AddEvent( "UnitOperationStarted",		HubEvents.OnUnitOperationStarted );
 	HubCore.AddEvent( "UnitOperationAdded",			HubEvents.OnUnitOperationAdded );
+	HubCore.AddEvent( "UnitOperationAdded",			HubPlaces.OnOperationAdded );		-- who is exploring (the places list says so)
+	HubCore.AddEvent( "UnitOperationStarted",		HubPlaces.OnOrderStarted );
+	HubCore.AddEvent( "UnitCommandStarted",			HubPlaces.OnOrderStarted );
 	HubCore.AddEvent( "UnitCommandStarted",			HubEvents.OnUnitCommandStarted );
 	HubCore.AddEvent( "UnitMoveComplete",			HubEvents.OnUnitMoveComplete );
 	HubCore.AddEvent( "CombatVisBegin",				HubEvents.OnCombatVisBegin );

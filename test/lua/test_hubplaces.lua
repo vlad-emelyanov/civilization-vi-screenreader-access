@@ -25,7 +25,7 @@ GameInfo.Improvements = { [1] = { ImprovementType = "IMPROVEMENT_GOODY_HUT", Nam
 	[2] = { ImprovementType = "IMPROVEMENT_FARM", Name = "Farm" }, [3] = { ImprovementType = "IMPROVEMENT_BARBARIAN_CAMP", Name = "Barbarian Camp" } }
 GameInfo.Features = { [4] = { Name = "Mount Kailash", NaturalWonder = true } }
 Cities = { GetCityInPlot = function(x, y)
-	for _, c in ipairs(world.cities) do if c.x == x and c.y == y then return { GetName = function() return c.name end } end end
+	for _, c in ipairs(world.cities) do if c.x == x and c.y == y then return { GetName = function() return c.name end, GetOwner = function() return c.owner end, GetID = function() return c.id end } end end
 end }
 
 -- units: their state lives in tables so a test can change it
@@ -127,15 +127,22 @@ test("unit activity words", function()
 	scout.activity = 2
 	eq(activity(true), "sleeping")
 	scout.activity = 3; scout.fortify = 2
-	eq(activity(true), "fortified")
-	scout.fortify = 0
 	eq(activity(true), "turn skipped")
 	scout.activity = 4
+	eq(activity(true), "fortified")
+	scout.fortify = 0
 	eq(activity(true), "on alert")
 	scout.activity = 5
 	eq(activity(true), "healing")
 	scout.activity = 6
+	eq(activity(true), "busy")
+	GameInfo.UnitOperations = { [9] = { OperationType = "UNITOPERATION_AUTOMATE_EXPLORE" } }
+	HubPlaces.OnOperationAdded(0, 1, 0, 9)
 	eq(activity(true), "exploring")
+	Clock.now = Clock.now + 5
+	HubCore.m_lastKeyTime = Clock.now
+	HubPlaces.OnOrderStarted(0, 1)
+	eq(activity(true), "busy")
 	scout.activity = 1
 	scout.dest = 5 * 30 + 5
 	local moving = activity(false)
@@ -144,6 +151,7 @@ test("unit activity words", function()
 end)
 
 test("units category lists every unit with its activity and position", function()
+	HubPlaces.OnOperationAdded(0, 1, 0, 9)
 	units[1].activity = 6
 	local cats = HubPlaces.BuildCategories({ plot = Map.GetPlot(5, 5) })
 	local list
@@ -173,6 +181,22 @@ test("notifications and foreign cities get their categories", function()
 	assert(got["Notifications"].items[1].text:find("^Barbarian camp discovered, "), got["Notifications"].items[1].text)
 	assert(got["Foreign cities"], "foreign")
 	assert(got["Foreign cities"].items[1].text:find("^Babylon"), got["Foreign cities"].items[1].text)
+end)
+
+test("fogged plots keep the memory and say last seen; the live state of fog does not leak", function()
+	world:set(2, 12, { fogged = true })
+	local ctx = { plot = Map.GetPlot(5, 5) }
+	local function camp(cats) for _, c in ipairs(cats) do if c.name == "Points of interest" then for _, i in ipairs(c.items) do if i.name == "Barbarian Camp" then return i end end end end end
+	local item = camp(HubPlaces.BuildCategories(ctx))
+	assert(item and item.text:find("last seen"), item and item.text)
+	world:set(14, 12, { fogged = true, improvement = 3 })		-- spawned in the fog: never seen
+	local seen = false
+	for _, c in ipairs(HubPlaces.BuildCategories(ctx)) do
+		for _, i in ipairs(c.items) do if i.x == 14 and i.y == 12 then seen = true end end
+	end
+	eq(seen, false)
+	world:set(2, 12, { fogged = false, improvement = -1 })		-- in view again and gone
+	eq(camp(HubPlaces.BuildCategories(ctx)), nil)
 end)
 
 test("send chooser: fastest first, unreachable units dropped, nothing reachable gives no items", function()

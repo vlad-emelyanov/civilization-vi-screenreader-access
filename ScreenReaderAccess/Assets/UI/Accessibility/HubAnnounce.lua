@@ -64,7 +64,7 @@ function HubAnnounce.UnitText( unit:table )
 		local activity:string = HubPlaces.UnitActivity( unit, false );
 		if activity ~= nil then
 			table.insert( parts, activity );
-			if HubPlaces.TakeCancelHint( unit ) then table.insert( parts, "Tab menu to cancel its orders" ); end
+			if HubPlaces.TakeCancelHint( unit ) then return table.concat( parts, ", " ) .. ". Tab for actions to cancel its orders"; end
 		end
 	end
 	return table.concat( parts, ", " );
