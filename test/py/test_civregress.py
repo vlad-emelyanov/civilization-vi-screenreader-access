@@ -460,8 +460,9 @@ class BatchRunnerTests(unittest.TestCase):
         orig = r._run_batch
 
         def spy(args):
-            sent.append(args[0])
-            return orig(args)
+            res = orig(args)
+            sent.append(args[0])   # recorded when done: the release finishes before the step it precedes
+            return res
         r._run_batch = spy
         r.run(["pid"])
         self.assertEqual(sent, ["pid"])   # a first start needs no release
