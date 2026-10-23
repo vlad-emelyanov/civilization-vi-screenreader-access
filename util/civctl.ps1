@@ -29,6 +29,7 @@
   .\util\civctl.ps1 scenario governor-title   # run util\scenarios\<name>.lua in GameCore_Tuner (sets up one situation on a loaded fixture)
   .\util\civctl.ps1 unlock                # release the driving lock (see below)
   .\util\civctl.ps1 key-release          # release Shift/Control/Alt (both sides) in case the game thinks one is stuck (key does it itself after a chord)
+  .\util\civctl.ps1 advance 5            # SETUP/VERIFICATION only: the autoplay AI plays our civ for exactly 5 turns (it resolves every blocker), then control returns; play-tests never use it
   .\util\civctl.ps1 endturn              # SETUP/VERIFICATION only: request the end of the turn (refuses while a blocker is pending); play-tests press Enter
   .\util\civctl.ps1 wait-turn 62 -Timeout 300   # wait until the game is at turn 62 and your turn is active; prints SR> lines, reports open popups, presses nothing
   .\util\civctl.ps1 clear-advisors       # close the advisor popups of the loaded game (Enter only while the AdvisorPopup is visible)
@@ -47,7 +48,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -413,9 +414,13 @@ function Invoke-Start {
 # the other numpad keys and Insert are JAWS commands too. Divide stays allowed (a game hotkey). Keep in sync with JAWS_RESERVED in util/keybindings.py (test/py checks).
 $JawsReservedKeys = @('Add', 'Subtract', 'Multiply', 'Decimal', 'Insert', 'Clear', 'NumPad0', 'NumPad1', 'NumPad2', 'NumPad3', 'NumPad4', 'NumPad5', 'NumPad6', 'NumPad7', 'NumPad8', 'NumPad9')
 
+# Human names for keys that System.Windows.Forms.Keys does not know. Keep in sync with KEY_ALIASES in util/keybindings.py (test/py checks).
+$KeyAliases = @{ 'backslash' = 'OemPipe'; '\' = 'OemPipe'; 'bslash' = 'OemPipe' }
+
 function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle = $Settle) {
     if (-not $KeyArg) { throw 'Usage: civctl.ps1 key <KeyName> [-Count n]' }
     $parts = @($KeyArg -split '\+')
+    if ($KeyAliases.ContainsKey($parts[-1].ToLowerInvariant())) { $parts[-1] = $KeyAliases[$parts[-1].ToLowerInvariant()] }
     if ($JawsReservedKeys -contains $parts[-1]) {
         Write-Output "REFUSED: '$($parts[-1])' is a JAWS-reserved key (Add/Subtract toggle the JAWS cursor and break keyboard input system-wide). Use OemPlus / OemMinus for the main keyboard +/-."
         Quit-Civctl 1
@@ -546,6 +551,7 @@ function Invoke-Deploy([string[]]$touch) {
     $copied = 0
     $shrunk = @(); $deployedRels = @()
     $needsBuild = @()
+    $newFiles = @()
     $sha = [Security.Cryptography.SHA1]::Create()
     $repoRels = @{}
     if (-not $NoLint) {
@@ -571,8 +577,8 @@ function Invoke-Deploy([string[]]$touch) {
         $repoRels[$rel.ToLowerInvariant()] = $true
         $target = Join-Path $dst $rel
         $force = $false
+        if (-not (Test-Path $target)) { $newFiles += $rel; continue }   # also with `reload`: a file the running game never had cannot be hot-loaded
         if ($touch) { $force = [bool]($touch | Where-Object { $rel -like "*$_*" }); if (-not $force) { continue } }
-        if (-not (Test-Path $target)) { $needsBuild += "$rel (new file)"; continue }
         $bytes = [IO.File]::ReadAllBytes($f.FullName)
         $same = [BitConverter]::ToString($sha.ComputeHash($bytes)) -eq [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($target)))
         if ($same -and -not $force) { continue }
@@ -591,6 +597,7 @@ function Invoke-Deploy([string[]]$touch) {
         Write-Output "No shipped file matches: $($touch -join ' ')"
         Quit-Civctl 1
     }
+    if ($newFiles.Count -gt 0) { $needsBuild += "NEW FILE(S) not deployed: $($newFiles -join ', ') -> civctl build + restart needed" }
     if ($copied -eq 0 -and $needsBuild.Count -eq 0) { Write-Output 'Nothing changed.' }
     $failed = $false
     if ($copied -gt 0 -and (Get-GameProcess)) {
@@ -608,7 +615,7 @@ function Invoke-Deploy([string[]]$touch) {
         if ($errs) { $errs | ForEach-Object { Write-Output "LUA ERROR> $_" }; $failed = $true; if ($errs -match 'Syntax Error') { Write-Output "CONTEXT FAILED TO LOAD (Syntax Error) after deploying: $($deployedRels -join ', ')" } }
         else { Write-Output 'No Lua errors in the 2.5 s after deploy.' }
     }
-    foreach ($n in $needsBuild) { Write-Output "needs build + restart: $n" }
+    foreach ($n in $needsBuild) { Write-Output $(if ($n -like 'NEW FILE*') { $n } else { "needs build + restart: $n" }) }
     if ($failed) { Quit-Civctl 1 }
     if ($needsBuild.Count -gt 0) { Quit-Civctl 3 }
 }
@@ -896,6 +903,24 @@ function Invoke-Autoplay([string]$n) {
     }
 }
 
+# Setup/verification only (play-tests never use it): the autoplay AI plays our civ for exactly n turns and resolves every end-turn
+# blocker itself with the game's own logic; then control returns to us, advisor popups are closed and the turn counter is checked.
+function Invoke-Advance([string]$n) {
+    if ($n -notmatch '^\d+$' -or [int]$n -lt 1) { throw 'Usage: civctl.ps1 advance <turns>   (setup/verification only)' }
+    Assert-GameHealthy -Grace 8 -Block
+    $where = Get-GameWhere
+    if (-not $where -or -not $where.StartsWith('INGAME')) { throw "advance needs a game in progress (state: $where)" }
+    $before = [int](($where -split ' ')[1])
+    Invoke-Autoplay $n
+    $after = [int](((Get-GameWhere) -split ' ')[1])
+    $msg = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civturn.py'), 'advance-check', "$before", $n, "$after")
+    Write-Output ($msg -join ' ')
+    if ($script:PyExit -ne 0) { Quit-Civctl 1 }
+    Invoke-WaitTurn "$after"
+    Invoke-ClearAdvisors
+    Write-Output "advance: the AI played turns $before..$($after - 1) for you (blockers resolved by the game's autoplay); it is turn $after, your turn."
+}
+
 # --- endturn / wait-turn / clear-advisors / key-release / fixture-info (logic in util/civturn.py, civregress.py, fixtureinfo.py) --------
 function Invoke-ClearAdvisors {
     # Presses Enter only while the AdvisorPopup context is visible (a loaded or tuner-changed game queues them and they swallow keys).
@@ -960,8 +985,8 @@ function Show-Status {
 }
 
 $script:LockHeld = $false
-$script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'wait') { 150 } else { 0 }
-$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'action', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
+$script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'advance', 'wait') { 150 } else { 0 }
+$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'action', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
 if ($Command -eq 'regress') { Assert-Owner }
 if ($Command -in $LockedCommands) {
     Enter-Lock
@@ -984,6 +1009,7 @@ switch ($Command) {
     'fixtures' { Invoke-Fixtures }
     'newgame' { Invoke-NewGame $Arg }
     'autoplay' { Invoke-Autoplay $Arg }
+    'advance' { Invoke-Advance $Arg }
     'unlock' { Invoke-Unlock }
     'scenario' {
         if ($Arg -notmatch '^[A-Za-z0-9_-]+$') { throw 'Usage: civctl.ps1 scenario <name>   (util\scenarios\<name>.lua, runs in GameCore_Tuner)' }

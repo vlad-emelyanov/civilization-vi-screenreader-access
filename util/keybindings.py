@@ -36,6 +36,16 @@ DEFAULT_GAME_DIR = r"C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's C
 JAWS_RESERVED = ("Add", "Subtract", "Multiply", "Decimal", "Insert", "Clear",
                  "NumPad0", "NumPad1", "NumPad2", "NumPad3", "NumPad4", "NumPad5", "NumPad6", "NumPad7", "NumPad8", "NumPad9")
 
+# Names `civctl key` accepts besides the System.Windows.Forms.Keys ones (lower case -> Keys name). Keep in sync with $KeyAliases in
+# civctl.ps1 (test/py checks). The backslash key is Keys.OemPipe (what the game's own "Backslash" binding sends, see _KEYS).
+KEY_ALIASES = {"backslash": "OemPipe", "\\": "OemPipe", "bslash": "OemPipe"}
+
+
+def canonical_key_name(name):
+    """One key name (no modifiers) as typed by a human -> the Keys name civctl parses; unknown names are returned unchanged."""
+    return KEY_ALIASES.get(name.lower(), name)
+
+
 # LOC_OPTIONS_KEY_<id> (without prefix) -> System.Windows.Forms.Keys name as `civctl key` parses it.
 _KEYS = {
     "PLUS": "OemPlus", "MINUS": "OemMinus", "COMMA": "OemComma", "PERIOD": "OemPeriod", "SLASH": "OemQuestion",

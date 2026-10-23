@@ -54,7 +54,7 @@ Do not run `civctl` yourself. The user wants that delegated.
 ## Tools the loop rests on
 
 - Fixtures (`civctl save/load/fixtures`), profiles (`civctl newgame <profile>`), autoplay (`civctl autoplay <n> -Save <name>`) and scenarios (`util/scenarios/*.lua`) give any agent the exact state where a bug happened. Prefer "load the fixture, replay the keys" over "verified by a direct call".
-- `civctl regress [name|all]` replays `test/regress/*.txt` and checks the speech.
+- `civctl regress [name|changed|all]` replays `test/regress/*.txt` and checks the speech. `regress all` takes ~48 min (34 scripts, nearly all load their own fixture); `regress changed` runs only the scripts whose `# covers:` globs match the files changed since the last green `all`.
 - Offline, no game: `python util/lint.py`, `python util/luatest.py`, `python -m unittest discover test/py`. `civctl deploy` runs lint itself and refuses on errors.
 - Engine facts and forbidden calls: `docs/engine-notes.md`. Dev-loop design: `docs/devloop-plan.md`.
 
@@ -69,7 +69,7 @@ Do not run `civctl` yourself. The user wants that delegated.
 3. **Fix batches in parallel, verified in one slot.** **Only one agent may drive the game** (the lock enforces it).
    - Fix agents (worktree each, background) implement, run lint and the offline tests (`util/lint.py` includes `util/overridecheck.py`; run it before committing any new or changed override registration in the `.civ6proj`), write the regress script for each item, and commit on their branch. They do not run `civctl` or anything else that talks to the game (`util/civturn.py`, `util/civtuner.py`, `util/fixtureinfo.py`): two offline agents touched the live game by "just checking" a command. Say this explicitly in every offline brief. Items whose cause can only be found in game go to a game-owning fix agent instead, or the fix agent writes down what it needs verified.
    - Group items by area so branches don't conflict (hub/units, popups/menus, one new screen per agent). Two agents must not edit the same file; `InGameAccess.lua` belongs to one agent per round.
-   - The verifier merges the branches into master (fast-forward or rebase, no merge commits of conflicting hunks without telling you), deploys, runs `civctl regress` for the new scripts (first run of a blind-written script: `civctl regress <name> --record`, then fix the regexes from the recorded sidecar or `--update`) plus `all`, and reports PASS/FAIL per item. Failures go back to the owning fix agent (`SendMessage`) with the SR> lines.
+   - The verifier merges the branches into master (fast-forward or rebase, no merge commits of conflicting hunks without telling you), deploys, runs `civctl regress` for the new scripts (first run of a blind-written script: `civctl regress <name> --record`, then fix the regexes from the recorded sidecar or `--update`), then `civctl regress changed` after each item (or batch) is merged, and `civctl regress all` ONCE at the end of the round (or less often; a green `all` records the commit that `changed` diffs against). It reports PASS/FAIL per item. Failures go back to the owning fix agent (`SendMessage`) with the SR> lines.
    - New files, `.civ6proj` and `Database/*.sql` changes need `build` + restart: the verifier batches those.
 4. **Review** each finished range with a read-only background agent. Run it in parallel with the verifier or the next play segment. Add the review findings to the next fix batch.
 5. **Next play segment.** `civctl regress all` covers old fixes; the segment confirms the new ones in real play ("confirmed / broken / not exercised" per fix) and finds new issues. Repeat until the phase goal is met. Then have the last fix agent update `docs/ingame-plan.md` (Status, a result line, a gap list).
@@ -82,7 +82,9 @@ Do not run `civctl` yourself. The user wants that delegated.
 - The first run of a script written blind is `civctl regress <name> --record`, then review the recorded lines.
 - Use `Control+Tab`, never `Shift+Tab` (Steam overlay; `key` refuses it and `key-release` frees a stuck Shift).
 - `civctl endturn` / `wait-turn <N>` are for setup and verification; play-tests press Enter. Owner in Git Bash: `CIVCTL_OWNER=name util/civctl ...` on every call.
-- `regress all` shares one load per fixture and prints a TIMING table; a script that fails on the shared game is retried fresh automatically.
+- Every regress script has a `# covers: <glob> ...` header (mod files it exercises, e.g. `**/DealSpeech.lua`); fix agents add one to each new script (no header = it runs on every `changed`). A changed `ScreenReader.lua`, `KeyNavList.lua`, `SRListen.lua`, `InGameAccess.lua` or `Hub*.lua` selects all scripts. `changed` lists mod files no script covers: write a script or accept that only `all` checks them.
+- To reach a later turn for verification use `civctl advance <n>` (the autoplay AI resolves the blockers; setup only, play-tests press Enter and play). `lua` output is checkable in regress scripts with `expect-lua <regex>`.
+- `regress all` shares one load per fixture and prints a TIMING table (with load/keys/settle/wait columns and a BREAKDOWN line); a script that fails on the shared game is retried fresh automatically.
 
 ## Managing agents
 
