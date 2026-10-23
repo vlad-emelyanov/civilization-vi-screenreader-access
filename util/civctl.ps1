@@ -28,6 +28,11 @@
   .\util\civctl.ps1 autoplay 29 -Save medieval-t100   # let the AI play n turns (observing as player 0), poll every 30 s, then save the fixture
   .\util\civctl.ps1 scenario governor-title   # run util\scenarios\<name>.lua in GameCore_Tuner (sets up one situation on a loaded fixture)
   .\util\civctl.ps1 unlock                # release the driving lock (see below)
+  .\util\civctl.ps1 key-release          # release Shift/Control/Alt (both sides) in case the game thinks one is stuck (key does it itself after a chord)
+  .\util\civctl.ps1 endturn              # SETUP/VERIFICATION only: request the end of the turn (refuses while a blocker is pending); play-tests press Enter
+  .\util\civctl.ps1 wait-turn 62 -Timeout 300   # wait until the game is at turn 62 and your turn is active; prints SR> lines, reports open popups, presses nothing
+  .\util\civctl.ps1 clear-advisors       # close the advisor popups of the loaded game (Enter only while the AdvisorPopup is visible)
+  .\util\civctl.ps1 fixture-info early-t60   # with that fixture loaded: append a `facts:` block (cities, units, trade slots, spies, ...) to test\fixtures\early-t60.txt
 
   Lock (owner lease): commands that drive the game take %TEMP%\civctl\lock for -Owner (or $env:CIVCTL_OWNER) and
   keep it between commands. No owner = REFUSED (exit 7). Another owner gets "game in use by X, last used N s ago" (exit 6) while
@@ -42,7 +47,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -61,7 +66,9 @@ param(
     [string]$Owner,         # name of the agent driving the game (lock file); required for commands that drive the game; default $env:CIVCTL_OWNER
     [string]$Purpose,       # save: why this fixture exists (goes into the sidecar)
     [string]$Profile,       # save: game profile it came from (newgame passes it)
-    [string]$Save           # autoplay: fixture name to save when it finishes
+    [string]$Save,          # autoplay: fixture name to save when it finishes
+    [switch]$KeepAdvisors,  # load: do not close advisor popups afterwards (the default is to close them)
+    [switch]$ClearAdvisors  # load: accepted for clarity, this is already the default
 )
 
 $ErrorActionPreference = 'Stop'
@@ -131,9 +138,20 @@ public static class Native {
     // Holds the modifier keys (VK codes) down around a Tap, e.g. Shift+E.
     public static void Chord(uint[] mods, uint vk, int holdMs) {
         int size = Marshal.SizeOf(typeof(INPUT));
-        foreach (uint m in mods) { INPUT d = Make(m, 0); SendInput(1, new[] { d }, size); System.Threading.Thread.Sleep(30); }
-        Tap(vk, holdMs);
-        for (int i = mods.Length - 1; i >= 0; i--) { INPUT u = Make(mods[i], KEYEVENTF_KEYUP); SendInput(1, new[] { u }, size); }
+        try {
+            foreach (uint m in mods) { INPUT d = Make(m, 0); SendInput(1, new[] { d }, size); System.Threading.Thread.Sleep(30); }
+            Tap(vk, holdMs);
+        } finally {
+            for (int i = mods.Length - 1; i >= 0; i--) { INPUT u = Make(mods[i], KEYEVENTF_KEYUP); SendInput(1, new[] { u }, size); }
+            if (mods.Length > 0) ReleaseModifiers();
+        }
+    }
+
+    // Explicit key-up for both sides of Shift/Control/Alt. A lost key-up (Shift+Tab opens the Steam overlay, which eats it) leaves the
+    // game believing Shift is held: Down does nothing, Tab goes backwards.
+    public static void ReleaseModifiers() {
+        int size = Marshal.SizeOf(typeof(INPUT));
+        foreach (uint m in new uint[] { 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 }) { INPUT u = Make(m, KEYEVENTF_KEYUP); SendInput(1, new[] { u }, size); }
     }
 
     static INPUT Make(uint vk, uint extraFlags) {
@@ -165,7 +183,7 @@ function Get-Owner { if ($Owner) { $Owner } elseif ($env:CIVCTL_OWNER) { $env:CI
 
 function Assert-Owner {
     if (-not (Get-Owner)) {
-        Write-Output 'REFUSED: set CIVCTL_OWNER=<your agent name> (or -Owner <name>) before driving the game'
+        Write-Output "REFUSED: no owner. In Git Bash prefix EVERY call: CIVCTL_OWNER=<your agent name> util/civctl <command> ...  (an export does not persist between tool calls). PowerShell: `$env:CIVCTL_OWNER='<name>'; or pass -Owner <name>"
         exit 7
     }
 }
@@ -400,6 +418,10 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
     $parts = @($KeyArg -split '\+')
     if ($JawsReservedKeys -contains $parts[-1]) {
         Write-Output "REFUSED: '$($parts[-1])' is a JAWS-reserved key (Add/Subtract toggle the JAWS cursor and break keyboard input system-wide). Use OemPlus / OemMinus for the main keyboard +/-."
+        Quit-Civctl 1
+    }
+    if ($parts[-1] -ieq 'Tab' -and @($parts | Select-Object -SkipLast 1) -contains 'Shift') {
+        Write-Output 'REFUSED: Shift+Tab opens the Steam overlay and leaves Shift stuck in the game. Our screens use Control+Tab (previous section/tab).'
         Quit-Civctl 1
     }
     Assert-GameHealthy -Grace 8 -Block
@@ -775,6 +797,8 @@ function Invoke-Load([string]$name) {
     Start-Sleep -Seconds 2
     $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
     if ($m -match 'ExpansionIntro') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | ForEach-Object { Write-Output $_ } }
+    [IO.File]::WriteAllText((Join-Path $StateDir 'loaded.txt'), $name)   # fixture-info checks that the fixture is the loaded game
+    if (-not $KeepAdvisors) { Invoke-ClearAdvisors }
     Write-Output "Loaded '$name'."
 }
 
@@ -867,6 +891,54 @@ function Invoke-Autoplay([string]$n) {
     }
 }
 
+# --- endturn / wait-turn / clear-advisors / key-release / fixture-info (logic in util/civturn.py, civregress.py, fixtureinfo.py) --------
+function Invoke-ClearAdvisors {
+    # Presses Enter only while the AdvisorPopup context is visible (a loaded or tuner-changed game queues them and they swallow keys).
+    $o = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civregress.py'), '--clear-advisors', '--owner', (Get-Owner))
+    $o | ForEach-Object { Write-Output $_ }
+}
+
+function Invoke-KeyRelease {
+    $game = Get-GameProcess
+    if ($game) { [CivCtl.Native]::Focus($game.MainWindowHandle) | Out-Null }
+    [CivCtl.Native]::ReleaseModifiers()
+    Write-Output 'Released Shift/Control/Alt (both sides).'
+}
+
+function Invoke-EndTurn {
+    # Setup/verification only: play-tests end turns with Enter like a player.
+    Assert-GameHealthy -Grace 8 -Block
+    Quit-Civctl (Invoke-Python @((Join-Path $PSScriptRoot 'civturn.py'), 'endturn'))
+}
+
+function Invoke-WaitTurn([string]$n) {
+    if ($n -notmatch '^\d+$') { throw 'Usage: civctl.ps1 wait-turn <turn> [-Timeout s]' }
+    $deadline = (Get-Date).AddSeconds($Timeout)
+    $lastMsg = ''
+    while ($true) {
+        Update-Lock
+        Assert-GameHealthy -Grace 150 -Block
+        Format-Lines (Read-NewLogLines) | ForEach-Object { Write-Output $_ }
+        $r = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civturn.py'), 'poll', $n)
+        $code = $script:PyExit
+        $msg = ($r -join ' ').Trim()
+        if ($code -eq 0) { Write-Output $msg; return }
+        if ($code -eq 1) { Write-Output $msg; Quit-Civctl 1 }
+        if ($code -eq 11 -and $msg -ne $lastMsg) { Write-Output "popup> $msg" }   # reported, never answered with a key
+        $lastMsg = $msg
+        if ((Get-Date) -gt $deadline) { Write-Output "Timed out after $Timeout s: $msg"; Quit-Civctl 1 }
+        Start-Sleep -Seconds 2
+    }
+}
+
+function Invoke-FixtureInfo([string]$name) {
+    Assert-FixtureName $name
+    Assert-GameHealthy -Grace 8 -Block
+    $a = @((Join-Path $PSScriptRoot 'fixtureinfo.py'), $name, '--fixtures', $FixtureDir, '--state-dir', $StateDir)
+    if ($Force) { $a += '--force' }
+    Quit-Civctl (Invoke-Python $a)
+}
+
 function Show-Status {
     $game = Get-GameProcess
     "game: $(if ($game) { "running (pid $($game.Id), '$($game.MainWindowTitle)')" } else { 'not running' })"
@@ -883,7 +955,7 @@ function Show-Status {
 
 $script:LockHeld = $false
 $script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'wait') { 150 } else { 0 }
-$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'action', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
+$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'action', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
 if ($Command -eq 'regress') { Assert-Owner }
 if ($Command -in $LockedCommands) {
     Enter-Lock
@@ -920,6 +992,11 @@ switch ($Command) {
     'shot' { Invoke-Shot }
     'keymap' { Invoke-Keymap }
     'status' { Show-Status }
+    'key-release' { Invoke-KeyRelease }
+    'endturn' { Invoke-EndTurn }
+    'wait-turn' { Invoke-WaitTurn $Arg }
+    'clear-advisors' { Invoke-ClearAdvisors; if ($script:PyExit -ne 0) { Quit-Civctl $script:PyExit } }
+    'fixture-info' { Invoke-FixtureInfo $Arg }
 }
 } catch {
     # 'CIVCTL<exit code>:<message>' errors come from the crash/hang/not-running checks.
