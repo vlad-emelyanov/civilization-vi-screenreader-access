@@ -1,9 +1,20 @@
 -- Copyright 2016-2018, Firaxis Games
 
+include( "ScreenReader" );		-- ScreenReaderAccess mod change
+include( "KeyNavList" );		-- ScreenReaderAccess mod change
+include( "SRListen" );			-- ScreenReaderAccess mod change
+
 -- ===========================================================================
 --	GLOBALS
 -- ===========================================================================
 g_pSelectedCity = nil;
+
+-- ScreenReaderAccess mod change: keyboard list over the visible buttons, speech of the captured city
+local m_srList		:table = nil;
+local m_srSpeakIn	:number = -1;		-- seconds until the popup is read (the expansion fills the texts after the base OnOpen)
+local m_srCityName	:string = "";
+-- display order for the keyboard: keep, raze, then the liberate options
+local SR_BUTTONS	:table = { "Button3", "Button4", "Button1", "Button2" };
 
 
 -- ===========================================================================
@@ -58,6 +69,8 @@ end
 -- ===========================================================================
 function Close()
 	UIManager:DequeuePopup(ContextPtr);
+	m_srSpeakIn = -1;
+	LuaEvents.SRA_SpeechHold( "RazeCity", false );		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -145,13 +158,100 @@ function OnOpen()
 end
 
 -- ===========================================================================
-function OnInputHandler( uiMsg, wParam, lParam )
-    if uiMsg == KeyEvents.KeyUp then
-        if wParam == Keys.VK_ESCAPE then
-            Close();
-        end
-    end
-    return true;
+-- ScreenReaderAccess mod change: the original compared its first argument (an input struct) with KeyEvents.KeyUp, so Escape never
+-- closed the popup; the decision stays mandatory (the close button still works with the mouse)
+function OnInputHandler( pInputStruct:table )
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	return true;
+end
+
+-- ===========================================================================
+--	ScreenReaderAccess mod change: keyboard list and speech
+-- ===========================================================================
+local function SRA_Items()
+	local items:table = {};
+	for _, id in ipairs( SR_BUTTONS ) do
+		local button = Controls[ id ];
+		if button ~= nil and not button:IsHidden() then
+			local label:string = CleanTextForSpeech( button:GetTextControl():GetText() );
+			local tip:string = CleanTextForSpeech( button:GetToolTipString() );
+			local item:table = { key = id, id = id, label = label, text = label, detail = tip };
+			if button:IsDisabled() then
+				item.text = label .. ", unavailable";
+				item.choosable = false;
+				item.reason = "Unavailable" .. ( tip ~= "" and ( ": " .. tip ) or "" );
+			end
+			table.insert( items, item );
+		end
+	end
+	return items;
+end
+
+local function SRA_OnActivate( item:table )
+	local city:string = m_srCityName;
+	local text:string;
+	if item.id == "Button3" then
+		text = "Kept " .. city;
+		OutputMessageToScreenReader( text );
+		OnButton3();
+	elseif item.id == "Button4" then
+		text = "Razing " .. city;
+		OutputMessageToScreenReader( text );
+		OnButton4();
+	elseif item.id == "Button1" then
+		OutputMessageToScreenReader( city .. ": " .. item.label );
+		OnButton1();
+	elseif item.id == "Button2" then
+		OutputMessageToScreenReader( city .. ": " .. item.label );
+		OnButton2();
+	end
+end
+
+local function SRA_OnEscape()
+	OutputMessageToScreenReader( "Choose an option" );
+end
+
+-- "<City> captured from <civ>. Population N, D districts. Options: ... Keep: consequence. ..."
+local function SRA_Speak()
+	if ContextPtr:IsHidden() or g_pSelectedCity == nil then return; end
+	local city:string = Locale.Lookup( g_pSelectedCity:GetName() );
+	m_srCityName = city;
+	local text:string = city .. " captured";
+	local ok:boolean, civ = pcall( function()
+		local from:number = g_pSelectedCity:GetJustConqueredFrom();
+		if from == nil or from < 0 or PlayerConfigurations[ from ] == nil then return nil; end
+		return Locale.Lookup( PlayerConfigurations[ from ]:GetCivilizationShortDescription() );
+	end );
+	if ok and civ ~= nil and civ ~= "" then text = text .. " from " .. civ; end
+	text = text .. ". Population " .. Controls.NumPeople:GetText() .. ", " .. Controls.NumDistricts:GetText() .. " districts.";
+	local items:table = SRA_Items();
+	local names:table = {};
+	local details:table = {};
+	for _, item in ipairs( items ) do
+		table.insert( names, item.text );
+		if item.detail ~= nil and item.detail ~= "" then table.insert( details, item.label .. ": " .. item.detail ); end
+	end
+	text = text .. " " .. #items .. " options: " .. table.concat( names, ", " ) .. ". " .. table.concat( details, ". " );
+	text = text .. ". Up and Down to choose, Space for the consequence, Enter to confirm";
+	if m_srList ~= nil then
+		m_srList.Reset();
+		m_srList.Open( "", nil, true );
+	end
+	OutputMessageToScreenReader( text, true );
+end
+
+local function SRA_OnUpdate( deltaTime:number )
+	if m_srSpeakIn < 0 then return; end
+	m_srSpeakIn = m_srSpeakIn - deltaTime;
+	if m_srSpeakIn >= 0 then return; end
+	m_srSpeakIn = -1;
+	SRA_Speak();
+end
+
+-- registered after the game's own OnOpen listener; the reading itself waits a moment for the (expansion) texts
+local function SRA_OnOpened()
+	LuaEvents.SRA_SpeechHold( "RazeCity", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );
+	m_srSpeakIn = 0.3;
 end
 
 -- ===========================================================================
@@ -161,7 +261,7 @@ end
 
 -- ===========================================================================
 function LateInitialize()	
-	ContextPtr:SetInputHandler(OnInputHandler);
+	ContextPtr:SetInputHandler(OnInputHandler, true);		-- ScreenReaderAccess mod change: modal
 
 	Controls.Button1:RegisterCallback(Mouse.eLClick, OnButton1);
 	Controls.Button2:RegisterCallback(Mouse.eLClick, OnButton2);
@@ -170,6 +270,16 @@ function LateInitialize()
 	Controls.CloseButton:RegisterCallback(Mouse.eLClick, OnClose);
 	
 	LuaEvents.NotificationPanel_OpenRazeCityChooser.Add( OnOpen );
+
+	-- ScreenReaderAccess mod change
+	SRListen( LuaEvents.NotificationPanel_OpenRazeCityChooser, SRA_OnOpened );
+	ContextPtr:SetUpdate( SRA_OnUpdate );
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnEscape,
+	};
 end
 
 -- ===========================================================================
@@ -180,5 +290,7 @@ end
 -- ===========================================================================
 function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
+	ContextPtr:SetShutdown( function() SRUnlistenAll(); end );		-- ScreenReaderAccess mod change
+	print( "RazeCity: ScreenReaderAccess copy loaded" );
 end
 Initialize();
