@@ -52,6 +52,12 @@ function OnClosePopup()
 	end
 end
 
+-- ScreenReaderAccess mod change
+function SRA_FocusedCancel()
+	local active:table = m_PopupDialog.KeyNavElements[ m_PopupDialog.ActiveKeyNavElement + 1 ];
+	return active ~= nil and active.Command == PopupDialog.COMMAND_CANCEL;
+end
+
 -- ===========================================================================
 -- ESC handler
 -- ===========================================================================
@@ -64,6 +70,12 @@ function InputHandler( uiMsg, wParam, lParam )
 						OnClosePopup();
 					end
 				end
+			-- ScreenReaderAccess mod change: Up/Down move between the buttons (spoken); Enter on the focused Cancel button
+			-- (a Yes/No question starts on No) activates it instead of always confirming
+			elseif wParam == Keys.VK_UP or wParam == Keys.VK_DOWN then
+				m_PopupDialog:KeyHandler( wParam );
+			elseif wParam == Keys.VK_RETURN and SRA_FocusedCancel() then
+				m_PopupDialog:KeyHandler( wParam );
 			elseif wParam == Keys.VK_RETURN then -- Try CONFIRM. Then DEFAULT. Then give up and close window.
 				if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_CONFIRM ) ) then
 					if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_DEFAULT ) ) then
