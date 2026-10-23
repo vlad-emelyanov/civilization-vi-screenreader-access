@@ -1,4 +1,4 @@
-# UNVERIFIED (written blind, run with --record first). Item 6: the Delete Unit confirmation starts on No.
+# Verified 2026-10-23 (needed the InGamePopup override: the game's Enter always confirmed Yes). Item 6: the Delete Unit confirmation starts on No.
 # no-share-load
 load bug-settler-no-skip
 clear-advisors
@@ -6,9 +6,14 @@ key Enter -Settle 1500
 action DeleteUnit -Settle 1500
 expect (?i)^Popup: .*sure
 expect (?i)^No\b
-# a second Enter keeps the unit
+# Down = Yes, Up = No again; Enter on No keeps the unit
+key Down -Settle 800
+expect ^Yes
+key Up -Settle 800
+expect ^No
 key Enter -Settle 1500
 expect-not (?i)deleted
-lua InGameAccess return tostring(UI.GetHeadSelectedUnit() ~= nil)
-expect true
+# the settler is still selected: Space says it cannot skip
+key Space -Settle 1000
+expect (?i)skip turn
 no-lua-errors
