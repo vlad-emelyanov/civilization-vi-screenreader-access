@@ -5,14 +5,21 @@
 -- ===========================================================================
 HubCore = {};
 
+HubCore.m_lastAnnouncedTurn = "";		-- "<local player>:<turn>" of the last turn announcement (hotseat: every player hears their turn)
 HubCore.m_cursorPlayer = -1;		-- local player the cursor belongs to
+HubCore.m_ready = false;	-- a game is loaded (LoadScreenClose seen): event announcements are allowed
 HubCore.m_mode = nil;		-- the active keyboard mode { name, list, onClose }, see MODES below; nil: none
 HubCore.m_delayed = {};		-- { time = seconds left, fn = function }
 HubCore.m_enterWatch = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
+HubCore.m_placeCommitTime = -100;		-- UI.GetElapsedTime() of the last placement commit (its result must outlive the selection that follows)
 HubCore.m_lastResultTime = -100;		-- UI.GetElapsedTime() of the last announced result of a player's action
 HubCore.m_movers = {};		-- unit id -> { dest = plot index, issued = time }: units on a move order given in this session
 HubCore.m_lastKeyTime = -100;		-- UI.GetElapsedTime() of the last key press seen by the input handler
 HubCore.m_unitNames = {};		-- "player:unit" -> spoken name, remembered while the unit is alive (it is gone when its death is reported)
+HubCore.m_spotted = {};		-- "player:unit" -> turn the enemy was last announced
+HubCore.m_arrivals = {};		-- texts of notifications that arrived and are not yet announced
+HubCore.m_arrivalTimer = -1;		-- >= 0: seconds until the arrivals are announced together
+HubCore.m_lastSelectionSpeech = -100;		-- UI.GetElapsedTime() of the last unit/city selection announcement
 HubCore.m_placeConfirm = nil;		-- plot index the placement browser asked "Enter to confirm" for
 HubCore.m_placeReplaced = false;	-- the placement mode is closing because another placement mode replaced it
 -- PlacementPlotText: defined with the placement browser: what the cursor plot means there
