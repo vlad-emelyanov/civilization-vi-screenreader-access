@@ -5,6 +5,7 @@
 include("GameCapabilities");
 include("InstanceManager");
 include("ScreenReader");		-- ScreenReaderAccess
+print( "ScreenReaderAccess: PartialScreenHooks override loaded" );		-- ScreenReaderAccess
 
 
 -- ===========================================================================

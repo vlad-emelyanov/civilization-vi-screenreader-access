@@ -6,6 +6,7 @@
 -- ===========================================================================
 include( "GameCapabilities" );
 include( "ScreenReader" );		-- ScreenReaderAccess
+print( "ScreenReaderAccess: LaunchBar override loaded" );		-- ScreenReaderAccess
 
 
 -- ===========================================================================
