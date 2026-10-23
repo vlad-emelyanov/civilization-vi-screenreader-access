@@ -78,6 +78,12 @@ is kept as <name>.txt.bak): each FAILING `expect` gets the regex of the most sim
 anchored) and the old line stays above it as `# was: ...`. Failing expect-not lines and checks with an empty window are left
 alone (see the sidecar). Review the diff: a recorded line can be the wrong one. Through civctl: `civctl regress <name> --record`.
 
+Game options: unless --real-options, a run applies util/testopts.py `on` (advisor disabled, quick combat/movement, no combat camera
+look-at, no historic moment animation) and restores the user's values in a finally. If a run is killed: python util/testopts.py restore.
+Header `# options: animations` and/or `# options: advisor` (needs `# no-share-load`-like handling, implied): that script runs with
+those option groups at the user's real values (switched before its load, back after it). Without `advisor` the clear-advisors steps are
+skipped (no popups with the advisor off). Helper script_needs_fresh(steps) = must load fresh.
+
 Env: CIVCTL_OWNER (or --owner) is the lock owner passed to civctl and is REQUIRED (no default; refused with exit 7 without
 it). Through `civctl regress` it is the caller's owner, so the caller's lock lease is reused.
 Exit code: 0 all passed, 1 something failed, 2 usage/parse error, 7 no owner.
@@ -133,6 +139,7 @@ class Steps(list):
     fresh = False  # '# no-share-load' in the script
     text = ""      # the script source (record mode rewrites it)
     manual = False # '# manual' in the script: only run when named (all / changed skip it)
+    options = frozenset()  # '# options: animations advisor' headers: option groups this script wants at the USER's values
     covers = ()    # globs of '# covers:' headers (empty = none given: `regress changed` always runs the script)
 
 
@@ -145,6 +152,25 @@ def key_problem(arg):
     return None
 
 
+OPTION_GROUPS = ("animations", "advisor")
+
+
+def parse_options(text, name="script"):
+    """'# options: animations advisor' header lines -> frozenset of option groups the script wants at the user's real values."""
+    found = set()
+    for m in re.finditer(r"^#\s*options:(.*)$", text, re.M):
+        for g in m.group(1).replace(",", " ").split():
+            if g not in OPTION_GROUPS:
+                raise ScriptError("%s: unknown '# options:' group '%s' (known: %s)" % (name, g, ", ".join(OPTION_GROUPS)))
+            found.add(g)
+    return frozenset(found)
+
+
+def script_needs_fresh(steps):
+    """True when the script must do its own load and never share its game (no-share-load, scenario, option opt-outs)."""
+    return bool(getattr(steps, "fresh", False) or getattr(steps, "options", ()))
+
+
 def parse_script(text, name="script"):
     """Text -> [Step]. Raises ScriptError with file:line for unknown steps, missing arguments and bad regexes."""
     steps = Steps()
@@ -152,6 +178,9 @@ def parse_script(text, name="script"):
     steps.text = text
     steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
     steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
+    steps.options = parse_options(text, name)
+    if steps.options:
+        steps.fresh = True   # needs its own load (the options are switched before it)
     scenario = False
     for no, raw in enumerate(text.splitlines(), 1):
         line = raw.strip().lstrip("﻿")
@@ -479,19 +508,10 @@ def clear_advisors(runner, out=print, line=0):
             return "ok", collected
 
 
-def _options_header_fallback(steps):
-    """TEMPORARY (the options branch deletes it): treat an '# options:' header line as 'needs a fresh game' until
-    parse_script sets steps.fresh for it / script_needs_fresh exists."""
-    return bool(getattr(steps, "options", None)) or bool(re.search(r"^#\s*options:", getattr(steps, "text", "") or "", re.M))
-
-
 def shares_game(steps):
     """The single predicate: may the next script run on the game this one leaves? Not for '# no-share-load', a scenario or an
     '# options:' header (see script_needs_fresh)."""
-    needs_fresh = globals().get("script_needs_fresh")
-    if needs_fresh is not None:
-        return not needs_fresh(steps)
-    return not (getattr(steps, "fresh", False) or _options_header_fallback(steps))
+    return not script_needs_fresh(steps)
 
 
 _RESET_ANSWER = re.compile(r"^(clean|dirty|snap)\b\s*(.*)$")
@@ -625,6 +645,17 @@ def run_script(name, steps, runner, out=print, skip_load=False, on_settled=None)
             else:
                 res.passed += 1
                 out("  PASS line %d: no-lua-errors" % s.line)
+            continue
+        if s.kind == "clear-advisors" and getattr(steps, "advisor_off", False):
+            # the advisor is disabled by the test options: no popups to close; only drain the load-time speech into the window
+            t_step = time.time()
+            rc2, spoken = runner.run(["sr"])
+            res.times["other"] = res.times.get("other", 0.0) + time.time() - t_step
+            if rc2 == 0:
+                window.extend(parse_sr_lines([l for l in spoken if l.strip()]))
+            if capture_due:
+                capture_due = False
+                on_settled()
             continue
         if s.kind == "clear-advisors":
             out("  > clear-advisors")
@@ -799,13 +830,16 @@ def order_scripts(scripts):
     return [item for f in order for item in sorted(groups[f], key=lambda it: not shares_game(it[1]))]
 
 
-def run_all(scripts, runner, share_load=False, out=print):
+def run_all(scripts, runner, share_load=False, out=print, switch=None):
     """Returns a list of ScriptResult. scripts: [(name, steps)] (already ordered).
     Load sharing: a script may skip its load when the previous script left the same fixture AND a reset check proved the game is
     back in the state a fresh load gives (reset_check: nothing open, hub in plain map mode, turn/gold/units/cities as right
     after the load; cursor and selection are put back). A dirty check never fails a script: the next one loads fresh.
     A script that shared the previous script's game and failed is run once more with its own load (a drifted game must not
-    fail a script that passes alone); the result of that second run counts and has retried=True."""
+    fail a script that passes alone); the result of that second run counts and has retried=True.
+    switch: None (real options, nothing to do) or switch(groups) of testopts: the test options are active, a script with
+    '# options:' groups gets those groups at the user's values before its load and the test values again afterwards;
+    clear-advisors steps are skipped unless the script opted out of the advisor-off test option."""
     results = []
     current = None   # fixture the game is in, if known to be clean
     baseline = None  # state text taken right after the load of that game (the reset check compares with it)
@@ -828,7 +862,11 @@ def run_all(scripts, runner, share_load=False, out=print):
         on_settled = settled if want_baseline else None
         holder.clear()
         t0 = time.time()
+        opts = getattr(steps, "options", frozenset())
+        steps.advisor_off = switch is not None and "advisor" not in opts
         try:
+            if switch is not None and opts:
+                _switch_options(switch, opts, out)
             r = run_script(name, steps, runner, out, skip_load=skip, on_settled=on_settled)
             if skip and not r.ok and not r.aborted and r.failed:
                 out("  RETRY %s with its own load (it failed on the game left by the previous script)" % name)
@@ -865,9 +903,41 @@ def run_all(scripts, runner, share_load=False, out=print):
             r.seconds = time.time() - t0
             results.append(r)
             break
+        finally:
+            if switch is not None and opts:
+                _switch_options(switch, (), out)
         r.seconds = time.time() - t0
         results.append(r)
     return results
+
+
+def run_with_test_options(scripts, runner, share, use_test_options=True, out=print, testopts_mod=None):
+    """run_all under the test game options (testopts.py on ... restore in a finally, also after a crashed game: restore then
+    edits UserOptions.txt). use_test_options=False (--real-options): plain run_all. Manual recovery: python util/testopts.py restore"""
+    if not use_test_options:
+        return run_all(scripts, runner, share, out)
+    if testopts_mod is None:
+        import testopts as testopts_mod
+    try:
+        testopts_mod.cmd_on(out)
+    except Exception as e:
+        out("WARNING: test options not applied (%s); running with the real options" % e)
+        return run_all(scripts, runner, share, out)
+    try:
+        return run_all(scripts, runner, share, out, switch=testopts_mod.switch)
+    finally:
+        try:
+            testopts_mod.cmd_restore(out)
+        except Exception as e:
+            out("WARNING: could not restore the user's options (%s): run  python util/testopts.py restore" % e)
+
+
+def _switch_options(switch, groups, out):
+    try:
+        switch(tuple(sorted(groups)))
+        out("  (options: %s)" % (", ".join(sorted(groups)) + " at the user's values" if groups else "back to the test values"))
+    except Exception as e:  # a failed switch must not kill the run; the script then runs with the other options
+        out("  WARNING: could not switch the test options (%s)" % e)
 
 
 def format_duration(sec):
@@ -1133,6 +1203,7 @@ def main(argv=None):
     ap.add_argument("--base", help="`changed`: git revision to diff against (default: the last green `regress all`)")
     ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
     ap.add_argument("--no-batch", action="store_true", help="start powershell.exe for every civctl call (default: one long-lived `civctl batch` process)")
+    ap.add_argument("--real-options", action="store_true", help="do not apply the test game options (testopts.py: advisor off, quick combat/movement) for this run")
     ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
     if a.clear_advisors:
@@ -1185,7 +1256,7 @@ def main(argv=None):
     try:
         runner = CivctlRunner(owner=owner, batch=not a.no_batch)
         try:
-            results = run_all(scripts, runner, share)
+            results = run_with_test_options(scripts, runner, share, not a.real_options)
         finally:
             runner.close()
     finally:
