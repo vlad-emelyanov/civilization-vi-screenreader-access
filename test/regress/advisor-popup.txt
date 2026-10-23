@@ -1,0 +1,12 @@
+# Unverified, written blind (record it: regress advisor-popup --record). Advisor popup keyboard use: the popup that follows a load of medieval-t100 is announced with "Space reads all, Enter closes", Space reads the full text and the buttons, Down moves between buttons ("<label>, 2 of N"; skipped when the popup has one button), Escape closes it with "Closed".
+# covers: **/AdvisorPopup.lua
+# options: advisor
+# no-share-load
+load medieval-t100
+expect Space reads all, Enter closes
+key Space -Settle 1500
+expect Buttons: 
+key Down -Settle 800
+key Escape -Settle 1500
+expect ^Closed
+no-lua-errors

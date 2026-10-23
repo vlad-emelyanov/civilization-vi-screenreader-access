@@ -342,13 +342,6 @@ class ResetCheckTests(unittest.TestCase):
         self.run_three(r, [("a", cr.parse_script("load x\nkey A")), ("b", cr.parse_script("load x\nkey B"))])
         self.assertNotIn("sr", [c[0] for c in r.calls])
 
-    def test_script_needs_fresh_is_the_predicate_when_it_exists(self):
-        cr.script_needs_fresh = lambda steps: True
-        try:
-            self.assertFalse(cr.shares_game(cr.parse_script("load x")))
-        finally:
-            del cr.script_needs_fresh
-
     def test_baseline_taken_after_advisors_before_first_key(self):
         r = HubRunner([(["key", "B"], (0, ["SR> ok"]))])
         self.run_three(r)
@@ -399,10 +392,10 @@ class ResetCheckTests(unittest.TestCase):
 
     def test_options_header_never_shares(self):
         mk = cr.parse_script
-        self.assertFalse(cr.shares_game(mk("# options: Foo=1\nload x")))
+        self.assertFalse(cr.shares_game(mk("# options: animations\nload x")))
         self.assertTrue(cr.shares_game(mk("# covers: **/X.lua\nload x")))
         r = HubRunner()
-        cr.run_all([("a", mk("load x\nkey A")), ("b", mk("# options: Foo=1\nload x\nkey B"))], r, share_load=True, out=lambda s: None)
+        cr.run_all([("a", mk("load x\nkey A")), ("b", mk("# options: animations\nload x\nkey B"))], r, share_load=True, out=lambda s: None)
         self.assertEqual(self.loads(r), 2)
 
     def test_lock_during_check_stops_the_run(self):

@@ -1132,6 +1132,7 @@ function Show-Status {
     }
 }
 
+function Write-TestOptsWarning { if (Test-Path (Join-Path $env:TEMP 'civctl\testopts-backup.json')) { 'WARNING: test options active: python util/testopts.py restore' } }
 $script:LockHeld = $false
 $script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'advance', 'wait') { 150 } else { 0 }
 $LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'action', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
@@ -1147,7 +1148,7 @@ switch ($Command) {
     'reload' { if (-not $Arg) { throw 'Usage: civctl.ps1 reload <file...>  (path or name fragment, e.g. InGameAccess.lua)' }; Invoke-Deploy ($Arg -split '\s+') }
     'menu' { Quit-Civctl (Invoke-Python @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')) }
     { $_ -in 'lua', 'states' } { Invoke-Tuner }
-    'start' { Invoke-Start }
+    'start' { Invoke-Start; Write-TestOptsWarning }
     'stop' { Invoke-Stop }
     'key' { Invoke-Key }
     'action' { Invoke-Action }
@@ -1171,7 +1172,7 @@ switch ($Command) {
     }
     'shot' { Invoke-Shot }
     'keymap' { Invoke-Keymap }
-    'status' { Show-Status }
+    'status' { Show-Status; Write-TestOptsWarning }
     'key-release' { Invoke-KeyRelease }
     'endturn' { Invoke-EndTurn }
     'wait-turn' { if (-not $PSBoundParameters.ContainsKey('Timeout')) { $Timeout = 600 }; Invoke-WaitTurn $Arg }   # default 600 s: AI turns during wars are slow

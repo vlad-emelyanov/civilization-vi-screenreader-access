@@ -1,5 +1,6 @@
 # Verified 2026-10-23. Item 3: Enter on the City Ranged Attack notification enters the attack mode.
 # covers: **/NotificationPanel.lua **/WorldInput.lua **/UnitPanel.lua
+# options: animations
 # no-share-load: Enter on a notification acts in the game
 load bug-city-ranged-attack
 clear-advisors

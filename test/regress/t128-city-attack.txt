@@ -1,5 +1,6 @@
 # Verified 2026-10-23. City ranged attack: Enter on the "City Ranged Attack" notification announces "Attacking X", and a kill by the city is told ("X killed by Ostia").
 # covers: **/HubTargets.lua **/HubEvents.lua
+# options: animations
 # Setup: end turn 128 (barbarians approach Ostia), weaken the barbarian crossbowman with the tuner so Ostia's shot kills it.
 # no-share-load: Enter ends the turn, attacks
 load pt-t128
