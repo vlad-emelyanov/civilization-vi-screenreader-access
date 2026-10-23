@@ -76,5 +76,7 @@ globals = {
 	"EspionageText_EnemySpy", "EspionageText_Destination", "EspionageText_Mission", "EspionageText_Outcomes",
 	"TreeText_Turns", "TreeText_Ordinal", "TreeText_List", "TreeText_Era", "TreeText_Current", "TreeText_Item", "TreeText_Unlocks",
 	"TreeText_Detail", "TreeText_Queue", "TreeText_Group", "TreeText_Match", "TreeNav_Create", "TreeNav_ItemName", "TreeNav_Round",
+	"GreatWorksText_Plural", "GreatWorksText_SlotWord", "GreatWorksText_Yields", "GreatWorksText_Work", "GreatWorksText_Theming", "GreatWorksText_Header",
+	"GreatWorksText_Slot", "GreatWorksText_Destination", "GreatWorksText_Summary", "GreatWorksText_Pickup", "GreatWorksText_Moved", "GreatWorksText_Showcase",
 	"TreeNav_Entries", "TreeNav_PrereqNames", "TreeNav_LeadsTo", "TreeNav_UnlockEntries", "TreeNav_QueuePos", "SRA_TreeInput",
 }

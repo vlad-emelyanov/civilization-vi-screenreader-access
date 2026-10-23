@@ -4,6 +4,10 @@ include("InstanceManager");
 include("PopupDialog")
 include("GameCapabilities");
 include("GreatWorksSupport");
+include("ScreenReader");		-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
+include("GreatWorksText");		-- ScreenReaderAccess
+print("ScreenReaderAccess: GreatWorksOverview copy loaded");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -82,6 +86,470 @@ local m_during_move:boolean = false;
 local m_dest_building:number = 0;
 local m_dest_city;
 local m_isLocalPlayerTurn:boolean = true;
+
+-- Begin ScreenReaderAccess mod change
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech for the Great Works screen
+--	Up/Down/Home/End walk every slot of every building (section = "City, Building, theming status"), Tab / Control+Tab
+--	jump to the next / previous building, Space = details, V = describe the work (what the showcase shows), Enter on a
+--	filled slot picks the work up (the list then shows only the slots it may go to), Enter on one of those places it,
+--	Escape cancels the pick-up or closes the screen. Placing calls MoveGreatWork with the same two slot instances a
+--	drop would, so the game's own code builds the MOVE_GREAT_WORK request.
+--	Items are built from the game state at key time. Wording: Accessibility/GreatWorksText.lua
+-- ===========================================================================
+local m_srList			:table = nil;
+local m_srCarry			:table = nil;		-- the work picked up: { cityID, buildingIndex, slot, workIndex, name }
+local SRA_Activate, SRA_Escape, SRA_CancelCarry;		-- defined below (the list's callbacks use them)
+
+local function SRA_Safe( fn, what:string )
+	local ok:boolean, err = xpcall( fn, KeyNavErrorHandler );
+	if not ok then print( "GreatWorksOverview " .. what .. " error: " .. tostring( err ) ); end
+	return ok;
+end
+
+local function SRA_Say( text:string, nointerrupt:boolean )
+	OutputMessageToScreenReader( text, nointerrupt );
+end
+
+local function SRA_Clean( text )
+	return CleanTextForSpeech( text or "" );
+end
+
+local function SRA_Key( cityID:number, buildingIndex:number, slot:number )
+	return "c" .. cityID .. "b" .. buildingIndex .. "s" .. slot;
+end
+
+local function SRA_YieldWord( yieldType:string )
+	local word:string = string.gsub( yieldType, "^YIELD_", "" );
+	return string.lower( word );
+end
+
+-- Every building of the local player with great work slots, from the game state (like UpdateGreatWorks).
+local function SRA_Buildings()
+	local list:table = {};
+	local localID:number = Game.GetLocalPlayer();
+	local player = Players[ localID ];
+	if player == nil then return list; end
+	for _, pCity in player:GetCities():Members() do
+		if pCity ~= nil and pCity:GetOwner() == localID then
+			local pCityBldgs:table = pCity:GetBuildings();
+			for buildingInfo in GameInfo.Buildings() do
+				if pCityBldgs:HasBuilding( buildingInfo.Index ) then
+					local numSlots:number = pCityBldgs:GetNumGreatWorkSlots( buildingInfo.Index );
+					if numSlots ~= nil and numSlots > 0 then
+						table.insert( list, { city = pCity, bldgs = pCityBldgs, info = buildingInfo, numSlots = numSlots } );
+					end
+				end
+			end
+		end
+	end
+	return list;
+end
+
+-- Great work in a slot (-1 when empty) and the slot type string
+local function SRA_SlotContent( b:table, slot:number )
+	local idx:number = b.bldgs:GetGreatWorkInSlot( b.info.Index, slot );
+	local slotTypeIndex:number = b.bldgs:GetGreatWorkSlotType( b.info.Index, slot );
+	local slotRow = nil;
+	if slotTypeIndex ~= nil and slotTypeIndex >= 0 then slotRow = GameInfo.GreatWorkSlotTypes[ slotTypeIndex ]; end
+	return idx, slotRow and slotRow.GreatWorkSlotType or nil;
+end
+
+local function SRA_WorkData( pCityBldgs:table, greatWorkIndex:number )
+	local typeIndex:number = pCityBldgs:GetGreatWorkTypeFromIndex( greatWorkIndex );
+	local info:table = GameInfo.GreatWorks[ typeIndex ];
+	if info == nil then return nil; end
+	local typeName:string;
+	if info.EraType ~= nil then
+		typeName = Locale.Lookup( "LOC_" .. info.GreatWorkObjectType .. "_" .. info.EraType );
+	else
+		typeName = Locale.Lookup( "LOC_" .. info.GreatWorkObjectType );
+	end
+	local yields:table = {};
+	for row in GameInfo.GreatWork_YieldChanges() do
+		if row.GreatWorkType == info.GreatWorkType then
+			table.insert( yields, { label = SRA_YieldWord( row.YieldType ), value = row.YieldChange } );
+		end
+	end
+	table.insert( yields, { label = "tourism", value = info.Tourism or 0 } );
+	return {
+		info = info, index = greatWorkIndex, typeIndex = typeIndex,
+		name = SRA_Clean( Locale.Lookup( info.Name ) ),
+		creator = SRA_Clean( Locale.Lookup( pCityBldgs:GetCreatorNameFromIndex( greatWorkIndex ) ) ),
+		typeName = SRA_Clean( typeName ),
+		yields = yields,
+	};
+end
+
+-- Theming of one building ({ themed, numThemed, numSlots }) and the theme description, nil when it cannot be themed.
+local function SRA_ThemingOf( b:table )
+	local ok:boolean, desc = xpcall( function() return GetThemeDescription( b.info.BuildingType ); end, KeyNavErrorHandler );
+	if not ok or desc == nil then return nil, nil; end
+	local numThemed:number = 0;
+	for slot = 0, b.numSlots - 1 do
+		local idx:number = b.bldgs:GetGreatWorkInSlot( b.info.Index, slot );
+		if idx ~= -1 then
+			local workInfo:table = GameInfo.GreatWorks[ b.bldgs:GetGreatWorkTypeFromIndex( idx ) ];
+			if workInfo ~= nil then
+				local ok2:boolean, fits = xpcall( function() return GreatWorkFitsTheme( b.bldgs, b.info, idx, workInfo ); end, KeyNavErrorHandler );
+				if ok2 and fits == true then numThemed = numThemed + 1; end
+			end
+		end
+	end
+	return { themed = b.bldgs:IsBuildingThemedCorrectly( b.info.Index ), numThemed = numThemed, numSlots = b.numSlots }, SRA_Clean( desc );
+end
+
+local function SRA_CityName( b:table )
+	return SRA_Clean( Locale.Lookup( b.city:GetName() ) );
+end
+
+local function SRA_BuildingName( b:table )
+	return SRA_Clean( Locale.Lookup( b.info.Name ) );
+end
+
+-- The source of the pick-up, or nil when the work is no longer in that slot.
+local function SRA_CarrySource()
+	local c:table = m_srCarry;
+	if c == nil then return nil; end
+	local player = Players[ Game.GetLocalPlayer() ];
+	if player == nil then return nil; end
+	local city = player:GetCities():FindID( c.cityID );
+	if city == nil then return nil; end
+	local bldgs:table = city:GetBuildings();
+	if bldgs:GetGreatWorkInSlot( c.buildingIndex, c.slot ) ~= c.workIndex then return nil; end
+	return bldgs;
+end
+
+local function SRA_SlotDetail( b:table, slot:number )
+	local idx:number, slotType = SRA_SlotContent( b, slot );
+	local theming:table, themeDesc = SRA_ThemingOf( b );
+	local parts:table = {};
+	if idx == -1 then
+		local accepted:table = {};
+		for row in GameInfo.GreatWork_ValidSubTypes() do
+			if row.GreatWorkSlotType == slotType then
+				table.insert( accepted, SRA_Clean( Locale.Lookup( "LOC_" .. row.GreatWorkObjectType ) ) );
+			end
+		end
+		local text:string = "Empty " .. GreatWorksText_SlotWord( slotType ) .. " slot";
+		if #accepted > 0 then text = text .. ", accepts " .. table.concat( accepted, ", " ); end
+		table.insert( parts, text );
+	else
+		local ok:boolean, tip = xpcall( function()
+			return GetGreatWorkTooltip( b.bldgs, idx, b.bldgs:GetGreatWorkTypeFromIndex( idx ), b.info );
+		end, KeyNavErrorHandler );
+		local work:table = SRA_WorkData( b.bldgs, idx );
+		if ok and tip ~= nil and tip ~= "" then
+			table.insert( parts, SRA_Clean( tip ) );
+		elseif work ~= nil then
+			table.insert( parts, GreatWorksText_Work( work ) );
+		end
+		local owner = Game.GetGreatWorkPlayer( idx );
+		if owner ~= nil and owner >= 0 and PlayerConfigurations[ owner ] ~= nil then
+			table.insert( parts, "Origin " .. SRA_Clean( Locale.Lookup( PlayerConfigurations[ owner ]:GetCivilizationShortDescription() ) ) );
+		end
+	end
+	local status = GreatWorksText_Theming( theming );
+	if status ~= nil then table.insert( parts, SRA_BuildingName( b ) .. ": " .. status ); end
+	if themeDesc ~= nil and themeDesc ~= "" then table.insert( parts, "Theming bonus: " .. themeDesc ); end
+	return table.concat( parts, ". " );
+end
+
+local function SRA_SlotItems()
+	local items:table = {};
+	for _, b in ipairs( SRA_Buildings() ) do
+		local theming:table = SRA_ThemingOf( b );
+		local section:string = GreatWorksText_Header( SRA_CityName( b ), SRA_BuildingName( b ), theming );
+		local cityID:number = b.city:GetID();
+		for slot = 0, b.numSlots - 1 do
+			local idx:number, slotType = SRA_SlotContent( b, slot );
+			local work:table = ( idx ~= -1 ) and SRA_WorkData( b.bldgs, idx ) or nil;
+			table.insert( items, {
+				key = SRA_Key( cityID, b.info.Index, slot ), section = section,
+				text = GreatWorksText_Slot( GreatWorksText_SlotWord( slotType ), slot + 1, b.numSlots, work ),
+				detail = function() return SRA_SlotDetail( b, slot ); end,
+				cityID = cityID, buildingIndex = b.info.Index, slot = slot, workIndex = idx,
+				workName = work and work.name or nil,
+			} );
+		end
+	end
+	return items;
+end
+
+-- While a work is picked up: only the slots it may go to (the game's CanMoveGreatWork decides).
+local function SRA_DestinationItems()
+	local items:table = {};
+	local c:table = m_srCarry;
+	local srcBldgs:table = SRA_CarrySource();
+	if srcBldgs == nil then return items; end
+	for _, b in ipairs( SRA_Buildings() ) do
+		local theming:table = SRA_ThemingOf( b );
+		local section:string = GreatWorksText_Header( SRA_CityName( b ), SRA_BuildingName( b ), theming );
+		local cityID:number = b.city:GetID();
+		for slot = 0, b.numSlots - 1 do
+			local same:boolean = ( cityID == c.cityID and b.info.Index == c.buildingIndex and slot == c.slot );
+			if not same and CanMoveGreatWork( srcBldgs, c.buildingIndex, c.slot, b.bldgs, b.info.Index, slot ) then
+				local idx:number, slotType = SRA_SlotContent( b, slot );
+				local occupant = nil;
+				if idx ~= -1 then
+					local work:table = SRA_WorkData( b.bldgs, idx );
+					occupant = work and work.name or "a great work";
+				end
+				table.insert( items, {
+					key = SRA_Key( cityID, b.info.Index, slot ), section = section,
+					text = GreatWorksText_Destination( GreatWorksText_SlotWord( slotType ), slot + 1, b.numSlots, occupant ),
+					detail = function() return SRA_SlotDetail( b, slot ); end,
+					cityID = cityID, buildingIndex = b.info.Index, slot = slot, workIndex = idx,
+					occupantName = occupant, cityName = SRA_CityName( b ), buildingName = SRA_BuildingName( b ),
+				} );
+			end
+		end
+	end
+	return items;
+end
+
+local function SRA_Items()
+	local items:table;
+	if m_srCarry ~= nil then
+		items = SRA_DestinationItems();
+		if #items == 0 then items = { { key = "none", text = "No slot can take this great work" } }; end
+	else
+		items = SRA_SlotItems();
+		if #items == 0 then items = { { key = "none", text = "You have no building that can hold great works yet" } }; end
+	end
+	return items;
+end
+
+-- Works, empty slots and tourism over all buildings
+local function SRA_Counts()
+	local works:number, empty:number, tourism:number = 0, 0, 0;
+	for _, b in ipairs( SRA_Buildings() ) do
+		for slot = 0, b.numSlots - 1 do
+			if b.bldgs:GetGreatWorkInSlot( b.info.Index, slot ) ~= -1 then works = works + 1; else empty = empty + 1; end
+		end
+		tourism = tourism + b.bldgs:GetBuildingTourismFromGreatWorks( false, b.info.Index ) + b.bldgs:GetBuildingTourismFromGreatWorks( true, b.info.Index );
+	end
+	return works, empty, tourism;
+end
+
+-- Why a work cannot be moved (the texts of the game's "locked" dialogs), nil when it can.
+local function SRA_LockReason( bldgs:table, buildingIndex:number, slot:number )
+	if CanMoveWorkAtAll( bldgs, buildingIndex, slot ) then return nil; end
+	local greatWork:number = bldgs:GetGreatWorkInSlot( buildingIndex, slot );
+	local objectType:string = GameInfo.GreatWorks[ bldgs:GetGreatWorkTypeFromIndex( greatWork ) ].GreatWorkObjectType;
+	if objectType == GREAT_WORK_ARTIFACT_TYPE then
+		return SRA_Clean( Locale.Lookup( "LOC_GREAT_WORKS_ARTIFACT_LOCKED_FROM_MOVE" ) );
+	end
+	local wait:number = bldgs:GetTurnFromIndex( greatWork ) + ( GlobalParameters.GREATWORK_ART_LOCK_TIME or DEFAULT_LOCK_TURNS ) - Game.GetCurrentGameTurn();
+	return SRA_Clean( Locale.Lookup( "LOC_GREAT_WORKS_LOCKED_FROM_MOVE", wait ) );
+end
+
+-- The slot instance the game keeps for (city, building, slot): MoveGreatWork wants these, like a drop gives it.
+local function SRA_FindSlotInstance( cityID:number, buildingIndex:number, slot:number )
+	for _, destination in ipairs( m_GreatWorkBuildings or {} ) do
+		local cache:table = destination.Instance[DATA_FIELD_SLOT_CACHE];
+		if cache ~= nil then
+			for _, slotInstance in pairs( cache ) do
+				if slotInstance[DATA_FIELD_CITY_ID] == cityID and slotInstance[DATA_FIELD_BUILDING_ID] == buildingIndex
+					and slotInstance[DATA_FIELD_SLOT_INDEX] == slot then
+					return slotInstance;
+				end
+			end
+		end
+	end
+	return nil;
+end
+
+local function SRA_EnsureList()
+	if m_srList ~= nil then return; end
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = function( item ) SRA_Activate( item ); end,
+		onClose = function() SRA_Escape(); end,
+	};
+end
+
+function SRA_CancelCarry()
+	local c:table = m_srCarry;
+	m_srCarry = nil;
+	ClearGreatWorkTransfer();
+	if c ~= nil then
+		SRA_EnsureList();
+		m_srList.Focus( SRA_Key( c.cityID, c.buildingIndex, c.slot ), "Cancelled" );
+	end
+end
+
+local function SRA_PickUp( item:table )
+	if item.workIndex == nil or item.workIndex == -1 then
+		SRA_Say( "This slot is empty, nothing to pick up. Space for what it accepts" );
+		return;
+	end
+	if not m_isLocalPlayerTurn then
+		SRA_Say( "Great works can only be moved on your turn" );
+		return;
+	end
+	local player = Players[ Game.GetLocalPlayer() ];
+	local city = player:GetCities():FindID( item.cityID );
+	if city == nil then SRA_Say( "City not found" ); return; end
+	local bldgs:table = city:GetBuildings();
+	local reason = SRA_LockReason( bldgs, item.buildingIndex, item.slot );
+	if reason ~= nil then
+		SRA_Say( item.workName .. " can't be moved. " .. reason );
+		return;
+	end
+	m_srCarry = { cityID = item.cityID, buildingIndex = item.buildingIndex, slot = item.slot, workIndex = item.workIndex, name = item.workName };
+	local targets:table = SRA_DestinationItems();
+	if #targets == 0 then
+		m_srCarry = nil;
+		SRA_Say( "No other slot can take " .. item.workName );
+		return;
+	end
+	OnClickGreatWork( nil, bldgs, item.buildingIndex, item.workIndex, item.slot );		-- what pressing the mouse on the work does
+	SRA_EnsureList();
+	m_srList.Focus( targets[1].key, GreatWorksText_Pickup( item.workName, #targets ) );
+end
+
+local function SRA_Place( item:table )
+	local c:table = m_srCarry;
+	local srcInstance = SRA_FindSlotInstance( c.cityID, c.buildingIndex, c.slot );
+	local dstInstance = SRA_FindSlotInstance( item.cityID, item.buildingIndex, item.slot );
+	if srcInstance == nil or dstInstance == nil then
+		SRA_Say( "Can't place it there right now" );
+		SRA_CancelCarry();
+		return;
+	end
+	local line:string = GreatWorksText_Moved( c.name, item.cityName, item.buildingName, item.occupantName );
+	m_srCarry = nil;
+	MoveGreatWork( srcInstance, dstInstance );		-- what OnGreatWorkDrop calls: sends MOVE_GREAT_WORK
+	ClearGreatWorkTransfer();
+	SRA_EnsureList();
+	m_srList.Reset();
+	m_srList.Open( "Great Works", item.key, true );
+	SRA_Say( line );
+end
+
+function SRA_Activate( item:table )
+	if item.key == "none" then return; end
+	if m_srCarry ~= nil then SRA_Place( item ); else SRA_PickUp( item ); end
+end
+
+function SRA_Escape()
+	if m_srCarry ~= nil then
+		SRA_CancelCarry();
+	else
+		OnHideScreen();
+	end
+end
+
+-- V: what the showcase shows for the work in the focused slot (or the picked up one)
+local function SRA_View()
+	SRA_EnsureList();
+	local bldgs:table, buildingIndex:number, idx:number;
+	if m_srCarry ~= nil then
+		bldgs = SRA_CarrySource();
+		if bldgs == nil then SRA_Say( "Nothing picked up" ); return; end
+		buildingIndex = m_srCarry.buildingIndex;
+		idx = m_srCarry.workIndex;
+	else
+		local key = m_srList.GetFocusKey();
+		for _, item in ipairs( SRA_Items() ) do
+			if item.key == key and item.workIndex ~= nil and item.workIndex ~= -1 then
+				local city = Players[ Game.GetLocalPlayer() ]:GetCities():FindID( item.cityID );
+				if city ~= nil then bldgs = city:GetBuildings(); buildingIndex = item.buildingIndex; idx = item.workIndex; end
+			end
+		end
+	end
+	if bldgs == nil then SRA_Say( "No great work in this slot" ); return; end
+	local work:table = SRA_WorkData( bldgs, idx );
+	if work == nil then SRA_Say( "No great work in this slot" ); return; end
+	local parts:table = { work.name };
+	table.insert( parts, ( work.creator ~= "" ) and ( work.typeName .. " by " .. work.creator ) or work.typeName );
+	if work.info.Quote ~= nil then table.insert( parts, SRA_Clean( Locale.Lookup( work.info.Quote ) ) ); end
+	local date:string = Calendar.MakeDateStr( bldgs:GetTurnFromIndex( idx ), GameConfiguration.GetCalendarType(), GameConfiguration.GetGameSpeedType(), false );
+	table.insert( parts, "Created " .. SRA_Clean( date ) );
+	table.insert( parts, "In " .. SRA_Clean( Locale.Lookup( GameInfo.Buildings[ buildingIndex ].Name ) ) .. ", " .. SRA_Clean( Locale.Lookup( bldgs:GetCity():GetName() ) ) );
+	SRA_Say( table.concat( parts, ". " ) );
+end
+
+-- Tab / Control+Tab: first slot of the next / previous building
+local function SRA_JumpSection( delta:number )
+	SRA_EnsureList();
+	local items:table = SRA_Items();
+	local key = m_srList.GetFocusKey();
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == key then index = i; end
+	end
+	local section = items[ index ].section;
+	local target:number = nil;
+	if delta > 0 then
+		for i = index + 1, #items do
+			if items[i].section ~= section then target = i; break; end
+		end
+		if target == nil then target = 1; end
+	else
+		-- first slot of the building before this one
+		local i:number = index;
+		while i > 1 and items[i].section == section do i = i - 1; end
+		if items[i].section == section then
+			i = #items;		-- already in the first building: wrap to the last one
+		end
+		local prevSection = items[i].section;
+		while i > 1 and items[i - 1].section == prevSection do i = i - 1; end
+		target = i;
+	end
+	m_srList.Focus( items[ target ].key );
+end
+
+local function SRA_Opened()
+	SRA_EnsureList();
+	m_srCarry = nil;
+	m_srList.Reset();
+	local items:table = SRA_Items();
+	m_srList.Open( "Great Works", items[1].key, true );
+	local works:number, empty:number, tourism:number = SRA_Counts();
+	local first:string = items[1].text;
+	if items[1].section ~= nil then first = items[1].section .. ": " .. first; end
+	SRA_Say( GreatWorksText_Summary( works, empty, tourism ) .. ". " .. first .. ", 1 of " .. #items, true );
+end
+
+local function SRA_Closed()
+	if m_srCarry ~= nil then ClearGreatWorkTransfer(); end
+	m_srCarry = nil;
+	SRA_Say( "Great Works closed" );
+end
+
+local function SRA_IsFunctionKey( key:number )
+	for n = 1, 12 do
+		if Keys[ "VK_F" .. n ] ~= nil and Keys[ "VK_F" .. n ] == key then return true; end
+	end
+	return false;
+end
+
+-- true when the key was handled (every key is swallowed while the screen is open, except function keys and Control / Alt chords,
+-- which may be the hotkey that toggles the screen)
+local function SRA_HandleInput( input:table )
+	if ContextPtr:IsHidden() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = input:GetKey();
+	if SRA_IsFunctionKey( key ) then return false; end
+	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+	if key == Keys.VK_TAB then
+		if isUp then SRA_Safe( function() SRA_JumpSection( ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1 ); end, "tab" ); end
+		return true;
+	end
+	if input:IsControlDown() or input:IsAltDown() then return false; end
+	if key == Keys.V then
+		if isUp then SRA_Safe( SRA_View, "view" ); end
+		return true;
+	end
+	SRA_EnsureList();
+	m_srList.HandleInput( input );
+	return true;
+end
+-- End ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	Called every time screen is shown
@@ -970,6 +1438,7 @@ function Open()
 	Controls.ScreenAnimIn:SetToBeginning();
 	Controls.ScreenAnimIn:Play();
 	LuaEvents.GreatWorks_OpenGreatWorks();
+	SRA_Safe( SRA_Opened, "open" );		-- ScreenReaderAccess
 end
 
 function Close()
@@ -999,6 +1468,7 @@ end
 function OnHideScreen()
 	if not ContextPtr:IsHidden() then
 		UI.PlaySound("UI_Screen_Close");
+		SRA_Closed();		-- ScreenReaderAccess
 	end
 
 	Close();
@@ -1007,6 +1477,7 @@ end
 
 -- ===========================================================================
 function OnInputHandler(pInputStruct:table)
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp and pInputStruct:GetKey() == Keys.VK_ESCAPE then
 		if m_GreatWorkSelected ~= nil then

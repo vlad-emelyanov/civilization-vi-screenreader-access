@@ -4,6 +4,9 @@
 --	Original Authors: Sam Batista
 -- ===========================================================================
 include("InstanceManager");
+include("ScreenReader");		-- ScreenReaderAccess
+include("GreatWorksText");		-- ScreenReaderAccess
+print("ScreenReaderAccess: GreatWorkShowcase copy loaded");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -233,9 +236,49 @@ end
 -- ===========================================================================
 --	Show / Hide
 -- ===========================================================================
+-- Begin ScreenReaderAccess mod change
+-- Speaks the great work when the showcase opens (new great work or gallery), Enter = View Great Works (new work),
+-- Left / Right = previous / next work (gallery). Escape is the game's own. Wording: Accessibility/GreatWorksText.lua
+local function SRA_Announce()
+	local info:table = GameInfo.GreatWorks[m_GreatWorkType];
+	if info == nil then return; end
+	local lines:table = {};
+	for _, control in ipairs( { Controls.CreatedBy, Controls.CreatedDate, Controls.CreatedPlace } ) do
+		table.insert( lines, CleanTextForSpeech( control:GetText() ) );
+	end
+	local quote:string = nil;
+	if info.Quote ~= nil then quote = CleanTextForSpeech( Locale.Lookup( info.Quote ) ); end
+	OutputMessageToScreenReader( GreatWorksText_Showcase{
+		name = CleanTextForSpeech( Locale.Lookup( info.Name ) ), lines = lines, quote = quote,
+		gallery = m_isGallery, position = m_GalleryIndex, count = m_isGallery and #m_GreatWorks or 0 } );
+end
+
+local function SRA_HandleInput( input:table )
+	if ContextPtr:IsHidden() then return false; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
+	local key:number = input:GetKey();
+	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+	if key == Keys.VK_RETURN then
+		if isUp and not m_isGallery then OnViewGreatWorks(); end
+		return true;		-- also keeps Next Action from firing on the Enter key-up
+	elseif key == Keys.VK_LEFT and m_isGallery then
+		if isUp then OnPreviousGreatWork(); end
+		return true;
+	elseif key == Keys.VK_RIGHT and m_isGallery then
+		if isUp then OnNextGreatWork(); end
+		return true;
+	end
+	return false;
+end
+-- End ScreenReaderAccess mod change
+
 function ShowScreen()
 	UpdateData();
 	ContextPtr:SetHide(false);
+	local srOk, srErr = pcall( SRA_Announce );		-- ScreenReaderAccess
+	if not srOk then print( "GreatWorkShowcase announce error: " .. tostring( srErr ) ); end		-- ScreenReaderAccess
 end
 function HideScreen()
 	ContextPtr:SetHide(true);
@@ -258,6 +301,7 @@ function OnViewGreatWorks()
 	LuaEvents.GreatWorkCreated_OpenGreatWorksOverview();
 end
 function OnInputHandler(pInputStruct:table)
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp and pInputStruct:GetKey() == Keys.VK_ESCAPE then
 		HideScreen();
