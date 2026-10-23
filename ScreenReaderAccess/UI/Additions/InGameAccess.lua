@@ -34,168 +34,11 @@ if not m_cityReportLoaded then print( "InGameAccess: the city report files did n
 -- ===========================================================================
 
 local m_actions				:table = {};		-- actionId -> handler
-local m_unitActions			:table = {};		-- plain list of the selected unit's actions, sent by UnitPanel (SRA_UnitActions)
 local m_enterLabel			:string = "";		-- what the action panel said Enter would do
-local m_menuItems			:table = {};		-- items of the unit actions menu, fetched when it opens
 local m_spottedTurn			:number = -1;		-- turn m_spottedCount counts
 local m_spottedCount		:number = 0;
 local m_notifData			:table = {};		-- notifications sent by NotificationPanel (SRA_Notifications), plain data
 local m_notifAnswered		:boolean = false;	-- NotificationPanel answered the last SRA_RequestNotifications
-
--- ===========================================================================
---	UNIT ACTIONS MENU (Tab): the actions of the game's own unit panel (Panels/UnitPanel.lua)
--- ===========================================================================
-local OPERATION_RESULTS = {
-	UNITOPERATION_FORTIFY = "Fortified", UNITOPERATION_HEAL = "Fortified until healed", UNITOPERATION_SLEEP = "Sleeping",
-	UNITOPERATION_ALERT = "On alert", UNITOPERATION_SKIP_TURN = "Turn skipped", UNITOPERATION_AUTOMATE_EXPLORE = "Exploring automatically",
-	UNITOPERATION_REST_REPAIR = "Resting", UNITCOMMAND_WAKE = "Awake", UNITCOMMAND_CANCEL = "Orders cancelled",
-};
--- Actions that announce their outcome in another way (events below, popups, target modes).
-local RESULT_SILENT = {
-	UNITOPERATION_FOUND_CITY = true, UNITOPERATION_BUILD_IMPROVEMENT = true, UNITCOMMAND_UPGRADE = true, PROMOTION = true,
-	UNITOPERATION_MOVE_TO = true, UNITCOMMAND_PROMOTE = true,
-};
-
-local function OnUnitActionsReceived( unitId:number, list:table )
-	m_unitActions = list or {};
-end
-
--- Asks UnitPanel for the selected unit's actions (it answers at once with SRA_UnitActions). refresh: let the panel
--- refresh its state first; only done when the menu opens and when an action is run, not on every key.
-local function FetchMenuItems( refresh:boolean )
-	local items:table = {};
-	if UI.GetHeadSelectedUnit() == nil then return items; end
-	m_unitActions = {};
-	LuaEvents.SRA_RequestUnitActions( refresh );
-	for _, action in ipairs( m_unitActions ) do
-		local text:string = action.name;
-		if action.hotkey ~= nil and action.hotkey ~= "" then text = text .. ", key " .. action.hotkey; end
-		if action.disabled then
-			text = text .. ", unavailable" .. ( action.reason ~= "" and ( ": " .. action.reason ) or "" );
-		end
-		table.insert( items, {
-			key = tostring( action.tag ) .. "|" .. action.name, text = text, detail = action.detail,
-			choosable = not action.disabled, reason = ( action.reason ~= "" ) and action.reason or "Not available",
-			action = action } );
-	end
-	return items;
-end
-
-local function BuildMenuItems()
-	return m_menuItems;
-end
-
-local m_menu:table;
-
-local function RunMenuItem( item:table )
-	local unit:table = UI.GetHeadSelectedUnit();
-	if unit == nil then return; end
-	-- the state may have changed since the menu was opened: look the action up again, with a refresh
-	local fresh:table = nil;
-	for _, candidate in ipairs( FetchMenuItems( true ) ) do
-		if candidate.key == item.key then fresh = candidate; end
-	end
-	if fresh == nil or fresh.choosable == false then
-		HubCore.CloseMode( false, false );
-		HubCore.SayResult( ( fresh ~= nil ) and fresh.reason or "No longer available" );
-		return;
-	end
-	item = fresh;
-	HubCore.CloseMode( false, false );
-	local modeBefore:number = UI.GetInterfaceMode();
-	LuaEvents.SRA_RunUnitAction( item.action.id, unit:GetID() );
-	-- Fortify, sleep ... speak their result from the game's UnitOperationStarted event (so the hotkeys are covered too);
-	-- target modes, found city, building and the like announce themselves. Anything else: say what was chosen.
-	if UI.GetInterfaceMode() == modeBefore and not RESULT_SILENT[ item.action.typeName ]
-			and OPERATION_RESULTS[ item.action.typeName ] == nil then
-		HubCore.SayResult( item.action.name );
-	end
-end
-
-local function ToggleUnitMenu()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	if HubCore.IsModeOpen( "menu" ) then
-		HubCore.CloseMode( true, false );
-		return;
-	end
-	local unit:table = UI.GetHeadSelectedUnit();
-	if unit == nil then
-		local city:table = UI.GetHeadSelectedCity();
-		if city ~= nil and city:GetOwner() == Game.GetLocalPlayer() then
-			-- A city has no action menu; Tab opens its production panel (Tab inside it switches Production / Purchase).
-			HubCore.CloseMode( false, true );
-			LuaEvents.CityPanel_ProductionOpen();
-		elseif city ~= nil then
-			OutputMessageToScreenReader( "Not your city" );
-		else
-			OutputMessageToScreenReader( "No unit selected" );
-		end
-		return;
-	end
-	if unit:GetOwner() ~= Game.GetLocalPlayer() then
-		OutputMessageToScreenReader( "Not your unit" );
-		return;
-	end
-	if not HubTargets.CanOpenMode() then return; end
-	m_menuItems = FetchMenuItems( true );
-	if #m_menuItems == 0 then
-		OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " has no actions" );
-		return;
-	end
-	HubCore.OpenMode( "menu", m_menu, Locale.Lookup( unit:GetName() ) .. " actions" );
-end
-
-m_menu = KeyNavList_Create{
-	build		= BuildMenuItems,
-	isActive	= function() return HubCore.IsModeOpen( "menu" ); end,
-	onActivate	= RunMenuItem,
-	onClose		= function() HubCore.CloseMode( true, false ); end,
-};
-
--- ===========================================================================
---	DIPLOMACY (V): the civilizations met so far; Enter opens the game's diplomacy screen with that leader
--- ===========================================================================
-local m_civMenu:table;
-
-local function BuildCivItems()
-	local items:table = {};
-	local localPlayer:number = Game.GetLocalPlayer();
-	if not HubCore.IsLocalPlayerActive() then return items; end
-	local diplomacy:table = Players[ localPlayer ]:GetDiplomacy();
-	for _, other in ipairs( PlayerManager.GetAliveMajors() ) do
-		local id:number = other:GetID();
-		if id ~= localPlayer and diplomacy:HasMet( id ) then
-			local config:table = PlayerConfigurations[ id ];
-			local state:string = diplomacy:IsAtWarWith( id ) and "at war" or "at peace";
-			table.insert( items, {
-				key = "civ:" .. id, civ = id,
-				text = Locale.Lookup( config:GetLeaderName() ) .. ", " .. PlotDescription_GetCivName( id ) .. ", " .. state,
-			} );
-		end
-	end
-	return items;
-end
-
-m_civMenu = KeyNavList_Create{
-	build		= BuildCivItems,
-	isActive	= function() return HubCore.IsModeOpen( "civ" ); end,
-	onActivate	= function( item )
-		HubCore.CloseMode( false, false );
-		LuaEvents.DiplomacyRibbon_OpenDiplomacyActionView( item.civ );
-	end,
-	onClose		= function() HubCore.CloseMode( true, false ); end,
-};
-
-local function ToggleCivMenu()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	if HubCore.IsModeOpen( "civ" ) then HubCore.CloseMode( true, false ); return; end
-	if not HubTargets.CanOpenMode() then return; end
-	if #BuildCivItems() == 0 then
-		OutputMessageToScreenReader( "You have not met any other civilization" );
-		return;
-	end
-	HubCore.OpenMode( "civ", m_civMenu, "Diplomacy, met civilizations" );
-end
 
 -- ===========================================================================
 --	REGIONS: the top panel (Control+Y) and the notifications (Control+N) as lists
@@ -796,7 +639,7 @@ local function OnUnitOperationStarted( ownerID:number, unitID:number, operationI
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitOperations[ operationID ];
 	if row == nil then return; end
-	local text:string = OPERATION_RESULTS[ row.OperationType ];
+	local text:string = HubMenus.OPERATION_RESULTS[ row.OperationType ];
 	if text ~= nil then HubCore.SayResult( text ); end
 end
 
@@ -806,21 +649,21 @@ local function OnUnitOperationAdded( ownerID:number, unitID:number, hOperation:n
 	local row:table = GameInfo.UnitOperations[ operationIndex ];
 	if row ~= nil and row.OperationType == "UNITOPERATION_HEAL" then
 		-- Fortify Until Healed only adds the operation (no UnitOperationStarted, like Automate Exploration)
-		if UI.GetElapsedTime() - HubCore.m_lastKeyTime <= 2.0 then HubCore.SayResult( OPERATION_RESULTS.UNITOPERATION_HEAL ); end
+		if UI.GetElapsedTime() - HubCore.m_lastKeyTime <= 2.0 then HubCore.SayResult( HubMenus.OPERATION_RESULTS.UNITOPERATION_HEAL ); end
 		return;
 	end
 	if row == nil or row.OperationType ~= "UNITOPERATION_AUTOMATE_EXPLORE" then return; end
 	-- The game also re-adds the operation of units that are already exploring (every turn, after a load): only the
 	-- order the player just gave is told. (The old "it has not moved" check after 1 s was dropped: unreliable.)
 	if UI.GetElapsedTime() - HubCore.m_lastKeyTime > 2.0 then return; end
-	HubCore.SayResult( OPERATION_RESULTS.UNITOPERATION_AUTOMATE_EXPLORE );
+	HubCore.SayResult( HubMenus.OPERATION_RESULTS.UNITOPERATION_AUTOMATE_EXPLORE );
 end
 
 local function OnUnitCommandStarted( ownerID:number, unitID:number, commandID:number )
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitCommands[ commandID ];
 	if row == nil then return; end
-	local text:string = OPERATION_RESULTS[ row.CommandType ];
+	local text:string = HubMenus.OPERATION_RESULTS[ row.CommandType ];
 	if text ~= nil then HubCore.SayResult( text ); end
 end
 
@@ -1136,7 +979,7 @@ function Hub.EnterFallback()
 		local text:string = HubAnnounce.UnitText( unit ) .. ", needs orders. Tab for its actions";
 		-- a unit the game lets neither skip nor sleep (UnitPanel adds a disabled Skip Turn entry with the reason)
 		local okHint:boolean, hint = pcall( function()
-			for _, item in ipairs( FetchMenuItems( false ) ) do
+			for _, item in ipairs( HubMenus.FetchMenuItems( false ) ) do
 				if item.action.typeName == "UNITOPERATION_SKIP_TURN" and item.action.disabled then return item.action.reason; end
 			end
 			return nil;
@@ -1251,6 +1094,7 @@ include( "HubTargets" );
 include( "HubAnnounce" );
 include( "HubSettle" );
 include( "HubPlacement" );
+include( "HubMenus" );
 
 -- ===========================================================================
 function Initialize()
@@ -1274,11 +1118,11 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavPlotDetails",		HubCursor.SpeakPlotDetails );
 	Hub.RegisterAction( "KeyNavCursorToSelection",	HubCursor.CursorToSelection );
 	Hub.RegisterAction( "KeyNavWhatsNext",			HubAnnounce.SpeakWhatsNext );
-	Hub.RegisterAction( "KeyNavUnitActions",		ToggleUnitMenu );
+	Hub.RegisterAction( "KeyNavUnitActions",		HubMenus.ToggleUnitMenu );
 	Hub.RegisterAction( "KeyNavSelectAtCursor",		HubCursor.SelectAtCursor );
 	Hub.RegisterAction( "KeyNavCycleAllUnits",		HubCursor.CycleAllUnits );
 	Hub.RegisterAction( "KeyNavScanUnits",			HubSettle.ScanKey );
-	Hub.RegisterAction( "KeyNavDiplomacy",			ToggleCivMenu );
+	Hub.RegisterAction( "KeyNavDiplomacy",			HubMenus.ToggleCivMenu );
 	Hub.RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
 	Hub.RegisterAction( "KeyNavNotifications",		ToggleNotifications );
 	Hub.RegisterAction( "KeyNavYields",				SpeakYields );
@@ -1310,7 +1154,7 @@ function Initialize()
 		if player == Game.GetLocalPlayer() and HubCore.m_ready and row ~= nil then HubCore.SayResult( "Upgraded to " .. Locale.Lookup( row.Name ) ); end
 	end );
 	HubCore.AddEvent( "UnitKilledInCombat",			Hub.OnUnitKilledInCombat );
-	HubCore.Listen( LuaEvents.SRA_UnitActions, OnUnitActionsReceived );
+	HubCore.Listen( LuaEvents.SRA_UnitActions, HubMenus.OnUnitActionsReceived );
 	HubCore.Listen( LuaEvents.SRA_Notifications, OnNotificationsReceived );
 	HubCore.Listen( LuaEvents.SRA_NotificationAdded, HubCore.Safe( "NotificationAdded", OnNotificationAdded ) );
 	HubCore.Listen( LuaEvents.SRA_NotificationActivated, HubCore.Safe( "NotificationActivated", OnNotificationActivated ) );
