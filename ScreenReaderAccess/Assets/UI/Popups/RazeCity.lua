@@ -69,8 +69,6 @@ end
 -- ===========================================================================
 function Close()
 	UIManager:DequeuePopup(ContextPtr);
-	m_srSpeakIn = -1;
-	LuaEvents.SRA_SpeechHold( "RazeCity", false );		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -226,18 +224,14 @@ local function SRA_Speak()
 	text = text .. ". Population " .. Controls.NumPeople:GetText() .. ", " .. Controls.NumDistricts:GetText() .. " districts.";
 	local items:table = SRA_Items();
 	local names:table = {};
-	local details:table = {};
-	for _, item in ipairs( items ) do
-		table.insert( names, item.text );
-		if item.detail ~= nil and item.detail ~= "" then table.insert( details, item.label .. ": " .. item.detail ); end
+	for _, item in ipairs( items ) do table.insert( names, item.text ); end
+	text = text .. " " .. table.concat( names, ", " ) .. ". Space for details";
+	-- the list was opened when the popup showed; this speaks the line and then the focused (first) option
+	if m_srList ~= nil and #items > 0 then
+		m_srList.Focus( m_srList.GetFocusKey() or items[1].key, text );
+	else
+		OutputMessageToScreenReader( text, true );
 	end
-	text = text .. " " .. #items .. " options: " .. table.concat( names, ", " ) .. ". " .. table.concat( details, ". " );
-	text = text .. ". Up and Down to choose, Space for the consequence, Enter to confirm";
-	if m_srList ~= nil then
-		m_srList.Reset();
-		m_srList.Open( "", nil, true );
-	end
-	OutputMessageToScreenReader( text, true );
 end
 
 local function SRA_OnUpdate( deltaTime:number )
@@ -248,10 +242,21 @@ local function SRA_OnUpdate( deltaTime:number )
 	SRA_Speak();
 end
 
--- registered after the game's own OnOpen listener; the reading itself waits a moment for the (expansion) texts
-local function SRA_OnOpened()
+-- the popup is really shown (QueuePopup made it visible): open the list now, hold the hub's speech, read after a moment
+-- (the expansion texts are set by then; every show re-arms the timer)
+local function SRA_OnShow()
 	LuaEvents.SRA_SpeechHold( "RazeCity", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );
+	if m_srList ~= nil then
+		m_srList.Reset();
+		m_srList.Open( "", nil, true );
+	end
 	m_srSpeakIn = 0.3;
+end
+
+-- every way the popup disappears (choice, close button, queue)
+local function SRA_OnHide()
+	m_srSpeakIn = -1;
+	LuaEvents.SRA_SpeechHold( "RazeCity", false );
 end
 
 -- ===========================================================================
@@ -272,7 +277,8 @@ function LateInitialize()
 	LuaEvents.NotificationPanel_OpenRazeCityChooser.Add( OnOpen );
 
 	-- ScreenReaderAccess mod change
-	SRListen( LuaEvents.NotificationPanel_OpenRazeCityChooser, SRA_OnOpened );
+	ContextPtr:SetShowHandler( SRA_OnShow );
+	ContextPtr:SetHideHandler( SRA_OnHide );
 	ContextPtr:SetUpdate( SRA_OnUpdate );
 	m_srList = KeyNavList_Create{
 		build = SRA_Items,
