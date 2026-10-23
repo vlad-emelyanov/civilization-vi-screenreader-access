@@ -5,3 +5,23 @@ purpose: turn 101 era change: Renaissance era popup shown but silent
 mod commit: e7b6684
 created: 2026-10-22
 size: 949 KB
+facts: (civctl fixture-info 2026-10-23)
+  turn: 101 (your turn)
+  civ: ROME / TRAJAN
+  era: RENAISSANCE
+  government: AUTOCRACY
+  research: tech none, civic GUILDS
+  gold: 52 (+1.0/turn)
+  faith: 33 (+3.0/turn)
+  diplomatic favor: 15
+  cities:
+    - Rome pop 6; districts [CAMPUS THEATER BATH]; buildings [MONUMENT PALACE GRANARY LIBRARY WALLS WATER_MILL AMPHITHEATER]
+  units: ARCHER x1 (1 with moves), BUILDER x1 (1 with moves), MAN_AT_ARMS x1 (1 with moves), PIKEMAN x1 (1 with moves), ROMAN_LEGION x1 (1 with moves), SCOUT x1 (1 with moves), SETTLER x1 (1 with moves), TRADER x1 (1 with moves)
+  trade routes: 1 of 1 slots used
+  met civs: PHOENICIA, OTTOMAN
+  city-states met: 2 met (HONG_KONG, FREE_CITIES); envoy tokens to give: 1
+  great people points: none
+  religion: pantheon RELIGIOUS_IDOLS, founded no
+  spies: 0
+  governors: points 4 spent 4, appointed [THE_DEFENDER THE_EDUCATOR]
+  blockers: ENDTURN_BLOCKING_COMMEMORATION_AVAILABLE
