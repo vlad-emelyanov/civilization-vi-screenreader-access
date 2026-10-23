@@ -58,7 +58,7 @@ def check_loaded(name, turn_now, side_turn, loaded_name):
     if loaded_name != name:
         return "the loaded game was not loaded as fixture '%s' (civctl load wrote: %s); run `civctl load %s` first, or pass --force" % (
             name, loaded_name or "nothing", name)
-    if side_turn is not None and turn_now != side_turn:
+    if side_turn is not None and turn_now not in (side_turn, side_turn + 1):   # a save made at the end of turn N loads as turn N+1
         return "the game is at turn %s but the fixture's sidecar says turn %s: not the fixture's state any more (reload it, or --force)" % (turn_now, side_turn)
     return None
 

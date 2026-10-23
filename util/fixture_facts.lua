@@ -34,7 +34,7 @@ sec("civ", function()
   local c = PlayerConfigurations[pid]
   return short(c:GetCivilizationTypeName(), "CIVILIZATION_") .. " / " .. short(c:GetLeaderTypeName(), "LEADER_")
 end)
-sec("era", function() return short(GameInfo.Eras[p:GetEras():GetEra()].EraType, "ERA_") end)
+sec("era", function() return short(GameInfo.Eras[Game.GetEras():GetCurrentEra()].EraType, "ERA_") end)
 sec("government", function() return short(GameInfo.Governments[p:GetCulture():GetCurrentGovernment()].GovernmentType, "GOVERNMENT_") end)
 sec("research", function()
   local t = p:GetTechs():GetResearchingTech()
@@ -49,7 +49,7 @@ sec("gold", function()
   return string.format("%d (%+.1f/turn)", t:GetGoldBalance(), t:GetGoldYield() - t:GetTotalMaintenance())
 end)
 sec("faith", function() return string.format("%d (%+.1f/turn)", p:GetReligion():GetFaithBalance(), p:GetReligion():GetFaithYield()) end)
-sec("diplomatic favor", function() return p:GetDiplomacy():GetFavor() end)
+sec("diplomatic favor", function() return p:GetFavor() end)
 
 sec("cities", function()
   local rows = {}
@@ -134,10 +134,11 @@ sec("religion", function()
 end)
 
 sec("spies", function()
-  local e = p:GetEspionage()
   local n = 0
-  local ok, list = pcall(function() return e:GetSpies() end)
-  if ok and list then n = #list else n = e:GetNumSpies() end
+  local spy = GameInfo.Units["UNIT_SPY"]
+  for _, u in p:GetUnits():Members() do
+    if spy and u:GetType() == spy.Index then n = n + 1 end
+  end
   return n
 end)
 
