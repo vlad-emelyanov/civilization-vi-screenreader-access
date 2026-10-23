@@ -1,0 +1,20 @@
+# Written blind (2026-10-23, not yet verified in game; run with --record first). Fixture bug-lens-silent (turn 128, Rome).
+# The number keys toggle the map lenses; LensText.lua + InGameAccess say on/off, the legend, and the lens value of the cursor plot.
+# covers: **/LensText.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
+# no-share-load: toggles the lens (interface mode)
+load bug-lens-silent
+clear-advisors
+action KeyNavCursorToSelection -Settle 1500
+action LensSettler -Settle 1500
+expect (?i)Settler lens on
+action KeyNavMoveCellRight -Settle 1500
+expect (?i)(can settle|cannot settle)
+action LensSettler -Settle 1500
+expect (?i)Settler lens off
+action LensAppeal -Settle 1500
+expect (?i)Appeal lens on
+action KeyNavMoveCellRight -Settle 1500
+expect (?i)appeal
+action LensAppeal -Settle 1500
+expect (?i)Appeal lens off
+no-lua-errors
