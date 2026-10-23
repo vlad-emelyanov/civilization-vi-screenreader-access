@@ -113,7 +113,7 @@ local function ActivateNotification( item:table )
 		if not Players[ player ]:IsTurnActive() or UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then return; end
 		if HubCore.IsGamePopupOpen() then return; end
 		if n.x >= 0 and n.y >= 0 then
-			HubCursor.SetCursor( n.x, n.y, true, false );
+			HubCursor.SetCursor( n.x, n.y, true, false, false, true );		-- a jump: the position from the nearest city follows
 		elseif lookOnly then
 			local title:string = CleanTextForSpeech( n.message );
 			local summary:string = CleanTextForSpeech( n.summary );
@@ -167,12 +167,38 @@ local function DismissNotification()
 	end );
 end
 
+-- The notifications that have a place on the map, newest first: { id, text, x, y } (the places list, J, shows them too).
+function HubRegions.GetLocatedNotifications()
+	local located:table = {};
+	for _, item in ipairs( BuildNotificationItems() ) do
+		local n:table = item.note;
+		if n.x >= 0 and n.y >= 0 then table.insert( located, { id = n.id, text = item.text, x = n.x, y = n.y } ); end
+	end
+	return located;
+end
+
+-- M: send one of your units to the place of the focused notification.
+local function SendUnitToNotification()
+	local focus = m_notifList.GetFocusKey();
+	for _, item in ipairs( BuildNotificationItems() ) do
+		if item.key == focus then
+			if item.note.x < 0 or item.note.y < 0 then
+				OutputMessageToScreenReader( "This notification has no place on the map" );
+			else
+				HubPlaces.OpenSend( { name = item.text, x = item.note.x, y = item.note.y, back = "notifications" } );
+			end
+			return;
+		end
+	end
+	OutputMessageToScreenReader( "Nothing selected" );
+end
+
 m_notifList = KeyNavList_Create{
 	build		= BuildNotificationItems,
 	isActive	= function() return HubCore.IsModeOpen( "notifications" ); end,
 	onActivate	= ActivateNotification,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
-	extraKeys	= { [Keys.VK_DELETE] = DismissNotification },
+	extraKeys	= { [Keys.VK_DELETE] = DismissNotification, [Keys.M] = SendUnitToNotification },
 };
 
 function HubRegions.ToggleNotifications()
@@ -199,6 +225,12 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 	if HubCore.m_arrivalTimer < 0 then HubCore.m_arrivalTimer = 0.8; end		-- flush 0.8 s after the first one: a trickle must not postpone the burst
 end
 
+-- Event-style speech (nointerrupt). HubCore.Announce holds it while a Eureka/tech/wonder popup is open (agent C, round 8);
+-- until that is merged the plain call is used.
+function HubRegions.Announce( text:string )
+	if HubCore.Announce ~= nil then HubCore.Announce( text, true ); else OutputMessageToScreenReader( text, true ); end
+end
+
 function HubRegions.FlushArrivals()
 	local entries:table = HubCore.m_arrivals;
 	HubCore.m_arrivals = {};
@@ -208,8 +240,8 @@ function HubRegions.FlushArrivals()
 	end
 	if #texts == 0 then return; end
 	if #texts == 1 then
-		OutputMessageToScreenReader( "Notification: " .. texts[1], true );
+		HubRegions.Announce( "Notification: " .. texts[1] );
 	else
-		OutputMessageToScreenReader( #texts .. " new notifications: " .. KeyNavList_ShortList( texts, 3 ), true );
+		HubRegions.Announce( #texts .. " new notifications: " .. KeyNavList_ShortList( texts, 3 ) );
 	end
 end

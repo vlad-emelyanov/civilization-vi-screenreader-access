@@ -21,7 +21,7 @@ INSERT INTO "InputActions" VALUES ('KeyNavCursorToSelection','Cursor to selectio
 INSERT INTO "InputActions" VALUES ('KeyNavWhatsNext','What is next','Read what the Next Action key will do','GLOBAL','World','PC');
 
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavPlotDetails',0,'KBMouse','LOC_OPTIONS_KEY_I');
-INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavCursorToSelection',0,'KBMouse','LOC_OPTIONS_KEY_J');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavCursorToSelection',0,'KBMouse','LOC_OPTIONS_KEY_PERIOD');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavWhatsNext',0,'KBMouse','LOC_OPTIONS_KEY_N');
 
 INSERT INTO "InputActions" VALUES ('KeyNavUnitActions','Unit actions menu','Open a keyboard menu of everything the selected unit can do','GLOBAL','World','PC');
@@ -48,3 +48,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavReports','Reports screen','Open or clo
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavReports',0,'KBMouse','LOC_OPTIONS_KEY_F8');
 INSERT INTO "InputActions" VALUES ('KeyNavGreatWorks','Great Works screen','Open or close the Great Works screen (works, slots, themes)','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavGreatWorks',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_W');
+INSERT INTO "InputActions" VALUES ('KeyNavPlaces','Places','Open a keyboard list of places: your cities, your units (also automated ones), points of interest, notification locations, foreign cities; M sends a unit there','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavPlaces',0,'KBMouse','LOC_OPTIONS_KEY_J');

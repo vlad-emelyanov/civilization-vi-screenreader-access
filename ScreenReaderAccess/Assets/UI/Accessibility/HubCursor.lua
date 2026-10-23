@@ -86,7 +86,9 @@ function HubCursor.GetCursor()
 end
 
 -- ===========================================================================
-local function DescribeCursorPlot( plot:table )
+-- jump: the cursor was sent here (a list, a scan, a notification), not stepped: the position from the nearest own city follows,
+-- the frame of reference a single Shift+Arrow step does not need.
+local function DescribeCursorPlot( plot:table, jump:boolean )
 	local selectionPlot:table, unit:table = HubCore.GetSelectionPlot();
 	local options:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
@@ -116,12 +118,17 @@ local function DescribeCursorPlot( plot:table )
 	end
 	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
 	if relative ~= nil then text = text .. ". " .. relative; end
+	if jump and mode == nil then
+		local position:string = HubAnnounce.PositionText( plot );
+		if position ~= nil and string.sub( position, 1, 3 ) ~= "in " then text = text .. ". " .. position; end		-- "in Rome" is the plot description already
+	end
 	return text;
 end
 
 -- Puts the cursor on (x, y), moves the camera there and optionally speaks the plot.
 -- noMouse: the real mouse does not follow (browsing a list of candidates: the mouse must not sit on every one of them).
-function HubCursor.SetCursor( x:number, y:number, speak:boolean, interrupt:boolean, noMouse:boolean )
+-- jump: the plot is announced with its position from the nearest own city ("7 tiles north-west of Rome").
+function HubCursor.SetCursor( x:number, y:number, speak:boolean, interrupt:boolean, noMouse:boolean, jump:boolean )
 	local plot:table = Map.GetPlot( x, y );
 	if plot == nil then return; end
 	HubCore.m_cursorPlayer = Game.GetLocalPlayer();
@@ -134,7 +141,7 @@ function HubCursor.SetCursor( x:number, y:number, speak:boolean, interrupt:boole
 		QueueMouseMove( plot );
 	end
 	if speak then
-		OutputMessageToScreenReader( DescribeCursorPlot( plot ), not interrupt );
+		OutputMessageToScreenReader( DescribeCursorPlot( plot, jump ), not interrupt );
 	end
 end
 
@@ -291,7 +298,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		if entry.key == m_scanKey then next = i % #found + 1; end
 	end
 	m_scanKey = found[ next ].key;
-	HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt );
+	HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
 	if next == #found and #found > 1 then
 		OutputMessageToScreenReader( "Last target, X wraps to the first", true );
 	end

@@ -59,6 +59,14 @@ function HubAnnounce.UnitText( unit:table )
 	if damage > 0 then
 		table.insert( parts, ( unit:GetMaxDamage() - damage ) .. " of " .. unit:GetMaxDamage() .. " health" );
 	end
+	-- what it is doing (exploring, fortified, moving to ...); a unit picked from the places list also hears how to cancel
+	if HubPlaces ~= nil then
+		local activity:string = HubPlaces.UnitActivity( unit, false );
+		if activity ~= nil then
+			table.insert( parts, activity );
+			if HubPlaces.TakeCancelHint( unit ) then return table.concat( parts, ", " ) .. ". Tab for actions to cancel its orders"; end
+		end
+	end
 	return table.concat( parts, ", " );
 end
 
@@ -123,6 +131,8 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 	if position ~= nil then text = text .. ", " .. position; end
 	local promotion:string = HubAnnounce.PromotionHint( unit );
 	if promotion ~= nil then text = text .. ". " .. promotion; end
+	local builderHint:string = HubSettle.BuilderHint( unit );
+	if builderHint ~= nil then text = text .. ". " .. builderHint; end
 	if not HubCore.m_ready then
 		-- the game is still loading: it would be spoken before "CONTINUE GAME. Press Enter to start."; said once ready, see OnLoadScreenClose
 		m_pendingUnit = unitID;

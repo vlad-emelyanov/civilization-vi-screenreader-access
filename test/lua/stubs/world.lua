@@ -146,11 +146,12 @@ function M:install()
 		end
 		local function cityObject(c)
 			return { GetX = function() return c.x end, GetY = function() return c.y end, GetID = function() return c.id end,
-				GetName = function() return c.name end }
+				GetName = function() return c.name end, IsCapital = function() return c.capital == true end }
 		end
 		return {
 			IsAlive = function() return true end,
 			IsBarbarian = function() return id == 63 end,
+			IsMajor = function() return not (world.minors and world.minors[id]) end,
 			GetCities = function() return {
 				GetCount = function() return #members() end,
 				Members = function() local list = {}; for _, c in ipairs(members()) do list[#list + 1] = cityObject(c) end; return ipairs(list) end,

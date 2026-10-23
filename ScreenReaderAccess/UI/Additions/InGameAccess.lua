@@ -2,7 +2,7 @@
 --	InGameAccess: screen reader hub for the in-game UI (see docs/ingame-plan.md).
 --	A context without visuals, added to InGame (UI/Additions/InGameAccess.xml). It owns
 --	  - the map cursor (Shift+Arrows) and its plot announcements,
---	  - the in-game hotkeys (I plot details, J cursor to selection, N what is next, Tab unit actions),
+--	  - the in-game hotkeys (I plot details, . cursor to selection, J places list, N what is next, Tab unit actions),
 --	  - the unit actions menu and the target modes (move to, attack ...), which take over Up/Down/Enter/Escape and
 --	    Shift+Arrows through this context's input handler (see the bottom of the file),
 --	  - the regions: top panel (Control+Y), notifications (Control+N) and the city report (Control+I), with arrivals announced,
@@ -188,6 +188,7 @@ include( "HubSettle" );
 include( "HubPlacement" );
 include( "HubMenus" );
 include( "HubRegions" );
+include( "HubPlaces" );
 include( "HubCityReport" );
 include( "HubEvents" );
 
@@ -224,6 +225,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavYields",				HubRegions.SpeakYields );
 	Hub.RegisterAction( "KeyNavCityReport",			HubCityReport.ToggleCityReport );
 	Hub.RegisterAction( "KeyNavReports",			HubTargets.ToggleReports );
+	Hub.RegisterAction( "KeyNavPlaces",				HubPlaces.TogglePlaces );
 	Hub.RegisterAction( "KeyNavGreatWorks",		HubRegions.ToggleGreatWorks );
 	Hub.RegisterAction( "RangedAttack",			HubTargets.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
 	Hub.RegisterAction( "Attack",					HubTargets.CityAttackKey );
@@ -238,6 +240,9 @@ function Initialize()
 	HubCore.AddEvent( "InterfaceModeChanged",		HubTargets.OnInterfaceModeChanged );
 	HubCore.AddEvent( "UnitOperationStarted",		HubEvents.OnUnitOperationStarted );
 	HubCore.AddEvent( "UnitOperationAdded",			HubEvents.OnUnitOperationAdded );
+	HubCore.AddEvent( "UnitOperationAdded",			HubPlaces.OnOperationAdded );		-- who is exploring (the places list says so)
+	HubCore.AddEvent( "UnitOperationStarted",		HubPlaces.OnOrderStarted );
+	HubCore.AddEvent( "UnitCommandStarted",			HubPlaces.OnOrderStarted );
 	HubCore.AddEvent( "UnitCommandStarted",			HubEvents.OnUnitCommandStarted );
 	HubCore.AddEvent( "UnitMoveComplete",			HubEvents.OnUnitMoveComplete );
 	HubCore.AddEvent( "CombatVisBegin",				HubEvents.OnCombatVisBegin );
@@ -258,7 +263,7 @@ function Initialize()
 	HubCore.Listen( LuaEvents.SRA_AttackKey, HubCore.Safe( "AttackKey", HubTargets.AttackKey ) );
 	HubCore.Listen( LuaEvents.SRA_TradeResult, HubCore.Safe( "TradeResult", HubEvents.OnTradeResult ) );		-- trade choosers: outcome of the route / move
 	HubCore.Listen( LuaEvents.SRA_SpeechHold, HubCore.Safe( "SpeechHold", HubCore.SetSpeechHold ) );		-- popups that speak: event announcements wait
-	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) HubCursor.SetCursor( x, y, false, false, true ); end ) );		-- City-States screen: Show on map
+	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) HubPlaces.OnCursorTo( x, y ); end ) );		-- City-States / espionage screens: Show on map
 	HubCore.AddEvent( "UnitRemovedFromMap",			function() HubCore.After( 0.3, HubTargets.ResetStaleMode ); end );
 	HubCore.AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )
 		local player:table = Players[ playerID ];

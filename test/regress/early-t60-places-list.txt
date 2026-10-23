@@ -1,0 +1,21 @@
+# Written blind 2026-10-23 (round 8, not yet recorded; run with civregress --record first). Places list (J): opening, categories with Tab / Control+Tab, Space, Escape, Enter on a city jumps the cursor.
+# covers: **/HubPlaces.lua **/HubCursor.lua **/HubRegions.lua UI/Additions/InGameAccess.lua
+load early-t60
+clear-advisors
+action KeyNavPlaces -Settle 1500
+expect ^Places\. Your cities, 1 of \d+ categories, 1 item\. Rome
+key Tab -Settle 1200
+expect ^Your units, 2 of \d+ categories, \d+ items?\.
+key Down -Settle 1200
+expect , 2 of \d+
+key Space -Settle 1200
+expect (?i)rome
+key Control+Tab -Settle 1200
+expect ^Your cities, 1 of \d+ categories
+key Enter -Settle 1500
+expect (?i)rome
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+key Escape -Settle 1200
+expect ^Closed
+no-lua-errors
