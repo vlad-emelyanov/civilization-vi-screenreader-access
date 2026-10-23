@@ -165,7 +165,7 @@ Autoplay does not replace blind play-throughs: those stay the way we find UX pro
 
 ## 6. Speech regression scripts
 
-**Done 2026-10-22:** `util/civregress.py` + `civctl regress [name...|all] [--share-load]`; 7 scripts in `test/regress/` (3 on `early-start`, 4 scenario scripts on `early-t60`), all PASS, twice in a row (5 m 52 s each; `--share-load` 5 m 22 s because scenario scripts keep their own load). Extra steps: `clear-advisors`, header `# no-share-load`.
+**Done 2026-10-22:** `util/civregress.py` + `civctl regress [name...|all] [--share-load]`; 7 scripts in `test/regress/` (3 on `early-start`, 4 scenario scripts on `early-t60`), all PASS, twice in a row (5 m 52 s each (later: 18 scripts took ~22 min with a load each; `all` now shares loads, section 9); `--share-load` 5 m 22 s because scenario scripts keep their own load). Extra steps: `clear-advisors`, header `# no-share-load`.
 
 - `test/regress/<name>.txt`, one step per line:
   ```
@@ -235,3 +235,19 @@ Suggested agent batches: (1+2+3) as one game-driving agent, since they share civ
 3. Autoplay: works with `SetObserveAsPlayer(0)`, and our mod stays quiet apart from the `IsHostile` errors. `OBSERVER` mode is unusable. About 6-21 s per turn.
 
 Spike leftovers in the save folder: `spike1.Civ6Save` (the turn-42 play-through) and `spike-med-t71.Civ6Save` (Medieval profile, turn 71). A backup of the saves from before the spikes is in `%TEMP%\civ-save-backup`.
+
+## 9. Process-audit tooling (2026-10-22)
+
+Time lost per round, and what removed it:
+
+| Loss | Tool |
+|---|---|
+| ~20 min: Shift stuck after `key Shift+Tab` (Steam overlay eats the key-up) | `key` releases both sides of every modifier it pressed, refuses `Shift+Tab` (also in regress scripts, at parse time), `civctl key-release` |
+| 5-10 min per session: ending turns / waiting for the AI | `civctl endturn` (blocker-aware, setup/verification only), `civctl wait-turn <N>` (`util/civturn.py`; reports popups, presses nothing) |
+| ~1 min per load: advisor popups | `civctl clear-advisors`; `load` does it by default (`-KeepAdvisors`) |
+| `regress all` ~22 min for 18 scripts | one load per fixture shared by default for `all` (scenario / `# no-share-load` scripts load fresh, a failure on a shared game is retried fresh), TIMING table + TOTAL |
+| `.civ6proj` conflicts on every branch | `util/civ6proj.py add / list / merge-union / merge-driver`, `.gitattributes` mapping |
+| scenarios assuming a trade slot / Holy Site / spies | `civctl fixture-info <name>` -> `facts:` block in `test/fixtures/<name>.txt` (`util/fixture_facts.lua`, UNVERIFIED until run once: look for `(n/a: ...)`) |
+| `export CIVCTL_OWNER` lost between Git Bash tool calls | the exit-7 message prints the prefix form `CIVCTL_OWNER=name util/civctl ...` |
+
+Offline tests: `test/py/test_civ6proj.py`, `test_civturn_fixtureinfo.py`, additions in `test_civregress.py`.

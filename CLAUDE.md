@@ -46,8 +46,13 @@ util\civctl.cmd autoplay 29 -Save medieval-t100   # AI plays n turns for us (~5-
 util\civctl.cmd shot                 # screenshot path, view only when output is confusing
 util\civctl.cmd load early-t60       # named fixtures (test\fixtures); also `save <name>`, `newgame <profile>`, `autoplay <n>`
 util\civctl.cmd scenario governor-title   # set up one situation (util\scenarios\*.lua) on a loaded fixture
-util\civctl.cmd regress all [--share-load]   # speech regression scripts (test\regress\*.txt), ~6 min, exit 1 on a failed check
-set CIVCTL_OWNER=<your agent name>   # REQUIRED for every command that drives the game (PowerShell: $env:CIVCTL_OWNER='name'; Git Bash: export CIVCTL_OWNER=name); without it: REFUSED, exit 7
+util\civctl.cmd regress all [--no-share-load]   # speech regression scripts (test\regress\*.txt), exit 1 on a failed check. `all` shares ONE load per fixture (scenario and `# no-share-load` scripts load fresh; a script failing on a shared game is retried fresh). Prints a TIMING table + TOTAL (18 scripts took ~22 min with a load each). One script: `regress <name>`
+CIVCTL_OWNER=<your agent name> util/civctl <command> ...   # REQUIRED for every command that drives the game. Git Bash: PREFIX every call (an `export` does not persist between tool calls). PowerShell: $env:CIVCTL_OWNER='name'. Without it: REFUSED, exit 7 (the message prints this form)
+util\civctl.cmd endturn              # SETUP/VERIFICATION only: request the end of turn (what the End Turn button does; refuses while a blocker is pending and names it). Play-tests end turns with Enter like a player
+util\civctl.cmd wait-turn 62 -Timeout 300   # wait until the game is at turn 62 and your turn is active (prints SR> lines, REPORTS open popups, never presses keys); exit 1 on timeout / already past
+util\civctl.cmd clear-advisors       # close advisor popups (Enter only while AdvisorPopup is visible); `load` does this by default (-KeepAdvisors skips it)
+util\civctl.cmd key-release          # release Shift/Control/Alt, both sides (`key` does it after every chord; Shift+Tab is refused: Steam overlay, use Control+Tab)
+util\civctl.cmd fixture-info early-t60   # with that fixture loaded: appends a `facts:` block (cities, districts, buildings, units, trade slots, spies, religion, governors, blockers...) to test\fixtures\early-t60.txt; read these before writing a scenario
 util\civctl.cmd status              # game/console/lock + "in game, turn N" or "front end"
 util\civctl.cmd save bug-foo -Purpose "why"   # named save -> test/fixtures/bug-foo.Civ6Save + .txt (turn, civ, commit)
 util\civctl.cmd load early-start    # load a fixture by name (~30-45 s, from in game or main menu; never LoadGame from InGame)
@@ -70,7 +75,8 @@ util\civctl.cmd unlock              # release the lease (no owner needed, frees 
 
 ```
 python util/lint.py [-v] [files...]   # luacheck (fetches util/tools/luacheck.exe on first use; ~1 s). Exit 1 = syntax error anywhere or any warning in mod-only files (Accessibility/, UI/Additions/); 2 = tool problem. -v lists upstream warnings
-python -m unittest discover test/py   # tooling tests (keybindings, regress runner), no game
+python -m unittest discover test/py   # tooling tests (keybindings, regress runner, civ6proj, civturn, fixtureinfo), no game
+python util/civ6proj.py add Assets/UI/Popups/Foo.lua --context InGame [--replace-ui FooPopup]   # REGISTER files this way (also list / merge-union); never hand-edit the one-line CDATA blocks, see Workflow rules
 python util/overridecheck.py [-v]      # static check of the .civ6proj registrations against the game install (CIV_GAME_DIR or the Steam path; skipped with a warning if absent; lint.py runs it too). Run it before committing a new override. Exit 1 = ImportFiles copy that loses to an expansion (use ReplaceUIScript, see docs/engine-notes.md), DLC UI/Additions overridden with ImportFiles, file name that a wildcard include("Prefix_", true) would load, missing/unregistered/duplicate files or Content entries, Accessibility helper missing from FrontEndActionData/InGameActionData
 python util/civregress.py <name> --record     # (with a game) run a regress script and write test/regress/<name>.recorded.txt = the SR> lines every expect saw; --update also rewrites failing expect lines in place (.bak kept). Use it for the first run of an unverified, blind-written script
 python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install lupa on first use), test/lua/test_*.lua with stubs in test/lua/stubs/; <1 s. Exit 1 = failure
@@ -83,6 +89,9 @@ python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install
 ## Workflow rules
 
 - **New override of a game file:** first commit the untouched game file alone ("Add X.lua pristine asset"), then commit the mod changes on top. Register it in the `.civ6proj`: a `<File priority="10001">` entry in `FrontEndActionData` and/or `InGameActionData` (which context loads it: verify a print from your copy shows up in `Lua.log`) plus a `<Content Include>` entry. Any `Accessibility/` helper that a front-end screen `include`s must be listed in BOTH `FrontEndActionData` and `InGameActionData`, or it silently fails to load after returning from a game (the screen script aborts).
+- **Register files with `python util/civ6proj.py add <file> --context InGame|FrontEnd|Both [--replace-ui <LuaContext>]`** (adds the `<File>` / `ReplaceUIScript` entry and the `<Content Include>`; idempotent; keeps BOM and CRLF). `civ6proj.py list` shows what is registered. Merge conflicts in the `.civ6proj` (InGameActionData is one long line): `git config merge.civ6proj.driver "python util/civ6proj.py merge-driver %O %A %B"` + `merge.civ6proj.name x` once per clone (the .gitattributes line exists), or resolve by hand with `python util/civ6proj.py merge-union <ours> <theirs> --out <file>` (union of File / ReplaceUIScript / Content entries). Run `overridecheck.py` afterwards.
+- Worktree agents start with `git rebase master` (master moves fast).
+- `test/fixtures/*.txt` carry a `facts:` block (from `civctl fixture-info`) once the verifier has run it: read it before assuming a Holy Site, a free trade slot or spies.
 - **`.civ6proj`** often contains the user's uncommitted work. Never commit their hunks. Stage only your lines by building the index blob (`git hash-object -w` + `git update-index --cacheinfo`). The file has a UTF-8 BOM; keep it.
 - Keep edits to game files minimal and localized (they're copies of upstream code); put reusable logic in `Accessibility/`. Match the surrounding Lua style (type annotations like `local x:number`, tabs, semicolons).
 - Don't touch untracked personal scripts at the repo root (`build.cmd`, `run.cmd`, `open_log.cmd`, `util/update_assets.bat` which points at the user's other PC).

@@ -41,3 +41,7 @@ them). Never save a scenario-modified game over a fixture.
 | `builder-by-forest` | `early-t60` | builder on an owned tile next to a forest | `Tab` on the builder / `I` on the forest |
 | `trader-in-capital` (unverified) | `medieval-t100` | a Trader in the capital | select it: the game opens its trade route chooser by itself (see `t100-trade-route`) |
 | `prophet-ready` | `medieval-t100` (needs a pantheon + a completed Holy Site) | UNVERIFIED: a Great Prophet on the Holy Site | select it, `Tab`, Found Religion |
+
+## Know the fixture before assuming
+
+Do not assume a free trade slot, a Holy Site or spies. `test/fixtures/<name>.txt` has a `facts:` block (written by `civctl fixture-info <name>`, cities with districts and buildings, units, trade slots used/total, spies, religion, governors, met civs, blockers) once the verifier ran it. If your fixture has none, make the scenario create what it needs and `error()` when it cannot.

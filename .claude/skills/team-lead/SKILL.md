@@ -74,6 +74,16 @@ Do not run `civctl` yourself. The user wants that delegated.
 4. **Review** each finished range with a read-only background agent. Run it in parallel with the verifier or the next play segment. Add the review findings to the next fix batch.
 5. **Next play segment.** `civctl regress all` covers old fixes; the segment confirms the new ones in real play ("confirmed / broken / not exercised" per fix) and finds new issues. Repeat until the phase goal is met. Then have the last fix agent update `docs/ingame-plan.md` (Status, a result line, a gap list).
 
+## Brief add-ons (from the 2026-10 process audit)
+
+- Worktree agents start with `git rebase master` (master moves fast) and commit there.
+- Register new files with `python util/civ6proj.py add <file> --context InGame|FrontEnd|Both [--replace-ui <LuaContext>]`, never by hand (the InGameActionData line conflicts on every branch). The verifier resolves a `.civ6proj` conflict with `python util/civ6proj.py merge-union <ours> <theirs> --out <file>` (or the merge driver, see CLAUDE.md), then `python util/overridecheck.py`.
+- Fixture facts are in `test/fixtures/*.txt` (`facts:` block, written by `civctl fixture-info <name>` with the fixture loaded; the verifier refreshes them). Offline agents must read them before writing a scenario (free trade slot? Holy Site? spies?).
+- The first run of a script written blind is `civctl regress <name> --record`, then review the recorded lines.
+- Use `Control+Tab`, never `Shift+Tab` (Steam overlay; `key` refuses it and `key-release` frees a stuck Shift).
+- `civctl endturn` / `wait-turn <N>` are for setup and verification; play-tests press Enter. Owner in Git Bash: `CIVCTL_OWNER=name util/civctl ...` on every call.
+- `regress all` shares one load per fixture and prints a TIMING table; a script that fails on the shared game is retried fresh automatically.
+
 ## Managing agents
 
 - **Background agents:** don't predict or poll their results; wait for the notification. Tell the user what is running.
