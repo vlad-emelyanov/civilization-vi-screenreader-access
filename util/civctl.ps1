@@ -798,7 +798,12 @@ function Invoke-Load([string]$name) {
     $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
     if ($m -match 'ExpansionIntro') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | ForEach-Object { Write-Output $_ } }
     [IO.File]::WriteAllText((Join-Path $StateDir 'loaded.txt'), $name)   # fixture-info checks that the fixture is the loaded game
-    if (-not $KeepAdvisors) { Invoke-ClearAdvisors }
+    if (-not $KeepAdvisors) {
+        # The nested civctl processes share cursor.txt and the lease with this one; their lines are printed above in order.
+        Invoke-ClearAdvisors
+        if ($script:ClearExit -eq 5) { throw 'CIVCTL5:GAME CRASHED while closing the advisor popups after the load' }
+        if ($script:ClearExit -ne 0) { throw "clear-advisors failed (exit $($script:ClearExit)) after loading '$name'" }
+    }
     Write-Output "Loaded '$name'."
 }
 
@@ -896,6 +901,7 @@ function Invoke-ClearAdvisors {
     # Presses Enter only while the AdvisorPopup context is visible (a loaded or tuner-changed game queues them and they swallow keys).
     $o = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civregress.py'), '--clear-advisors', '--owner', (Get-Owner))
     $o | ForEach-Object { Write-Output $_ }
+    $script:ClearExit = $script:PyExit
 }
 
 function Invoke-KeyRelease {
