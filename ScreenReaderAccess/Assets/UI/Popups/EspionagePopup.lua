@@ -2,6 +2,8 @@
 
 include("InstanceManager");
 include("EspionageSupport");
+include("ScreenReader");	-- ScreenReaderAccess mod change
+include("SRListen");	-- ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	CONSTANTS
@@ -31,6 +33,60 @@ local m_OutcomeLabelIM		:table = InstanceManager:new("OutcomeLabelInstance",	"Ou
 
 -- Internal popup quque used when multiple popups of this type happen at the same time
 local m_internalPopupQueue:table = {};
+
+-- Begin ScreenReaderAccess mod change: the popup spoke nothing and Enter did nothing
+local m_srOutcomes:table = {};		-- the possible outcome lines of the briefing, filled by AddOutcomePercent / AddOutcomeLabel
+local m_srRenew = nil;				-- function that renews the mission just completed (R)
+
+local function SRText( control:table )
+	if control == nil then return nil; end
+	local text:string = CleanTextForSpeech( control:GetText() );
+	if text == nil or text == "" then return nil; end
+	return text;
+end
+
+local function SRAdd( parts:table, control:table )
+	local text:string = SRText( control );
+	if text ~= nil then table.insert( parts, text ); end
+end
+
+-- Title, body and the keys, for the state the popup is in.
+local function SRAnnounce()
+	local parts:table = {};
+	SRAdd( parts, Controls.MissionTitle );
+	if m_currentPopupState == EspionagePopupStates.MISSION_COMPLETED then
+		SRAdd( parts, Controls.MissionOutcomeLabel );
+		SRAdd( parts, Controls.MissionOutcomeDescription );
+		if not Controls.MissionRewardsContainer:IsHidden() then
+			SRAdd( parts, Controls.SpyPromotionLabel );
+			SRAdd( parts, Controls.SpyPromotionDescription );
+			if not Controls.SpyLootGrid:IsHidden() then
+				SRAdd( parts, Controls.SpyLootRewardLabel );
+				SRAdd( parts, Controls.SpyLootRewardDescription );
+			end
+		end
+		if not Controls.MissionConsequencesContainer:IsHidden() then
+			if not Controls.LostAgentGrid:IsHidden() then
+				SRAdd( parts, Controls.LostAgentTitle );
+				SRAdd( parts, Controls.LostAgentDescription );
+			end
+			SRAdd( parts, Controls.RelationshipDamageTitle );
+			SRAdd( parts, Controls.RelationshipDamageDescription );
+		end
+		table.insert( parts, ( m_srRenew ~= nil ) and "Enter to continue, R to renew the mission" or "Enter to continue" );
+	else
+		SRAdd( parts, Controls.MissionObjectiveLabel );
+		if not Controls.MissionDurationContainer:IsHidden() then SRAdd( parts, Controls.MissionDurationLabel ); end
+		for _, line in ipairs( m_srOutcomes ) do table.insert( parts, line ); end
+		if m_currentPopupState == EspionagePopupStates.ABORT_MISSION then
+			table.insert( parts, "Enter to abort the mission, Escape to keep it" );
+		else
+			table.insert( parts, "Enter to start the mission, Escape to cancel" );
+		end
+	end
+	OutputMessageToScreenReader( table.concat( parts, ". " ) );
+end
+-- End ScreenReaderAccess mod change
 
 -- ===========================================================================
 function Refresh()
@@ -138,6 +194,7 @@ end
 
 -- ===========================================================================
 function TryRefreshRenewableMission( kMissionHistory:table )
+	m_srRenew = nil;		-- ScreenReaderAccess mod change
     if not CanMissionBeRenewed(kMissionHistory) then
 		return false;
 	end
@@ -182,6 +239,8 @@ function TryRefreshRenewableMission( kMissionHistory:table )
 	if canStart then
 		RefreshMissionStats(Controls, m_operation, results, m_spy, m_city, pTargetPlot);
 		Controls.RenewButton:RegisterCallback( Mouse.eLClick, function() RenewMission(m_spy, m_operation.Hash, pTargetPlot:GetX(), pTargetPlot:GetY()); Close(); end);
+		local renewSpy, renewHash, renewX, renewY = m_spy, m_operation.Hash, pTargetPlot:GetX(), pTargetPlot:GetY();		-- ScreenReaderAccess mod change
+		m_srRenew = function() RenewMission(renewSpy, renewHash, renewX, renewY); Close(); end;		-- ScreenReaderAccess mod change
 	else
 		return false;
 	end
@@ -269,6 +328,7 @@ end
 
 -- ===========================================================================
 function RefreshPossibleOutcomes()
+	m_srOutcomes = {};		-- ScreenReaderAccess mod change
 	m_OutcomePercentIM:ResetInstances();
 	m_OutcomeLabelIM:ResetInstances();
 
@@ -338,12 +398,14 @@ function AddOutcomePercent(percent:number, percentLabel:string)
 	local outcomePercentInstance:table = m_OutcomePercentIM:GetInstance();
 	outcomePercentInstance.OutcomePercentNumber:SetText(percent);
 	outcomePercentInstance.OutcomePercentLabel:SetText(Locale.Lookup(percentLabel));
+	table.insert( m_srOutcomes, CleanTextForSpeech( tostring(percent) .. "% " .. Locale.Lookup(percentLabel) ) );		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
 function AddOutcomeLabel(labelString:string)
 	local outcomeLabelInstance:table = m_OutcomeLabelIM:GetInstance();
 	outcomeLabelInstance.OutcomeLabel:SetText(Locale.Lookup(labelString));
+	table.insert( m_srOutcomes, CleanTextForSpeech( Locale.Lookup(labelString) ) );		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -491,6 +553,7 @@ function Open()
 	-- Queue Popup
 	UIManager:QueuePopup( ContextPtr, PopupPriority.Low);
 	Refresh();
+	SRAnnounce();		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -549,6 +612,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();		-- ScreenReaderAccess mod change
     LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isHidden", ContextPtr:IsHidden());
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "spy", m_spy);
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "city", m_city);
@@ -592,7 +656,29 @@ end
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 	local uiMsg:number = pInputStruct:GetMessageType();
-	if uiMsg == KeyEvents.KeyUp then 
+	-- Begin ScreenReaderAccess mod change: Enter does what the visible main button does; R renews a completed mission
+	if not ContextPtr:IsHidden() and ( uiMsg == KeyEvents.KeyUp or uiMsg == KeyEvents.KeyDown ) then
+		local key:number = pInputStruct:GetKey();
+		if key == Keys.VK_RETURN or key == Keys.VK_ESCAPE or ( key == Keys.R and m_srRenew ~= nil ) then
+			if uiMsg == KeyEvents.KeyUp then
+				if key == Keys.VK_ESCAPE then
+					Close();
+				elseif key == Keys.R then
+					m_srRenew();
+				elseif m_currentPopupState == EspionagePopupStates.MISSION_BRIEFING then
+					OnAccept();
+				elseif m_currentPopupState == EspionagePopupStates.ABORT_MISSION then
+					OnAbort();
+				else
+					Close();
+				end
+			end
+			return true;
+		end
+		return false;
+	end
+	-- End ScreenReaderAccess mod change
+	if uiMsg == KeyEvents.KeyUp then
 		if pInputStruct:GetKey() == Keys.VK_ESCAPE then
 			Close();
 			return true;
@@ -601,7 +687,6 @@ function OnInputHandler( pInputStruct:table )
 
 	return false;
 end
-
 -- ===========================================================================
 function OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if oldMode == InterfaceModeTypes.SPY_CHOOSE_MISSION and newMode ~= InterfaceModeTypes.SPY_CHOOSE_MISSION then
@@ -616,13 +701,13 @@ end
 -- ===========================================================================
 function Initialize()
 	-- Lua Events
-	LuaEvents.EspionageChooser_ShowMissionBriefing.Add( OnShowMissionBriefing );
-	LuaEvents.UnitPanel_CancelMission.Add( OnShowMissionAbort );
+	SRListen( LuaEvents.EspionageChooser_ShowMissionBriefing, OnShowMissionBriefing );		-- ScreenReaderAccess mod change: SRListen (hot reload)
+	SRListen( LuaEvents.UnitPanel_CancelMission, OnShowMissionAbort );
 
 	-- Game Engine Events
-	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
-	Events.SpyMissionCompleted.Add( OnSpyMissionCompleted );
-	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
+	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );
+	SRListen( Events.SpyMissionCompleted, OnSpyMissionCompleted );
+	SRListen( Events.InterfaceModeChanged, OnInterfaceModeChanged );
 
 	-- Control Events
 	Controls.AcceptButton:RegisterCallback( Mouse.eLClick, OnAccept );
@@ -640,6 +725,6 @@ function Initialize()
 	ContextPtr:SetInitHandler(OnInit);
 	ContextPtr:SetShutdown(OnShutdown);
 	ContextPtr:SetInputHandler( OnInputHandler, true );
-	LuaEvents.GameDebug_Return.Add(OnGameDebugReturn);
+	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );
 end
 Initialize();
