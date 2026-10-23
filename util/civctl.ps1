@@ -48,7 +48,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance', 'batch')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -56,7 +56,9 @@ param(
     [string[]]$MoreArgs,   # extra words are joined onto $Arg, so `wait Begin Game` works without quotes
     [int]$Count = 1,
     [int]$Timeout = 120,
-    [int]$Settle = 600,
+    [int]$Settle = 600,     # key/action: MAXIMUM ms to wait for the screen reader lines (the fixed wait with -NoQuiet)
+    [int]$Quiet = 250,      # key/action: return once an SR line has arrived and this many ms passed without another one (or at -Settle)
+    [switch]$NoQuiet,       # key/action: old behaviour, always sleep the full -Settle
     [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
     [switch]$Fast,          # key -Count n: press back to back (only -Settle ms between presses; the log is read after the last one). For timing tests such as a double Enter
@@ -72,6 +74,57 @@ param(
     [switch]$KeepAdvisors,  # load: do not close advisor popups afterwards (the default is to close them)
     [switch]$ClearAdvisors  # load: accepted for clarity, this is already the default
 )
+
+if ($Command -eq 'batch') {
+    # `batch`: one command per stdin line (a JSON array of civctl arguments, e.g. ["key","Down","-Settle","1500"]). Each runs as a normal
+    # command line in a fresh script scope (`& civctl.ps1 ...`: its `exit N` ends only that run), its output follows, then the
+    # sentinel `@@CIVCTL-DONE <rc>`. The regress runner keeps one such process instead of starting powershell.exe per step.
+    $self = $PSCommandPath
+    try { [Console]::InputEncoding = New-Object Text.UTF8Encoding($false) } catch { }
+    try { [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false) } catch { }
+    Add-Type -AssemblyName System.Web.Extensions
+    $ser = New-Object Web.Script.Serialization.JavaScriptSerializer
+    $paramInfo = (Get-Command $self).Parameters
+    $env:CIVCTL_BATCH_CHILD = '1'      # makes a run that falls off the end of the script exit with 0 (not a stale $LASTEXITCODE)
+    $env:CIVCTL_REPORT_WAITED = '1'    # key/action print `@@waited <ms>`
+    $savedOwner = $env:CIVCTL_OWNER
+    while ($null -ne ($line = [Console]::In.ReadLine())) {
+        $line = $line.TrimStart([char]0xFEFF)
+        if (-not $line.Trim()) { continue }
+        $rc = 1
+        try {
+            $argv = @($ser.DeserializeObject($line) | ForEach-Object { [string]$_ })
+            $h = @{}; $pos = @()
+            for ($i = 0; $i -lt $argv.Count; $i++) {
+                $name = $null
+                if ($argv[$i] -match '^-([A-Za-z]+)$') { $name = $paramInfo.Keys | Where-Object { $_ -ieq $Matches[1] } | Select-Object -First 1 }
+                if ($name -and $name -notin 'Command', 'Arg', 'MoreArgs') {
+                    if ($paramInfo[$name].ParameterType -eq [switch]) { $h[$name] = $true }
+                    else { $i++; $h[$name] = $argv[$i] }
+                } else { $pos += $argv[$i] }
+            }
+            if ($pos.Count -lt 1) { throw 'batch: no command' }
+            $h['Command'] = $pos[0]
+            if ($pos.Count -gt 1) { $h['Arg'] = $pos[1] }
+            if ($pos.Count -gt 2) { $h['MoreArgs'] = [string[]]$pos[2..($pos.Count - 1)] }
+            $global:LASTEXITCODE = 0
+            & $self @h *>&1 | ForEach-Object {
+                if ($_ -is [Management.Automation.ErrorRecord]) { $_.Exception.Message }
+                elseif ($_ -is [Management.Automation.WarningRecord]) { "WARNING: $($_.Message)" }
+                else { "$_" }
+            }
+            $rc = [int]$global:LASTEXITCODE
+        } catch {
+            Write-Output "civctl batch: $($_.Exception.Message)"
+            $rc = 1
+        } finally {
+            $env:CIVCTL_OWNER = $savedOwner   # `regress` sets it for its children; one command must not change the next
+        }
+        Write-Output "@@CIVCTL-DONE $rc"
+        try { [Console]::Out.Flush() } catch { }
+    }
+    exit 0
+}
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)   # speech lines can hold non-ASCII; the regress runner decodes UTF-8
@@ -418,7 +471,47 @@ $JawsReservedKeys = @('Add', 'Subtract', 'Multiply', 'Decimal', 'Insert', 'Clear
 # Human names for keys that System.Windows.Forms.Keys does not know. Keep in sync with KEY_ALIASES in util/keybindings.py (test/py checks).
 $KeyAliases = @{ 'backslash' = 'OemPipe'; '\' = 'OemPipe'; 'bslash' = 'OemPipe' }
 
-function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle = $Settle) {
+# Current size of Lua.log in bytes (0 without a log). Opened with a handle: the directory entry of a file that is being written lags.
+function Get-LogLength {
+    if (-not (Test-Path $LuaLog)) { return [long]0 }
+    try {
+        $fs = [IO.File]::Open($LuaLog, 'Open', 'Read', 'ReadWrite')
+        try { return [long]$fs.Length } finally { $fs.Dispose() }
+    } catch { return [long]0 }
+}
+
+# Quiet window instead of a fixed sleep: polls the Lua.log tail every ~50 ms from byte offset $startPos; returns the ms waited.
+# Ends once a #SCREENREADER line has arrived and $quietMs passed without another one, or at $maxMs. No SR line at all = the full $maxMs.
+function Wait-Quiet([long]$startPos, [int]$maxMs, [int]$quietMs) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    $pos = $startPos
+    $lastSr = $null
+    while ($sw.ElapsedMilliseconds -lt $maxMs) {
+        Start-Sleep -Milliseconds 50
+        if (-not (Test-Path $LuaLog)) { continue }
+        try {
+            $fs = [IO.File]::Open($LuaLog, 'Open', 'Read', 'ReadWrite')
+            try {
+                $len = $fs.Length
+                if ($len -lt $pos) { $pos = 0 }   # the game recreated the log
+                if ($len -gt $pos) {
+                    $fs.Seek($pos, 'Begin') | Out-Null
+                    $buf = New-Object byte[] ($len - $pos)
+                    $n = $fs.Read($buf, 0, $buf.Length)
+                    $last = if ($n -gt 0) { [Array]::LastIndexOf($buf, [byte]10, $n - 1) } else { -1 }
+                    if ($last -ge 0) {   # whole lines only: a half-written line is looked at when it is complete
+                        $pos += $last + 1
+                        if ([Text.Encoding]::UTF8.GetString($buf, 0, $last + 1).Contains($ScreenReaderMarker)) { $lastSr = $sw.ElapsedMilliseconds }
+                    }
+                }
+            } finally { $fs.Dispose() }
+        } catch { }
+        if ($null -ne $lastSr -and ($sw.ElapsedMilliseconds - $lastSr) -ge $quietMs) { break }
+    }
+    return [int]$sw.ElapsedMilliseconds
+}
+
+function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle = $Settle, [int]$Quiet = $Quiet, [switch]$NoQuiet = $NoQuiet) {
     if (-not $KeyArg) { throw 'Usage: civctl.ps1 key <KeyName> [-Count n]' }
     $parts = @($KeyArg -split '\+')
     if ($KeyAliases.ContainsKey($parts[-1].ToLowerInvariant())) { $parts[-1] = $KeyAliases[$parts[-1].ToLowerInvariant()] }
@@ -442,12 +535,20 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
     # Output that arrived after the previous command returned; shown rather than dropped so nothing is missed.
     $pending = Format-Lines (Read-NewLogLines)
     if ($pending) { $pending | ForEach-Object { "(earlier) $_" } }
-    for ($i = 0; $i -lt $Count; $i++) {
-        [CivCtl.Native]::Chord($mods, $vk, $Hold)
-        Start-Sleep -Milliseconds $Settle
-        if ($Fast -and $i -lt $Count - 1) { continue }
-        Format-Lines (Read-NewLogLines)
-        Assert-GameHealthy -Grace 8 -Block
+    $waited = 0
+    try {
+        for ($i = 0; $i -lt $Count; $i++) {
+            $logPos = Get-LogLength
+            [CivCtl.Native]::Chord($mods, $vk, $Hold)
+            if ($NoQuiet -or $Fast) { Start-Sleep -Milliseconds $Settle; $waited += $Settle }
+            else { $waited += Wait-Quiet $logPos $Settle $Quiet }
+            if ($Fast -and $i -lt $Count - 1) { continue }
+            Format-Lines (Read-NewLogLines)
+            Assert-GameHealthy -Grace 8 -Block
+        }
+    } finally {
+        # The regress runner (and `batch`) sums these to show the real waits; a normal shell does not set the variable.
+        if ($env:CIVCTL_REPORT_WAITED -eq '1') { Write-Output "@@waited $waited" }
     }
 }
 
@@ -638,7 +739,7 @@ function Invoke-Python([string[]]$pyArgs) {
     try {
         & $py[0] @($py | Select-Object -Skip 1) -I @pyArgs | Out-Host
         return $LASTEXITCODE
-    } finally { [Console]::OutputEncoding = $old }
+    } finally { try { [Console]::OutputEncoding = $old } catch { } }   # throws when the pipe is closed
 }
 
 function Invoke-Tuner {
@@ -696,7 +797,7 @@ function Invoke-PythonCapture([string[]]$pyArgs) {
         $out = & $py[0] @($py | Select-Object -Skip 1) -I @pyArgs
         $script:PyExit = $LASTEXITCODE
         return @($out)
-    } finally { [Console]::OutputEncoding = $old }
+    } finally { try { [Console]::OutputEncoding = $old } catch { } }   # throws when the pipe is closed
 }
 
 # Runs Lua in a tuner state; returns the printed lines ($script:PyExit holds the exit code).
@@ -777,7 +878,7 @@ function Invoke-LoadOnce([string]$name) {
     }
     if ($script:PyExit -ne 0 -or ($res -join '') -notmatch 'true') { throw "Network.LoadGame failed: $($res -join ' ')" }
     if (-not (Wait-ForScreenReader 'Continue Game' 90)) { throw "'Continue Game' did not show after loading '$name'" }
-    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000 -NoQuiet)
     $o | ForEach-Object { Write-Output $_ }
     if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 60) -and -not ((Get-GameWhere) -match '^INGAME')) { throw "No turn announcement after loading '$name'" }
 }
@@ -805,7 +906,7 @@ function Invoke-Load([string]$name) {
     # A turn-1 save shows the Gathering Storm intro again after loading: close it.
     Start-Sleep -Seconds 2
     $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
-    if ($m -match 'ExpansionIntro') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | ForEach-Object { Write-Output $_ } }
+    if ($m -match 'ExpansionIntro') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 -NoQuiet | ForEach-Object { Write-Output $_ } }
     [IO.File]::WriteAllText((Join-Path $StateDir 'loaded.txt'), $name)   # fixture-info checks that the fixture is the loaded game
     if (-not $KeepAdvisors) {
         # The nested civctl processes share cursor.txt and the lease with this one; their lines are printed above in order.
@@ -828,10 +929,10 @@ function Invoke-NewGame([string]$profileName) {
     Assert-GameHealthy -Grace 8 -Block
     Ensure-MainMenu
     # 1. Single Player -> Create Game (creates the AdvancedSetup state)
-    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 1200)
-    for ($i = 0; $i -lt 8 -and -not ($o -match 'Create Game'); $i++) { $o = @(Invoke-Key -KeyArg 'Down' -Count 1 -Settle 600) }
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 1200 -NoQuiet)
+    for ($i = 0; $i -lt 8 -and -not ($o -match 'Create Game'); $i++) { $o = @(Invoke-Key -KeyArg 'Down' -Count 1 -Settle 600 -NoQuiet) }
     if (-not ($o -match 'Create Game')) { throw "Could not reach 'Create Game' (last output: $($o -join ' | '))" }
-    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000 -NoQuiet)
     # 2. Apply the profile in the AdvancedSetup state
     $res = Invoke-LuaCapture 'AdvancedSetup' ([IO.File]::ReadAllText($pf))
     $res | ForEach-Object { Write-Output "profile> $_" }
@@ -842,11 +943,11 @@ function Invoke-NewGame([string]$profileName) {
     Invoke-LuaCapture 'AdvancedSetup' 'HostGame()' | Out-Null
     # 4. Load screen -> Begin Game -> first turn
     if (-not (Wait-ForScreenReader 'Begin Game' 240)) { throw 'Begin Game did not show within 240 s' }
-    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000 -NoQuiet)
     $o | ForEach-Object { Write-Output $_ }
     if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 25)) {
         Write-Output 'No turn announcement yet: skipping a possible intro movie with Escape.'
-        Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | Out-Null
+        Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 -NoQuiet | Out-Null
         if (-not (Wait-ForScreenReader 'Turn \d+,' 40)) { throw 'No turn announcement after Begin Game' }
     }
     Start-Sleep -Seconds 2
@@ -855,7 +956,7 @@ function Invoke-NewGame([string]$profileName) {
         $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
         $m | ForEach-Object { Write-Output "menu> $_" }
         if ($script:PyExit -ne 4) { break }
-        Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 | ForEach-Object { Write-Output $_ }
+        Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 -NoQuiet | ForEach-Object { Write-Output $_ }
     }
     # 5. Fixture
     $script:Profile = $profileName
@@ -1041,3 +1142,4 @@ switch ($Command) {
     throw
 }
 Exit-Lock
+if ($env:CIVCTL_BATCH_CHILD) { exit 0 }   # run by `batch`: a fall-off ends with 0, not a stale $LASTEXITCODE
