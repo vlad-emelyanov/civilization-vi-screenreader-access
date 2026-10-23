@@ -5,6 +5,7 @@
 --	Controls raising full-screen and "choosers" found in upper-left of HUD.
 -- ===========================================================================
 include( "GameCapabilities" );
+include( "ScreenReader" );		-- ScreenReaderAccess
 
 
 -- ===========================================================================
@@ -697,10 +698,25 @@ function OnLocalPlayerChanged()
 	RefreshReligion();
 end
 
+-- Begin ScreenReaderAccess mod change: a hotkey for a screen that is not available yet used to do nothing at all; say why.
+local function SRA_SayUnavailable( actionId )
+	if actionId == Input.GetActionId("ToggleGovernment") and not m_isGovernmentAvailable and HasCapability("CAPABILITY_GOVERNMENTS_VIEW") then
+		OutputMessageToScreenReader( "Government is not available yet: no policies unlocked, needs the Code of Laws civic" );
+	elseif actionId == Input.GetActionId("ToggleReligion") and not m_isReligionAvailable and HasCapability("CAPABILITY_RELIGION_VIEW") then
+		OutputMessageToScreenReader( "Religion is not available yet: you have no faith yet" );
+	elseif actionId == Input.GetActionId("ToggleGreatPeople") and not m_isGreatPeopleAvailable and HasCapability("CAPABILITY_GREAT_PEOPLE_VIEW") and UI.QueryGlobalParameterInt("DISABLE_GREAT_PEOPLE_HOTKEY") ~= 1 then
+		OutputMessageToScreenReader( "Great People are not available yet" );
+	elseif actionId == Input.GetActionId("ToggleGreatWorks") and not m_isGreatWorksAvailable and HasCapability("CAPABILITY_GREAT_WORKS_VIEW") and UI.QueryGlobalParameterInt("DISABLE_GREAT_WORKS_HOTKEY") ~= 1 then
+		OutputMessageToScreenReader( "Great Works are not available yet: no great work created yet" );
+	end
+end
+-- End ScreenReaderAccess mod change
+
 -- ===========================================================================
 --	Input Hotkey Event (Extended in XP1 to hook extra panels)
 -- ===========================================================================
 function OnInputActionTriggered( actionId )
+	SRA_SayUnavailable( actionId );		-- ScreenReaderAccess
 	if ( m_isTechTreeAvailable ) then
 		if ( actionId == Input.GetActionId("ToggleTechTree") ) then
 			OnOpenResearch();

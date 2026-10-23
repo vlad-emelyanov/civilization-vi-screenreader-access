@@ -4,6 +4,7 @@
 -- ===========================================================================
 include("GameCapabilities");
 include("InstanceManager");
+include("ScreenReader");		-- ScreenReaderAccess
 
 
 -- ===========================================================================
@@ -390,11 +391,33 @@ function OnInterfaceModeChanged( eOldMode:number, eNewMode:number )
 end
 
 
+-- Begin ScreenReaderAccess mod change: a hotkey for a screen that is not available yet used to do nothing at all; say why.
+local function SRA_CivicName( unitType:string )
+	local unit:table = GameInfo.Units[unitType];
+	local civic:table = ( unit ~= nil and unit.PrereqCivic ~= nil ) and GameInfo.Civics[unit.PrereqCivic] or nil;
+	if civic ~= nil then return Locale.Lookup( civic.Name ); end
+	return nil;
+end
+
+local function SRA_SayUnavailable( actionId:number )
+	if actionId == m_ToggleCSId and not m_isCityStatesUnlocked and HasCapability("CAPABILITY_CITY_STATES_VIEW") then
+		OutputMessageToScreenReader( "City-States are not available yet: meet a city-state first" );
+	elseif actionId == m_ToggleEspId and not m_isEspionageUnlocked and HasCapability("CAPABILITY_ESPIONAGE_VIEW") then
+		local civic:string = SRA_CivicName( "UNIT_SPY" );
+		OutputMessageToScreenReader( "Espionage is not available yet" .. ( civic ~= nil and ( ": needs the " .. civic .. " civic" ) or "" ) );
+	elseif actionId == m_ToggleTradeId and not m_isTradeRoutesUnlocked and HasCapability("CAPABILITY_TRADE_VIEW") then
+		local civic:string = SRA_CivicName( "UNIT_TRADER" );
+		OutputMessageToScreenReader( "Trade routes are not available yet" .. ( civic ~= nil and ( ": needs the " .. civic .. " civic" ) or "" ) );
+	end
+end
+-- End ScreenReaderAccess mod change
+
 -- ===========================================================================
 --	Input Hotkey Event
 --	actionId,	A number from the engine which represents a hotkey pressed.
 -- ===========================================================================
 function OnInputActionTriggered( actionId:number )
+	SRA_SayUnavailable( actionId );		-- ScreenReaderAccess
 
 	if actionId == m_ToggleRankingsId and HasCapability("CAPABILITY_DISPLAY_HUD_WORLD_RANKINGS") then
         OnToggleWorldRankings();

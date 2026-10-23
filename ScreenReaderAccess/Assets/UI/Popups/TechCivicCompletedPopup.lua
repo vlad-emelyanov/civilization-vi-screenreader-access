@@ -45,7 +45,7 @@ local function SRAnnounce( unlockables:table, headerKey:string )
 		table.insert( parts, text );
 	end
 	local keys:string = "Enter to continue";
-	if m_srGovernmentAction ~= nil then keys = keys .. ", G for " .. Controls.ChangeGovernmentButton:GetText(); end
+	if m_srGovernmentAction ~= nil then keys = keys .. ", G or F7 for " .. Controls.ChangeGovernmentButton:GetText(); end
 	table.insert( parts, keys );
 	OutputMessageToScreenReader( table.concat( parts, ". " ) );
 end
@@ -399,7 +399,7 @@ function OnInputHandler( input )
 			return true;
 		end
 		-- ScreenReaderAccess mod change: G opens the government screen (change policies / new government)
-		if key == Keys.G and m_srGovernmentAction ~= nil then
+		if ( key == Keys.G or ( Keys.VK_F7 ~= nil and key == Keys.VK_F7 ) ) and m_srGovernmentAction ~= nil then		-- G is Toggle Grid on the map, but this popup consumes all input, so it never reaches the map; F7 is the game's own Government key
 			m_srGovernmentAction();
 			return true;
 		end
