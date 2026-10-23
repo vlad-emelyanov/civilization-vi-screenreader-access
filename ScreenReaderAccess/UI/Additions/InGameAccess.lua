@@ -201,6 +201,7 @@ function Initialize()
 	-- repeating the turn announcement.
 	if ContextPtr:IsHotLoad() and HubCore.IsLocalPlayerActive() then
 		HubCore.m_ready = true;
+		HubAnnounce.StartReadyWatchDisarmed();
 		HubCore.m_cursorPlayer = Game.GetLocalPlayer();
 		HubCore.m_lastAnnouncedTurn = Game.GetLocalPlayer() .. ":" .. Game.GetCurrentGameTurn();
 		for _, unit in Players[ Game.GetLocalPlayer() ]:GetUnits():Members() do HubCore.RememberUnit( unit ); end

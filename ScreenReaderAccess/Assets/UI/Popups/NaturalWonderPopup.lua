@@ -107,7 +107,7 @@ function ShowPopup( kData:table )
 	Controls.QuoteContainer:DoAutoSize();
 
 	-- ScreenReaderAccess mod change
-	LuaEvents.SRA_SpeechHold( "NaturalWonder", true );		-- the hub's own announcements wait until this popup closes
+	LuaEvents.SRA_SpeechHold( "NaturalWonder", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );		-- the hub's own announcements wait until this popup closes
 	OutputMessageToScreenReader("Natural wonder discovered: " .. Locale.Lookup(GameInfo.Features[kData.Feature].Name) .. ((kData.Description ~= nil) and (". " .. kData.Description) or "") .. ". Enter to continue");
 end
 

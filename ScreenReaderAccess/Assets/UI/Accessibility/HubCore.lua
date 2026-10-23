@@ -22,7 +22,7 @@ HubCore.m_arrivalTimer = -1;		-- >= 0: seconds until the arrivals are announced 
 HubCore.m_lastSelectionSpeech = -100;		-- UI.GetElapsedTime() of the last unit/city selection announcement
 HubCore.m_placeConfirm = nil;		-- plot index the placement browser asked "Enter to confirm" for
 HubCore.m_placeReplaced = false;	-- the placement mode is closing because another placement mode replaced it
-HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1 };		-- speech hold, see HubCore.Announce
+HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1, watch = 0 };		-- speech hold, see HubCore.Announce
 -- PlacementPlotText: defined with the placement browser: what the cursor plot means there
 
 -- ===========================================================================
@@ -248,7 +248,9 @@ end
 --	player's own keys (SayResult) are never held. An event announcement spoken just before a hold began was cut off by
 --	the popup's speech and is queued again.
 -- ===========================================================================
-local HOLD_SECONDS:number = 60;			-- a hold that was never released expires
+local HOLD_SECONDS:number = 180;			-- fallback: a hold that was never released expires (holds with a context path are also released when it is hidden)
+local HOLD_WATCH_INTERVAL:number = 0.5;
+local HOLD_SHOW_GRACE:number = 3;		-- a popup queued with DelayShow is hidden for a moment
 local HOLD_QUEUE_MAX:number = 6;
 local HOLD_RELEASE_DELAY:number = 0.4;
 local HOLD_RECENT_WINDOW:number = 1.5;		-- announcements this recent are cut by a popup that begins now
@@ -256,8 +258,8 @@ local HOLD_RECENT_WINDOW:number = 1.5;		-- announcements this recent are cut by 
 function HubCore.IsSpeechHeld()
 	local now:number = UI.GetElapsedTime();
 	local holds:table = HubCore.m_speech.holds;
-	for name, expires in pairs( holds ) do
-		if now >= expires then holds[ name ] = nil; end
+	for name, hold in pairs( holds ) do
+		if now >= hold.expires then holds[ name ] = nil; end
 	end
 	return next( holds ) ~= nil;
 end
@@ -291,13 +293,15 @@ function HubCore.Announce( text:string, nointerrupt:boolean, kind:string )
 	while #speech.recent > 4 do table.remove( speech.recent, 1 ); end
 end
 
-function HubCore.SetSpeechHold( name:string, on:boolean )
+-- contextPath (optional): "/InGame/WorldPopups/<ID>" of the popup; the hold is released when that context is hidden or gone.
+-- silent (optional): the popup shows again without speaking: take the hold but do not queue the recent lines again.
+function HubCore.SetSpeechHold( name:string, on:boolean, contextPath:string, silent:boolean )
 	local speech:table = HubCore.m_speech;
 	if not on then
 		speech.holds[ name ] = nil;
 		return;
 	end
-	if not HubCore.IsSpeechHeld() then
+	if not silent and not HubCore.IsSpeechHeld() then
 		-- the popup's own speech cut off what was said a moment ago: say it again after the popup
 		local now:number = UI.GetElapsedTime();
 		local old:table = speech.queue;
@@ -307,19 +311,46 @@ function HubCore.SetSpeechHold( name:string, on:boolean )
 		end
 		for _, entry in ipairs( old ) do QueueSpeech( speech.queue, entry.text, entry.kind ); end
 	end
-	speech.recent = {};
-	speech.holds[ name ] = UI.GetElapsedTime() + HOLD_SECONDS;
+	if not silent then speech.recent = {}; end
+	local now:number = UI.GetElapsedTime();
+	speech.holds[ name ] = { expires = now + HOLD_SECONDS, path = contextPath, since = now };
 	speech.releaseTimer = -1;
 end
 
--- Forgets holds and everything queued (turn end, load).
+-- Forgets holds and everything queued (load; a hot reload of the hub starts empty as well).
 function HubCore.ClearSpeechHold()
-	HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1 };
+	HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1, watch = 0 };
+end
+
+-- Turn end: the holds go, queued selection/settle/ready lines are stale, the rest (fights the status panel already
+-- dropped its copy of) is spoken now.
+function HubCore.ReleaseSpeechAtTurnEnd()
+	local queue:table = HubCore.m_speech.queue;
+	HubCore.ClearSpeechHold();
+	for _, entry in ipairs( queue ) do
+		if entry.kind ~= "selection" and entry.kind ~= "settle" and entry.kind ~= "ready" then OutputMessageToScreenReader( entry.text, true ); end
+	end
+end
+
+-- Releases the holds whose popup context is hidden or gone (a popup closed some other way than the one that releases).
+local function ReleaseHiddenHolds()
+	local now:number = UI.GetElapsedTime();
+	for name, hold in pairs( HubCore.m_speech.holds ) do
+		if hold.path ~= nil and now - hold.since > HOLD_SHOW_GRACE then
+			local context = ContextPtr:LookUpControl( hold.path );
+			if context == nil or context:IsHidden() then HubCore.m_speech.holds[ name ] = nil; end
+		end
+	end
 end
 
 -- From the update loop: speaks the queue once no hold is left (after a short pause), then the other periodic watches.
 function HubCore.UpdateSpeech( deltaTime:number )
 	local speech:table = HubCore.m_speech;
+	speech.watch = ( speech.watch or 0 ) - deltaTime;
+	if speech.watch <= 0 then
+		speech.watch = HOLD_WATCH_INTERVAL;
+		ReleaseHiddenHolds();
+	end
 	if HubCore.IsSpeechHeld() or #speech.queue == 0 then
 		speech.releaseTimer = -1;
 	else

@@ -25,13 +25,17 @@ local m_srGovernmentAction = nil;		-- ScreenReaderAccess mod change: what the "C
 local m_srSpokenKey:string = nil;		-- tech or civic and turn of the last announcement: the popup is shown again after an advisor popup closes
 
 local function SRAnnounce( unlockables:table, headerKey:string )
-	LuaEvents.SRA_SpeechHold( "TechCivicCompleted", true );		-- the hub's own announcements wait until this popup closes
+	local contextPath:string = "/InGame/WorldPopups/" .. ContextPtr:GetID();
 	if m_kCurrentData ~= nil then
 		local key:string = ( m_kCurrentData.tech ~= nil and ( "tech" .. tostring( m_kCurrentData.tech ) ) or ( "civic" .. tostring( m_kCurrentData.civic ) ) )
 			.. ":" .. tostring( Game.GetCurrentGameTurn() );
-		if key == m_srSpokenKey then return; end
+		if key == m_srSpokenKey then
+			LuaEvents.SRA_SpeechHold( "TechCivicCompleted", true, contextPath, true );		-- shown again without speaking
+			return;
+		end
 		m_srSpokenKey = key;
 	end
+	LuaEvents.SRA_SpeechHold( "TechCivicCompleted", true, contextPath );		-- the hub's own announcements wait until this popup closes
 	local names:table = {};
 	for _, v in ipairs( unlockables or {} ) do
 		local name:string = v[2] ~= nil and Locale.Lookup( v[2] ) or tostring( v[1] );

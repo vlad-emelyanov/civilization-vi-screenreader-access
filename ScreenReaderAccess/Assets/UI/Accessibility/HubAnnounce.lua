@@ -261,7 +261,7 @@ function HubAnnounce.OnLoadScreenClose()
 end
 
 function HubAnnounce.OnLocalPlayerTurnEnd()
-	HubCore.ClearSpeechHold();
+	HubCore.ReleaseSpeechAtTurnEnd();
 	HubAnnounce.ResetReadyWatch();
 	HubCore.CloseMode( false, true );
 	HubCore.m_enterWatch = -1;
@@ -306,6 +306,11 @@ local function IsNextTurnLabel()
 	local text:string = label:GetText();
 	if text == nil or text == "" then return false; end
 	return string.lower( CleanTextForSpeech( text ) ) == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEXT_TURN" ) ) );
+end
+
+-- After a hot reload of the hub: a turn that is already ready was announced before, do not repeat it.
+function HubAnnounce.StartReadyWatchDisarmed()
+	if HubAnnounce.IsReadyNow() then m_ready.armed = false; end
 end
 
 -- Is the turn ready right now (also used when a queued "All done" is released)?

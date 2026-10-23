@@ -27,7 +27,7 @@ function ShowBoost(queueEntry:table)
 	m_isOnQueue = true;
 
 	-- ScreenReaderAccess mod change: speak the boost (Enter or Escape continues); the hub holds its own announcements meanwhile
-	LuaEvents.SRA_SpeechHold( "BoostUnlocked", true );
+	LuaEvents.SRA_SpeechHold( "BoostUnlocked", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );		-- (the popup may still be hidden for a moment: DelayShow; OnShow takes the hold again)
 	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". Enter to continue");
 
 	PlayAnimations();
@@ -338,6 +338,12 @@ function OnInputHandler( input )
 end
 
 -- ===========================================================================
+-- ScreenReaderAccess mod change: the popup is really shown now (it was only queued when the boost was spoken)
+function OnShow()
+	if m_isOnQueue then LuaEvents.SRA_SpeechHold( "BoostUnlocked", true, "/InGame/WorldPopups/" .. ContextPtr:GetID(), true ); end
+end
+
+-- ===========================================================================
 function OnLoadGameViewStateDone()
     m_isPastLoadingScreen = true;
 end
@@ -398,6 +404,7 @@ function Initialize()
 
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	ContextPtr:SetShowHandler( OnShow );		-- ScreenReaderAccess mod change
 
 	-- Control Events
 	Controls.ContinueButton:RegisterCallback( Mouse.eLClick, OnClose );

@@ -2,6 +2,8 @@
 stub("engine")
 include("ScreenReader")
 include("HubCore")
+include("HubAnnounce")
+HubAnnounce.UpdateReadyWatch = function() end
 
 local function reset() HubCore.ClearSpeechHold(); ClearPrinted(); Clock.now = 100 end
 local function tick(seconds) Clock.now = Clock.now + seconds; HubCore.UpdateSpeech(seconds) end
@@ -62,11 +64,11 @@ test("two holders: released only when both are gone", function()
 	eq(table.concat(Spoken(), "|"), "x")
 end)
 
-test("a hold expires after 60 s", function()
+test("a hold expires after 180 s", function()
 	reset()
 	HubCore.SetSpeechHold("a", true)
 	HubCore.Announce("x", true)
-	tick(59)
+	tick(179)
 	eq(#Spoken(), 0)
 	tick(2)	-- expired: release delay starts
 	tick(0.5)
@@ -118,7 +120,6 @@ test("keys are not held: SayResult after a key speaks at once", function()
 end)
 
 -- loyalty
-include("HubAnnounce")
 test("loyalty text", function()
 	eq(HubAnnounce.LoyaltyText(100, 100, 0), "full loyalty")
 	eq(HubAnnounce.LoyaltyText(100, 100, 2.4), "full loyalty")
@@ -163,4 +164,40 @@ test("a queued ready sentence is dropped when the turn is no longer ready", func
 	eq(table.concat(Spoken(), "|"), "All done. Enter ends the turn")
 	HubAnnounce.IsReadyNow = real
 	HubAnnounce.UpdateReadyWatch = realWatch
+end)
+
+test("turn end speaks queued fights, drops stale selection/settle/ready", function()
+	reset()
+	HubCore.SetSpeechHold("a", true)
+	HubCore.Announce("Warrior takes 10 damage", true)
+	HubCore.Announce("Settler", true, "selection")
+	HubCore.Announce("Settle at x", true, "settle")
+	HubCore.Announce("All done. Enter ends the turn", true, "ready")
+	HubCore.ReleaseSpeechAtTurnEnd()
+	eq(table.concat(Spoken(), "|"), "Warrior takes 10 damage")
+	HubCore.Announce("y", true)
+	eq(#Spoken(), 2, "holds are gone")
+end)
+
+test("a silent re-show takes the hold without queueing the recent lines again", function()
+	reset()
+	HubCore.Announce("Turn 5", true, "turn")
+	HubCore.SetSpeechHold("a", true, nil, true)
+	HubCore.SetSpeechHold("a", false)
+	tick(1)
+	eq(#Spoken(), 1)
+end)
+
+test("a hold whose popup context is hidden is released after the grace time", function()
+	reset()
+	local hidden = false
+	ContextPtr = { LookUpControl = function() return { IsHidden = function() return hidden end } end }
+	HubCore.SetSpeechHold("a", true, "/InGame/WorldPopups/X")
+	HubCore.Announce("x", true)
+	hidden = true
+	tick(1)
+	eq(#Spoken(), 0, "grace: popup may still be about to show")
+	tick(3)
+	tick(0.5)
+	eq(table.concat(Spoken(), "|"), "x")
 end)
