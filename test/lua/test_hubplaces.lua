@@ -206,7 +206,65 @@ test("send chooser: fastest first, unreachable units dropped, nothing reachable 
 	local items = HubPlaces.BuildSendItems({ name = "Tribal Village", x = 8, y = 3 })
 	eq(items[1].name, "Archer")
 	eq(#items, 2)
-	world.unreachable = { [3 * 30 + 8] = true }
+	-- the place and everything within 2 tiles of it unreachable: nobody can get there
+	world.unreachable = {}
+	for dy = -2, 2 do for dx = -2, 2 do world.unreachable[(3 + dy) * 30 + 8 + dx] = true end end
 	eq(#HubPlaces.BuildSendItems({ name = "Tribal Village", x = 8, y = 3 }), 0)
 	world.unreachable = nil
+end)
+
+test("send chooser: an unreachable place is approached from a neighbour (next to Rome)", function()
+	world.unreachable = { [5 * 30 + 5] = true }		-- Rome itself (occupied / foreign city)
+	local items = HubPlaces.BuildSendItems({ name = "Rome", x = 5, y = 5 })
+	assert(#items >= 2, #items)
+	for _, item in ipairs(items) do
+		assert(item.text:find(", next to Rome"), item.text)
+		assert(item.nearX ~= nil and Map.GetPlotDistance(item.nearX, item.nearY, 5, 5) == 1)
+	end
+	for _, item in ipairs(items) do assert(not item.text:find("^Archer"), "Archer already stands next to Rome") end
+	assert(items[1].text:find("^Scout, %d+ turns?, next to Rome"), items[1].text)
+	-- ring 1 blocked too: the fallback goes to 2 tiles ("near")
+	for dy = -1, 1 do for dx = -1, 1 do world.unreachable[(5 + dy) * 30 + 5 + dx] = true end end
+	items = HubPlaces.BuildSendItems({ name = "Rome", x = 5, y = 5 })
+	assert(#items >= 1 and items[1].text:find(", near Rome"), items[1] and items[1].text)
+	world.unreachable = nil
+end)
+
+test("send chooser: path finding calls are capped", function()
+	local calls = 0
+	local real = UnitManager.GetMoveToPathEx
+	UnitManager.GetMoveToPathEx = function() calls = calls + 1; return nil end
+	for i = 10, 60 do addUnit(i, "Extra", 10 + i % 10, 8) end
+	HubPlaces.BuildSendItems({ name = "Rome", x = 5, y = 5 })
+	UnitManager.GetMoveToPathEx = real
+	assert(calls <= 120, calls)
+	for i = #units, 1, -1 do if units[i].id >= 10 then table.remove(units, i) end end
+end)
+
+test("order hint: explore has no cancel; wake / cancel only when the game allows them", function()
+	local u = unitObject(units[1])
+	units[1].activity = 1
+	Clock.now = Clock.now + 5
+	HubCore.m_lastKeyTime = Clock.now
+	HubPlaces.OnOrderStarted(0, 1)		-- drop an explore flag left by an earlier test
+	eq(HubPlaces.OrderHint(u), nil)
+	HubPlaces.OnOperationAdded(0, 1, 0, 9)
+	eq(HubPlaces.OrderHint(u), "Any order stops exploring, Tab for actions")
+	Clock.now = Clock.now + 5
+	HubCore.m_lastKeyTime = Clock.now
+	HubPlaces.OnOrderStarted(0, 1)
+	UnitCommandTypes = { WAKE = 1, CANCEL = 2 }
+	local allowed = { [1] = true }
+	UnitManager.CanStartCommand = function(_, command) return allowed[command] == true end
+	units[1].activity = 2
+	eq(HubPlaces.OrderHint(u), "Shift+W wakes it")
+	allowed = {}
+	eq(HubPlaces.OrderHint(u), "Any order replaces it, Tab for actions")
+	units[1].activity = 1
+	units[1].dest = 5 * 30 + 5
+	eq(HubPlaces.OrderHint(u), "Any order replaces it, Tab for actions")
+	allowed = { [2] = true }
+	eq(HubPlaces.OrderHint(u), "Shift+C cancels the move")
+	units[1].dest = nil
+	UnitCommandTypes = nil
 end)

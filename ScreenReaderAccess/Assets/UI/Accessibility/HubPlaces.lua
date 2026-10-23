@@ -21,6 +21,7 @@ HubPlaces.m_hintTime = -100;
 
 local CANCEL_HINT_SECONDS	:number = 3;
 local MAX_SEND_PATHS		:number = 30;		-- units tried with path finding, nearest first
+local MAX_PATH_CALLS		:number = 120;		-- path finding calls for one chooser (the neighbour fallback multiplies them)
 local POINT_IMPROVEMENTS	:table = { IMPROVEMENT_GOODY_HUT = true, IMPROVEMENT_BARBARIAN_CAMP = true };
 
 local m_seen				:table = {};		-- plot index -> { kind = "point" | "foreign", name, owner, id }: what was last seen there
@@ -114,6 +115,25 @@ function HubPlaces.TakeCancelHint( unit:table )
 	local fresh:boolean = UI.GetElapsedTime() - HubPlaces.m_hintTime < CANCEL_HINT_SECONDS;
 	HubPlaces.m_hintUnit = -1;
 	return fresh;
+end
+
+-- What to tell a unit that was just picked from the places list about its orders (nil: nothing to say). Auto-explore has no
+-- cancel (Shift+C and the Tab menu refuse); the game's own CanStartCommand says whether Wake / Cancel apply.
+function HubPlaces.OrderHint( unit:table )
+	local activity:string = HubPlaces.UnitActivity( unit, false );
+	if activity == nil then return nil; end
+	if activity == "exploring" then return "Any order stops exploring, Tab for actions"; end
+	local function Can( name:string )
+		local command = ( UnitCommandTypes ~= nil ) and UnitCommandTypes[ name ] or nil;
+		if command == nil then return false; end
+		local ok:boolean, can = pcall( UnitManager.CanStartCommand, unit, command, true );
+		return ok and can == true;
+	end
+	if activity:find( "^moving to" ) and Can( "CANCEL" ) then return "Shift+C cancels the move"; end
+	if ( activity == "sleeping" or activity == "fortified" or activity == "on alert" or activity == "turn skipped" or activity == "healing" ) and Can( "WAKE" ) then
+		return "Shift+W wakes it";
+	end
+	return "Any order replaces it, Tab for actions";
 end
 
 -- ===========================================================================
@@ -370,6 +390,59 @@ local function SelectUnit( unit:table )
 	if UI.RebuildSelectionList ~= nil then UI.RebuildSelectionList( unit ); end
 end
 
+-- Turns of the unit's path to the plot, nil without a path (a budget table { left } caps the path finding calls).
+local function PathTurns( unit:table, plot:table, budget:table )
+	if budget.left <= 0 then return nil; end
+	budget.left = budget.left - 1;
+	local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
+	if path ~= nil and path.plots ~= nil and #path.plots >= 2 then return path.turns[ #path.turns ] or 1; end
+	return nil;
+end
+
+-- The plots 1 and 2 tiles from (x, y): { [1] = { plots }, [2] = { plots } }. Computed once per chooser.
+local function RingPlots( x:number, y:number )
+	local rings:table = { {}, {} };
+	for dy = -2, 2 do
+		for dx = -2, 2 do
+			local plot:table = Map.GetPlot( x + dx, y + dy );
+			if plot ~= nil then
+				local distance:number = Map.GetPlotDistance( x, y, plot:GetX(), plot:GetY() );
+				if distance == 1 or distance == 2 then table.insert( rings[ distance ], plot ); end
+			end
+		end
+	end
+	return rings;
+end
+
+-- The plot next to the place (then 2 tiles away) that the unit reaches in the fewest turns: plot, turns, ring (1 or 2).
+local function BestNear( unit:table, rings:table, budget:table )
+	for ring = 1, 2 do
+		local best:table, bestTurns:number = nil, nil;
+		for _, plot in ipairs( rings[ ring ] ) do
+			if not ( plot:GetX() == unit:GetX() and plot:GetY() == unit:GetY() ) then
+				local turns:number = PathTurns( unit, plot, budget );
+				if turns ~= nil and ( bestTurns == nil or turns < bestTurns ) then best, bestTurns = plot, turns; end
+			end
+		end
+		if best ~= nil then return best, bestTurns, ring; end
+	end
+	return nil;
+end
+
+-- In the Move To mode: the nearest reachable plot next to an item whose own plot the selected unit cannot reach (nil: the item
+-- itself is fine, or no neighbour works either).
+local function MoveTargetNear( item:table )
+	local mode = HubTargets.GetTargetMode();
+	local unit:table = UI.GetHeadSelectedUnit();
+	if mode == nil or mode ~= InterfaceModeTypes.MOVE_TO or unit == nil then return nil; end
+	local plot:table = Map.GetPlot( item.x, item.y );
+	if plot == nil or Map.GetPlotDistance( unit:GetX(), unit:GetY(), item.x, item.y ) == 0 then return nil; end
+	local budget:table = { left = MAX_PATH_CALLS };
+	if PathTurns( unit, plot, budget ) ~= nil or HubTargets.WarTargets( unit, plot ) ~= nil then return nil; end
+	if Map.GetPlotDistance( unit:GetX(), unit:GetY(), item.x, item.y ) <= 1 then return nil; end
+	return ( BestNear( unit, RingPlots( item.x, item.y ), budget ) );
+end
+
 -- Enter: the cursor goes to the item (in a target mode this is all it does: the target is moved, Enter confirms it as
 -- usual); a unit of yours is selected, which announces it with what it is doing.
 local function ActivateItem( item:table )
@@ -385,8 +458,17 @@ local function ActivateItem( item:table )
 		SelectUnit( unit );
 		return;
 	end
+	local x:number, y:number = item.x, item.y;
+	local interrupt:boolean = true;
+	if inTarget and item.kind ~= "unit" then
+		local near:table = MoveTargetNear( item );
+		if near ~= nil then
+			x, y, interrupt = near:GetX(), near:GetY(), false;
+			OutputMessageToScreenReader( "Next to " .. item.name );
+		end
+	end
 	HubCore.CloseMode( false, false );
-	HubCursor.SetCursor( item.x, item.y, true, true, false, true );
+	HubCursor.SetCursor( x, y, true, interrupt, false, true );
 end
 
 local function SendKey()
@@ -466,6 +548,8 @@ end
 --	SEND A UNIT HERE (M)
 -- ===========================================================================
 -- place: { name, x, y, back = "places" | "notifications", key }. Your units that can get there, fastest first.
+-- A place a unit cannot enter (a city that is occupied or foreign, water) is approached: the item says "next to Rome" and
+-- carries the landing plot (nearX, nearY).
 function HubPlaces.BuildSendItems( place:table )
 	local plot:table = Map.GetPlot( place.x, place.y );
 	local items:table = {};
@@ -481,14 +565,22 @@ function HubPlaces.BuildSendItems( place:table )
 		return a.unit:GetID() < b.unit:GetID();
 	end );
 	local names:table = {};
+	local budget:table = { left = MAX_PATH_CALLS };
+	local rings:table = nil;
 	for i = 1, math.min( MAX_SEND_PATHS, #candidates ) do
 		local unit:table = candidates[i].unit;
-		local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
-		if path ~= nil and path.plots ~= nil and #path.plots >= 2 then
-			local turns:number = path.turns[ #path.turns ] or 1;
+		local turns:number = PathTurns( unit, plot, budget );
+		local near:table, ring:number = nil, 0;
+		if turns == nil and candidates[i].distance > 1 and budget.left > 0 then
+			if rings == nil then rings = RingPlots( place.x, place.y ); end
+			near, turns, ring = BestNear( unit, rings, budget );
+		end
+		if turns ~= nil then
 			local name:string = Locale.Lookup( unit:GetName() );
 			names[ name ] = ( names[ name ] or 0 ) + 1;
-			table.insert( items, { key = "s:" .. unit:GetID(), unitId = unit:GetID(), name = name, turns = turns, distance = candidates[i].distance, unit = unit } );
+			local item:table = { key = "s:" .. unit:GetID(), unitId = unit:GetID(), name = name, turns = turns, distance = candidates[i].distance, unit = unit };
+			if near ~= nil then item.nearX, item.nearY, item.ring = near:GetX(), near:GetY(), ring; end
+			table.insert( items, item );
 		end
 	end
 	table.sort( items, function( a, b )
@@ -498,6 +590,7 @@ function HubPlaces.BuildSendItems( place:table )
 	end );
 	for _, item in ipairs( items ) do
 		item.text = item.name .. ", " .. HubCore.Plural( item.turns, "turn", "turns" );
+		if item.ring ~= nil then item.text = item.text .. ", " .. ( item.ring == 1 and "next to " or "near " ) .. place.name; end
 		local activity:string = HubPlaces.UnitActivity( item.unit, false );
 		if activity ~= nil then item.text = item.text .. ", " .. activity; end
 		if names[ item.name ] > 1 then
@@ -562,12 +655,17 @@ local function SendActivate( item:table )
 		if mover == nil then Refuse( "the unit is gone" ); return; end
 		if plot == nil then Refuse( "the place is not on the map" ); return; end
 		local name:string = Locale.Lookup( mover:GetName() );
+		local nearby:boolean = item.nearX ~= nil;
+		if nearby then
+			plot = Map.GetPlot( item.nearX, item.nearY );
+			if plot == nil then Refuse( "the place is not on the map" ); return; end
+		end
 		local war:table = HubTargets.WarTargets( mover, plot );
 		local enemy:boolean = HubTargets.EnemyVisibleAt( plot );
 		local path:table = UnitManager.GetMoveToPathEx( mover, plot:GetIndex() );
 		local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
 		if war == nil and not reachable then
-			HubCore.SayResult( name .. " cannot reach " .. place.name );
+			HubCore.SayResult( name .. " cannot reach " .. ( nearby and "the area of " or "" ) .. place.name );
 			return;
 		end
 		HubTargets.IssueMoveOrder( mover, plot, war, enemy );
@@ -575,7 +673,7 @@ local function SendActivate( item:table )
 		if war ~= nil then
 			HubCore.SayResult( name .. " to " .. place.name .. ": the game asks to declare war first" );
 		else
-			HubCore.SayResult( name .. ( enemy and " moving to attack " or " moving to " ) .. place.name .. turns );
+			HubCore.SayResult( name .. ( enemy and " moving to attack " or ( nearby and " moving next to " or " moving to " ) ) .. place.name .. turns );
 		end
 	end );
 end
