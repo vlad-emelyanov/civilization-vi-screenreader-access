@@ -1,6 +1,4 @@
-# UNVERIFIED (written without the game): city management in the city report. Read only: nothing is changed.
-# medieval-t100: CapitalCity selects the capital, Control+I opens the report; Down x9 reaches Focus (9th) and Tiles (10th)
-# when the report has the loyalty item; Enter on Tiles opens the tile list, Space reads the plot, Escape goes back.
+# Verified 2026-10-22: city management in the Control+I report (focus, tiles, specialists). Changes the city; fixture is never saved.
 # no-share-load
 load medieval-t100
 clear-advisors
@@ -8,16 +6,25 @@ action CapitalCity -Settle 1500
 expect ^\S.*, Population \d+
 key Control+I -Settle 2500
 expect ^.+ report, \d+ options
-key Down -Settle 500
-key Down -Settle 500
-key Down -Settle 500
-key Down -Settle 500
-key Down -Settle 500
-key Down -Settle 500
-key Down -Settle 500
-key Down -Settle 500
-key Down -Settle 500
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
 expect ^Focus: .*\. Enter to change, \d+ of \d+
+key Enter -Settle 1500
+expect ^Focus, \d+ options
+key Down -Settle 400
+key Down -Settle 400
+key Enter -Settle 2500
+expect ^Gold focus on\. Food
+key Enter -Settle 2500
+expect ^Gold focus off\.
+key Escape -Settle 1000
+expect ^Focus: 
 key Down -Settle 600
 expect ^Tiles: \d+ of \d+ citizens? on tiles\. Enter to manage, \d+ of \d+
 key Enter -Settle 1500
@@ -29,6 +36,15 @@ key Space -Settle 1200
 expect .{10,}
 key Escape -Settle 1000
 expect ^Tiles: \d+ of \d+ citizens? on tiles
+key Down -Settle 600
+expect ^Specialists: \d+ of \d+ slots? in \d+ districts?\. Enter to manage
+key Enter -Settle 1500
+expect ^Specialists, \d+ options?
+key Enter -Settle 2500
+expect ^\S.*, 1 of 1 specialist
+key Back -Settle 2500
+expect ^\S.*, 0 of 1 specialist
+key Escape -Settle 1000
 key Escape -Settle 1500
 expect ^Closed
 no-lua-errors
