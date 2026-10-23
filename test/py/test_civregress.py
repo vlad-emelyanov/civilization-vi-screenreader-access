@@ -199,6 +199,33 @@ class AdvisorAndSkipTests(unittest.TestCase):
             os.remove(path)
 
 
+class ShiftTabTests(unittest.TestCase):
+    def test_shift_tab_refused(self):
+        for bad in ("Shift+Tab", "shift+tab -Settle 5", "Control+Shift+Tab"):
+            with self.assertRaises(cr.ScriptError, msg=bad):
+                cr.parse_script("key " + bad)
+        cr.parse_script("key Control+Tab" + chr(10) + "key Shift+E" + chr(10) + "key Tab")
+
+    def test_load_passes_keep_advisors(self):
+        self.assertEqual(cr.civctl_args(cr.Step("load", "early-start", 1))[0], ["load", "early-start", "-KeepAdvisors"])
+
+
+class ClearAdvisorsTests(unittest.TestCase):
+    def test_standalone_function_presses_until_gone(self):
+        ups = iter([(0, ["true"]), (0, ["true"]), (0, ["false"])])
+        r = FakeRunner([(["lua", "AdvisorPopup"], lambda: next(ups)), (["key", "Enter"], (0, ["SR> Advisor text"]))])
+        status, lines = cr.clear_advisors(r, lambda s: None)
+        self.assertEqual(status, "ok")
+        self.assertEqual(len([c for c in r.calls if c[0] == "key"]), 2)
+        self.assertEqual(lines, ["SR> Advisor text"] * 2)
+
+    def test_crash_and_lock_statuses(self):
+        r = FakeRunner([(["lua", "AdvisorPopup"], (0, ["true"])), (["key", "Enter"], (5, ["GAME HUNG"]))])
+        self.assertEqual(cr.clear_advisors(r, lambda s: None)[0], "crashed")
+        r = FakeRunner([(["lua", "AdvisorPopup"], (6, ["game in use by x"]))])
+        self.assertEqual(cr.clear_advisors(r, lambda s: None)[0], "locked")
+
+
 class OrderTests(unittest.TestCase):
     def test_grouping_and_share_load(self):
         mk = lambda t: cr.parse_script(t)  # noqa: E731
@@ -209,7 +236,7 @@ class OrderTests(unittest.TestCase):
         r = FakeRunner()
         cr.run_all(ordered, r, share_load=True, out=out.append)
         loads = [c for c in r.calls if c[0] == "load"]
-        self.assertEqual(loads, [["load", "x"], ["load", "y"]])
+        self.assertEqual(loads, [["load", "x", "-KeepAdvisors"], ["load", "y", "-KeepAdvisors"]])
         r = FakeRunner()
         cr.run_all(ordered, r, share_load=False, out=out.append)
         self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 3)
@@ -219,6 +246,35 @@ class OrderTests(unittest.TestCase):
         r = FakeRunner([(["key", "A"], (5, ["GAME HUNG"]))])
         cr.run_all(scripts, r, share_load=True, out=lambda s: None)
         self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 2)
+
+    def test_scenario_and_marker_scripts_load_fresh_and_end_sharing(self):
+        mk = cr.parse_script
+        scripts = [("a", mk("load x\nkey A")), ("s", mk("load x\nscenario foo\nkey A")), ("m", mk("# no-share-load\nload x\nkey A")),
+                   ("b", mk("load x\nkey A")), ("c", mk("load x\nkey A"))]
+        self.assertTrue(scripts[1][1].fresh)
+        r = FakeRunner()
+        orig = cr.civctl_args
+        try:
+            cr.civctl_args = lambda st, o=orig: (["scenario", "foo"], None) if st.kind == "scenario" else o(st)
+            cr.run_all(scripts, r, share_load=True, out=lambda s: None)
+        finally:
+            cr.civctl_args = orig
+        # a loads; s fresh; m fresh; b fresh (m ended sharing); c shares b's game
+        self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 4)
+
+    def test_failed_shared_script_is_retried_with_own_load(self):
+        scripts = [("a", cr.parse_script("load x\nkey A")), ("b", cr.parse_script("load x\nkey B\nexpect ^ok$"))]
+        outputs = iter([(0, ["SR> drifted"]), (0, ["SR> ok"])])
+        r = FakeRunner([(["key", "B"], lambda: next(outputs))])
+        res = cr.run_all(scripts, r, share_load=True, out=lambda s: None)
+        self.assertTrue(res[1].ok and res[1].retried)
+        self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 2)
+
+    def test_timing_table(self):
+        res = cr.run_all([("a", cr.parse_script("key A"))], FakeRunner(), out=lambda s: None)
+        self.assertGreaterEqual(res[0].seconds, 0)
+        self.assertIn("PASS", cr.timing_table(res)[0])
+        self.assertEqual(cr.format_duration(125), "2 m 05 s")
 
     def test_locked_stops_run(self):
         scripts = [("a", cr.parse_script("key A")), ("b", cr.parse_script("key B"))]

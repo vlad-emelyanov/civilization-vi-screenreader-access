@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Speech regression runner: replays key scripts against a loaded fixture and checks the SR> lines.
 
-  python util/civregress.py [name ...|all] [--share-load] [--dry-run] [--list] [--record] [--update]
+  python util/civregress.py [name ...|all] [--share-load|--no-share-load] [--dry-run] [--list] [--record] [--update] [--clear-advisors]
 
 Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' comments are ignored):
 
@@ -35,9 +35,14 @@ A script whose checks were all skipped by a shared load is reported as SKIPPED-A
 A script that has a comment line `# no-share-load` always does its own load, and the next script does not share its game
 (use it when the script changes the game: scenario, Enter, F-keys that open screens).
 
-Loads: by default every script does its own `load`, because keys change the game state. --share-load skips the first
-`load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script loaded the same fixture and finished without an abort (faster, but state
-drifts: use it for read-only scripts). Scripts are run grouped by their first fixture so shared loads are adjacent.
+Loads: `all` shares one load per fixture by default (--no-share-load disables it); named scripts load fresh unless --share-load.
+Sharing skips the first `load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script
+loaded the same fixture and finished without an abort. Scripts that change the game always load fresh and the next script does not share
+their game: every script with a `scenario` step, and every script with a `# no-share-load` comment (use it for Enter, F-keys that open
+screens, anything that mutates). A script that fails on a shared game is run once more with its own load (RETRY in the output; the
+second result counts, TIMING marks it): drift must not fail a script that passes alone. Scripts run grouped by their first fixture.
+The run ends with a TIMING table (seconds per script) and TOTAL. `key Shift+Tab` is rejected when the script is parsed (Steam overlay).
+`--clear-advisors` only closes the advisor popups of the loaded game (what `civctl clear-advisors` runs).
 
 Record mode (for a script written blind, never run against the game): `--record` runs the script (never shares loads) and
 writes test/regress/<name>.recorded.txt: the script with, under every expect/expect-not line, comment lines with PASS/FAIL
@@ -70,6 +75,9 @@ START_FAILURE_RCS = (0xC0000142, 0xC0000142 - 0x100000000)  # as unsigned and si
 MAX_ADVISOR_PRESSES = 12
 LUA_LOG = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Firaxis Games", "Sid Meier's Civilization VI", "Logs", "Lua.log")
 
+OWNER_REFUSED = ("REFUSED: no owner. In Git Bash prefix EVERY call: CIVCTL_OWNER=<your agent name> util/civctl <command> ... "
+                 "(an export does not persist between tool calls). PowerShell: $env:CIVCTL_OWNER='<name>'; or pass -Owner <name>")
+
 ACTIONS = ("load", "scenario", "key", "action", "wait", "lua", "clear-advisors", "no-lua-errors")
 NO_ARG = ("clear-advisors", "no-lua-errors")
 CHECKS = ("expect", "expect-not")
@@ -93,11 +101,21 @@ class Steps(list):
     text = ""      # the script source (record mode rewrites it)
 
 
+def key_problem(arg):
+    """Why a `key` argument must not be sent, or None. Shift+Tab opens the Steam overlay: the overlay swallows the key-up and the
+    game then thinks Shift is held (Down does nothing, Tab goes backwards) until both Shift keys are released."""
+    parts = [p.lower() for p in arg.split()[0].split("+")] if arg.split() else []
+    if len(parts) > 1 and "shift" in parts[:-1] and parts[-1] == "tab":
+        return "Shift+Tab opens the Steam overlay; our screens use Control+Tab (previous section/tab)"
+    return None
+
+
 def parse_script(text, name="script"):
     """Text -> [Step]. Raises ScriptError with file:line for unknown steps, missing arguments and bad regexes."""
     steps = Steps()
     steps.fresh = bool(re.search(r"^#\s*no-share-load", text, re.M))
     steps.text = text
+    scenario = False
     for no, raw in enumerate(text.splitlines(), 1):
         line = raw.strip().lstrip("﻿")
         if not line or line.startswith("#"):
@@ -113,11 +131,16 @@ def parse_script(text, name="script"):
                 re.compile(arg)
             except re.error as e:
                 raise ScriptError("%s:%d: bad regex %r: %s" % (name, no, arg, e))
+        if kind == "key" and key_problem(arg):
+            raise ScriptError("%s:%d: %s" % (name, no, key_problem(arg)))
         if kind == "lua" and len(arg.split(None, 1)) < 2:
             raise ScriptError("%s:%d: 'lua' needs <state> <expression>" % (name, no))
         if kind in ("load", "scenario") and len(arg.split()) != 1:
             raise ScriptError("%s:%d: '%s' takes one name" % (name, no, kind))
         steps.append(Step(kind, arg, no))
+        scenario = scenario or kind == "scenario"
+    if scenario:
+        steps.fresh = True   # a scenario changes the game: such a script always loads fresh, and the next one does not share its game
     return steps
 
 
@@ -162,7 +185,7 @@ def civctl_args(step):
     """Step -> (argument list for civctl, temp file to delete or None)."""
     k = step.kind
     if k == "load":
-        return ["load", step.arg], None
+        return ["load", step.arg, "-KeepAdvisors"], None   # scripts say `clear-advisors` themselves, where they want it
     if k in ("key", "action", "wait"):
         return [k] + join_positional(step.arg), None
     if k == "scenario":
@@ -253,6 +276,33 @@ def advisor_popup_up(runner):
     return rc, rc == 0 and any(l.strip() == "true" for l in lines), lines
 
 
+def clear_advisors(runner, out=print, line=0):
+    """Presses Enter while the AdvisorPopup context is visible (max MAX_ADVISOR_PRESSES). Returns (status, civctl output lines of
+    the presses); status: ok | crashed (civctl exit 5 / timeout) | locked (exit 6/7; the last line is civctl's message)."""
+    collected, presses = [], 0
+    while True:
+        rc, up, lines = advisor_popup_up(runner)
+        if rc in (6, 7):
+            return "locked", collected + [chr(10).join(lines)]
+        if rc != 0:
+            out("  WARNING line %d: advisor probe failed (exit %d), no Enter pressed: %s" % (line, rc, " ".join(l.strip() for l in lines[-2:])))
+            return ("crashed" if rc in (5, TIMEOUT_RC) else "ok"), collected
+        if not up:
+            return "ok", collected
+        if presses >= MAX_ADVISOR_PRESSES:
+            out("  WARNING line %d: advisor popup still up after %d Enter presses" % (line, presses))
+            return "ok", collected
+        rc, lines = runner.run(["key", "Enter", "-Settle", "1500"])
+        presses += 1
+        collected += lines
+        if rc in (6, 7):
+            return "locked", collected + [chr(10).join(lines)]
+        if rc in (5, TIMEOUT_RC):
+            return "crashed", collected
+        if rc != 0:
+            return "ok", collected
+
+
 class ScriptResult:
     def __init__(self, name):
         self.name = name
@@ -262,6 +312,8 @@ class ScriptResult:
         self.skipped_all = False
         self.aborted = None  # reason string
         self.loaded = None   # fixture the game is in at the end (None after an abort)
+        self.seconds = 0.0   # wall time of the script
+        self.retried = False  # failed with a shared load, then passed/failed again with a fresh one
         self.records = []    # record mode: {"line", "kind", "pattern", "ok", "window": [text]} per check that ran
 
     @property
@@ -326,27 +378,11 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             continue
         if s.kind == "clear-advisors":
             out("  > clear-advisors")
-            rc, presses = 0, 0
-            while True:
-                rc, up, lines = advisor_popup_up(runner)
-                if rc in (6, 7):
-                    raise LockedError(chr(10).join(lines))
-                if rc != 0:
-                    out("  WARNING line %d: advisor probe failed (exit %d), no Enter pressed: %s" % (s.line, rc, " ".join(l.strip() for l in lines[-2:])))
-                    break
-                if not up:
-                    break
-                if presses >= MAX_ADVISOR_PRESSES:
-                    out("  WARNING line %d: advisor popup still up after %d Enter presses" % (s.line, presses))
-                    break
-                rc, lines = runner.run(["key", "Enter", "-Settle", "1500"])
-                presses += 1
-                if rc in (6, 7):
-                    raise LockedError(chr(10).join(lines))
-                window.extend(parse_sr_lines(lines))
-                if rc != 0:
-                    break
-            if rc == 5 or rc == TIMEOUT_RC:
+            status, lines = clear_advisors(runner, out, s.line)
+            window.extend(parse_sr_lines(lines))
+            if status == "locked":
+                raise LockedError(lines[-1] if lines else "locked")
+            if status == "crashed":
                 res.failed += 1
                 res.aborted = "game crashed/hung or civctl timed out in clear-advisors (line %d)" % s.line
                 out("  FAIL line %d: %s" % (s.line, res.aborted))
@@ -498,23 +534,49 @@ def order_scripts(scripts):
 
 
 def run_all(scripts, runner, share_load=False, out=print):
-    """Returns a list of ScriptResult. scripts: [(name, steps)] (already ordered)."""
+    """Returns a list of ScriptResult. scripts: [(name, steps)] (already ordered).
+    A script that shared the previous script's game and failed is run once more with its own load (a drifted game must not
+    fail a script that passes alone); the result of that second run counts and has retried=True."""
     results = []
     current = None  # fixture the game is in, if known to be clean
     for name, steps in scripts:
         f = first_fixture(steps)
         skip = share_load and f is not None and f == current and not getattr(steps, "fresh", False)
+        t0 = time.time()
         try:
             r = run_script(name, steps, runner, out, skip_load=skip)
+            if skip and not r.ok and not r.aborted and r.failed:
+                out("  RETRY %s with its own load (it failed on the game left by the previous script)" % name)
+                r = run_script(name, steps, runner, out, skip_load=False)
+                r.retried = True
         except LockedError as e:
             out("LOCKED: %s" % e)
             r = ScriptResult(name)
             r.failed, r.aborted = 1, "locked"
+            r.seconds = time.time() - t0
             results.append(r)
             break
+        r.seconds = time.time() - t0
         results.append(r)
         current = r.loaded
     return results
+
+
+def format_duration(sec):
+    sec = int(round(sec))
+    return "%d m %02d s" % (sec // 60, sec % 60) if sec >= 60 else "%d s" % sec
+
+
+def timing_table(results):
+    """Lines: per-script wall time and verdict."""
+    w = max([len(r.name) for r in results] + [4])
+    lines = []
+    for r in results:
+        verdict = "ABORTED" if r.aborted else ("PASS" if r.ok else "FAIL")
+        if r.retried:
+            verdict += " (after a fresh-load retry)"
+        lines.append("  %-*s  %8s  %s" % (w, r.name, format_duration(r.seconds), verdict))
+    return lines
 
 
 def discover(names):
@@ -544,12 +606,26 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("names", nargs="*", help="script names in test/regress (default/all: every script)")
     ap.add_argument("--share-load", action="store_true", help="skip the load when the previous script loaded the same fixture")
+    ap.add_argument("--no-share-load", action="store_true", help="`all` shares one load per fixture by default; this gives every script its own load")
     ap.add_argument("--dry-run", action="store_true", help="parse and list the scripts, do not touch the game")
     ap.add_argument("--list", action="store_true", help="same as --dry-run")
     ap.add_argument("--record", action="store_true", help="write test/regress/<name>.recorded.txt with the SR> lines each check saw (no shared loads)")
     ap.add_argument("--update", action="store_true", help="like --record, and rewrite the failing expect lines in place (.bak kept)")
     ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
+    ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
+    if a.clear_advisors:
+        owner = a.owner or os.environ.get("CIVCTL_OWNER")
+        if not owner:
+            print(OWNER_REFUSED)
+            return 7
+        status, lines = clear_advisors(CivctlRunner(owner=owner))
+        for raw, _ in parse_sr_lines(lines):
+            print(raw)
+        if status == "locked":
+            print(lines[-1] if lines else "locked")
+            return 6
+        return 5 if status == "crashed" else 0
     try:
         scripts = order_scripts(discover(a.names))
     except ScriptError as e:
@@ -564,19 +640,27 @@ def main(argv=None):
         return 0
     owner = a.owner or os.environ.get("CIVCTL_OWNER")
     if not owner:
-        print("REFUSED: set CIVCTL_OWNER=<your agent name> (or -Owner <name>) before driving the game")
+        print(OWNER_REFUSED)
         return 7
     record = a.record or a.update
-    results = run_all(scripts, CivctlRunner(owner=owner), a.share_load and not record)
+    run_everything = not a.names or a.names == ["all"]
+    share = (a.share_load or run_everything) and not a.no_share_load and not record
+    if share:
+        print("(sharing one load per fixture; scenario and '# no-share-load' scripts load fresh; --no-share-load disables)")
+    t0 = time.time()
+    results = run_all(scripts, CivctlRunner(owner=owner), share)
     if record:
         steps_by_name = dict(scripts)
         for r in results:
             write_record(r.name, steps_by_name[r.name], r, a.update)
+    print("\nTIMING:")
+    print("\n".join(timing_table(results)))
     p = sum(r.passed for r in results)
     f = sum(r.failed for r in results)
     print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (
         len(results), p, f, "; aborted: " + ", ".join(r.name for r in results if r.aborted) if any(r.aborted for r in results) else "",
         "; SKIPPED-ALL: " + ", ".join(r.name for r in results if r.skipped_all) if any(r.skipped_all for r in results) else ""))
+    print("TOTAL: %s" % format_duration(time.time() - t0))
     return 0 if all(r.ok for r in results) else 1
 
 
