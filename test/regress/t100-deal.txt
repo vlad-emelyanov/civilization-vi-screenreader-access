@@ -1,22 +1,32 @@
-# UNVERIFIED: written offline, never run in the game. Deal screen (DiplomacyDealView.lua) on medieval-t100 (Rome, turn 99, civs met).
-# V lists the civs, Enter opens the diplomacy overview of the first one; the "Make Deal" overview entry is activated through
-# the screen's own callback (the position of the entry in the list depends on the diplomatic state), then the deal screen
-# announces itself 0.4 s after it opens.
+# Verified in game 2026-10-22. Deal screen on medieval-t100 (Rome, civs met), real keys only.
+# V lists the civs, Enter opens the overview of Dido; "Make Deal" is the 5th entry (4 x Down) while the relationship is Friendly.
+# Control+Tab = previous section (Shift+Tab opens the Steam overlay).
 # no-share-load
 load medieval-t100
 clear-advisors
-key V -Settle 1500
+key V -Settle 2500
 expect ^Diplomacy, met civilizations
-key Enter -Settle 3500
+key Enter -Settle 2500
 expect ^Diplomacy with
-lua DiplomacyActionView OnSelectInitialDiplomacyStatement("CHOICE_MAKE_DEAL")
-wait Tab switches sections -Timeout 20
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect ^Make Deal
+key Enter -Settle 3500
 expect ^Deal with .* of .*Tab switches sections: Deal, Your items, Their items, Actions
 key Tab -Settle 1000
 expect ^Your items, \d+ items?
-expect \d+ of \d+
 key Down -Settle 800
-expect \d+ of \d+
+expect ^Gold, \d+ available, 2 of \d+
+key Enter -Settle 2000
+expect ^Added: You give: \d+ gold
+key Control+Tab -Settle 800
+expect ^Deal, 1 item
+key S -Settle 800
+expect You give: \d+ gold
+key Delete -Settle 2000
+expect ^Removed: You give: \d+ gold
 key Escape -Settle 2500
 expect ^Deal closed
 key Escape -Settle 1500

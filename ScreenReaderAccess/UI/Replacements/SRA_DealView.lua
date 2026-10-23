@@ -3763,7 +3763,7 @@ local function SRA_Announce()
 		local actions:string = SRA_ActionNames();
 		if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
 	end
-	table.insert( parts, "Tab switches sections: Deal, Your items, Their items, Actions. S reads the summary." );
+	table.insert( parts, "Tab switches sections: Deal, Your items, Their items, Actions. S reads the summary. Control+Tab goes back a section." );
 	m_srSpokenLeader = m_srLeaderText;
 	m_srSpokenSig = summary;
 	SRA_Say( table.concat( parts, " " ), true );
