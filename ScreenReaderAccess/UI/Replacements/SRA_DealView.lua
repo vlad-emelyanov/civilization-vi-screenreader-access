@@ -3466,8 +3466,14 @@ end
 -- Says what a click or key changed in the deal, then the whole deal; remembers the deal as spoken.
 local function SRA_SpeakChange( before:table, fallback:string )
 	local change = DealSpeech_ChangeText( before, SRA_DealTexts() );
-	local summary:string = SRA_Summary();
+	local give:table, get:table = SRA_DealRecords();
+	local summary:string = DealSpeech_Summary( give, get );
 	m_srSpokenSig = summary;
+	-- A deal of exactly the added item: the change text already says "You give: X", so only name the empty side
+	if change ~= nil and #before == 0 and #give + #get == 1 then
+		SRA_Say( change .. ". " .. ( #give == 1 and "They give nothing." or "You give nothing." ) );
+		return;
+	end
 	SRA_Say( ( change or fallback or "Nothing changed" ) .. ". " .. summary );
 end
 
