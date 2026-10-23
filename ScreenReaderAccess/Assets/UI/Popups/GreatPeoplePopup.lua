@@ -1279,6 +1279,36 @@ local function SRA_BackToList()
 	m_srList.Focus( id ~= nil and ( "p:" .. id ) or nil, "Back" );
 end
 
+-- The result of Recruit / Pass / Patronize is spoken only once the engine confirmed it: the person is gone from the
+-- available list (or now claimed by us) a second after the request; otherwise "Could not ...".
+local m_srPending	:table = nil;		-- { id, ok, fail, time }
+
+function SRA_SetPending( p:table, ok:string, fail:string )
+	m_srPending = { id = p.id, ok = ok, fail = fail, time = 0 };
+end
+
+function SRA_PendingConfirmed( pending:table )
+	local pGreatPeople:table = Game.GetGreatPeople();
+	if pGreatPeople == nil then return false; end
+	local localID:number = Game.GetLocalPlayer();
+	for _, entry in ipairs( pGreatPeople:GetTimeline() ) do
+		if entry.Individual == pending.id then
+			return entry.Claimant ~= nil and entry.Claimant == localID;
+		end
+	end
+	return true;		-- no longer available
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_srPending == nil then return; end
+	m_srPending.time = m_srPending.time + deltaTime;
+	if m_srPending.time < 1 then return; end
+	local pending:table = m_srPending;
+	m_srPending = nil;
+	local ok, confirmed = pcall( SRA_PendingConfirmed, pending );
+	OutputMessageToScreenReader( ( ok and confirmed ) and pending.ok or pending.fail );
+end
+
 local function SRA_OnActivate( item:table )
 	if m_srPast then return; end
 	if m_srActionsFor == nil then SRA_OpenActions( item ); return; end
@@ -1287,17 +1317,17 @@ local function SRA_OnActivate( item:table )
 	if action.run == "back" then SRA_BackToList(); return; end
 	-- the game's own button callbacks; each of them closes the popup
 	if action.run == "recruit" then
+		SRA_SetPending( p, "Recruited " .. p.name, "Could not recruit " .. p.name );
 		OnRecruitButtonClick( p.id );
-		OutputMessageToScreenReader( "Recruited " .. p.name );
 	elseif action.run == "reject" then
+		SRA_SetPending( p, "Passed on " .. p.name, "Could not pass on " .. p.name );
 		OnRejectButtonClick( p.id );
-		OutputMessageToScreenReader( "Passed on " .. p.name );
 	elseif action.run == "gold" then
+		SRA_SetPending( p, "Patronized " .. p.name .. " with " .. GreatPeopleText_Num( p.gold.cost ) .. " gold", "Could not patronize " .. p.name );
 		OnGoldButtonClick( p.id );
-		OutputMessageToScreenReader( "Patronized " .. p.name .. " with " .. GreatPeopleText_Num( p.gold.cost ) .. " gold" );
 	elseif action.run == "faith" then
+		SRA_SetPending( p, "Patronized " .. p.name .. " with " .. GreatPeopleText_Num( p.faith.cost ) .. " faith", "Could not patronize " .. p.name );
 		OnFaithButtonClick( p.id );
-		OutputMessageToScreenReader( "Patronized " .. p.name .. " with " .. GreatPeopleText_Num( p.faith.cost ) .. " faith" );
 	end
 end
 
@@ -1468,6 +1498,7 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
+	ContextPtr:SetUpdate( SRA_OnUpdate );		-- ScreenReaderAccess
 	SRA_CreateList();		-- ScreenReaderAccess
 	print( "GreatPeoplePopup: ScreenReaderAccess copy loaded" );		-- ScreenReaderAccess
 
