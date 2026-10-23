@@ -1,4 +1,4 @@
-# UNVERIFIED (written without the game): in-game Save Game / Load Game screens speak. Opens them, never saves or loads.
+# Verified in game 2026-10-22: in-game Save Game / Load Game screens speak. Opens them, never saves or loads (the overwrite question is cancelled).
 # Top menu order: Return, Quick Save, Save Game, Load Game (the cursor restarts at Return whenever the menu is shown again).
 # no-share-load
 load early-t60
@@ -12,6 +12,16 @@ key Enter -Settle 2000
 expect (?i)^Save game\. Name: .*, edit box
 key Down -Settle 800
 expect (?i)(, \d+ of \d+$)|(^Cancel)
+key Down -Settle 800
+expect (?i), 2 of \d+$
+key Up -Settle 800
+key Up -Settle 800
+expect (?i)^Name: .*, edit box
+key Down -Settle 800
+key Enter -Settle 1500
+expect (?i)This will overwrite your current save file
+key Escape -Settle 1500
+expect (?i)^Cancelled\. 
 key Escape -Settle 1500
 expect (?i)^In game menu
 key Down -Settle 600

@@ -529,7 +529,19 @@ function KeyHandler( key:number )
 	end
 
 	if key == Keys.VK_RETURN or key == Keys.VK_SPACE then
-		KeyNavLeftClick();
+		-- Call the button's own handler: the real mouse does not reach this menu's buttons (hover and click go to the map under it)
+		local control:table = m_keyNavElements[m_selectedKeyNavElement + 1];
+		local handlers:table = {
+			[Controls.ReturnButton] = OnReturn, [Controls.QuickSaveButton] = OnQuickSaveGame, [Controls.SaveGameButton] = OnSaveGame,
+			[Controls.LoadGameButton] = OnLoadGame, [Controls.OptionsButton] = OnOptions, [Controls.RestartButton] = OnRestartGame,
+			[Controls.RetireButton] = OnRetireGame, [Controls.PBCDeleteButton] = OnPBCDeleteButton, [Controls.PBCQuitButton] = OnPBCQuitButton,
+			[Controls.MainMenuButton] = OnMainMenu, [Controls.ExitGameButton] = OnExitGameAskAreYouSure,
+		};
+		if control ~= nil and handlers[control] ~= nil then
+			handlers[control]();
+		else
+			KeyNavLeftClick();
+		end
 		return true;
 	end
 
