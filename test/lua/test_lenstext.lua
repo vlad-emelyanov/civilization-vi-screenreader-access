@@ -87,19 +87,27 @@ test("continent lens value", function()
 	eq(LensText_PlotText("Continent", p, false), "continent LOC_CONTINENT_ZEALANDIA")
 end)
 
-test("religion lens value", function()
+test("religion lens value (follower counts for own cities only, visible plots only)", function()
 	GameInfo.Religions = { [3] = { Pantheon = false } }
-	local followers = 6
+	local followers, cityOwner = 6, 0
 	Game.GetReligion = function() return { GetName = function() return "Buddhism" end } end
-	Cities = { GetPlotPurchaseCity = function() return {
+	local function city() return {
+		GetOwner = function() return cityOwner end,
 		GetReligion = function() return {
 			GetMajorityReligion = function() return 3 end,
-			GetReligionsInCity = function() return { { Religion = 3, Followers = followers } } end } end } end }
+			GetReligionsInCity = function() return { { Religion = 3, Followers = followers } } end } end } end
+	Cities = { GetPlotPurchaseCity = city }
 	local p = withPlot(9, 9, { GetOwner = function() return 0 end })
 	eq(LensText_PlotText("Religion", p, false), "Buddhism, 6 followers")
 	followers = 1
 	eq(LensText_PlotText("Religion", p, false), "Buddhism, 1 follower")
-	Cities.GetPlotPurchaseCity = function() return { GetReligion = function() return {
+	cityOwner = 1
+	eq(LensText_PlotText("Religion", p, false), "Buddhism")
+	cityOwner = 0
+	world:set(9, 9, { fogged = true })
+	eq(LensText_PlotText("Religion", p, false), nil)
+	world:set(9, 9, { fogged = false })
+	Cities.GetPlotPurchaseCity = function() return { GetOwner = function() return 0 end, GetReligion = function() return {
 		GetMajorityReligion = function() return -1 end, GetReligionsInCity = function() return {} end } end } end
 	eq(LensText_PlotText("Religion", p, false), "no religion")
 end)
@@ -121,4 +129,67 @@ test("prefix puts the lens value in front and leaves text alone with no lens", f
 	eq(LensText_Prefix("grass", Map.GetPlot(3, 3), false), "grass")
 	mode = 1
 	eq(LensText_Prefix("grass", Map.GetPlot(15, 12), false), "grass")
+end)
+
+-- the hub's scheduler and speech, driven by hand
+local timers, said = {}, {}
+LensText_Setup(function(sec, fn) table.insert(timers, fn) end, function(text, nointerrupt) table.insert(said, { text, nointerrupt }) end)
+local function fire() local list = timers; timers = {}; for _, fn in ipairs(list) do fn() end end
+local function reset() timers, said = {}, {} end
+InterfaceModeTypes.SELECTION = 1
+
+test("hotkey: only the last press speaks", function()
+	reset(); mode = 1
+	LensText_OnKey("LensReligion"); LensText_OnKey("LensAppeal")
+	mode = 7
+	fire()
+	eq(#said, 1)
+	contains(said[1][1], "Appeal lens on")
+	eq(said[1][2], false)
+end)
+
+test("leaving lens mode says off once, the later timer stays silent", function()
+	reset()
+	LensText_OnKey("LensAppeal")		-- pressed while on: the game switches it off
+	mode = 1
+	LensText_OnModeChanged(7, 1)
+	eq(said[1][1], "Appeal lens off")
+	eq(said[1][2], true)
+	fire()
+	eq(#said, 1)
+end)
+
+test("Escape / unit selection out of lens mode says off", function()
+	reset(); mode = 7
+	LensText_OnKey("LensContinent"); fire()
+	said = {}
+	mode = 1
+	LensText_OnModeChanged(7, 1)
+	eq(said[1][1], "Continent lens off")
+	eq(LensText_ActiveLens(), nil)
+	LensText_OnModeChanged(7, 1)		-- no lens known: silent
+	eq(#said, 1)
+end)
+
+test("lens on with the mouse is named from its layer, else just Lens on", function()
+	reset(); mode = 7
+	local on = {}
+	UILens = { CreateLensLayerHash = function(n) return n end, IsLayerOn = function(h) return on[h] == true end }
+	on["Hex_Coloring_Appeal_Level"] = true
+	LensText_OnModeChanged(1, 7); fire()
+	contains(said[1][1], "Appeal lens on")
+	said = {}; mode = 1; LensText_OnModeChanged(7, 1); said = {}
+	on["Hex_Coloring_Appeal_Level"] = nil
+	mode = 7; LensText_OnModeChanged(1, 7); fire()
+	eq(said[1][1], "Lens on")
+end)
+
+test("a hotkey right after the mode change keeps the mouse guess quiet", function()
+	reset(); mode = 1; LensText_OnModeChanged(7, 1); said = {}
+	mode = 7
+	LensText_OnModeChanged(1, 7)
+	LensText_OnKey("LensSettler")
+	fire()
+	eq(#said, 1)
+	contains(said[1][1], "Settler lens on")
 end)

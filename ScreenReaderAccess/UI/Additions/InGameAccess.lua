@@ -228,15 +228,12 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavReports",			HubTargets.ToggleReports );
 	Hub.RegisterAction( "KeyNavPlaces",				HubPlaces.TogglePlaces );
 	Hub.RegisterAction( "KeyNavGreatWorks",		HubRegions.ToggleGreatWorks );
-	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): speak once the game has switched, whether it is in lens mode tells on/off
+	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): LensText speaks once the game has switched
+	LensText_Setup( HubCore.After, function( text:string, nointerrupt:boolean ) OutputMessageToScreenReader( text, nointerrupt ); end );
 	for action, _ in pairs( LensText_Actions ) do
-		Hub.RegisterAction( action, function()
-			HubCore.After( 0.3, function()
-				local text:string = LensText_Toggled( action, UI.GetInterfaceMode() == InterfaceModeTypes.VIEW_MODAL_LENS );
-				if text ~= nil then OutputMessageToScreenReader( text ); end
-			end );
-		end );
+		Hub.RegisterAction( action, function() LensText_OnKey( action ); end );
 	end
+	HubCore.AddEvent( "InterfaceModeChanged",		LensText_OnModeChanged );
 	Hub.RegisterAction( "RangedAttack",			HubTargets.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
 	Hub.RegisterAction( "Attack",					HubTargets.CityAttackKey );
 	HubCore.Listen( Events.InputActionTriggered, Hub.OnInputActionTriggered );

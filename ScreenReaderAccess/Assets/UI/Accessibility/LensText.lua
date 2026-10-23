@@ -2,9 +2,12 @@
 --	LensText: speech for the map lenses (number keys 1-9, 0). The game only shows them: colours and a key panel.
 --
 --	LensText_Actions                          input action name -> { id, name } (id = the lens, name = the spoken name)
---	LensText_Toggled( action, modal )         -> text | nil. Call a moment after the hotkey, modal = the interface mode is
---	                                             VIEW_MODAL_LENS. "Settler lens on. <legend>" / "Settler lens off"; nil when
---	                                             nothing happened (a key the game ignored). Remembers the lens that is on.
+--	LensText_Setup( after, speak )            -> the hub's scheduler (seconds, fn) and speech (text, nointerrupt)
+--	LensText_OnKey( action )                  -> a lens hotkey was pressed: 0.3 s later (if no newer press) speaks "Settler lens
+--	                                             on. <legend>" / "Settler lens off"; silent when nothing happened.
+--	LensText_OnModeChanged( old, new )        -> Events.InterfaceModeChanged: leaving lens mode says "<Name> lens off" (Escape,
+--	                                             unit selection ...); entering it with no hotkey (the mouse) says "<Name> lens on"
+--	LensText_Toggled( action, modal )         -> text | nil, the pure part of OnKey (modal = interface mode is VIEW_MODAL_LENS)
 --	LensText_ActiveLens()                     -> lens id | nil: the lens this module saw switched on, while the game is in
 --	                                             lens mode (a lens turned on with the mouse is not known).
 --	LensText_Legend( lens )                   -> one sentence: what the colours mean (the game's key panel, ModalLensPanel.lua)
@@ -36,6 +39,16 @@ local m_names:table = {};
 for _, lens in pairs( LensText_Actions ) do m_names[ lens.id ] = lens.name; end
 
 -- Lenses that speak a value per plot (their legend ends with the hint)
+local m_gen:number = 0;		-- hotkey presses so far: only the newest one speaks
+local m_after = nil;
+local m_speak = nil;
+-- layers the game turns on per lens (MinimapPanel.lua / ModalLensPanel.lua), to name a lens turned on with the mouse
+local m_layers:table = {
+	{ "Religion", "Hex_Coloring_Religion" }, { "Appeal", "Hex_Coloring_Appeal_Level" }, { "Government", "Hex_Coloring_Government" },
+	{ "Political", "Hex_Coloring_Owning_Civ" }, { "Continent", "Hex_Coloring_Continent" }, { "Settler", "Hex_Coloring_Water_Availablity" },
+	{ "Tourism", "Tourist_Tokens" }, { "Empire", "Empire_Details" }, { "Loyalty", "Cultural_Identity_Lens" },
+};
+
 local m_perPlot:table = { Appeal = true, Religion = true, Continent = true, Settler = true, Loyalty = true, Government = true };
 
 -- Game text without icons and line breaks
@@ -178,6 +191,49 @@ function LensText_ActiveLens()
 	return m_active;
 end
 
+function LensText_Setup( after, speak )
+	m_after, m_speak = after, speak;
+end
+
+function LensText_OnKey( action:string )
+	if LensText_Actions[ action ] == nil or m_after == nil then return; end
+	m_gen = m_gen + 1;
+	local gen:number = m_gen;
+	m_after( 0.3, function()
+		if gen ~= m_gen then return; end		-- pressed again meanwhile: the last press speaks
+		local text:string = LensText_Toggled( action, UI.GetInterfaceMode() == InterfaceModeTypes.VIEW_MODAL_LENS );
+		if text ~= nil then m_speak( text, false ); end
+	end );
+end
+
+-- the lens whose layer is on, else nil (the layers are probed one by one: a missing layer name is skipped)
+local function _LensFromLayers()
+	for _, entry in ipairs( m_layers ) do
+		local ok:boolean, on = pcall( function() return UILens.IsLayerOn( UILens.CreateLensLayerHash( entry[2] ) ); end );
+		if ok and on then return entry[1]; end
+	end
+	return nil;
+end
+
+function LensText_OnModeChanged( oldMode:number, newMode:number )
+	local modal:number = InterfaceModeTypes.VIEW_MODAL_LENS;
+	if oldMode == modal and newMode ~= modal then
+		local lens:string = m_active;
+		m_active = nil;
+		if lens ~= nil and m_speak ~= nil then m_speak( ( m_names[ lens ] or lens ) .. " lens off", true ); end
+	elseif newMode == modal and oldMode ~= modal and m_after ~= nil then
+		-- a hotkey sets the lens within 0.3 s and bumps m_gen; if neither happened after 0.5 s the mouse did it
+		local gen:number = m_gen;
+		m_after( 0.5, function()
+			if gen ~= m_gen or m_active ~= nil or UI.GetInterfaceMode() ~= modal then return; end
+			local lens:string = _LensFromLayers();
+			m_active = lens;
+			if lens ~= nil then m_speak( ( m_names[ lens ] or lens ) .. " lens on. " .. LensText_Legend( lens ), true );
+			else m_speak( "Lens on", true ); end
+		end );
+	end
+end
+
 -- ===========================================================================
 --	Per plot
 -- ===========================================================================
@@ -226,6 +282,7 @@ local function _Religion( plot:table )
 			if data.Religion == majority then followers = data.Followers or 0; end
 		end
 		local name:string = _Clean( Locale.Lookup( Game.GetReligion():GetName( majority ) ) );
+		if city:GetOwner() ~= _LocalPlayer() then return name; end		-- follower counts of foreign cities are not ours to know
 		if followers == 1 then return name .. ", 1 follower"; end
 		return name .. ", " .. followers .. " followers";
 	end );
@@ -293,6 +350,8 @@ end
 -- settlerSelected: a settler is selected, the cursor text already says whether it can settle there
 function LensText_PlotText( lens:string, plot:table, settlerSelected:boolean )
 	if lens == nil or plot == nil or not _Revealed( plot ) then return nil; end
+	-- what a city owns or who stands near it is only known while the plot is in sight
+	if ( lens == "Religion" or lens == "Settler" ) and PlotDescription_GetVisibility( plot ) ~= "visible" then return nil; end
 	if lens == "Appeal" then return _Appeal( plot );
 	elseif lens == "Religion" then return _Religion( plot );
 	elseif lens == "Continent" then return _Continent( plot );
