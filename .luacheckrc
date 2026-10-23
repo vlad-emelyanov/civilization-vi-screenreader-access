@@ -29,7 +29,7 @@ read_globals = {
 	"UnitCommandTypes", "UnitManager", "UnitOperationResults", "UnitOperationTypes", "Units", "UserConfiguration",
 	-- provided by game files pulled in with include(): ToolTipHelper_PlayerYields, Civ6Common
 	"Round", "Clamp", "GetCityData", "DATA_DOMINANT_RELIGION", "YIELD_STATE", "GetScienceTooltip", "GetCultureTooltip", "GetFaithTooltip", "GetGoldTooltip", "MoveUnitToPlot",
-	"View", "WarTypes", "WorldBuilder", "YieldTypes", "include", "ToolTipHelper", "Cities", "Locale",
+	"GameRandomEvents", "Territories", "View", "WarTypes", "WorldBuilder", "YieldTypes", "include", "ToolTipHelper", "Cities", "Locale",
 }
 
 -- Globals the mod defines in Assets/UI/Accessibility/*.lua (shared via include()). Keep in sync.
@@ -78,5 +78,7 @@ globals = {
 	"TreeText_Detail", "TreeText_Queue", "TreeText_Group", "TreeText_Match", "TreeNav_Create", "TreeNav_ItemName", "TreeNav_Round",
 	"GreatWorksText_Plural", "GreatWorksText_SlotWord", "GreatWorksText_Yields", "GreatWorksText_Work", "GreatWorksText_Theming", "GreatWorksText_Header",
 	"GreatWorksText_Slot", "GreatWorksText_Destination", "GreatWorksText_Summary", "GreatWorksText_Pickup", "GreatWorksText_Moved", "GreatWorksText_Showcase",
+	"ClimateText_Plural", "ClimateText_Signed", "ClimateText_Percent", "ClimateText_Tab", "ClimateText_Phase", "ClimateText_Temperature",
+	"ClimateText_Contribution", "ClimateText_Summary", "ClimateText_Chance", "ClimateText_Volcanoes", "ClimateText_Row", "ClimateText_Event", "ClimateText_Effects",
 	"TreeNav_Entries", "TreeNav_PrereqNames", "TreeNav_LeadsTo", "TreeNav_UnlockEntries", "TreeNav_QueuePos", "SRA_TreeInput",
 }

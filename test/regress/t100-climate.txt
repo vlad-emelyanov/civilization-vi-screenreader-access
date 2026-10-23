@@ -1,0 +1,32 @@
+# UNVERIFIED (written offline, never run in game; record with --record after the first green run). modern-start (turn 158, Rome,
+# Gathering Storm): PageDown is bound to ToggleWorldClimate in the user's keymap, so `action ToggleWorldClimate` presses it.
+# Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs, Space = details, Escape closes (PageDown closes as well).
+# Needs the build with ClimateScreen_SRA.lua loaded ("ScreenReaderAccess: ClimateScreen copy loaded" in Lua.log).
+# no-share-load
+load modern-start
+clear-advisors
+action ToggleWorldClimate -Settle 2500
+expect ^World Climate\. Overview, 1 of 3 tabs\. (Phase \d of 7|No climate change phase reached yet), global temperature .*, 1 of \d+
+key Down -Settle 600
+expect , 2 of \d+
+key Space -Settle 600
+expect .{8,}
+key End -Settle 600
+expect Volcanoes: .*, (\d+) of \1$
+key Tab -Settle 1000
+expect ^CO2 levels, 2 of 3 tabs\. CO2: global total \d+.*, 1 of \d+
+key Down -Settle 600
+key Space -Settle 600
+key Tab -Settle 1000
+expect ^Event history, 3 of 3 tabs\. .+, 1 of \d+
+key Control+Tab -Settle 1000
+expect ^CO2 levels, 2 of 3 tabs\.
+key Control+Tab -Settle 1000
+expect ^Overview, 1 of 3 tabs\.
+key Escape -Settle 1500
+expect ^Climate closed
+action ToggleWorldClimate -Settle 2500
+expect ^World Climate\. Overview
+action ToggleWorldClimate -Settle 1500
+expect ^Climate closed
+no-lua-errors
