@@ -60,6 +60,14 @@ HubCore.PlacementPlotText = function( plot:table )
 	return text;
 end
 
+-- What Enter does while placing (N says it); nil when no placement is open.
+function HubPlacement.NextText()
+	local scan:table = m_placeScan;
+	if scan == nil or not HubCore.IsModeOpen( "placement" ) then return nil; end
+	if HubCore.m_placeConfirm ~= nil then return "Enter places " .. scan.name .. " here, Escape goes back"; end
+	return "Placing " .. scan.name .. ". Enter on a tile asks to place it, Escape cancels";
+end
+
 local function PlacementDetail( c:table )
 	local text:string = m_placeScan.name .. " at " .. c.relative;
 	if c.explanation ~= "" then

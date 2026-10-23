@@ -4275,6 +4275,23 @@ local function SRRefusalReason( unit:table, hash:number )
 			end
 		end
 	end );
+	-- The engine gives no failure reason for Form Corps / Form Army: derive one
+	if #reasons == 0 and ( hash == UnitCommandTypes.FORM_CORPS or hash == UnitCommandTypes.FORM_ARMY ) then
+		pcall( function()
+			local isArmy:boolean = ( hash == UnitCommandTypes.FORM_ARMY );
+			local row:table = GameInfo.Units[ unit:GetUnitType() ];
+			if row ~= nil and row.FormationClass == "FORMATION_CLASS_CIVILIAN" then
+				table.insert( reasons, isArmy and "civilians cannot form armies" or "civilians cannot form corps" );
+				return;
+			end
+			local civic:table = GameInfo.Civics[ isArmy and "CIVIC_MOBILIZATION" or "CIVIC_NATIONALISM" ];
+			if civic ~= nil and not Players[ unit:GetOwner() ]:GetCulture():HasCivic( civic.Index ) then
+				table.insert( reasons, "needs the " .. Locale.Lookup( civic.Name ) .. " civic" );
+				return;
+			end
+			table.insert( reasons, "needs another " .. Locale.Lookup( unit:GetName() ) .. " on an adjacent tile" );
+		end );
+	end
 	return table.concat( reasons, ", " );
 end
 

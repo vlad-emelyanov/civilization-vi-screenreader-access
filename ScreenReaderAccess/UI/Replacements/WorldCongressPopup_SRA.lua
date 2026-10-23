@@ -2964,8 +2964,14 @@ local function SRA_VoteProposal( item:table, direction:number )
 		SRA_Say( direction > 0 and "No more votes: not enough favor or at the maximum" or "No votes to take back" );
 		return;
 	end
+	local title:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
 	local text:string = ( after == 0 ) and "No votes" or ( WCText_Plural( math.abs( after ), "vote" ) .. ( after > 0 and " for" or " against" ) );
-	if kVote.cost ~= nil and kVote.cost > 0 then text = text .. ", costs " .. kVote.cost .. " favor"; end
+	if after ~= 0 and title ~= nil and title ~= "" then text = text .. " " .. title; end
+	if kVote.cost ~= nil and kVote.cost > 0 then
+		text = text .. ", costs " .. kVote.cost .. " favor";
+	elseif after ~= 0 then
+		text = text .. ", free";
+	end
 	SRA_Say( text .. ", " .. m_WorkingFavor .. " favor left" );
 end
 

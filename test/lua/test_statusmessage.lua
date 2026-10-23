@@ -6,6 +6,8 @@ Strings.LOC_COMBAT_YOUR_UNIT_DAMAGED_ENEMY = "Your {1_UnitName} damaged an enemy
 Strings.LOC_COMBAT_YOU_KILLED_ENEMY_UNIT = "While defending, your {2_UnitName} ({5_Num} damage) killed a {3_EnemyAdjective} {4_EnemyUnitName}!"
 Strings.LOC_COMBAT_ENEMY_UNIT_WITHDREW = "Your {1_UnitName} ({2_Num} damage) was attacked by an enemy {3_EnUName} ({4_Num} damage)!"
 
+Strings.LOC_COMBAT_YOUR_DISTRICT_BOMBARDED_ENEMY = "{1_Name} bombarded an enemy {2_EnUName}! ({3_Damage} damage)"
+
 load_mod_block("Assets/UI/Panels/StatusMessagePanel.lua", 1)
 
 local function covered(msg) return SRIsCoveredCombatMessage(msg) end
@@ -42,4 +44,10 @@ test("whitespace differences do not matter", function()
 	eq(covered("  Your Warrior   damaged an enemy Archer(12 damage)!"), true)
 	eq(covered("Your Warrior was attacked by an enemy Slinger (5 damage) (2 damage)!"), false)
 	eq(covered("Your Warrior (2 damage) was attacked by an enemy Slinger (5 damage)!"), true)
+end)
+
+test("a city bombard line is dropped once the hub spoke the fight", function()
+	Clock.now = 500
+	SRCombatSpoken()
+	eq(covered("Lugdunum bombarded an enemy Catapult! (0 damage)"), true)
 end)

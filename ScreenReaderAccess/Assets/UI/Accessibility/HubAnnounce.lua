@@ -15,6 +15,14 @@ local m_pendingUnit			:number = nil;		-- unit selected while the game was still 
 -- production", "Next turn", ...). Read from the panel's own label so that expansion blockers are covered too.
 function HubAnnounce.SpeakWhatsNext()
 	if not HubCore.IsLocalPlayerActive() then return; end
+	-- placing a district / wonder, or choosing a tile for an order: say what Enter does there, not the end-turn label
+	local placing:string = HubPlacement.NextText();
+	if placing ~= nil then OutputMessageToScreenReader( placing ); return; end
+	local targetMode, targetLabel = HubTargets.GetTargetMode();
+	if targetLabel ~= nil then
+		OutputMessageToScreenReader( "Choosing a tile: " .. targetLabel .. ". Enter confirms, Escape cancels" );
+		return;
+	end
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
 	local text:string = nil;
 	if label ~= nil then text = CleanTextForSpeech( label:GetText() ); end
