@@ -41,6 +41,7 @@ them). Never save a scenario-modified game over a fixture.
 | `builder-by-forest` | `early-t60` | builder on an owned tile next to a forest | `Tab` on the builder / `I` on the forest |
 | `trader-in-capital` (unverified) | `medieval-t100` | a Trader in the capital | select it: the game opens its trade route chooser by itself (see `t100-trade-route`) |
 | `prophet-ready` | `medieval-t100` (needs a pantheon + a completed Holy Site) | UNVERIFIED: a Great Prophet on the Holy Site | select it, `Tab`, Found Religion |
+| `end-game` (unverified) | any loaded game | the end-game screen (defeat variant) via `LuaEvents.ShowEndGame`; UI state: `civctl lua InGameAccess -File util\scenarios\end-game.lua` | Escape ends the movie, then Tab / Control+Tab switch pages |
 
 ## Know the fixture before assuming
 

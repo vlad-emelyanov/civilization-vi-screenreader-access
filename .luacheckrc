@@ -67,6 +67,7 @@ globals = {
 	"RankingsText_Percent", "RankingsText_Label", "RankingsText_ScoreLine", "RankingsText_PositionOf", "RankingsText_OverviewLine",
 	"RankingsText_OverviewDetail", "RankingsText_Science", "RankingsText_Culture", "RankingsText_Domination",
 	"RankingsText_Religion", "RankingsText_Diplomatic", "RankingsText_Tab",
+	"EndGameText_Sentence", "EndGameText_Lines", "EndGameText_Summary", "EndGameText_RankLine", "EndGameText_LastValue", "EndGameText_GraphLines",
 	"ReportText_Signed", "ReportText_Plural", "ReportText_Tab", "ReportText_YieldList", "ReportText_CityIncome", "ReportText_LineItem",
 	"ReportText_Currency", "ReportText_UnitExpense", "ReportText_BuildingExpense", "ReportText_Deal", "ReportText_Resource",
 	"ReportText_ResourceDetail", "ReportText_CityStatus", "ReportText_Gossip",

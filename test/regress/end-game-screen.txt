@@ -1,0 +1,27 @@
+# UNVERIFIED (blind-written 2026-10-23, run with --record first). The end-game screen (defeat variant, raised with LuaEvents.ShowEndGame like the options menu does): it says the result,
+# then (after Escape ends the movie) a list with the pages Info / Rankings / Graphs, the result lines and the buttons; Tab and Control+Tab switch pages.
+# covers: **/EndGameMenu.lua **/EndGameText.lua
+# no-share-load: opens the end-game screen, which stays open
+load early-t60
+clear-advisors
+lua InGameAccess LuaEvents.ShowEndGame(Game.GetLocalPlayer())
+expect (?i)defeat
+key Escape -Settle 2500
+expect (?i)end game menu
+expect (?i)info, selected
+key Down -Settle 800
+expect (?i)rankings|result|button
+key Tab -Settle 1500
+expect (?i)rankings, selected
+key Down -Settle 800
+expect (?i)\d+\.|score
+key Tab -Settle 1500
+expect (?i)graphs, selected
+key Down -Settle 800
+expect (?i)data set|no graph data
+key Control+Tab -Settle 1500
+expect (?i)rankings, selected
+key Space -Settle 800
+key End -Settle 800
+expect (?i)exit to desktop
+no-lua-errors

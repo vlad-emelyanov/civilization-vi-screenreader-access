@@ -6,6 +6,9 @@ include("EndGameReplayLogic")
 include("ChatLogic");
 include("TeamSupport");
 include("PopupDialog");
+include("ScreenReader");		-- ScreenReaderAccess mod change
+include("KeyNavList");		-- ScreenReaderAccess mod change
+include("EndGameText");		-- ScreenReaderAccess mod change
 
 
 -- ===========================================================================
@@ -424,6 +427,273 @@ function OnChatTab()
 end
 
 -- ===========================================================================
+-- Begin ScreenReaderAccess mod change: speech and a keyboard list for the end-game screen.
+-- On show it says the result ("Victory: Science victory, you, Rome. <blurb>"); once the fade-in and the movie are over a
+-- list offers the pages (Info, Rankings, Graphs; Tab / Control+Tab switch), the lines of the open page and the buttons.
+-- Enter calls the game's own callbacks. Escape stays the game's (aborts the fade, ends the movie).
+-- ===========================================================================
+local SR_CONTEXT_PATH	:string = "/InGame/EndGame/" .. ContextPtr:GetID();
+local m_srList			:table = nil;
+local m_srOpenPending	:boolean = false;
+
+local SR_TABS :table = {
+	{ id = "info",		text = "Info",		root = "InfoButtonRoot",	show = function() OnInfoTab(); end },
+	{ id = "ranking",	text = "Rankings",	root = "RankingButtonRoot",	show = function() OnRankingTab(); end },
+	{ id = "graph",		text = "Graphs",	root = "ReplayButtonRoot",	show = function() OnReplayTab(); end },
+};
+
+local function SRControl( name:string )
+	local ok:boolean, control = pcall( function() return Controls[ name ]; end );
+	if ok then return control; end
+	return nil;
+end
+
+local function SRIsShown( name:string )
+	local control = SRControl( name );
+	return control ~= nil and not control:IsHidden();
+end
+
+local function SRCurrentTab()
+	if SRIsShown( "RankingPanel" ) then return "ranking"; end
+	if SRIsShown( "GraphPanel" ) then return "graph"; end
+	if SRIsShown( "ChatPanel" ) then return "chat"; end
+	return "info";
+end
+
+local function SRVisibleTabs()
+	local tabs:table = {};
+	for _, tab in ipairs( SR_TABS ) do
+		if SRIsShown( tab.root ) then table.insert( tabs, tab ); end
+	end
+	return tabs;
+end
+
+local function SRSummaryData()
+	local d:table = m_savedData;
+	if d == nil then return nil; end
+	local typeHeader:string = "";
+	if d.VictoryTypeHeader ~= nil and d.VictoryTypeHeader ~= "" then typeHeader = Locale.Lookup( d.VictoryTypeHeader ); end
+	return {
+		Head = Locale.Lookup( d.RibbonText ),
+		TypeHeader = typeHeader,
+		WinnerName = d.WinnerName,
+		IsWinnerLocalPlayer = d.IsWinnerLocalPlayer,
+		Blurb = CleanTextForSpeech( d.VictoryBlurb ),
+		DefeatedName = d.DefeatedName,
+	};
+end
+
+-- The leaders of the Rankings page, the way PopulateRankingResults lays them out.
+local function SRRankItems()
+	local items:table = {};
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	if player == nil then return items; end
+	local score:number = player:GetScore();
+	local added:boolean = false;
+	local count:number = 1;
+	for row in GameInfo.HistoricRankings() do
+		local leader:string = Locale.Lookup( row.HistoricLeader );
+		if score >= row.Score and not added then
+			added = true;
+			table.insert( items, { key = "rank:you", section = "Ranking", text = Locale.Lookup( "LOC_UI_ENDGAME_RANKING_STATEMENT", leader ) .. ", score " .. Locale.ToNumber( score ),
+				detail = CleanTextForSpeech( Locale.Lookup( row.Quote ) ) } );
+			table.insert( items, { key = "rank:" .. count, section = "Ranking", text = EndGameText_RankLine( count, leader, Locale.ToNumber( score ), true ),
+				detail = CleanTextForSpeech( Locale.Lookup( row.Quote ) ) } );
+		else
+			table.insert( items, { key = "rank:" .. count, section = "Ranking", text = EndGameText_RankLine( count, leader, Locale.ToNumber( row.Score ), false ) } );
+		end
+		count = count + 1;
+	end
+	return items;
+end
+
+local function SRDataSets()
+	local sets:table = {};
+	for i = 0, GameSummary.GetDataSetCount() - 1, 1 do
+		if GameSummary.GetDataSetVisible( i ) and GameSummary.HasDataSetValues( i ) then
+			local name:string = GameSummary.GetDataSetName( i );
+			if IsValidGraphDataSetToShow( name ) then
+				table.insert( sets, { name = name, text = Locale.Lookup( GameSummary.GetDataSetDisplayName( i ) ) } );
+			end
+		end
+	end
+	table.sort( sets, function( a, b ) return Locale.Compare( a.text, b.text ) == -1; end );
+	return sets;
+end
+
+local function SRCurrentDataSetText()
+	local ok:boolean, text = pcall( function() return Controls.GraphDataSetPulldown:GetButton():GetText(); end );
+	if ok and text ~= nil then return text; end
+	return "";
+end
+
+local function SRNextDataSet()
+	local sets:table = SRDataSets();
+	if #sets == 0 then return; end
+	local current:string = SRCurrentDataSetText();
+	local index:number = 0;
+	for i, set in ipairs( sets ) do
+		if set.text == current then index = i; break; end
+	end
+	local nextSet:table = sets[ ( index % #sets ) + 1 ];
+	SetCurrentGraphDataSet( nextSet.name );
+	m_srList.Focus( "graph:set" );
+end
+
+local function SRPlayerName( info:table )
+	local civ:string = "";
+	local civInfo = GameInfo.Civilizations[ info.Civilization ];
+	if civInfo ~= nil then civ = Locale.Lookup( civInfo.Name ); end
+	local leader:string = info.Name ~= nil and Locale.Lookup( info.Name ) or "";
+	if civ == "" then return leader; end
+	if leader == "" or leader == civ then return civ; end
+	return civ .. ", " .. leader;
+end
+
+local function SRGraphItems()
+	local items:table = {};
+	local current:string = SRCurrentDataSetText();
+	if g_GraphData == nil or SRIsShown( "NoGraphData" ) then
+		table.insert( items, { key = "graph:none", section = "Graph", text = "No graph data" } );
+		return items;
+	end
+	table.insert( items, { key = "graph:set", section = "Graph", text = "Data set: " .. current, run = SRNextDataSet,
+		detail = "Enter shows the next data set. The numbers are the last turn's values, highest first." } );
+	for i, row in ipairs( EndGameText_GraphLines( g_PlayerInfos, g_GraphData, SRPlayerName, false ) ) do
+		table.insert( items, { key = "graph:" .. i, section = "Graph", text = row.text } );
+	end
+	return items;
+end
+
+local SR_BUTTONS :table = {
+	{ id = "movie",		control = "ReplayMovieButton",	get = function() return OnReplayMovie; end,			text = "LOC_UI_ENDGAME_REPLAY_MOVIE",	after = "Playing the movie. Escape or Enter stops it" },
+	{ id = "historic",	control = "HistoricMoments",	get = function() return OnHistoricMoments; end,		text = "LOC_END_GAME_MENU_HISTORIAN_BUTTON" },
+	{ id = "export",	control = "ExportHistoricMoments", get = function() return OnExportHistoricMoments; end, text = "LOC_END_GAME_MENU_EXPORT_HISTORIAN_BUTTON" },
+	{ id = "next",		control = "NextPlayerButton",	get = function() return OnNextPlayer; end,			text = "LOC_UI_ENDGAME_MP_PLAYER_CHANGE_CONTINUE" },
+	{ id = "back",		control = "BackButton",			get = function() return OnBack; end,					text = "LOC_UI_ENDGAME_EXTENDED_GAME", after = "One more turn", unavailable = "One more turn is not available" },
+	{ id = "menu",		control = "MainMenuButton",		get = function() return OnMainMenu; end,				text = "LOC_UI_ENDGAME_MAIN_MENU", detail = "Leaves this game for the main menu." },
+};
+
+local function SRButtonItems()
+	local items:table = {};
+	for _, button in ipairs( SR_BUTTONS ) do
+		local control = SRControl( button.control );
+		if control ~= nil and not control:IsHidden() and type( button.get() ) == "function" then
+			local item:table = { key = "btn:" .. button.id, section = "Button", text = Locale.Lookup( button.text ), run = button.get(), after = button.after, detail = button.detail };
+			local ok:boolean, disabled = pcall( function() return control:IsDisabled(); end );
+			if ok and disabled then
+				item.choosable = false;
+				item.reason = button.unavailable or "Not available";
+			end
+			table.insert( items, item );
+		end
+	end
+	table.insert( items, { key = "btn:exit", section = "Button", text = "Exit to desktop", run = OnRequestClose, detail = "Asks to confirm, then quits the game." } );
+	return items;
+end
+
+local function SRBuild()
+	local items:table = {};
+	local current:string = SRCurrentTab();
+	for _, tab in ipairs( SRVisibleTabs() ) do
+		table.insert( items, { key = "tab:" .. tab.id, section = "Page", text = tab.text .. ( current == tab.id and ", selected" or "" ), tab = tab } );
+	end
+	if current == "info" then
+		local d:table = SRSummaryData();
+		if d ~= nil then
+			for i, line in ipairs( EndGameText_Lines( d ) ) do
+				table.insert( items, { key = "info:" .. i, section = "Result", text = line } );
+			end
+		end
+	elseif current == "ranking" then
+		for _, item in ipairs( SRRankItems() ) do table.insert( items, item ); end
+	elseif current == "graph" then
+		for _, item in ipairs( SRGraphItems() ) do table.insert( items, item ); end
+	end
+	for _, item in ipairs( SRButtonItems() ) do table.insert( items, item ); end
+	return items;
+end
+
+local function SRIsActive()
+	if m_isFadeOutGame or ContextPtr:IsHidden() then return false; end
+	if SRIsShown( "MovieFill" ) then return false; end
+	return not g_kPopupDialog:IsOpen();
+end
+
+local function SRSwitchTab( tab:table )
+	tab.show();
+	m_srList.Focus( "tab:" .. tab.id );
+end
+
+local function SRCycleTab( delta:number )
+	local tabs:table = SRVisibleTabs();
+	if #tabs == 0 then return; end
+	local current:string = SRCurrentTab();
+	local index:number = 1;
+	for i, tab in ipairs( tabs ) do
+		if tab.id == current then index = i; break; end
+	end
+	SRSwitchTab( tabs[ ( ( index - 1 + delta ) % #tabs ) + 1 ] );
+end
+
+local function SRActivate( item:table )
+	if item.tab ~= nil then
+		SRSwitchTab( item.tab );
+	elseif item.run ~= nil then
+		item.run();
+		if item.after ~= nil then OutputMessageToScreenReader( item.after ); end
+	else
+		OutputMessageToScreenReader( item.text );
+	end
+end
+
+local function SREnsureList()
+	if m_srList == nil then
+		m_srList = KeyNavList_Create{
+			build = SRBuild,
+			isActive = SRIsActive,
+			onActivate = SRActivate,
+			extraKeys = { [Keys.VK_TAB] = function() SRCycleTab( 1 ); end },
+			ctrlKeys = { [Keys.VK_TAB] = function() SRCycleTab( -1 ); end },
+		};
+	end
+	return m_srList;
+end
+
+-- Opens the list once the screen can take keys (after the fade-in and the movie).
+local function SRTryOpen()
+	if not m_srOpenPending or not SRIsActive() then return; end
+	m_srOpenPending = false;
+	SREnsureList().Open( "End game menu, Tab switches pages" );
+end
+
+local function SROnShow()
+	LuaEvents.SRA_SpeechHold( "EndGame", true, SR_CONTEXT_PATH );
+	local d:table = SRSummaryData();
+	local text:string = d ~= nil and EndGameText_Summary( d ) or "End of the game";
+	if SRIsShown( "BackButton" ) and not Controls.BackButton:IsDisabled() then text = text .. ". You can play one more turn"; end
+	if m_movie ~= nil then text = text .. ". Escape skips the movie"; end
+	OutputMessageToScreenReader( text );
+	m_srOpenPending = true;
+	SREnsureList().Reset();
+	SRTryOpen();
+end
+
+local function SROnMovieEnd()
+	if m_srOpenPending then
+		SRTryOpen();
+	elseif SRIsActive() then
+		SREnsureList().Focus( SREnsureList().GetFocusKey(), "Movie stopped" );
+	end
+end
+
+local function SROnHide()
+	m_srOpenPending = false;
+	LuaEvents.SRA_SpeechHold( "EndGame", false );
+end
+-- End ScreenReaderAccess mod change
+
+-- ===========================================================================
 function OnReplayMovie()
 	if(m_movie) then
 		if Controls.Movie:SetMovie(m_movie) then
@@ -474,6 +744,8 @@ function OnMovieExitOrFinished()
 	if (GameConfiguration.IsNetworkMultiplayer() or GameConfiguration.IsPlayByCloud()) then
 		UI.ReleasePauseEvent();
 	end
+
+	SROnMovieEnd();		-- ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -489,9 +761,21 @@ end
 
 -- ===========================================================================
 function OnInputHandler( kInput:table )
+	-- ScreenReaderAccess mod change: the keyboard list (once the fade-in and the movie are over)
+	if m_srList ~= nil and m_srList.HandleInput( kInput ) then return true; end
 	local msg :number = kInput:GetMessageType();
 	if msg == KeyEvents.KeyUp then
 		local key :number = kInput:GetKey();
+
+		-- ScreenReaderAccess mod change: Enter skips the fade-in and the movie like Escape
+		if key == Keys.VK_RETURN then
+			if m_isFadeOutGame then
+				OnFadeAbort();
+			elseif Controls.MovieFill:IsVisible() then
+				OnMovieExitOrFinished();
+			end
+			return true;
+		end
 		
 		-- If ESC, have it act based on what is happening with the screen.
 		if (key == Keys.VK_ESCAPE) then
@@ -531,6 +815,7 @@ function ShowComplete()
 	Controls.ButtonStack:SetHide( false );	
 	OnInfoTab();					-- Always start with the info panel.	
 	OnReplayMovie();				-- Noop if no movie is set.
+	SRTryOpen();					-- ScreenReaderAccess mod change
 end
 
 
@@ -570,11 +855,14 @@ function OnShow()
 		OnInfoTab();					-- Always start with the info panel.	
 		OnReplayMovie();				-- Noop if no movie is set.
 	end
+
+	SROnShow();		-- ScreenReaderAccess mod change: say the result, then offer the list
 end
 
 -- ===========================================================================
 function OnHide()
 	print("Hiding EndGame Menu");
+	SROnHide();		-- ScreenReaderAccess mod change
 	LuaEvents.EndGameMenu_Closed();		-- Remove ingame bulk (un)hide counter.
 end
 
