@@ -479,12 +479,19 @@ def clear_advisors(runner, out=print, line=0):
             return "ok", collected
 
 
+def _options_header_fallback(steps):
+    """TEMPORARY (the options branch deletes it): treat an '# options:' header line as 'needs a fresh game' until
+    parse_script sets steps.fresh for it / script_needs_fresh exists."""
+    return bool(getattr(steps, "options", None)) or bool(re.search(r"^#\s*options:", getattr(steps, "text", "") or "", re.M))
+
+
 def shares_game(steps):
-    """May the next script run on the game this one leaves? Not for '# no-share-load', a scenario, or an '# options:' header
-    (it changes game options: the game must be loaded fresh with them)."""
-    if getattr(steps, "fresh", False) or getattr(steps, "options", None):
-        return False
-    return not re.search(r"^#\s*options:", getattr(steps, "text", "") or "", re.M)
+    """The single predicate: may the next script run on the game this one leaves? Not for '# no-share-load', a scenario or an
+    '# options:' header (see script_needs_fresh)."""
+    needs_fresh = globals().get("script_needs_fresh")
+    if needs_fresh is not None:
+        return not needs_fresh(steps)
+    return not (getattr(steps, "fresh", False) or _options_header_fallback(steps))
 
 
 _RESET_ANSWER = re.compile(r"^(clean|dirty|snap)\b\s*(.*)$")
@@ -845,6 +852,10 @@ def run_all(scripts, runner, share_load=False, out=print):
                     if verdict == "clean":
                         current = r.loaded
                         out("  reset check: clean")
+                        # the reset may speak (selection, cursor): drain it so it never shows up as "(earlier)" in the next script
+                        t_drain = time.time()
+                        runner.run(["sr"])
+                        r.clean_seconds += time.time() - t_drain
                     else:
                         out("  reset check: DIRTY (%s) -> the next script loads fresh" % text)
         except LockedError as e:

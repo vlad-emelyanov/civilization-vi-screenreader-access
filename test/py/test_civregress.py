@@ -330,6 +330,25 @@ class ResetCheckTests(unittest.TestCase):
         # the reset check asks the hub with the baseline of the load
         self.assertIn("TestResetState('t=1;g=5|none')", r.checks[1])
 
+    def test_clean_check_is_followed_by_an_sr_drain(self):
+        r = HubRunner([(["key", "B"], (0, ["SR> ok"]))])
+        self.run_three(r)
+        names = [c[0] if c[:2] != ["lua", "InGameAccess"] else "hub" for c in r.calls]
+        for i, n in enumerate(names):
+            if n == "hub" and r.checks[names[:i + 1].count("hub") - 1] != "snap":
+                self.assertEqual(names[i + 1], "sr")         # the reset's speech is read away before the next script
+        # a dirty check drains nothing
+        r = HubRunner(verdicts=[(0, ["dirty not our turn"])])
+        self.run_three(r, [("a", cr.parse_script("load x\nkey A")), ("b", cr.parse_script("load x\nkey B"))])
+        self.assertNotIn("sr", [c[0] for c in r.calls])
+
+    def test_script_needs_fresh_is_the_predicate_when_it_exists(self):
+        cr.script_needs_fresh = lambda steps: True
+        try:
+            self.assertFalse(cr.shares_game(cr.parse_script("load x")))
+        finally:
+            del cr.script_needs_fresh
+
     def test_baseline_taken_after_advisors_before_first_key(self):
         r = HubRunner([(["key", "B"], (0, ["SR> ok"]))])
         self.run_three(r)
