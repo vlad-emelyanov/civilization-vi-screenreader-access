@@ -23,7 +23,7 @@ expect ^Attack: choose a target
 key X -Settle 800
 key X -Settle 800
 key X -Settle 800
-key Enter -Settle 2000
+key Enter -Settle 2000 -NoQuiet
 expect ^Moving to attack Barbarian Musketman, \d+ turns?
 lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
 wait Legion -Timeout 8

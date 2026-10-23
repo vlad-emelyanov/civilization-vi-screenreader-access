@@ -22,7 +22,7 @@ key R -Settle 250
 key A -Settle 250
 key M -Settle 250
 key A -Settle 250
-key Enter -Settle 1200
+key Enter -Settle 1200 -NoQuiet
 expect ^Found: .*Drama and Poetry
 key J -Settle 800
 expect ^(Current: .+, \d+ of \d+ eras\. .+|No civic in progress)
