@@ -1,4 +1,4 @@
-# UNVERIFIED (written without the game). early-t60: F9 opens the Civilopedia on the section list (Concepts first), Tab walks sections
+# Verified 2026-10-23 (Units is the 7th of 18 sections here). early-t60: F9 opens the Civilopedia on the section list (Concepts first), Tab walks sections
 # (Units is the 8th in the base game), Enter opens a page, Down reads lines, Escape goes back to the list, Escape again closes.
 # no-share-load
 load early-t60
@@ -11,14 +11,29 @@ key Tab -Settle 600
 key Tab -Settle 600
 key Tab -Settle 600
 key Tab -Settle 600
-key Tab -Settle 600
-expect ^Units, 8 of \d+ sections
+expect ^Units, 7 of \d+ sections
+key Down -Settle 600
+key Down -Settle 600
 key Enter -Settle 1500
 expect page, \d+ lines?\.
 key Down -Settle 600
 expect , 2 of \d+$
 key Escape -Settle 1000
 expect ^Back to Units
+key Escape -Settle 1000
+expect ^Civilopedia closed
+# the advisor "Tell me more" and links open a page through this event
+lua InGame LuaEvents.OpenCivilopedia("UNIT_WARRIOR")
+wait Warrior page -Timeout 10
+key F -Settle 600
+key I -Settle 250
+key R -Settle 250
+key O -Settle 250
+key N -Settle 250
+key Enter -Settle 2000
+expect ^Search results for IRON
+key Escape -Settle 1000
+key Escape -Settle 1000
 key Escape -Settle 1000
 expect ^Civilopedia closed
 no-lua-errors
