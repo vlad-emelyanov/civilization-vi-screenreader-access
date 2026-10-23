@@ -227,7 +227,15 @@ def cmd_restore(out=print):
     if backup is None:
         out("testopts: no backup, nothing to restore")
         return 0
-    write_values(backup)   # re-detects: the game may have crashed since `on`
+    running = game_running()
+    write_values(backup, running)   # re-detects: the game may have crashed since `on`
+    if running:
+        # The game itself rewrites UserOptions.txt now and then (a load, leaving a game) with whatever is in memory, i.e. the test
+        # values: save the restored values so the file is the user's again.
+        try:
+            tuner_run("Options.SaveOptions()")
+        except RuntimeError as e:
+            out("testopts: WARNING: could not save the restored options (%s); UserOptions.txt may hold test values" % e)
     os.remove(BACKUP)
     out("testopts: restored %s" % backup)
     return 0
