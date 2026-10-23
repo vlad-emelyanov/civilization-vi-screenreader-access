@@ -142,4 +142,4 @@ The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goe
 
 ## Lua limits
 
-- A chunk holds at most 200 local variables (functions included): `InGameAccess.lua` hit it (the file did not compile: "too many local variables"). New hub handlers go into the `H` table (`function H.Name()`), not `local function`. `util/lint.py` / luacheck did NOT report it; count with `grep -c '^local ' ScreenReaderAccess/UI/Additions/InGameAccess.lua` (keep it under about 195).
+- A chunk holds at most 200 local variables (functions included): `InGameAccess.lua` hit it (the file did not compile: "too many local variables"). The hub is now split into `Accessibility/Hub*.lua` modules (one global table each, `function HubX.Name()` for anything shared): each file stays far below the limit (the hub itself has 2 top-level locals). `util/lint.py` warns when a file passes 185 top-level locals; luacheck itself does NOT report the limit; count with `grep -c '^local ' <file>`.
