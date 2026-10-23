@@ -1,4 +1,4 @@
-# UNVERIFIED (written offline). medieval-t100: T opens the Tech tree (Screens/TechTree.lua override, Accessibility/TreeNav.lua):
+# Verified 2026-10-23.
 # it opens on the era of the current research, Left/Right switch eras, Up/Down move through the era, Space = details,
 # J jumps back to the current research, Escape closes. The target is NOT changed here (Enter is left out on purpose).
 # no-share-load
@@ -12,6 +12,16 @@ key Down -Settle 800
 expect , 2 of \d+$
 key Space -Settle 800
 expect Unlocks
+key Q -Settle 800
+expect ^Queue: 
+key F -Settle 600
+expect ^editing Search
+key I -Settle 250
+key R -Settle 250
+key O -Settle 250
+key N -Settle 250
+key Enter -Settle 1200
+expect ^Found: .*Iron Working
 key J -Settle 800
 expect ^(Current: .+, \d+ of \d+ eras\. .+|Not researching anything)
 key Escape -Settle 1500
