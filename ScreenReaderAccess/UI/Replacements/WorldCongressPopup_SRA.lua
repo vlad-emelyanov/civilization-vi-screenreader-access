@@ -247,6 +247,31 @@ function SetStage(stageNum:number, beginCongress:boolean)
 	return true;
 end
 
+-- Begin ScreenReaderAccess mod change
+-- Spoken when the session has nothing for the local player to vote on and the game submits the turn by itself.
+function SRA_SayNoVote()
+	local ok:boolean, err = pcall( function()
+		local text:string = m_CurrentStage == 2 and "Special session" or "World Congress";
+		if m_CurrentStage == 2 then
+			local localID:number = Game.GetLocalPlayer();
+			for _, crisis in ipairs( Game.GetEmergencyManager():GetEmergencyInfoTable( localID ) ) do
+				if crisis.HasBegun then
+					local topic:string = crisis.ShortDescriptionText ~= nil and Locale.Lookup( crisis.ShortDescriptionText ) or "";
+					local target:string = ( crisis.TargetID ~= nil and PlayerConfigurations[ crisis.TargetID ] ~= nil ) and GetVisiblePlayerName( crisis.TargetID ) or "";
+					if topic ~= "" then text = text .. ": " .. topic .. ( target ~= "" and ( " for " .. target ) or "" ); end
+					break;
+				end
+			end
+		end
+		OutputMessageToScreenReader( CleanTextForSpeech( text ) .. ". You have no vote in this session.", true );
+	end );
+	if not ok then
+		print( "WorldCongress no-vote announce error: " .. tostring( err ) );
+		OutputMessageToScreenReader( "You have no vote in this session.", true );
+	end
+end
+-- End ScreenReaderAccess mod change
+
 -- ===========================================================================
 -- Shows and hides content relevant to the current phase
 -- ===========================================================================
@@ -279,6 +304,9 @@ function SetPhase(phaseNum:number)
 		if HasChoices() then
 			m_VerticalPaddingSmallIM:GetInstance(Controls.ResolutionStack);
 		else
+			-- Begin ScreenReaderAccess mod change: nothing to vote on (e.g. a special session that does not involve us); the game submits silently, so say why
+			SRA_SayNoVote();
+			-- End ScreenReaderAccess mod change
 			UI.RequestPlayerOperation(Game.GetLocalPlayer(), PlayerOperations.WORLD_CONGRESS_SUBMIT_TURN, {});
 			UI.RequestAction(ActionTypes.ACTION_ENDTURN);
 

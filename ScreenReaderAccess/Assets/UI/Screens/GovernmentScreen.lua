@@ -1492,7 +1492,7 @@ function Close()
 
 	if ContextPtr:IsHidden() then return; end
 	
-	if Controls.ConfirmPolicies:IsVisible() and Controls.ConfirmPolicies:IsEnabled() then
+	if Controls.ConfirmPolicies:IsVisible() and Controls.ConfirmPolicies:IsEnabled() and SRA_PoliciesDiffer() then		-- ScreenReaderAccess: only warn when the slots really differ from the game's
 		-- Policies confirmation button is enabled (and showing); warn player changes are not saved!
 		local popup:table = PopupDialogInGame:new( "WarnUnsavedChanges" );
 		popup:ShowYesNoDialog( TXT_GOV_POPUP_PROMPT_POLICIES_CLOSE, 
@@ -2743,6 +2743,25 @@ function OnGameDebugReturn( context:string, contextTable:table )
 end
 
 -- ===========================================================================
+-- Begin ScreenReaderAccess change: the "policy changes have not been confirmed" warning appeared although nothing was changed
+-- (the screen's changed flag also goes up for a removed-and-re-added policy or a stray drop). Compare with the game's real slots.
+function SRA_PoliciesDiffer()
+	local ok:boolean, differs = pcall( function()
+		local culture:table = Players[Game.GetLocalPlayer()]:GetCulture();
+		for i = 0, culture:GetNumPolicySlots() - 1 do
+			local slotData:table = m_ActivePoliciesBySlot[i + 1];
+			local policyID:number = culture:GetSlotPolicy( i );
+			local actual:string = ( policyID ~= -1 ) and GameInfo.Policies[policyID].PolicyType or EMPTY_POLICY_TYPE;
+			if slotData == nil or slotData.GC_PolicyType ~= actual then return true; end
+		end
+		return false;
+	end );
+	if not ok then return true; end
+	if not differs then m_isPoliciesChanged = false; end
+	return differs;
+end
+-- End ScreenReaderAccess change
+
 -- Begin ScreenReaderAccess change: keyboard access to the three tabs.
 --   Policies:    slots (Enter opens the policies that fit, Delete empties a slot) and the confirm button.
 --   Governments: the list of governments (Enter picks one, the game asks to confirm).
@@ -2872,6 +2891,7 @@ local function SRA_GovernmentItems()
 		if government.NumSlotDiplomatic > 0 then table.insert( slots, government.NumSlotDiplomatic .. " diplomatic" ); end
 		if government.NumSlotWildcard > 0 then table.insert( slots, government.NumSlotWildcard .. " wildcard" ); end
 		table.insert( parts, "slots: " .. table.concat( slots, ", " ) );
+		if unlocked and not isCurrent then table.insert( parts, "Enter to switch to it" ); end
 		local inherent:string = SRA_Clean( government.BonusInherentText );
 		if inherent ~= "" then table.insert( parts, inherent ); end
 		local accumulated:string = SRA_Clean( government.BonusAccumulatedText );
@@ -3001,7 +3021,7 @@ local function SRA_OnDelete()
 	end
 end
 
-local function SRA_OnTab()
+local function SRA_CycleTab( delta:number )
 	if m_srCatalogSlotIndex ~= nil then return; end
 	local order:table = {};
 	if not Controls.ButtonMyGovernment:IsHidden() then table.insert( order, Controls.ButtonMyGovernment ); end
@@ -3012,12 +3032,15 @@ local function SRA_OnTab()
 	if tab == "policies" then currentButton = Controls.ButtonPolicies; elseif tab == "governments" then currentButton = Controls.ButtonGovernments; end
 	for i, button in ipairs( order ) do
 		if button == currentButton then
-			m_tabs.SelectTab( order[ ( i % #order ) + 1 ] );
+			m_tabs.SelectTab( order[ ( ( i - 1 + delta ) % #order ) + 1 ] );
 			break;
 		end
 	end
 	SRA_OnOpen();
 end
+
+local function SRA_OnTab() SRA_CycleTab( 1 ); end
+function SRA_OnTabPrev() SRA_CycleTab( -1 ); end		-- Control+Tab (Shift+Tab is Steam's overlay)
 
 local function SRA_OnClose()
 	if m_srCatalogSlotIndex ~= nil then
@@ -3072,6 +3095,7 @@ function Initialize()
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
 		extraKeys = { [Keys.VK_DELETE] = SRA_OnDelete, [Keys.VK_TAB] = SRA_OnTab },
+		ctrlKeys = { [Keys.VK_TAB] = SRA_OnTabPrev },
 	};
 
 	-- Static controls:

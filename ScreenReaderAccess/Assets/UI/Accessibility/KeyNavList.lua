@@ -8,6 +8,7 @@
 --		onClose    = function() ... end,                 -- optional: Escape (otherwise left to the game's own handler)
 --		onFocus    = function(item) ... end,             -- optional: the focus moved to this item (before it is spoken)
 --		extraKeys  ={ [Keys.VK_DELETE] = function() ... end },   -- optional: more keys, acted on at KeyUp
+--		ctrlKeys   = { [Keys.VK_TAB] = function() ... end },    -- optional: Control+key (acted on at KeyUp; Shift+Tab is Steam's overlay, so Control+Tab = previous)
 --		horizontal = true,                                -- optional: Left/Right also move (like Up/Down)
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
 --	};
@@ -172,9 +173,16 @@ function KeyNavList_Create( config:table )
 		end
 		local msg:number = input:GetMessageType();
 		if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
-		if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 		local key:number = input:GetKey();
 		local isDown:boolean = ( msg == KeyEvents.KeyDown );
+		if input:IsControlDown() and not input:IsShiftDown() and not input:IsAltDown() and config.ctrlKeys ~= nil and config.ctrlKeys[ key ] ~= nil then
+			if not isDown then
+				local ok:boolean, err = xpcall( config.ctrlKeys[ key ], KeyNavErrorHandler );
+				if not ok then print( "KeyNavList error: " .. tostring(err) ); end
+			end
+			return true;
+		end
+		if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 
 		local action = nil;
 		if key == Keys.VK_UP then			if isDown then action = function() Move( -1 ); end end
