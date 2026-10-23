@@ -431,7 +431,7 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
     $mods = [uint32[]]@($parts | Select-Object -SkipLast 1 | ForEach-Object {
         switch -Regex ($_) { '^(ctrl|control)$' { 0xA2 } '^shift$' { 0xA0 } '^(alt|menu)$' { 0xA4 } default { throw "Unknown modifier '$_' (use Shift, Control, Alt)" } }
     })
-    $vk = [uint32][System.Windows.Forms.Keys]::Parse([System.Windows.Forms.Keys], $parts[-1], $true)
+    $vk = [uint32][System.Windows.Forms.Keys]::Parse([System.Windows.Forms.Keys], $(if ($parts[-1] -eq 'Backspace') { 'Back' } else { $parts[-1] }), $true)
     if (-not [CivCtl.Native]::Focus($game.MainWindowHandle)) { Write-Warning 'Could not bring game window to foreground; key may go elsewhere.' }
     # Output that arrived after the previous command returned; shown rather than dropped so nothing is missed.
     $pending = Format-Lines (Read-NewLogLines)
@@ -544,7 +544,7 @@ function Invoke-Deploy([string[]]$touch) {
     if (-not (Test-Path $dst)) { throw "Deployed mod folder not found: $dst (run: civctl.ps1 build)" }
     $logLen = if (Test-Path $LuaLog) { (Get-Item $LuaLog).Length } else { 0 }
     $copied = 0
-    $shrunk = @()
+    $shrunk = @(); $deployedRels = @()
     $needsBuild = @()
     $sha = [Security.Cryptography.SHA1]::Create()
     $repoRels = @{}
@@ -578,7 +578,7 @@ function Invoke-Deploy([string[]]$touch) {
         if ($same -and -not $force) { continue }
         if ((Get-Item $target).Length -gt $bytes.Length) { $shrunk += , @($target, $bytes) }
         Write-InPlace $target $bytes
-        $copied++
+        $copied++; $deployedRels += $rel
         Write-Output "$(if ($same) { 'reloaded' } else { 'deployed' }) $rel"
         if ($rel -like 'Database\*') { $needsBuild += "$rel (database changes need a full restart)" }
     }
@@ -605,7 +605,7 @@ function Invoke-Deploy([string[]]$touch) {
             Start-Sleep -Milliseconds 2500
             $errs = @(Read-LogSince $logLen | Where-Object { $_ -match $pattern })
         }
-        if ($errs) { $errs | ForEach-Object { Write-Output "LUA ERROR> $_" }; $failed = $true }
+        if ($errs) { $errs | ForEach-Object { Write-Output "LUA ERROR> $_" }; $failed = $true; if ($errs -match 'Syntax Error') { Write-Output "CONTEXT FAILED TO LOAD (Syntax Error) after deploying: $($deployedRels -join ', ')" } }
         else { Write-Output 'No Lua errors in the 2.5 s after deploy.' }
     }
     foreach ($n in $needsBuild) { Write-Output "needs build + restart: $n" }
@@ -770,7 +770,7 @@ function Invoke-LoadOnce([string]$name) {
     if (-not (Wait-ForScreenReader 'Continue Game' 90)) { throw "'Continue Game' did not show after loading '$name'" }
     $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000)
     $o | ForEach-Object { Write-Output $_ }
-    if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 60)) { throw "No turn announcement after loading '$name'" }
+    if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 60) -and -not ((Get-GameWhere) -match '^INGAME')) { throw "No turn announcement after loading '$name'" }
 }
 
 function Invoke-Load([string]$name) {

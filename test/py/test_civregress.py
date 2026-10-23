@@ -347,5 +347,24 @@ class RecordTests(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
+class RunLock(unittest.TestCase):
+    def test_lock_refuses_live_pid_and_replaces_stale(self):
+        import tempfile
+        d = tempfile.mkdtemp()
+        ok, path = cr.acquire_run_lock(d)
+        self.assertTrue(ok)
+        with open(path, "w") as fh:
+            fh.write(str(os.getppid()))  # parent process: alive, not us
+        ok2, msg = cr.acquire_run_lock(d)
+        self.assertFalse(ok2)
+        self.assertIn("another civctl regress run", msg)
+        with open(path, "w") as fh:
+            fh.write("999999")  # dead
+        ok3, _ = cr.acquire_run_lock(d)
+        self.assertTrue(ok3)
+        cr.release_run_lock(path)
+        self.assertFalse(os.path.exists(path))
+
+
 if __name__ == "__main__":
     unittest.main()

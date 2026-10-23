@@ -87,6 +87,52 @@ def strip_annotations(src):
     return "\n".join(out)
 
 
+LOCALS_WARN = 185  # Lua 5.1 allows 200 locals per function; the hub hit the limit twice
+
+
+def top_level_locals(stripped):
+    """Count the locals declared at column 0 (the main chunk's own locals; nested blocks are indented)."""
+    n = 0
+    for line in stripped.split("\n"):
+        m = re.match(r"^local\s+function\s+\w+", line)
+        if m:
+            n += 1
+            continue
+        m = re.match(r"^local\s+([^=]*?)\s*(?:=|$)", line)
+        if m:
+            n += len([x for x in m.group(1).split(",") if x.strip()])
+    return n
+
+
+_LUA = None
+
+
+def _lua():
+    global _LUA
+    if _LUA is None:
+        try:
+            from lupa.lua51 import LuaRuntime
+        except ImportError:
+            r = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "lupa"])
+            if r.returncode != 0:
+                _LUA = False
+                return _LUA
+            from lupa.lua51 import LuaRuntime
+        _LUA = LuaRuntime(unpack_returned_tuples=True)
+    return _LUA
+
+
+def compile_check(name, stripped):
+    """Compile with real Lua 5.1 (limits: 200 locals, 60 upvalues, registers, ...). Returns an error line or None;
+    None as well when lupa is unavailable. The game only logs 'Syntax Error: ... too many registers' and the context dies."""
+    lua = _lua()
+    if not lua:
+        return None
+    res = lua.eval("function(src, name) local f, e = loadstring(src, '=' .. name); return f and '' or e end")(stripped, name)
+    return res or None
+
+
+
 def rel(p):
     return os.path.relpath(os.path.abspath(p), ROOT).replace("\\", "/")
 
@@ -112,6 +158,16 @@ def main(argv):
             src = fh.read()
         with open(dst, "w", encoding="utf-8", newline=None) as fh:
             fh.write(strip_annotations(src))
+    compile_errors = []
+    for f in files:
+        with open(os.path.join(tmp, f), encoding="utf-8") as fh:
+            stripped = fh.read()
+        e = compile_check(f, stripped)
+        if e:
+            compile_errors.append("%s (Lua 5.1 compile)" % e)
+        n = top_level_locals(stripped)
+        if n > LOCALS_WARN:
+            print("WARN  %s: %d top-level locals (Lua limit 200): split or use a table before it breaks" % (f, n))
     r = subprocess.run([EXE, "--formatter", "plain", "--codes", "--no-color", "--no-cache",
                         "--config", os.path.join(ROOT, ".luacheckrc")] + files,
                        cwd=tmp, capture_output=True, text=True)
@@ -125,6 +181,7 @@ def main(argv):
             errors.append(line)
         else:
             warns.append(line)
+    errors = compile_errors + errors
     for l in errors:
         print("ERROR " + l)
     if verbose:

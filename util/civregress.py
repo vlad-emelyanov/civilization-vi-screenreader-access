@@ -597,6 +597,46 @@ def discover(names):
     return scripts
 
 
+def _pid_alive(pid):
+    if pid <= 0:
+        return False
+    if os.name == "nt":
+        r = subprocess.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH", "/FO", "CSV"], capture_output=True, text=True)
+        return ('"%d"' % pid) in r.stdout
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def acquire_run_lock(directory=None):
+    """Pid file %TEMP%/civctl/regress.pid: returns (True, path) or (False, message) when another run is alive (a stale pid is replaced)."""
+    d = directory or os.path.join(tempfile.gettempdir(), "civctl")
+    os.makedirs(d, exist_ok=True)
+    path = os.path.join(d, "regress.pid")
+    try:
+        with open(path) as fh:
+            old = int(fh.read().strip() or 0)
+    except (OSError, ValueError):
+        old = 0
+    if old and old != os.getpid() and _pid_alive(old):
+        return False, "REFUSED: another civctl regress run is alive (pid %d, lock %s). Wait for it or stop that process." % (old, path)
+    with open(path, "w") as fh:
+        fh.write(str(os.getpid()))
+    return True, path
+
+
+def release_run_lock(path):
+    try:
+        with open(path) as fh:
+            mine = int(fh.read().strip() or 0) == os.getpid()
+        if mine:  # removed after the handle is closed (Windows refuses otherwise)
+            os.remove(path)
+    except (OSError, ValueError):
+        pass
+
+
 def main(argv=None):
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -648,7 +688,14 @@ def main(argv=None):
     if share:
         print("(sharing one load per fixture; scenario and '# no-share-load' scripts load fresh; --no-share-load disables)")
     t0 = time.time()
-    results = run_all(scripts, CivctlRunner(owner=owner), share)
+    ok, lock = acquire_run_lock()
+    if not ok:
+        print(lock)
+        return 8
+    try:
+        results = run_all(scripts, CivctlRunner(owner=owner), share)
+    finally:
+        release_run_lock(lock)
     if record:
         steps_by_name = dict(scripts)
         for r in results:
