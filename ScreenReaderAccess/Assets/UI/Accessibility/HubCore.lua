@@ -141,8 +141,28 @@ end
 local function TestSnapshot()
 	local id:number = Game.GetLocalPlayer();
 	local player:table = Players[ id ];
+	-- h=: hash of every unit (id, plot, moves, damage, activity), every city (id, production), research, civic and policy slots
+	local parts:table = {};
+	for _, unit in player:GetUnits():Members() do
+		table.insert( parts, "u" .. unit:GetID() .. "," .. unit:GetX() .. "," .. unit:GetY() .. "," .. unit:GetMovesRemaining()
+			.. "," .. unit:GetDamage() .. "," .. tostring( unit:GetActivityType() ) );
+	end
+	for _, city in player:GetCities():Members() do
+		table.insert( parts, "c" .. city:GetID() .. "," .. tostring( city:GetBuildQueue():GetCurrentProductionTypeHash() ) );
+	end
+	table.insert( parts, "r" .. tostring( player:GetTechs():GetResearchingTech() ) );
+	local culture:table = player:GetCulture();
+	table.insert( parts, "v" .. tostring( culture:GetProgressingCivic() ) );
+	local ok:boolean, slots = pcall( function()
+		local list:table = {};
+		for i = 0, ( culture:GetNumPolicySlots() or 0 ) - 1 do table.insert( list, tostring( culture:GetSlotPolicy( i ) ) ); end
+		return table.concat( list, "," );
+	end );
+	table.insert( parts, "p" .. ( ok and slots or "?" ) );
+	local text:string, hash:number = table.concat( parts, ";" ), 17;
+	for i = 1, #text do hash = ( hash * 31 + string.byte( text, i ) ) % 2147483629; end
 	return "t=" .. Game.GetCurrentGameTurn() .. ";g=" .. math.floor( player:GetTreasury():GetGoldBalance() )
-		.. ";u=" .. player:GetUnits():GetCount() .. ";c=" .. player:GetCities():GetCount();
+		.. ";u=" .. player:GetUnits():GetCount() .. ";c=" .. player:GetCities():GetCount() .. ";h=" .. hash;
 end
 
 -- Why the game is not in plain map mode, or nil.
@@ -154,17 +174,23 @@ function HubCore.TestDirtyReason()
 	if #open > 0 then return "open: " .. table.concat( open, ", " ); end
 	if HubCore.m_mode ~= nil then return "hub mode " .. tostring( HubCore.m_mode.name ); end
 	if UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then return "interface mode " .. tostring( UI.GetInterfaceMode() ); end
+	if #HubCore.m_delayed > 0 then return "pending delayed calls"; end
+	if #HubCore.m_arrivals > 0 or HubCore.m_arrivalTimer >= 0 then return "pending arrival announcements"; end
+	if next( HubCore.m_movers ) ~= nil then return "pending move orders"; end
+	if HubCore.m_enterWatch >= 0 then return "Enter watch pending"; end
 	return nil;
 end
 
 -- The snapshot and selection of a game as it is (no checks, nothing changed): the baseline TestResetState compares with.
 function HubCore.TestSnapshotText()
-	return "snap " .. TestSnapshot() .. "|" .. TestSelectionTag();
+	local ok:boolean, result = xpcall( function() return "snap " .. TestSnapshot() .. "|" .. TestSelectionTag(); end, KeyNavErrorHandler or tostring );
+	if not ok then return "dirty error: " .. tostring( result ); end
+	return result;
 end
 
 -- baseline: nil to just look, or the text a previous call returned after "clean " (taken right after a load). Returns
 -- "clean <snapshot>|<selection>" or "dirty <reason>". Puts the map cursor and the selection back when it is clean.
-function HubCore.TestResetState( baseline )
+local function TestResetStateInner( baseline )
 	local reason:string = HubCore.TestDirtyReason();
 	if reason ~= nil then return "dirty " .. reason; end
 	local snapshot:string = TestSnapshot();
@@ -187,6 +213,12 @@ function HubCore.TestResetState( baseline )
 	end
 	HubCursor.ResetCursor();
 	return "clean " .. snapshot .. "|" .. TestSelectionTag();
+end
+
+function HubCore.TestResetState( baseline )
+	local ok:boolean, result = xpcall( function() return TestResetStateInner( baseline ); end, KeyNavErrorHandler or tostring );
+	if not ok then return "dirty error: " .. tostring( result ); end
+	return result;
 end
 
 -- Runs fn after the given seconds (from the update loop).

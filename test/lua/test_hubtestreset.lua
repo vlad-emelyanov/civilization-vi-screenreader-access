@@ -6,6 +6,11 @@ local gold, units, cities, turnActive = 100, 3, 1, true
 local selected, resets, controls = nil, 0, {}
 local fakeObject = function(id) return { GetID = function() return id end } end
 local objects = { [7] = fakeObject(7), [9] = fakeObject(9) }
+local unitX, production, research = 4, 100, 12
+local fakeUnit = { GetID = function() return 7 end, GetX = function() return unitX end, GetY = function() return 2 end,
+	GetMovesRemaining = function() return 2 end, GetDamage = function() return 0 end, GetActivityType = function() return 0 end }
+local fakeCity = { GetID = function() return 9 end, GetBuildQueue = function() return { GetCurrentProductionTypeHash = function() return production end } end }
+local function members(obj) return function() return function(_, last) if last == nil then return 1, obj end end, nil, nil end end
 
 Game.GetLocalPlayer = function() return 0 end
 Game.GetCurrentGameTurn = function() return 50 end
@@ -20,8 +25,10 @@ UI.SelectCity = function(c) selected = { kind = "c", id = c:GetID() } end
 Players = { [0] = {
 	IsTurnActive = function() return turnActive end,
 	GetTreasury = function() return { GetGoldBalance = function() return gold + 0.4 end } end,
-	GetUnits = function() return { GetCount = function() return units end, FindID = function(_, id) return objects[id] end } end,
-	GetCities = function() return { GetCount = function() return cities end, FindID = function(_, id) return objects[id] end } end,
+	GetTechs = function() return { GetResearchingTech = function() return research end } end,
+	GetCulture = function() return { GetProgressingCivic = function() return 3 end, GetNumPolicySlots = function() return 1 end, GetSlotPolicy = function() return 5 end } end,
+	GetUnits = function() return { Members = members(fakeUnit), GetCount = function() return units end, FindID = function(_, id) return objects[id] end } end,
+	GetCities = function() return { Members = members(fakeCity), GetCount = function() return cities end, FindID = function(_, id) return objects[id] end } end,
 } }
 HubCursor = { ResetCursor = function() resets = resets + 1 end }
 local function control(hidden, children)
@@ -33,7 +40,7 @@ HubCore.m_ready = true
 
 test("plain map mode is clean and resets the cursor", function()
 	local r = HubCore.TestResetState(nil)
-	eq(r, "clean t=50;g=100;u=3;c=1|none")
+	assert(r:find("^clean t=50;g=100;u=3;c=1;h=%d+|none$"), r)
 	eq(resets, 1)
 end)
 
@@ -77,7 +84,7 @@ end)
 test("TestSnapshotText reports the state even when a screen is open", function()
 	selected = { kind = "c", id = 9 }
 	controls["/InGame/TopOptionsMenu"] = control(false)
-	eq(HubCore.TestSnapshotText(), "snap t=50;g=100;u=3;c=1|c:9")
+	assert(HubCore.TestSnapshotText():find("^snap t=50;g=100;u=3;c=1;h=%d+|c:9$"))
 	controls["/InGame/TopOptionsMenu"] = nil
 	selected = nil
 end)
@@ -92,7 +99,48 @@ test("the selection is put back to the baseline", function()
 	selected = nil
 	eq(HubCore.TestResetState(base), "clean " .. base)
 	selected = { kind = "u", id = 7 }
-	local noneBase = "t=50;g=100;u=3;c=1|none"
+	local noneBase = HubCore.TestSnapshotText():match("^snap (.*)$"):gsub("|.*$", "|none")
 	eq(HubCore.TestResetState(noneBase), "clean " .. noneBase)
 	eq(selected, nil)
+end)
+
+test("a moved unit, a changed production or research is dirty against the baseline", function()
+	selected = nil
+	local base = HubCore.TestResetState(nil):match("^clean (.*)$")
+	unitX = 5
+	assert(HubCore.TestResetState(base):find("^dirty changed"))
+	unitX = 4
+	production = 101
+	assert(HubCore.TestResetState(base):find("^dirty changed"))
+	production = 100
+	research = 13
+	assert(HubCore.TestResetState(base):find("^dirty changed"))
+	research = 12
+	assert(HubCore.TestResetState(base):find("^clean"))
+end)
+
+test("pending hub state is dirty", function()
+	HubCore.m_movers[7] = { dest = 1 }
+	eq(HubCore.TestResetState(nil), "dirty pending move orders")
+	HubCore.m_movers = {}
+	HubCore.m_enterWatch = 0.5
+	eq(HubCore.TestResetState(nil), "dirty Enter watch pending")
+	HubCore.m_enterWatch = -1
+	table.insert(HubCore.m_delayed, { time = 1 })
+	eq(HubCore.TestResetState(nil), "dirty pending delayed calls")
+	HubCore.m_delayed = {}
+	HubCore.m_arrivalTimer = 0.8
+	eq(HubCore.TestResetState(nil), "dirty pending arrival announcements")
+	HubCore.m_arrivalTimer = -1
+	table.insert(HubCore.m_arrivals, { text = "x" })
+	eq(HubCore.TestResetState(nil), "dirty pending arrival announcements")
+	HubCore.m_arrivals = {}
+end)
+
+test("an error inside the entry point becomes dirty error", function()
+	local saved = Players[0].GetTechs
+	Players[0].GetTechs = function() error("boom") end
+	assert(HubCore.TestResetState(nil):find("^dirty error: .*boom"))
+	assert(HubCore.TestSnapshotText():find("^dirty error: .*boom"))
+	Players[0].GetTechs = saved
 end)
