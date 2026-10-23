@@ -13,7 +13,7 @@
   .\util\civctl.ps1 start                 # launch game + console app, wait for main menu
   .\util\civctl.ps1 sr                    # print new screen reader lines since last call
   .\util\civctl.ps1 key Down              # press a key (Down, Up, Enter, Escape, Tab, A, F1, ...)
-  .\util\civctl.ps1 key Down -Count 3     # press it several times
+  .\util\civctl.ps1 key Down -Count 3     # press it several times (-Fast: back to back, output after the last)
   .\util\civctl.ps1 key Shift+E           # chord: Shift/Control/Alt + one key
   .\util\civctl.ps1 action NextUnit       # press the CURRENT key of a game/mod hotkey (InputSettings.json + defaults; util\keybindings.py), same output as `key`
   .\util\civctl.ps1 keymap                # regenerate skills\civ-test\keymap.md from InputSettings.json + default hotkeys (no game needed)
@@ -59,6 +59,7 @@ param(
     [int]$Settle = 600,
     [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
+    [switch]$Fast,          # key -Count n: press back to back (only -Settle ms between presses; the log is read after the last one). For timing tests such as a double Enter
     [switch]$Force,         # build: build even though the game is running
     [int]$HangGrace = 0,    # seconds an unresponsive window (with a silent Lua.log) is tolerated before GAME HUNG; load/newgame/autoplay/wait default to 150
     [switch]$NoLint,        # deploy/reload: skip the luacheck pass over the changed .lua files
@@ -444,6 +445,7 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
     for ($i = 0; $i -lt $Count; $i++) {
         [CivCtl.Native]::Chord($mods, $vk, $Hold)
         Start-Sleep -Milliseconds $Settle
+        if ($Fast -and $i -lt $Count - 1) { continue }
         Format-Lines (Read-NewLogLines)
         Assert-GameHealthy -Grace 8 -Block
     }

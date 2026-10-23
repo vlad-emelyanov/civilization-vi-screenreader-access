@@ -3,7 +3,7 @@
 # no-share-load
 load medieval-t100
 clear-advisors
-key Enter -Count 2 -Settle 100
+key Enter -Count 2 -Fast -Settle 100
 expect ^Rome, choose production
 expect-not ^Place
 key Tab -Settle 100
