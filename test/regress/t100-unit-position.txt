@@ -1,0 +1,14 @@
+# Verified 2026-10-23. Unit selection ends with where the unit is ("in Rome", "2 tiles north of Ostia"); a promotable unit adds "Promotion available, Shift+U". Fixture bug-congress-skipped (Pikeman with a promotion, Builder in Rome with a Crossbowman).
+# covers: **/HubAnnounce.lua **/InGameAccess.lua
+# no-share-load
+load bug-congress-skipped
+clear-advisors
+lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_PIKEMAN" then UI.SelectUnit(u) end end
+wait Pikeman -Timeout 8
+expect ^Pikeman, .* tile.* of Aquileia\. Promotion available, Shift\+U
+lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then UI.SelectUnit(u) end end
+wait Crossbowman -Timeout 8
+expect ^Crossbowman, .*, in Rome
+key Tab -Settle 1200
+expect ^Crossbowman actions
+no-lua-errors

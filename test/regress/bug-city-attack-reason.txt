@@ -1,0 +1,14 @@
+# Verified 2026-10-23. Fixture bug-city-ranged-nothing (turn 114, Rome besieged, walls destroyed): R on the selected city says why it cannot attack; Backslash always selects the capital ("Capital: Rome" every time).
+# covers: **/HubTargets.lua **/WorldInput.lua
+# no-share-load
+load bug-city-ranged-nothing
+clear-advisors
+key Backslash -Settle 1500
+expect ^Rome, Population
+key R -Settle 1500
+expect Rome can't attack: .*walls
+key Backslash -Settle 1500
+expect ^Capital: Rome
+key Backslash -Settle 1500
+expect ^Capital: Rome
+no-lua-errors

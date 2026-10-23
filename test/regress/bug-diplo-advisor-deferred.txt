@@ -1,0 +1,19 @@
+# Verified 2026-10-23. Bug bug-diplo-silent-after-friend: an advisor popup raised while the diplomacy scene is open is held until it closes, then spoken with "Enter closes"; the diplomacy screen itself speaks normally meanwhile.
+# covers: **/AdvisorPopup.lua **/DiplomacyActionView.lua
+# no-share-load
+load medieval-t100
+clear-advisors
+action KeyNavDiplomacy -Settle 1500
+expect ^Dido, Phoenicia
+key Enter -Settle 3000
+expect ^Declare Friendship
+key Enter -Settle 3000
+expect Dido of Phoenicia says
+key Enter -Settle 3000
+expect Diplomacy with Dido of Phoenicia, Declared Friend
+key Escape -Settle 3500
+expect ^Diplomacy closed
+expect ADVISOR:.*Enter closes
+key Enter -Settle 1500
+expect ^Closed
+no-lua-errors

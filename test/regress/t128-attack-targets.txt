@@ -1,0 +1,43 @@
+# Verified 2026-10-23. Scan order is stable and the last target says "X wraps to the first"; W X Enter on a far enemy says "Moving to attack X, N turns"; W toward a non-hostile civ opens the war dialog and Escape returns to choosing ("War not declared. Still choosing a target").
+# covers: **/HubTargets.lua **/HubCursor.lua **/HubEvents.lua
+# Setup: end turn 128 (barbarians approach), select the Legion with the tuner.
+# no-share-load
+load pt-t128
+clear-advisors
+key Enter -Settle 1500
+expect (?i)turn ended
+wait Turn 129 -Timeout 90
+clear-advisors
+lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
+wait Legion -Timeout 8
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+expect Last target, X wraps to the first
+key W -Settle 1200
+expect ^Attack: choose a target
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key Enter -Settle 2000
+expect ^Moving to attack Barbarian Musketman, \d+ turns?
+lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
+wait Legion -Timeout 8
+key W -Settle 1200
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+expect would declare war on Hong Kong
+key Enter -Settle 2500
+expect ^DECLARE WAR
+key Escape -Settle 3000
+expect ^War not declared\. Still choosing a target
+key Escape -Settle 1000
+no-lua-errors
