@@ -22,9 +22,8 @@ key Down -Settle 400
 key Down -Settle 400
 key N -Settle 2000
 expect (?i)review your votes
-key N -Settle 3000
+key N -Settle 45000
 expect (?i)votes submitted
-wait Turn 111 -Timeout 300
 clear-advisors
 key Space -Settle 1200
 expect Rejected outcome

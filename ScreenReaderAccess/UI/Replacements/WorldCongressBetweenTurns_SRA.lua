@@ -207,6 +207,7 @@ function KeyHandler( key:number )
 	return false;
 end
 function OnInputHandler( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then return KeyHandler( pInputStruct:GetKey() ); end;
 	return uiMsg == KeyEvents.KeyDown;		-- ScreenReaderAccess: the key presses of this screen do not reach the map
