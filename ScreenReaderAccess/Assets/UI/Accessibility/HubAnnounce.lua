@@ -81,8 +81,8 @@ end
 
 -- " Promotion available, Shift+U" for a unit that can be promoted (empty otherwise).
 function HubAnnounce.PromotionHint( unit:table )
-	local ok:boolean, can = pcall( function() return unit:GetExperience():CanPromote(); end );
-	if ok and can then return "Promotion available, Shift+U"; end
+	local ok:boolean, can, results = pcall( function() return UnitManager.CanStartCommand( unit, UnitCommandTypes.PROMOTE, true, true ); end );
+	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then return "Promotion available, Shift+U"; end
 	return nil;
 end
 

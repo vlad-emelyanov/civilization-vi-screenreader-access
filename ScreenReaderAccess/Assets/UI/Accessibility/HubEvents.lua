@@ -235,6 +235,12 @@ end
 function HubEvents.OnUnitKilledInCombat( killedPlayer:number, killedId:number, killerPlayer:number, killerId:number )
 	if not HubCore.m_ready then return; end
 	local localPlayer:number = Game.GetLocalPlayer();
+	-- a city shot reports no killer (-1): the fight announced just before names the attacker
+	local fight0:table = m_combat;
+	if killerPlayer < 0 and fight0 ~= nil and fight0.defender.player == killedPlayer and fight0.defender.id == killedId
+			and UI.GetElapsedTime() - fight0.time < 15 then
+		killerPlayer, killerId = fight0.attacker.player, fight0.attacker.id;
+	end
 	if killedPlayer ~= localPlayer and killerPlayer ~= localPlayer then return; end
 	local function NameOf( playerID:number, unitID:number )
 		local player:table = Players[ playerID ];
