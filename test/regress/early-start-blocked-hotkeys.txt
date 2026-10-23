@@ -1,14 +1,14 @@
-# UNVERIFIED (written blind, run with --record first). Item 7: unit hotkeys that do not apply say why.
+# Verified 2026-10-23. Item 7: unit hotkeys that do not apply say why.
 # Fixture early-start: turn 1, the first unit needing orders is the Settler.
 # no-share-load
 load early-start
 clear-advisors
 key Enter -Settle 1500
 expect ^Settler\b
-# a settler cannot fortify
-action Fortify -Settle 1000
-expect (?i)(cannot fortify|not available for)
+# a settler cannot sleep (it can fortify)
+action Sleep -Settle 1000
+expect (?i)(cannot sleep|not available for)
 # nor attack with R
 action RangedAttack -Settle 1000
-expect (?i)(cannot|not available)
+expect (?i)(cannot ranged|ranged attack is not available)
 no-lua-errors

@@ -4422,6 +4422,8 @@ function SRSayBlockedHotkey( actionId:number )
 	local row = m_srHotkeyRows[actionId];
 	if row == nil or not row.VisibleInUI then return; end
 	local name:string = CleanTextForSpeech( Locale.Lookup( row.Description ) );
+	-- the R key (RangedAttack) is shared with the air attack row, whose name would be wrong for a land unit
+	if row.HotkeyId == "RangedAttack" then name = "Ranged Attack"; end
 	local why:string = SRRefusalReason( unit, row.Hash );
 	if why ~= "" then
 		OutputMessageToScreenReader( "Cannot " .. string.lower( name ) .. ": " .. why );
