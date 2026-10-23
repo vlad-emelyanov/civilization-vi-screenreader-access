@@ -34,19 +34,24 @@ owner) and 7 (no owner given) abort the whole run. After an abort the next scrip
 key/action/wait/lua count as a failed step and the script goes on.
 
 A script whose checks were all skipped by a shared load is reported as SKIPPED-ALL with a warning (it checked nothing).
-A script that has a comment line `# no-share-load` always does its own load, and the next script does not share its game
-(use it when the script changes the game: scenario, Enter, F-keys that open screens).
+A script with a comment line `# no-share-load: <reason>` always does its own load, and the next script does not share its game
+(use it when the script changes game state the reset check cannot see: gold, tiles, units, focus, a deal, turns, a save, a scenario).
+`# options:` scripts and scenario scripts are treated the same.
 
 Loads: `all` shares one load per fixture by default (--no-share-load disables it); named scripts load fresh unless --share-load.
 Sharing skips the first `load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script
-loaded the same fixture and finished without an abort. Scripts that change the game always load fresh and the next script does not share
-their game: every script with a `scenario` step, and every script with a `# no-share-load` comment (use it for Enter, F-keys that open
-screens, anything that mutates). A script that fails on a shared game is run once more with its own load (RETRY in the output; the
+loaded the same fixture, finished without an abort AND a reset check proved the game is back in the state a fresh load gives. The
+check is ONE tuner call (HubCore.TestResetState in the InGameAccess state): in game and our turn, no popup/screen/options menu open, hub in
+plain map mode (no mode, target or placement), and turn/gold/units/cities equal to a baseline taken right after the load (HubCore.TestSnapshotText,
+after the first clear-advisors). If clean it puts the map cursor and the selection back; otherwise (or on no answer) the next script loads
+fresh. A dirty check never fails a script. Inside a fixture group the sharing scripts run first, the `# no-share-load` ones after them.
+A script that fails on a shared game is run once more with its own load (RETRY in the output; the
 second result counts, TIMING marks it): drift must not fail a script that passes alone. Scripts run grouped by their first fixture.
 The run ends with a TIMING table (seconds per script) and TOTAL. `key Shift+Tab` is rejected when the script is parsed (Steam overlay).
 `--clear-advisors` only closes the advisor popups of the loaded game (what `civctl clear-advisors` runs).
 The TIMING table splits each script's time into load / keys (key + action steps; "settle" = the part of it that is the scripted
--Settle waits) / wait / lua (lua + scenario) / other, and a BREAKDOWN line sums it up: that shows where a slow run goes.
+-Settle waits) / wait / lua (lua + scenario) / other, and a BREAKDOWN line sums it up: that shows where a slow run goes, how many
+loads sharing saved and how many reset checks ran (and what they cost).
 
 Speed: the runner keeps ONE `civctl.ps1 batch` process (a JSON array of civctl arguments per stdin line; the output of a step ends with
 `@@CIVCTL-DONE <rc>`) instead of a powershell.exe per step. A step timeout kills the process tree and the next step starts a new
@@ -474,6 +479,50 @@ def clear_advisors(runner, out=print, line=0):
             return "ok", collected
 
 
+def shares_game(steps):
+    """May the next script run on the game this one leaves? Not for '# no-share-load', a scenario, or an '# options:' header
+    (it changes game options: the game must be loaded fresh with them)."""
+    if getattr(steps, "fresh", False) or getattr(steps, "options", None):
+        return False
+    return not re.search(r"^#\s*options:", getattr(steps, "text", "") or "", re.M)
+
+
+_RESET_ANSWER = re.compile(r"^(clean|dirty|snap)\b\s*(.*)$")
+
+
+def reset_check(runner, baseline=None, capture=False):
+    """ONE tuner call (InGameAccess state) that asks the hub whether the game is back in the state a fresh load gives and puts the
+    map cursor and selection back (HubCore.TestResetState). capture=True only reads the baseline (HubCore.TestSnapshotText).
+    Returns (verdict, text, seconds): verdict 'clean' (text = the state to pass as baseline next time), 'snap' (capture) or
+    'dirty' (text = why). Never raises for a game problem; exit 6/7 (lock) raises LockedError."""
+    if capture:
+        expr = "if HubCore == nil or HubCore.TestSnapshotText == nil then return 'dirty hub has no test helper' end return HubCore.TestSnapshotText()"
+    else:
+        arg = "nil" if baseline is None else "'" + baseline.replace("\\", "").replace("'", "") + "'"
+        expr = "if HubCore == nil or HubCore.TestResetState == nil then return 'dirty hub has no test helper' end return HubCore.TestResetState(%s)" % arg
+    fd, tmp = tempfile.mkstemp(suffix=".lua", prefix="regress_")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(expr)
+    t0 = time.time()
+    try:
+        rc, lines = runner.run(["lua", "InGameAccess", "-File", tmp])
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    seconds = time.time() - t0
+    if rc in (6, 7):
+        raise LockedError("\n".join(lines))
+    if rc != 0:
+        return "dirty", "reset check failed (exit %d)" % rc, seconds
+    for l in lines:
+        m = _RESET_ANSWER.match(l.strip())
+        if m:
+            return m.group(1), m.group(2), seconds
+    return "dirty", "no answer from the hub", seconds
+
+
 class ScriptResult:
     def __init__(self, name):
         self.name = name
@@ -485,6 +534,10 @@ class ScriptResult:
         self.loaded = None   # fixture the game is in at the end (None after an abort)
         self.seconds = 0.0   # wall time of the script
         self.retried = False  # failed with a shared load, then passed/failed again with a fresh one
+        self.loads = 0       # real loads done by the script
+        self.load_skipped = False  # the load was skipped (shared with the previous script) and the script ran on that game
+        self.clean_seconds = 0.0   # seconds of the reset checks run after this script
+        self.clean_checks = 0
         self.times = {}      # seconds spent in civctl per step kind (load, key, action, wait, lua, scenario, clear-advisors, ...)
         self.settle = 0.0    # seconds of the key/action time that are the scripted -Settle sleeps
         self.records = []    # record mode: {"line", "kind", "pattern", "ok", "window": [text]} per check that ran
@@ -502,9 +555,12 @@ def settle_seconds(arg):
     return (int(m.group(1)) if m else 600) * (int(c.group(1)) if c else 1) / 1000.0
 
 
-def run_script(name, steps, runner, out=print, skip_load=False):
-    """Executes the steps. Raises LockedError on exit 6. Returns ScriptResult."""
+def run_script(name, steps, runner, out=print, skip_load=False, on_settled=None):
+    """Executes the steps. Raises LockedError on exit 6. Returns ScriptResult.
+    on_settled: called once after a REAL load, when the game has settled (after the first clear-advisors, or before the first
+    step that acts on the game): run_all takes the baseline of the reset check there."""
     res = ScriptResult(name)
+    capture_due = False
     window = []         # [(raw, text)] since the last check
     checked = False     # the window has been looked at: the next action starts a new one
     skipped_load = False
@@ -542,11 +598,15 @@ def run_script(name, steps, runner, out=print, skip_load=False):
         if skip_load and not skipped_load and s.kind == "load":
             skipped_load = True
             after_skip = True
+            res.load_skipped = True
             res.loaded = s.arg
             out("  SKIP line %d: load %s (shared with the previous script)" % (s.line, s.arg))
             continue
         if checked:
             window, checked = [], False
+        if capture_due and s.kind != "clear-advisors" and s.kind != "no-lua-errors":
+            capture_due = False
+            on_settled()
         if s.kind == "no-lua-errors":
             checked = True
             errs = new_lua_errors(getattr(runner, "lua_log", LUA_LOG), log_offset)
@@ -565,6 +625,9 @@ def run_script(name, steps, runner, out=print, skip_load=False):
             status, lines = clear_advisors(runner, out, s.line)
             res.times["clear-advisors"] = res.times.get("clear-advisors", 0.0) + time.time() - t_step
             window.extend(parse_sr_lines(lines))
+            if capture_due and status == "ok":
+                capture_due = False
+                on_settled()
             if status == "locked":
                 raise LockedError(lines[-1] if lines else "locked")
             if status == "crashed":
@@ -625,7 +688,11 @@ def run_script(name, steps, runner, out=print, skip_load=False):
                 break
         elif s.kind == "load":
             res.loaded = s.arg
-    if res.aborted or getattr(steps, "fresh", False):
+            res.loads += 1
+            capture_due = on_settled is not None
+    if capture_due and not res.aborted:
+        on_settled()    # the script only loaded and checked: the game is still as the load left it
+    if res.aborted or not shares_game(steps):
         res.loaded = None
     res.skipped_all = res.skipped > 0 and res.passed + res.failed == 0
     if res.skipped_all:
@@ -720,25 +787,66 @@ def order_scripts(scripts):
             order.append(f)
         groups[f].append(item)
     order.sort(key=lambda f: f is None)
-    return [item for f in order for item in groups[f]]
+    # inside a fixture group the scripts that may share a game run first (one load serves them all); the ones that change the
+    # game load fresh and end sharing, so they go last. sorted() is stable: the order within each kind stays.
+    return [item for f in order for item in sorted(groups[f], key=lambda it: not shares_game(it[1]))]
 
 
 def run_all(scripts, runner, share_load=False, out=print):
     """Returns a list of ScriptResult. scripts: [(name, steps)] (already ordered).
+    Load sharing: a script may skip its load when the previous script left the same fixture AND a reset check proved the game is
+    back in the state a fresh load gives (reset_check: nothing open, hub in plain map mode, turn/gold/units/cities as right
+    after the load; cursor and selection are put back). A dirty check never fails a script: the next one loads fresh.
     A script that shared the previous script's game and failed is run once more with its own load (a drifted game must not
     fail a script that passes alone); the result of that second run counts and has retried=True."""
     results = []
-    current = None  # fixture the game is in, if known to be clean
-    for name, steps in scripts:
+    current = None   # fixture the game is in, if known to be clean
+    baseline = None  # state text taken right after the load of that game (the reset check compares with it)
+    holder = {}
+    for idx, (name, steps) in enumerate(scripts):
         f = first_fixture(steps)
-        skip = share_load and f is not None and f == current and not getattr(steps, "fresh", False)
+        skip = share_load and f is not None and f == current and shares_game(steps)
+        nxt = scripts[idx + 1][1] if idx + 1 < len(scripts) else None
+        want_baseline = (share_load and f is not None and shares_game(steps) and nxt is not None
+                         and first_fixture(nxt) == f and shares_game(nxt))
+
+        def settled():
+            holder["baseline"] = None
+            verdict, text, secs = reset_check(runner, capture=True)
+            holder["secs"] = holder.get("secs", 0.0) + secs
+            if verdict == "snap":
+                holder["baseline"] = text
+            else:
+                out("  (baseline for the reset check not taken: %s)" % text)
+        on_settled = settled if want_baseline else None
+        holder.clear()
         t0 = time.time()
         try:
-            r = run_script(name, steps, runner, out, skip_load=skip)
+            r = run_script(name, steps, runner, out, skip_load=skip, on_settled=on_settled)
             if skip and not r.ok and not r.aborted and r.failed:
                 out("  RETRY %s with its own load (it failed on the game left by the previous script)" % name)
-                r = run_script(name, steps, runner, out, skip_load=False)
+                holder.clear()
+                r = run_script(name, steps, runner, out, skip_load=False, on_settled=on_settled)
                 r.retried = True
+            if "baseline" in holder:
+                baseline = holder["baseline"]
+            r.clean_seconds += holder.get("secs", 0.0)
+            r.clean_checks += 1 if "secs" in holder else 0
+            # can the next script run on this game?
+            current = None
+            if (share_load and r.loaded and not r.aborted and nxt is not None and shares_game(nxt)
+                    and first_fixture(nxt) == r.loaded):
+                if baseline is None:
+                    out("  reset check skipped: no baseline of the loaded game -> the next script loads fresh")
+                else:
+                    verdict, text, secs = reset_check(runner, baseline)
+                    r.clean_seconds += secs
+                    r.clean_checks += 1
+                    if verdict == "clean":
+                        current = r.loaded
+                        out("  reset check: clean")
+                    else:
+                        out("  reset check: DIRTY (%s) -> the next script loads fresh" % text)
         except LockedError as e:
             out("LOCKED: %s" % e)
             r = ScriptResult(name)
@@ -748,7 +856,6 @@ def run_all(scripts, runner, share_load=False, out=print):
             break
         r.seconds = time.time() - t0
         results.append(r)
-        current = r.loaded
     return results
 
 
@@ -792,9 +899,12 @@ def breakdown_total(results):
         for k, v in _bucket(r.times).items():
             tot[k] = tot.get(k, 0.0) + v
     settle = sum(r.settle for r in results)
-    loads = sum(1 for r in results if r.times.get("load"))
-    return "BREAKDOWN: load %s (%d loads), keys %s of which settle sleeps %s, wait %s, lua %s, advisors %s, other %s" % (
-        format_duration(tot.get("load", 0)), loads, format_duration(tot.get("keys", 0)), format_duration(settle),
+    loads = sum(r.loads for r in results)
+    saved = sum(1 for r in results if r.load_skipped)
+    checks = sum(r.clean_checks for r in results)
+    clean_secs = sum(r.clean_seconds for r in results)
+    return "BREAKDOWN: load %s (%d loads, %d saved by sharing; reset checks: %d, %s), keys %s of which settle sleeps %s, wait %s, lua %s, advisors %s, other %s" % (
+        format_duration(tot.get("load", 0)), loads, saved, checks, format_duration(clean_secs), format_duration(tot.get("keys", 0)), format_duration(settle),
         format_duration(tot.get("wait", 0)), format_duration(tot.get("lua", 0)), format_duration(tot.get("advisors", 0)),
         format_duration(tot.get("other", 0)))
 
@@ -1055,7 +1165,7 @@ def main(argv=None):
     run_everything = not a.names or a.names == ["all"]
     share = (a.share_load or run_everything or changed_mode) and not a.no_share_load and not record
     if share:
-        print("(sharing one load per fixture; scenario and '# no-share-load' scripts load fresh; --no-share-load disables)")
+        print("(sharing one load per fixture when the reset check says the game is clean; scenario, '# options:' and '# no-share-load' scripts load fresh; --no-share-load disables)")
     t0 = time.time()
     ok, lock = acquire_run_lock()
     if not ok:
