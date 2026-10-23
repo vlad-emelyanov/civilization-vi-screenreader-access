@@ -1,12 +1,10 @@
-# UNVERIFIED (written offline, never run in game; record with --record after the first green run). medieval-t100: the Reports screen
-# has no default hotkey, so the script opens it the way the top panel button does (LuaEvents.TopPanel_OpenReportsScreen); if a hotkey
-# is added to the hub, switch to `key <hotkey>`. Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs, Space = details,
-# Escape closes. Needs the build with ReportScreen.lua loaded ("ScreenReaderAccess: ReportScreen copy loaded" in Lua.log).
+# Verified 2026-10-23 on medieval-t100.
+# F8 (KeyNavReports) toggles the Reports screen like the top panel button. Tab / Control+Tab (Shift+Tab is the Steam overlay) switch tabs,
+# Space = details, Escape and F8 close.
 # no-share-load
 load medieval-t100
 clear-advisors
-lua InGame LuaEvents.TopPanel_OpenReportsScreen()
-wait Reports. Yields -Timeout 10
+key F8 -Settle 2500
 expect ^Reports\. Yields, 1 of 4 tabs\. City income: .+: .+, 1 of \d+
 key Down -Settle 600
 expect , 2 of \d+
@@ -29,5 +27,9 @@ expect ^Yields, 1 of 4 tabs\.
 key Control+Tab -Settle 1000
 expect ^Gossip, 4 of 4 tabs\.
 key Escape -Settle 1500
+expect ^Reports closed
+key F8 -Settle 2500
+expect ^Reports\. 
+key F8 -Settle 1500
 expect ^Reports closed
 no-lua-errors

@@ -1,4 +1,4 @@
-# UNVERIFIED (written blind, run with --record first). Item 5: leaving the Government screen speaks, and Escape does not also open the game menu.
+# Verified 2026-10-23. Item 5: leaving the Government screen speaks, and Escape does not also open the game menu.
 # no-share-load
 load early-t60
 clear-advisors
