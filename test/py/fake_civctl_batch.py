@@ -13,6 +13,9 @@ for raw in sys.stdin:
         print("SR> spoken")
         print("@@waited 300")
         print("@@waited 120")
+    elif cmd == "profile":
+        print("SR> x")
+        print("@@profile init=10 send=40 total=900")
     elif cmd == "crash":
         print("GAME CRASHED")
         print("@@CIVCTL-DONE 5")

@@ -445,11 +445,49 @@ class BatchRunnerTests(unittest.TestCase):
         self.assertEqual(len(r.said), 1)
         self.assertIn("every step as its own powershell.exe", r.said[0])
 
-    def test_dies_before_answering_reruns_the_step_per_call(self):
+    def test_dies_before_answering_is_not_repeated(self):
         r = self.runner()
-        self.assertEqual(r.run(["silent-die"]), (0, ["percall silent-die"]))
+        rc, lines = r.run(["silent-die"])
+        self.assertEqual(rc, 1)
+        self.assertIn("NOT repeated", lines[0])
+        self.assertEqual(r.percall, [])   # no duplicate key press
         self.assertEqual(r.run(["echo"]), (0, ["percall echo"]))
         self.assertEqual(len(r.said), 1)
+
+    def test_key_release_first_after_a_kill(self):
+        r = self.runner()
+        sent = []
+        orig = r._run_batch
+
+        def spy(args):
+            sent.append(args[0])
+            return orig(args)
+        r._run_batch = spy
+        r.run(["pid"])
+        self.assertEqual(sent, ["pid"])   # a first start needs no release
+        r.run(["crash"])
+        r.run(["pid"])
+        self.assertEqual(sent, ["pid", "crash", "key-release", "pid"])
+        old = cr.STEP_TIMEOUT
+        self.addCleanup(setattr, cr, "STEP_TIMEOUT", old)
+        cr.STEP_TIMEOUT = 1
+        r.run(["hang"])
+        cr.STEP_TIMEOUT = old
+        r.run(["pid"])
+        self.assertEqual(sent[-3:], ["hang", "key-release", "pid"])
+
+    def test_default_quiet_rule_in_civctl(self):
+        # PowerShell cannot run here: pin the rule in the source (explicit -Quiet is >= 0 and skips it)
+        with open(cr.CIVCTL, encoding="utf-8") as fh:
+            src = fh.read()
+        self.assertIn("[int]$Quiet = -1", src)
+        self.assertRegex(src, r"if \(\$Quiet -lt 0\) \{ \$Quiet = if \(\$Settle -ge 1500\) \{ 700 \} else \{ 150 \} \}")
+
+    def test_profile_lines_are_stripped(self):
+        r = self.runner()
+        r.run(["profile"])
+        rc, lines = r.run(["profile"])
+        self.assertEqual(lines, ["SR> x"])
 
     def test_dies_in_the_middle_of_a_step_fails_it(self):
         r = self.runner()

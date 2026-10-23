@@ -51,7 +51,7 @@ The TIMING table splits each script's time into load / keys (key + action steps;
 Speed: the runner keeps ONE `civctl.ps1 batch` process (a JSON array of civctl arguments per stdin line; the output of a step ends with
 `@@CIVCTL-DONE <rc>`) instead of a powershell.exe per step. A step timeout kills the process tree and the next step starts a new
 process, as does exit 5; if it cannot start or the protocol breaks, the steps run per call (said once). `--no-batch` = per call always.
-`key`/`action` return once an SR line has arrived and -Quiet ms (default 250) passed without another one; -Settle is only the maximum
+`key`/`action` return once an SR line has arrived and -Quiet ms (default 150; 700 when -Settle >= 1500; explicit wins) passed without another one; -Settle is only the maximum
 (no SR line at all = the full -Settle). `-Quiet <ms>` raises the window for a late second line, `-NoQuiet` is the old fixed wait.
 civctl reports the real wait as `@@waited <ms>` (the runner strips and sums it): "settle" in TIMING/BREAKDOWN is the time really waited.
 
@@ -108,6 +108,7 @@ NO_ARG = ("clear-advisors", "no-lua-errors")
 CHECKS = ("expect", "expect-not", "expect-lua")
 STEP_TIMEOUT = 600  # seconds per civctl call (a load is ~45 s, a newgame 70 s)
 BATCH_DONE = "@@CIVCTL-DONE"   # civctl batch: ends the output of one command, followed by its exit code
+_PROFILE = re.compile(r"^@@profile (.*)$")   # CIVCTL_PROFILE=1: where the fixed cost of a key/action goes (printed, not parsed)
 _WAITED = re.compile(r"^@@waited (\d+)\s*$")   # key/action: ms actually spent waiting for the speech
 
 
@@ -254,6 +255,7 @@ class CivctlRunner:
         self.last_waited = None
         self._proc = None
         self._queue = None
+        self._need_release = False   # the batch process was killed: the next one starts with key-release
 
     def run(self, args):
         # A process that cannot start (0xC0000142 STATUS_DLL_INIT_FAILED = desktop heap / handle pressure, seen as a burst of
@@ -267,6 +269,10 @@ class CivctlRunner:
             time.sleep(3 * (attempt + 1))
         waited, keep = None, []
         for l in lines:
+            mp = _PROFILE.match(l)
+            if mp:
+                print("  profile: " + mp.group(1))
+                continue
             m = _WAITED.match(l)
             if m:
                 waited = (waited or 0) + int(m.group(1))
@@ -328,6 +334,12 @@ class CivctlRunner:
             except OSError as e:
                 self._give_up_batch("cannot start: %s" % e)
                 return None
+            if self._need_release:
+                # the old process was killed (timeout / crash), maybe in the middle of a chord: let go of Shift/Control/Alt first
+                self._need_release = False
+                self._run_batch(["key-release"])
+                if self._proc is None:
+                    return None   # the new process broke on key-release: per-call path
         p, q = self._proc, self._queue
         try:
             p.stdin.write((json.dumps(args) + "\n").encode("ascii"))
@@ -346,14 +358,16 @@ class CivctlRunner:
             except queue.Empty:
                 self._kill_tree(p)
                 self.close()
+                self._need_release = True
                 return TIMEOUT_RC, ["civctl timed out after %d s (process tree killed)" % STEP_TIMEOUT]
             if l is None:   # the process ended before the step was done
                 rc = self._reap(p)
                 if not lines:
                     if rc in START_FAILURE_RCS:
-                        return rc, []
+                        return rc, []   # never ran: nothing was sent to the game
+                    # the step was sent and may have pressed a key: never run it again
                     self._give_up_batch("it exited with code %s before answering" % rc)
-                    return None
+                    return 1, ["civctl batch process died (exit %s) before answering this step; the step was NOT repeated (it may or may not have run)" % rc]
                 self._give_up_batch("it exited with code %s in the middle of a step" % rc)
                 return 1, lines + ["civctl batch process ended unexpectedly (exit %s)" % rc]
             if l.startswith(BATCH_DONE):
@@ -364,6 +378,7 @@ class CivctlRunner:
                     return 1, lines + [l]
                 if rc == 5:
                     self.close()   # the game crashed/hung: the next step starts a fresh process
+                    self._need_release = True
                 return rc, lines
             lines.append(l)
 
