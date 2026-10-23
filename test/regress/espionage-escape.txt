@@ -1,0 +1,24 @@
+# UNVERIFIED (written 2026-10-23, never run). Item: the Choose Escape Route popup (Popups/EspionageEscape.lua override, was FakePopups/EspionageEscape, silent) speaks and is keyboard driven.
+# Setup (the popup only appears after a risky mission goes wrong): medieval-t100 + scenario spy-ready (Diplomatic Service, a spy in the capital, see util/scenarios/spy-ready.lua),
+# then F3 -> Enter on the spy -> send it to a foreign city (not a city-state) -> pick a risky mission (Fabricate Scandal, Steal Tech ...) and end turns until the spy is caught:
+# NotificationPanel raises LuaEvents.NotificationPanel_OpenEspionageEscape and the popup shows. This stays manual until a deterministic trigger exists (none is known).
+# Expect on show: "<Spy> was discovered in <City>. Choose an escape route: <first available route>, <Turns to return: N>, i of 4"
+# Verifier: Down/Up move over Airplane, Boat, Vehicle, Foot ("not available, No Aerodrome in city" for missing districts), Space says loot and pursuers, Enter says "Escaping by <route>"
+# and the popup hides (SET_ESCAPE_ROUTE sent), Escape says "Closed" (the game's OnClose: no route chosen). Foot is always available.
+# no-share-load
+load medieval-t100
+clear-advisors
+scenario spy-ready
+lua PartialScreenHooks OnCivicCompleted(0, GameInfo.Civics["CIVIC_DIPLOMATIC_SERVICE"].Index, false)
+clear-advisors
+# --- manual part: bring the popup up (see above), then the lines below apply ---
+expect was discovered in .*\. Choose an escape route: .*, \d of 4
+key Down -Settle 600
+expect , \d of 4$
+key Space -Settle 600
+expect ^Loot: .*\. Pursued by:
+key End -Settle 600
+expect ^Foot, Turns to return: \d+, 4 of 4
+key Enter -Settle 1200
+expect ^Escaping by Foot
+no-lua-errors

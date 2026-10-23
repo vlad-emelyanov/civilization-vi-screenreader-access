@@ -1,3 +1,7 @@
+include("ScreenReader");	-- ScreenReaderAccess
+include("KeyNavList");		-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
+
 local district1 = "DISTRICT_AERODROME";
 local district2 = "DISTRICT_HARBOR";
 local district3 = "DISTRICT_COMMERCIAL_HUB";
@@ -110,13 +114,91 @@ function OnOpen(testParam)
 	Controls.PopupAlphaIn:Play();
 	Controls.PopupSlideIn:SetToBeginning();
 	Controls.PopupSlideIn:Play();
+	SRA_Announce();		-- ScreenReaderAccess
 end
+
+-- Begin ScreenReaderAccess mod change
+-- ===========================================================================
+--	ScreenReaderAccess: keyboard navigation and speech
+--	The escape routes (the four buttons) as a list: Up/Down/Home/End, Space = loot and pursuit, Enter = the button's own
+--	callback (OnButton1..4, what a click does), Escape = OnClose (what the game does). Other keys are swallowed while shown.
+-- ===========================================================================
+local m_srList			:table = nil;
+
+local function SRA_Clean( text:string )
+	return CleanTextForSpeech( Locale.Lookup( text or "" ) );
+end
+
+local function SRA_ButtonText( button:table )
+	local ok:boolean, text = pcall( function() return button:GetTextControl():GetText(); end );
+	if ok and text ~= nil then return text; end
+	return "";
+end
+
+local function SRA_Details()
+	local loot:string = SRA_Clean( Controls.LootDetails:GetText() );
+	local pursuit:string = SRA_Clean( Controls.PursuitDetails:GetText() );
+	return "Loot: " .. ( loot ~= "" and loot or "none" ) .. ". Pursued by: " .. pursuit;
+end
+
+local function SRA_Items()
+	local items:table = {};
+	local callbacks:table = { OnButton1, OnButton2, OnButton3, OnButton4 };
+	for i = 1, 4 do
+		local button:table = Controls[ "Button" .. i ];
+		local label:table = Controls[ "Label" .. i ];
+		if button ~= nil and not button:IsHidden() then
+			local route:string = SRA_Clean( SRA_ButtonText( button ) );
+			local info:string = ( label ~= nil ) and SRA_Clean( label:GetText() ) or "";
+			local disabled:boolean = button:IsDisabled();
+			local text:string = route;
+			if disabled then text = text .. ", not available"; end
+			if info ~= "" then text = text .. ", " .. info; end
+			table.insert( items, { key = i, text = text, route = route, choosable = not disabled, reason = info, detail = SRA_Details, callback = callbacks[ i ] } );
+		end
+	end
+	return items;
+end
+
+local function SRA_OnActivate( item:table )
+	OutputMessageToScreenReader( "Escaping by " .. item.route );
+	item.callback();		-- what a click on the button does: SET_ESCAPE_ROUTE, then the popup hides
+end
+
+local function SRA_OnEscape()
+	OnClose();
+	OutputMessageToScreenReader( "Closed" );
+end
+
+-- "Spy X was discovered in London. Choose an escape route: Airplane, Turns to return: 2, 1 of 4"
+function SRA_Announce()
+	if m_srList == nil then return; end
+	local items:table = SRA_Items();
+	local first:number = 1;
+	for i, item in ipairs( items ) do
+		if item.choosable then first = i; break; end
+	end
+	m_srList.Reset();
+	m_srList.Open( "", items[ first ] ~= nil and items[ first ].key or nil, true );
+	local text:string = SRA_Clean( Controls.AgentDetails:GetText() ) .. " was discovered " .. SRA_Clean( Controls.CityHeader:GetText() ) .. ". Choose an escape route";
+	if items[ first ] ~= nil then text = text .. ": " .. items[ first ].text .. ", " .. first .. " of " .. #items; end
+	OutputMessageToScreenReader( text, true );
+end
+
+function SRA_HandleInput( pInputStruct:table )
+	if ContextPtr:IsHidden() then return false; end
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	local msg:number = pInputStruct:GetMessageType();
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+-- End ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	Input
 --	UI Event Handler
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
+	if SRA_HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then
 		if pInputStruct:GetKey() == Keys.VK_ESCAPE then
@@ -133,6 +215,15 @@ function Initialize()
 	Controls.Button2:RegisterCallback(Mouse.eLClick, OnButton2);
 	Controls.Button3:RegisterCallback(Mouse.eLClick, OnButton3);
 	Controls.Button4:RegisterCallback(Mouse.eLClick, OnButton4);
-	LuaEvents.NotificationPanel_OpenEspionageEscape.Add(OnOpen);
+	SRListen( LuaEvents.NotificationPanel_OpenEspionageEscape, OnOpen );		-- ScreenReaderAccess (was .Add)
+	ContextPtr:SetShutdown( function() SRUnlistenAll(); end );		-- ScreenReaderAccess
+	-- ScreenReaderAccess
+	print( "EspionageEscape: ScreenReaderAccess copy loaded" );
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnEscape,
+	};
 end
 Initialize();
