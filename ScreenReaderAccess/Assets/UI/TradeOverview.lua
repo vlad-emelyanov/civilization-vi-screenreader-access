@@ -1000,7 +1000,7 @@ function SRA_BuildItems()
 			setmetatable( item, { __index = function( t, k )
 				if k == "text" then
 					local v:string = SRA_RouteText( rec );
-					rawset( t, "text", v );
+					t.text = v;
 					return v;
 				end
 			end } );
