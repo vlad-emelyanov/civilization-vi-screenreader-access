@@ -59,6 +59,14 @@ function HubAnnounce.UnitText( unit:table )
 	if damage > 0 then
 		table.insert( parts, ( unit:GetMaxDamage() - damage ) .. " of " .. unit:GetMaxDamage() .. " health" );
 	end
+	-- what it is doing (exploring, fortified, moving to ...); a unit picked from the places list also hears how to cancel
+	if HubPlaces ~= nil then
+		local activity:string = HubPlaces.UnitActivity( unit, false );
+		if activity ~= nil then
+			table.insert( parts, activity );
+			if HubPlaces.TakeCancelHint( unit ) then table.insert( parts, "Tab menu to cancel its orders" ); end
+		end
+	end
 	return table.concat( parts, ", " );
 end
 

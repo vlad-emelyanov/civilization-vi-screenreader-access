@@ -40,10 +40,11 @@ function HubTargets.GetTargetMode()
 	return nil, nil;
 end
 
--- A list mode cannot be opened in the middle of a target mode.
-function HubTargets.CanOpenMode()
+-- A list mode cannot be opened in the middle of a target mode. allowTarget: the places list (J) may, it only moves the
+-- target cursor (to bring a unit home, say).
+function HubTargets.CanOpenMode( allowTarget:boolean )
 	if not HubCore.IsLocalPlayerActive() then return false; end
-	if HubTargets.GetTargetMode() ~= nil then
+	if not allowTarget and HubTargets.GetTargetMode() ~= nil then
 		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
 		return false;
 	end
@@ -185,6 +186,8 @@ local function EnemyVisibleAt( plot:table )
 	end
 	return false;
 end
+
+HubTargets.EnemyVisibleAt = EnemyVisibleAt;
 
 -- City and district ranged attacks (no unit): the plot indexes the selected city may hit.
 local function GetCityAttackTargets( city:table )
