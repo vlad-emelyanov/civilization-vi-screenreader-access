@@ -1,7 +1,7 @@
 # Verified 2026-10-23. Item 4: RESEARCH COMPLETED is spoken once, not again after an advisor popup.
 # covers: **/TechCivicCompletedPopup.lua **/AdvisorPopup.lua **/NotificationPanel.lua
 # The completed popup only comes with the turn rollover: finish the research with the tuner, skip all units (so Enter ends the turn), Enter.
-# no-share-load
+# no-share-load: tuner completes techs and the units skip, Enter
 load early-t60
 clear-advisors
 lua GameCore_Tuner local t=Players[0]:GetTechs(); for r in GameInfo.Technologies() do if not t:HasTech(r.Index) then t:SetResearchingTech(r.Index); t:ChangeCurrentResearchProgress(5000); break end end

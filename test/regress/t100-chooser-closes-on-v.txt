@@ -1,6 +1,6 @@
 # Verified 2026-10-23. V with the production chooser open closes it and the diplomacy list speaks (the chooser's own keys no longer fight the list).
 # covers: **/ProductionPanel.lua
-# no-share-load
+# no-share-load: Enter picks the next unit / production
 load medieval-t100
 clear-advisors
 key Enter -Settle 2000

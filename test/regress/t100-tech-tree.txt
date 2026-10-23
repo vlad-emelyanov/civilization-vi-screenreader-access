@@ -2,7 +2,6 @@
 # covers: **/TechTree.lua **/TreeNav.lua **/TreeText.lua
 # it opens on the era of the current research, Left/Right switch eras, Up/Down move through the era, Space = details,
 # J jumps back to the current research, Escape closes. The target is NOT changed here (Enter is left out on purpose).
-# no-share-load
 load medieval-t100
 clear-advisors
 action ToggleTechTree -Settle 2500

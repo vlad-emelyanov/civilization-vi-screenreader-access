@@ -3,7 +3,6 @@
 # Whatever the state of that game is (AI played 99 turns: it may or may not have a pantheon / religion), the opening line starts with one of
 # "Religion" (no religion yet, or one religion: "Religion: Buddhism, founded by you ..."), "Found a religion", "Choose" or "Confirm". If the
 # opening line differs, the screen did not open or the hub swallowed L: check `civctl menu` and Lua.log.
-# no-share-load
 load medieval-t100
 clear-advisors
 key L -Settle 2500

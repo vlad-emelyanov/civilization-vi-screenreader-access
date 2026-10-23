@@ -2,7 +2,7 @@
 # covers: **/TradeRouteChooser.lua **/TradeOriginChooser.lua **/TradeText.lua
 # Selecting a trader with moves makes the game open its TradeRouteChooser by itself (interface mode MAKE_TRADE_ROUTE); the
 # Tab menu is not needed (Tab is swallowed by the chooser while it is open).
-# no-share-load
+# no-share-load: scenario trader-in-capital, starts a route
 load medieval-t100
 scenario trader-in-capital
 clear-advisors

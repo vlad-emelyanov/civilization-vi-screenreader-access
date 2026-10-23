@@ -1,6 +1,6 @@
 # Verified 2026-10-23. Bug bug-diplo-silent-after-friend: an advisor popup raised while the diplomacy scene is open is held until it closes, then spoken with "Enter closes"; the diplomacy screen itself speaks normally meanwhile.
 # covers: **/AdvisorPopup.lua **/DiplomacyActionView.lua
-# no-share-load
+# no-share-load: Enter in diplomacy starts a session with an AI civ; advisor popup state
 load medieval-t100
 clear-advisors
 action KeyNavDiplomacy -Settle 1500

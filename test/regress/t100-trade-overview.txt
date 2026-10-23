@@ -2,7 +2,6 @@
 # covers: **/TradeOverview.lua **/TradeOverviewText.lua
 # Tab / Control+Tab (previous) switch tabs (Shift+Tab is the Steam overlay), Space = details, F4 and Escape close.
 # Needs the build with TradeOverview.lua loaded ("ScreenReaderAccess: TradeOverview copy loaded" in Lua.log).
-# no-share-load
 load medieval-t100
 clear-advisors
 key F4 -Settle 2500

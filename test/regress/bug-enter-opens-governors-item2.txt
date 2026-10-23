@@ -1,7 +1,7 @@
 # Verified 2026-10-23. Item 2: Enter right after a city ranged attack must not open Governors.
 # covers: **/UnitPanel.lua **/WorldInput.lua **/Governor*_SRA.lua
 # Fixture bug-enter-opens-governors: turn 109, Rome can attack.
-# no-share-load
+# no-share-load: Enter in the ranged-attack target mode
 load bug-enter-opens-governors
 clear-advisors
 lua InGameAccess UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())

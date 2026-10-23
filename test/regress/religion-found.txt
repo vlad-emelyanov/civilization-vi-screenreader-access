@@ -1,7 +1,7 @@
 # Verified in game 2026-10-22. Founding a religion with a Great Prophet on medieval-t100 (util/scenarios/prophet-ready.lua places a Holy Site and the prophet).
 # covers: **/ReligionScreen.lua **/ReligionText.lua **/UnitPanel.lua
 # Found Religion is the first entry of the prophet's Tab menu; the game then raises a "Choose Religion" blocker; L opens the religion screen in its founding mode (Control+N would list the blockers in a varying order).
-# no-share-load
+# no-share-load: scenario prophet-ready, founds a religion
 load medieval-t100
 scenario prophet-ready
 clear-advisors

@@ -1,6 +1,6 @@
 # Verified 2026-10-23. Fixture bug-settler-no-skip: the besieged settler says it cannot skip and what to do instead; its Tab menu keeps Skip Turn as unavailable with the reason.
 # covers: **/UnitPanel.lua **/HubMenus.lua **/HubAnnounce.lua
-# no-share-load
+# no-share-load: Enter/Tab change the unit's orders
 load bug-settler-no-skip
 clear-advisors
 key Enter -Settle 1500

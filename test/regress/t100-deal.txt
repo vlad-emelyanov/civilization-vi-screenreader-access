@@ -2,7 +2,7 @@
 # covers: **/SRA_DealView.lua **/DealSpeech.lua **/DiplomacyActionView.lua
 # V lists the civs, Enter opens the overview of Dido; "Make Deal" is the 5th entry (4 x Down) while the relationship is Friendly.
 # Control+Tab = previous section (Shift+Tab opens the Steam overlay).
-# no-share-load
+# no-share-load: opens a diplomacy session with an AI civ
 load medieval-t100
 clear-advisors
 action KeyNavDiplomacy -Settle 2500

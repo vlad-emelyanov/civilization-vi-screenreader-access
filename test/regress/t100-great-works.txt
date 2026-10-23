@@ -4,7 +4,6 @@
 # so the script opens the screen like the launch bar does (LuaEvents.LaunchBar_OpenGreatWorksOverview). Tab / Control+Tab (Shift+Tab
 # is the Steam overlay) jump between buildings, Space = details, V = describe the work, Escape closes. It does NOT pick up or move works.
 # Needs the build with GreatWorksOverview.lua loaded ("ScreenReaderAccess: GreatWorksOverview copy loaded" in Lua.log).
-# no-share-load
 # covers: **/GreatWorksOverview.lua **/GreatWorkShowcase.lua
 load modern-start
 clear-advisors

@@ -1,7 +1,7 @@
 # Verified 2026-10-23. Scan order is stable and the last target says "X wraps to the first"; W X Enter on a far enemy says "Moving to attack X, N turns"; W toward a non-hostile civ opens the war dialog and Escape returns to choosing ("War not declared. Still choosing a target").
 # covers: **/HubTargets.lua **/HubCursor.lua **/HubEvents.lua
 # Setup: end turn 128 (barbarians approach), select the Legion with the tuner.
-# no-share-load
+# no-share-load: Enter ends the turn, attacks
 load pt-t128
 clear-advisors
 key Enter -Settle 1500
