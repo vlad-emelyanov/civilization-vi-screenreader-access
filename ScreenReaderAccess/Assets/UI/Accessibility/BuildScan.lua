@@ -7,15 +7,15 @@
 --	BuildScan_CanBuild( unit, plot, improvement ) -> boolean                         the engine's own check for one improvement
 --	BuildScan_Cities( unit )                    -> { { city, name, distance } }     our cities, nearest to the unit first
 --	BuildScan_DefaultCity( unit )               -> city | nil                         the city owning the unit's plot, else the nearest
---	BuildScan_Scan( unit, city, quick )         -> { city, cityName, list = { entries } }
+--	BuildScan_Scan( unit, city, force )         -> { city, cityName, list = { entries } }   (force = rescan, else cached)
 --	    entry: { key, plot, plotIndex, x, y, distance, turns, here, relative, name (resource name, else terrain and feature),
 --	             resource, resourceClass, improvesResource (an offered improvement works the resource), worked (a citizen works
 --	             it), improvements = { { name, hash, yieldText ("plus 1 food" or ""), repair = true for a pillaged one } } }
 --	    Tiles are the city's purchased plots where the builder can build at least one improvement now or repair a
 --	    pillaged one. Plots with a (not pillaged) improvement, districts and cities are skipped. Sorted: tiles with a
 --	    resource that an improvement works (luxury, strategic, bonus) first, then worked tiles, then the rest; within a
---	    group by turns, then distance. Unreachable tiles are dropped (quick = true: no path finding, turns = nil, for a
---	    cheap count). With no moves left the engine refuses everything: the list is empty and result.noMoves is true.
+--	    group by turns, then distance. Unreachable tiles are dropped. The repair test (UnitOperationTypes.REPAIR) is
+--	    unverified in game. With no moves left the engine refuses everything: the list is empty and result.noMoves is true.
 --
 --	Yield changes are the base values of Improvement_YieldChanges (not adjacency, techs, policies or the resource's own
 --	bonus), so "plus 1 food" for a Farm is what the improvement adds by itself.
@@ -56,14 +56,14 @@ function BuildScan_CanBuild( unit:table, plot:table, improvement:table )
 	return UnitManager.CanStartOperation( unit, UnitOperationTypes.BUILD_IMPROVEMENT, plot, params, false ) == true;
 end
 
--- Can the unit repair the pillaged improvement on the plot?
+-- Can the unit repair the pillaged improvement on the plot? (unverified in game: operation and signature guessed from the BUILD call)
 local function _CanRepair( unit:table, plot:table )
 	local operation = UnitOperationTypes.REPAIR;
 	if operation == nil and GameInfo.UnitOperations ~= nil and GameInfo.UnitOperations[ "UNITOPERATION_REPAIR" ] ~= nil then
 		operation = GameInfo.UnitOperations[ "UNITOPERATION_REPAIR" ].Hash;
 	end
 	if operation == nil then return false; end
-	local ok:boolean, result = pcall( UnitManager.CanStartOperation, unit, operation, plot, false );
+	local ok:boolean, result = pcall( UnitManager.CanStartOperation, unit, operation, plot, nil, false );
 	return ok and result == true;
 end
 
@@ -167,7 +167,7 @@ end
 local m_scanKey:string = nil;
 local m_scan:table = nil;
 
-function BuildScan_Scan( unit:table, city:table, quick:boolean )
+function BuildScan_Scan( unit:table, city:table, force:boolean )
 	local result:table = { city = city, list = {} };
 	local improvements:table = BuildScan_Improvements( unit );
 	if unit == nil or city == nil or improvements == nil then return result; end
@@ -179,8 +179,8 @@ function BuildScan_Scan( unit:table, city:table, quick:boolean )
 
 	local localPlayer:number = Game.GetLocalPlayer();
 	local key:string = table.concat( { localPlayer, unit:GetID(), unit:GetX(), unit:GetY(), Game.GetCurrentGameTurn(), unit:GetMovesRemaining(),
-		city:GetID(), tostring( quick == true ) }, ":" );
-	if key == m_scanKey and m_scan ~= nil then return m_scan; end
+		city:GetID() }, ":" );
+	if not force and key == m_scanKey and m_scan ~= nil then return m_scan; end
 
 	local citizens:table = city:GetCitizens();
 	local unitPlot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
@@ -224,7 +224,7 @@ function BuildScan_Scan( unit:table, city:table, quick:boolean )
 				local reachable:boolean = true;
 				if here then
 					turns = 0;
-				elseif not quick then
+				else
 					local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
 					if path ~= nil and path.plots ~= nil and #path.plots >= 2 then
 						turns = path.turns[ #path.turns ] or 1;

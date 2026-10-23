@@ -93,7 +93,7 @@ m_settleList = KeyNavList_Create{
 --	Left/Right switch to the next/previous own city (nearest to the builder first).
 -- ===========================================================================
 local m_buildList:table;
-local m_build:table = { cities = {}, index = 1, items = {} };
+local m_build:table = { cities = {}, index = 1, items = {}, unitId = nil };
 
 -- Browsing moved the cursor over the tiles: back to the builder (not when the mode went stale).
 local function BuildClosed( quiet:boolean )
@@ -139,11 +139,11 @@ local function BuildItemDetail( entry:table )
 end
 
 -- Scans the city at m_build.index and fills m_build.items.
-local function LoadBuildItems( unit:table )
+local function LoadBuildItems( unit:table, force:boolean )
 	m_build.items = {};
 	local entry:table = m_build.cities[ m_build.index ];
 	if entry == nil then return; end
-	for _, tile in ipairs( BuildScan_Scan( unit, entry.city ).list ) do
+	for _, tile in ipairs( BuildScan_Scan( unit, entry.city, force ).list ) do
 		table.insert( m_build.items, { key = tile.key, text = BuildItemText( tile ), detail = BuildItemDetail( tile ), entry = tile } );
 	end
 end
@@ -163,15 +163,28 @@ local function OpenBuildBrowser( unit:table )
 	for i, entry in ipairs( m_build.cities ) do
 		if default ~= nil and entry.city:GetID() == default:GetID() then m_build.index = i; end
 	end
-	LoadBuildItems( unit );
+	m_build.unitId = unit:GetID();
+	LoadBuildItems( unit, true );		-- the player asked: look again
 	local city:table = m_build.cities[ m_build.index ];
+	if #m_build.items == 0 then
+		-- the nearest city has nothing: open anyway when another city has something (Left/Right), else say so
+		local other:boolean = false;
+		for i, entry in ipairs( m_build.cities ) do
+			if i ~= m_build.index and #BuildScan_Scan( unit, entry.city, true ).list > 0 then other = true; break; end
+		end
+		if not other then
+			OutputMessageToScreenReader( "Nothing to improve near your cities" );
+			return;
+		end
+		HubCore.CloseMode( false, false );
+		HubCore.m_mode = { name = "build", list = m_buildList, onClose = BuildClosed };
+		m_buildList.Reset();
+		OutputMessageToScreenReader( city.name .. ", nothing to improve. Left and Right for other cities" );
+		return;
+	end
 	HubCore.CloseMode( false, false );
 	HubCore.m_mode = { name = "build", list = m_buildList, onClose = BuildClosed };
 	m_buildList.Reset();
-	if #m_build.items == 0 then
-		OutputMessageToScreenReader( "Tiles to improve near " .. city.name .. ", nothing to improve" );
-		return;
-	end
 	m_buildList.Open( "", nil, true );		-- silent: only puts the focus on the first tile
 	m_buildList.Focus( m_build.items[1].key, "Tiles to improve near " .. city.name .. ", " .. HubCore.Plural( #m_build.items, "tile", "tiles" ) );
 end
@@ -181,7 +194,11 @@ local function SwitchBuildCity( delta:number )
 	if not HubCore.IsModeOpen( "build" ) then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
 	local count:number = #m_build.cities;
-	if unit == nil or BuildScan_Improvements( unit ) == nil then HubCore.CloseMode( false, true ); return; end
+	if unit == nil or unit:GetID() ~= m_build.unitId or BuildScan_Improvements( unit ) == nil then
+		HubCore.CloseMode( false, true );
+		HubCore.SayResult( "Builder no longer selected" );
+		return;
+	end
 	if count <= 1 then
 		OutputMessageToScreenReader( "Only one city" );
 		return;
@@ -202,8 +219,8 @@ end
 local function BuildGo( item:table )
 	local unit:table = UI.GetHeadSelectedUnit();
 	HubCore.CloseMode( false, false );
-	if unit == nil or BuildScan_Improvements( unit ) == nil then
-		HubCore.SayResult( "No builder selected" );
+	if unit == nil or unit:GetID() ~= m_build.unitId or BuildScan_Improvements( unit ) == nil then
+		HubCore.SayResult( "Builder no longer selected" );
 		return;
 	end
 	local tile:table = item.entry;
@@ -233,14 +250,10 @@ m_buildList = KeyNavList_Create{
 	},
 };
 
--- "X: 5 tiles to improve near Rome" for the announcement of a selected builder (nil: not a builder, no moves, nothing to do).
+-- Hint for the announcement of a selected builder (costs nothing: no scan); nil for other units.
 function HubSettle.BuilderHint( unit:table )
-	if unit == nil or BuildScan_Improvements( unit ) == nil or unit:GetMovesRemaining() <= 0 then return nil; end
-	local city:table = BuildScan_DefaultCity( unit );
-	if city == nil then return nil; end
-	local scan:table = BuildScan_Scan( unit, city, true );
-	if #scan.list == 0 then return nil; end
-	return "X: " .. HubCore.Plural( #scan.list, "tile", "tiles" ) .. " to improve near " .. scan.cityName;
+	if unit == nil or BuildScan_Improvements( unit ) == nil then return nil; end
+	return "X lists tiles to improve";
 end
 
 -- X: with a settler selected the spot browser, with a builder the tile browser, otherwise the scan for foreign units.
