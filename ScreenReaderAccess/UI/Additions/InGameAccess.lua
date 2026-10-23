@@ -1290,7 +1290,18 @@ local function ConfirmTarget()
 		end
 		H.attackTime = UI.GetElapsedTime();
 		SayResult( "Attacking" );		-- the combat line arrives seconds later
-		ClickCursorPlot();
+		-- the same request WorldInput's CityRangeAttack/DistrictRangeAttack send on a click; the click itself depends on
+		-- the real mouse hover (UI.GetCursorPlotID) and did not reach the target in the 2026-10-23 test
+		local params:table = {};
+		params[UnitOperationTypes.PARAM_X] = plot:GetX();
+		params[UnitOperationTypes.PARAM_Y] = plot:GetY();
+		local attacker:table = ( mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK ) and UI.GetHeadSelectedDistrict() or city;
+		if attacker ~= nil and CityManager.CanStartCommand( attacker, CityCommandTypes.RANGE_ATTACK, params ) then
+			CityManager.RequestCommand( attacker, CityCommandTypes.RANGE_ATTACK, params );
+			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+		else
+			SayResult( "Cannot attack there" );
+		end
 	else
 		ClickCursorPlot();
 	end

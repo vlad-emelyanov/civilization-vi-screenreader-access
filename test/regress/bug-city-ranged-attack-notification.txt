@@ -1,4 +1,4 @@
-# UNVERIFIED (written blind, run with --record first). Item 3: Enter on the City Ranged Attack notification enters the attack mode.
+# Verified 2026-10-23. Item 3: Enter on the City Ranged Attack notification enters the attack mode.
 # no-share-load
 load bug-city-ranged-attack
 clear-advisors

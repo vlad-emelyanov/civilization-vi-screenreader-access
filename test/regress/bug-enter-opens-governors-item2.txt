@@ -1,4 +1,4 @@
-# UNVERIFIED (written blind, run with --record first). Item 2: Enter right after a city ranged attack must not open Governors.
+# Verified 2026-10-23. Item 2: Enter right after a city ranged attack must not open Governors.
 # Fixture bug-enter-opens-governors: turn 109, Rome can attack.
 # no-share-load
 load bug-enter-opens-governors
