@@ -1,0 +1,19 @@
+# UNVERIFIED (written offline). medieval-t100: T opens the Tech tree (Screens/TechTree.lua override, Accessibility/TreeNav.lua):
+# it opens on the era of the current research, Left/Right switch eras, Up/Down move through the era, Space = details,
+# J jumps back to the current research, Escape closes. The target is NOT changed here (Enter is left out on purpose).
+# no-share-load
+load medieval-t100
+clear-advisors
+action ToggleTechTree -Settle 2500
+expect ^Tech tree\. .+\. [^,]+, \d+ of \d+ eras\. .+, 1 of \d+
+key Right -Settle 800
+expect ^[^,]+, \d+ of \d+ eras\. .+, 1 of \d+
+key Down -Settle 800
+expect , 2 of \d+$
+key Space -Settle 800
+expect Unlocks
+key J -Settle 800
+expect ^(Current: .+, \d+ of \d+ eras\. .+|Not researching anything)
+key Escape -Settle 1500
+expect ^Tech tree closed
+no-lua-errors

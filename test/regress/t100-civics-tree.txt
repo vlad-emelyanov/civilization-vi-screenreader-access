@@ -1,0 +1,19 @@
+# UNVERIFIED (written offline). medieval-t100: C opens the Civics tree (Screens/CivicsTree.lua override, Accessibility/TreeNav.lua):
+# it opens on the era of the current civic, Left/Right switch eras, Up/Down move through the era, Space = details,
+# J jumps back to the current civic, Escape closes. The target is NOT changed here (Enter is left out on purpose).
+# no-share-load
+load medieval-t100
+clear-advisors
+action ToggleCivicsTree -Settle 2500
+expect ^Civics tree\. .+\. [^,]+, \d+ of \d+ eras\. .+, 1 of \d+
+key Right -Settle 800
+expect ^[^,]+, \d+ of \d+ eras\. .+, 1 of \d+
+key Down -Settle 800
+expect , 2 of \d+$
+key Space -Settle 800
+expect Unlocks
+key J -Settle 800
+expect ^(Current: .+, \d+ of \d+ eras\. .+|No civic in progress)
+key Escape -Settle 1500
+expect ^Civics tree closed
+no-lua-errors

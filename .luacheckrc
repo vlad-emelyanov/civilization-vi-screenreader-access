@@ -71,4 +71,7 @@ globals = {
 	"TradeOverviewText_Opening", "TradeOverviewText_Tab", "TradeOverviewText_Route", "TradeOverviewText_Slot", "TradeOverviewText_Detail",
 	"EspionageText_Plural", "EspionageText_Header", "EspionageText_Spy", "EspionageText_City", "EspionageText_History",
 	"EspionageText_EnemySpy", "EspionageText_Destination", "EspionageText_Mission", "EspionageText_Outcomes",
+	"TreeText_Turns", "TreeText_Ordinal", "TreeText_List", "TreeText_Era", "TreeText_Current", "TreeText_Item", "TreeText_Unlocks",
+	"TreeText_Detail", "TreeText_Queue", "TreeText_Group", "TreeText_Match", "TreeNav_Create", "TreeNav_ItemName", "TreeNav_Round",
+	"TreeNav_Entries", "TreeNav_PrereqNames", "TreeNav_LeadsTo", "TreeNav_UnlockEntries", "TreeNav_QueuePos", "SRA_TreeInput",
 }

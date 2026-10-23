@@ -36,6 +36,9 @@ include( "TechAndCivicSupport");	-- (Already includes Civ6Common and InstanceMan
 include( "TechFilterFunctions" );
 include( "ModalScreen_PlayerYieldsHelper" );
 include( "GameCapabilities" );
+include( "ScreenReader" );		-- ScreenReaderAccess
+include( "SRListen" );		-- ScreenReaderAccess
+include( "TreeNav" );		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	DEBUG
@@ -1775,6 +1778,196 @@ function OnClose()
 end
 
 -- ===========================================================================
+-- Begin ScreenReaderAccess mod change: keyboard navigation and speech (Accessibility/TreeNav.lua, TreeText.lua).
+-- The screen is read era by era; the data comes from the player's own tech API and the screen's g_kItemDefaults / g_kEras.
+-- ===========================================================================
+print("ScreenReaderAccess: TechTree copy loaded");
+
+local m_srNav:table = nil;
+
+local function SRA_Techs()
+	local ePlayer:number = Game.GetLocalPlayer();
+	if ePlayer == nil or ePlayer < 0 then return nil; end
+	return Players[ePlayer]:GetTechs();
+end
+
+local function SRA_IsRevealed( techs:table, item:table )
+	if techs ~= nil and techs.IsTechRevealed ~= nil then return techs:IsTechRevealed( item.Index ); end
+	return true;
+end
+
+local function SRA_TechEntries()
+	local techs:table = SRA_Techs();
+	if techs == nil then return {}; end
+	return TreeNav_Entries( function( item ) return SRA_IsRevealed( techs, item ); end, CleanTextForSpeech( Locale.Lookup("LOC_TECH_TREE_NOT_REVEALED_TECH") ) );
+end
+
+local function SRA_TechInfo( techType:string )
+	local item:table = g_kItemDefaults[ techType ];
+	local techs:table = SRA_Techs();
+	local id:number = item.Index;
+	local info:table = { name = TreeNav_ItemName( item ), turns = 0, currentWord = "currently researching" };
+	if not SRA_IsRevealed( techs, item ) then info.status = "unrevealed"; return info; end
+	if techs:HasTech( id ) then
+		info.status = "researched";
+	elseif id == techs:GetResearchingTech() then
+		info.status = "current";
+		info.turns = techs:GetTurnsLeft();
+	elseif techs:CanResearch( id ) then
+		info.status = "available";
+		info.turns = techs:GetTurnsToResearch( id );
+	else
+		info.status = "blocked";
+		info.turns = techs:GetTurnsToResearch( id );
+		info.needs = TreeNav_PrereqNames( item, function( p ) return techs:HasTech( p.Index ); end );
+	end
+	if item.IsBoostable and info.status ~= "researched" then info.boosted = techs:HasBoostBeenTriggered( id ); end
+	info.queuePos = TreeNav_QueuePos( techs:GetResearchQueue(), techs:GetResearchingTech(), id );
+	return info;
+end
+
+local function SRA_TechDetail( techType:string )
+	local item:table = g_kItemDefaults[ techType ];
+	local techs:table = SRA_Techs();
+	local ePlayer:number = Game.GetLocalPlayer();
+	local info:table = SRA_TechInfo( techType );
+	if info.status == "unrevealed" then return "Not revealed yet"; end
+	local d:table = {
+		name = info.name, statusText = TreeText_Item( info ), rateWord = "science",
+		unlocks = TreeNav_UnlockEntries( GetUnlockablesForTech_Cached( techType, ePlayer ) ),
+		prereqs = TreeNav_PrereqNames( item ), leads = TreeNav_LeadsTo( techType ),
+	};
+	if info.status ~= "researched" then
+		d.cost = techs:GetResearchCost( item.Index );
+		d.progress = math.floor( techs:GetResearchProgress( item.Index ) + 0.5 );
+		d.rate = TreeNav_Round( techs:GetScienceYield() );
+		if item.IsBoostable then
+			d.boost = { word = "Eureka", text = CleanTextForSpeech( item.BoostText ), done = techs:HasBoostBeenTriggered( item.Index ) };
+		end
+	end
+	return TreeText_Detail( d );
+end
+
+local function SRA_CurrentTech()
+	local techs:table = SRA_Techs();
+	if techs == nil then return nil; end
+	local id:number = techs:GetResearchingTech();
+	if id == nil or id < 0 or techs:HasTech( id ) then return nil; end
+	local row = GameInfo.Technologies[ id ];
+	if row == nil then return nil; end
+	return row.TechnologyType;
+end
+
+local function SRA_TechCurrentLine()
+	local key = SRA_CurrentTech();
+	if key == nil then return TreeText_Current( "Researching", "Not researching anything", nil, 0 ); end
+	local info:table = SRA_TechInfo( key );
+	return TreeText_Current( "Researching", "Not researching anything", info.name, info.turns );
+end
+
+-- Enter (exclusive: the path to the node becomes the queue) / Shift+Enter (append), exactly what a click / Shift+click does.
+local function SRA_TechRequest( techType:string, append:boolean )
+	local item:table = g_kItemDefaults[ techType ];
+	local techs:table = SRA_Techs();
+	local name:string = TreeNav_ItemName( item );
+	if not SRA_IsRevealed( techs, item ) then return false, "Not revealed yet"; end
+	if techs:HasTech( item.Index ) then return false, name .. " is already researched"; end
+	local path = techs:GetResearchPath( item.Hash );
+	if path == nil or #path == 0 then return false, "No path to " .. name; end
+	m_shiftDown = append;
+	SetCurrentNode( item.Hash );
+	m_shiftDown = false;
+	return true;
+end
+
+local function SRA_TechQueue()
+	local techs:table = SRA_Techs();
+	local queue:table = techs:GetResearchQueue();
+	local current:number = techs:GetResearchingTech();
+	local keys:table, names:table = {}, {};
+	local turns:number = 0;
+	for _, id in ipairs( queue ) do
+		local row = GameInfo.Technologies[ id ];
+		if row ~= nil then
+			table.insert( keys, row.TechnologyType );
+			local item:table = g_kItemDefaults[ row.TechnologyType ];
+			table.insert( names, item ~= nil and TreeNav_ItemName( item ) or CleanTextForSpeech( Locale.Lookup( row.Name ) ) );
+			if id == current then turns = turns + techs:GetTurnsLeft(); else turns = turns + techs:GetTurnsToResearch( id ); end
+		end
+	end
+	return { keys = keys, names = names, turns = turns };
+end
+
+local function SRA_TechSearch( text:string )
+	local results = Search.Search( "Technologies", text, 5 );
+	if results ~= nil then
+		for _, v in ipairs( results ) do
+			if IsSearchable( v[1] ) then return v[1]; end
+		end
+	end
+	return nil;
+end
+
+-- The search box in edit mode (KeyNavEditBox). The game's own change / focus / commit callbacks are put back afterwards.
+local function SRA_TechBeginSearch( onCommit )
+	Controls.SearchEditBox:SetText( "" );
+	KeyNavEditBox_Begin( Controls.SearchEditBox, {
+		label = "Search", commit = onCommit,
+		onEnd = function( committed:boolean )
+			Controls.SearchEditBox:RegisterStringChangedCallback( OnSearchCharCallback );
+			Controls.SearchEditBox:RegisterHasFocusCallback( OnSearchBarGainFocus );
+			Controls.SearchEditBox:RegisterCommitCallback( OnSearchBarLoseFocus );
+			Controls.SearchEditBox:SetText( Locale.Lookup("LOC_TREE_SEARCH_W_DOTS") );
+		end,
+	} );
+end
+
+local function SRA_OnTreeOpen()
+	if m_srNav ~= nil then
+		local ok:boolean, err = xpcall( m_srNav.Open, KeyNavErrorHandler );
+		if not ok then print( "TechTree open error: " .. tostring( err ) ); end
+	end
+end
+
+local function SRA_OnTreeClosed()
+	if m_srNav ~= nil then m_srNav.Closed(); end
+end
+
+local function SRA_OnQueueChanged( ePlayer:number )
+	if m_srNav ~= nil and ePlayer == Game.GetLocalPlayer() then m_srNav.QueueChanged(); end
+end
+
+local function SRA_OnUpdate( deltaTime:number )
+	if m_srNav ~= nil then m_srNav.Update( deltaTime ); end
+end
+
+function SRA_TreeInput( pInputStruct:table )
+	if m_srNav == nil then return false; end
+	local ok:boolean, handled = xpcall( function() return m_srNav.HandleInput( pInputStruct ); end, KeyNavErrorHandler );
+	if not ok then print( "TechTree input error: " .. tostring( handled ) ); return false; end
+	return handled == true;
+end
+
+local function SRA_InitTree()
+	m_srNav = TreeNav_Create{
+		name = "Tech tree", closedText = "Tech tree closed", toggleKey = Keys.T,
+		isShown = function() return not ContextPtr:IsHidden(); end,
+		entries = SRA_TechEntries, item = SRA_TechInfo, detail = SRA_TechDetail,
+		current = SRA_CurrentTech, currentLine = SRA_TechCurrentLine,
+		request = SRA_TechRequest, queue = SRA_TechQueue, search = SRA_TechSearch,
+		beginSearch = SRA_TechBeginSearch,
+		close = Close,
+		scroll = function( key ) ScrollToNode( key ); end,
+	};
+	SRListen( LuaEvents.TechTree_OpenTechTree, SRA_OnTreeOpen );
+	SRListen( LuaEvents.TechTree_CloseTechTree, SRA_OnTreeClosed );
+	SRListen( Events.ResearchQueueChanged, SRA_OnQueueChanged );
+	SRListen( Events.ResearchChanged, SRA_OnQueueChanged );
+	ContextPtr:SetUpdate( SRA_OnUpdate );
+end
+-- End ScreenReaderAccess mod change
+
+-- ===========================================================================
 --	Input
 --	UI Event Handler
 -- ===========================================================================
@@ -1801,6 +1994,7 @@ function KeyUpHandler( key:number )
     return false;
 end
 function OnInputHandler( pInputStruct:table )
+	if SRA_TreeInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyDown then return KeyDownHandler( pInputStruct:GetKey() ); end
 	if uiMsg == KeyEvents.KeyUp then return KeyUpHandler( pInputStruct:GetKey() ); end	
@@ -1811,6 +2005,8 @@ end
 --	UI Event Handler
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();			-- ScreenReaderAccess
+	KeyNavEditBox_Cancel();	-- ScreenReaderAccess
 	-- Clean up events
 	LuaEvents.LaunchBar_CloseTechTree.Remove( OnClose );
 	LuaEvents.LaunchBar_RaiseTechTree.Remove( OnOpen );
@@ -2076,6 +2272,8 @@ function Initialize()
 	TruncateStringWithTooltip(Controls.CompletedLabelKey, MAX_BEFORE_TRUNC_KEY_LABEL, Controls.CompletedLabelKey:GetText());
 
 	m_TopPanelConsideredHeight = Controls.Vignette:GetSizeY() - TOP_PANEL_OFFSET;
+
+	SRA_InitTree();		-- ScreenReaderAccess
 end
 
 if HasCapability("CAPABILITY_TECH_TREE") then
