@@ -33,6 +33,15 @@ class CoversTests(unittest.TestCase):
         self.assertEqual(s.covers, ("a/**/b.lua", "*.xml", "c"))
         self.assertEqual(script("key A").covers, ())
 
+    def test_manual_header(self):
+        self.assertTrue(script("# manual (reason)
+key A").manual)
+        self.assertFalse(script("# x
+key A").manual)
+        names = [n for n, _ in cr.discover(["all"])]
+        self.assertNotIn("espionage-escape", names)
+        self.assertFalse([n for n in names if n.endswith(".recorded")])
+
     def test_glob(self):
         m = cr.path_matches
         self.assertTrue(m(MOD + "Assets/UI/Screens/TechTree.lua", ["**/TechTree.lua"]))

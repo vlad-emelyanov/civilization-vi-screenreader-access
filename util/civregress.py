@@ -133,7 +133,7 @@ def parse_script(text, name="script"):
     steps = Steps()
     steps.fresh = bool(re.search(r"^#\s*no-share-load", text, re.M))
     steps.text = text
-    steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
+    steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
     steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
     scenario = False
     for no, raw in enumerate(text.splitlines(), 1):
