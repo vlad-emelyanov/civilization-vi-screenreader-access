@@ -1194,6 +1194,14 @@ local function SRA_ReadConfirmDetail()
 end
 
 local function SRA_Cancel()
+	if m_currentChooserMode == EspionageChooserModes.DESTINATION_CHOOSER and m_city ~= nil then
+		-- a mission list reached from the destination list (counterspy in an own city): Escape goes back one level
+		OnCancel();
+		m_srList.Reset();
+		SRA_Say( "Back to destinations" );
+		SRA_AnnounceList();
+		return;
+	end
 	OnClose();
 	SRA_Say( "Cancelled" );
 end
