@@ -37,11 +37,8 @@ local m_actions				:table = {};		-- actionId -> handler
 local m_lastAnnouncedTurn	:string = "";		-- "<local player>:<turn>" of the last turn announcement (hotseat: every player hears their turn)
 local m_ready				:boolean = false;	-- a game is loaded (LoadScreenClose seen): event announcements are allowed
 local m_unitActions			:table = {};		-- plain list of the selected unit's actions, sent by UnitPanel (SRA_UnitActions)
-local m_enterWatch			:number = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
 local m_enterLabel			:string = "";		-- what the action panel said Enter would do
 local m_placeCommitTime		:number = -100;		-- UI.GetElapsedTime() of the last placement commit (its result must outlive the selection that follows)
-local m_movers				:table = {};		-- unit id -> { dest = plot index, issued = time }: units on a move order given in this session
-local m_attackIntent		:boolean = false;	-- the MOVE_TO mode was entered with the Attack key: only enemies are valid targets
 local m_menuItems			:table = {};		-- items of the unit actions menu, fetched when it opens
 local m_spotted				:table = {};		-- "player:unit" -> turn the enemy was last announced
 local m_spottedTurn			:number = -1;		-- turn m_spottedCount counts
@@ -56,242 +53,6 @@ local m_pendingUnit			:number = nil;		-- unit selected while the game was still 
 local m_placeScan			:table = nil;		-- PlacementScan result of the open placement mode (district / wonder browser)
 local m_placeParams			:table = nil;		-- insert-mode parameters read from the interface mode when placement began
 local m_placeBusy			:boolean = false;	-- a tile purchase is waiting for its rescan: Enter says "Wait"
-local m_placeReplaced		:boolean = false;	-- the placement mode is closing because another placement mode replaced it
-local OpenPlacement;
-
---	TARGET MODES: interface modes in which the game wants a plot (move to, attacks ...)
--- ===========================================================================
-local m_targetModes:table = {};		-- InterfaceModeTypes value -> spoken name
-do
-	local names:table = {
-		MOVE_TO = "Move to", RANGE_ATTACK = "Ranged attack", AIR_ATTACK = "Air attack", CITY_RANGE_ATTACK = "City ranged attack",
-		DISTRICT_RANGE_ATTACK = "District ranged attack", WMD_STRIKE = "Nuclear strike", ICBM_STRIKE = "Missile strike",
-		COASTAL_RAID = "Coastal raid", DEPLOY = "Deploy", REBASE = "Rebase", AIRLIFT = "Airlift", FORM_CORPS = "Form corps",
-		FORM_ARMY = "Form army",
-		NAVAL_GOLD_RAID = "Naval raid", SACRIFICE_SELECTION = "Sacrifice", KILL_WEAKER_UNIT = "Kill weaker unit",
-		TRANSFORM_UNIT = "Transform unit", RESTORE_UNIT_MOVES = "Restore moves", PRIORITY_TARGET = "Priority target",
-	};
-	for name, label in pairs( names ) do
-		local mode = InterfaceModeTypes[name];
-		if mode ~= nil then m_targetModes[mode] = label; end
-	end
-end
-
--- Not target modes although the game wants a choice in them: the trade chooser panels (Choosers/TradeRouteChooser.lua,
--- TradeOriginChooser.lua) own these two modes with their own keyboard lists, speech, Enter and Escape. The hub stays
--- silent and lets every key through (as in the production panel); it only closes its unit menu when one starts.
-local m_chooserModes:table = {};
-for _, name in ipairs( { "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY", "SPY_TRAVEL_TO_CITY", "SPY_CHOOSE_MISSION" } ) do
-	if InterfaceModeTypes[name] ~= nil then m_chooserModes[ InterfaceModeTypes[name] ] = true; end
-end
-
-function Hub.GetTargetMode()
-	local mode:number = UI.GetInterfaceMode();
-	local label:string = m_targetModes[mode];
-	if label ~= nil then return mode, label; end
-	return nil, nil;
-end
-
--- A list mode cannot be opened in the middle of a target mode.
-local function CanOpenMode()
-	if not HubCore.IsLocalPlayerActive() then return false; end
-	if Hub.GetTargetMode() ~= nil then
-		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
-		return false;
-	end
-	if HubCore.IsModeOpen( "placement" ) then
-		OutputMessageToScreenReader( "Place it, or Escape to cancel first" );
-		return false;
-	end
-	return true;
-end
-
--- Modes in which a city or district (not a unit) acts.
-local function IsCityMode( mode:number )
-	return mode == InterfaceModeTypes.CITY_RANGE_ATTACK or mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK;
-end
-
--- The unit or city that chose a target mode is gone (died, deselected, turn ended): leave the mode, or Enter and
--- Escape would be swallowed by a mode that has nothing to act on.
-local function ResetStaleMode()
-	if Hub.GetTargetMode() ~= nil and UI.GetHeadSelectedUnit() == nil and UI.GetHeadSelectedCity() == nil then
-		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-	end
-end
-
--- Plot indexes the unit may attack with this operation (ranged / air attack).
-local function GetAttackTargets( unit:table, operation:number )
-	local set:table = {};
-	local results:table = UnitManager.GetOperationTargets( unit, operation );
-	if results == nil then return set; end
-	local plots:table = results[UnitOperationResults.PLOTS];
-	local modifiers:table = results[UnitOperationResults.MODIFIERS];
-	if plots == nil or modifiers == nil then return set; end
-	for i, plotId in ipairs( plots ) do
-		if modifiers[i] == UnitOperationResults.MODIFIER_IS_TARGET then set[ plotId ] = true; end
-	end
-	return set;
-end
-
--- What the game's combat preview would say for this attack (mirrors UnitPanel ShowCombatAssessment): damage both
--- ways and whether someone dies; walls and city health are told apart, a city never "dies" (it can be captured).
-local function IsCityOrDistrictPlot( plot:table )
-	if plot:IsCity() then return true; end
-	local districtType:number = plot:GetDistrictType();
-	if districtType ~= nil and districtType >= 0 then
-		local row:table = GameInfo.Districts[ districtType ];
-		return row ~= nil and not row.InternalOnly;
-	end
-	return false;
-end
-
-local function CombatPreviewText( unit:table, plot:table, combatType )
-	local ok:boolean, results = pcall( CombatManager.SimulateAttackInto, unit:GetComponentID(), combatType, plot:GetX(), plot:GetY() );
-	if not ok or results == nil then return nil; end
-	local attacker:table = results[CombatResultParameters.ATTACKER];
-	local defender:table = results[CombatResultParameters.DEFENDER];
-	if attacker == nil or defender == nil then return nil; end
-	local parts:table = {};
-	local dealt:number = defender[CombatResultParameters.DAMAGE_TO] or 0;
-	local defenderMax:number = defender[CombatResultParameters.MAX_HIT_POINTS] or 0;
-	local defenderFinal:number = defender[CombatResultParameters.FINAL_DAMAGE_TO] or 0;
-	local wallsMax:number = defender[CombatResultParameters.MAX_DEFENSE_HIT_POINTS] or 0;
-	local wallsDamage:number = defender[CombatResultParameters.DEFENSE_DAMAGE_TO] or 0;
-	local wallsFinal:number = defender[CombatResultParameters.FINAL_DEFENSE_DAMAGE_TO] or 0;
-	if results[CombatResultParameters.LOCATION_PILLAGED] then
-		table.insert( parts, "would pillage" );
-	elseif defenderMax == 0 then
-		return "no combat";
-	elseif wallsMax > 0 then
-		-- a city or district with walls: part of the damage goes to the walls
-		if wallsDamage > 0 then
-			table.insert( parts, "deals " .. wallsDamage .. " damage to the walls, " .. math.max( 0, wallsMax - wallsFinal ) .. " of " .. wallsMax .. " left" );
-		end
-		if dealt > wallsDamage or wallsDamage == 0 then
-			table.insert( parts, "deals " .. dealt .. " damage to the city, " .. math.max( 0, defenderMax - defenderFinal ) .. " of " .. defenderMax .. " health left" );
-		end
-	elseif defenderFinal >= defenderMax then
-		if IsCityOrDistrictPlot( plot ) then
-			table.insert( parts, "health to 0" );
-		else
-			table.insert( parts, "kills the target" );
-		end
-	else
-		table.insert( parts, "deals " .. dealt .. " damage, target left with " .. ( defenderMax - defenderFinal ) .. " of " .. defenderMax );
-	end
-	local taken:number = attacker[CombatResultParameters.DAMAGE_TO] or 0;
-	local attackerMax:number = attacker[CombatResultParameters.MAX_HIT_POINTS] or 0;
-	local attackerFinal:number = attacker[CombatResultParameters.FINAL_DAMAGE_TO] or 0;
-	if attackerMax > 0 and attackerFinal >= attackerMax then
-		table.insert( parts, "you would die" );
-	elseif taken > 0 then
-		table.insert( parts, "you take " .. taken );
-	else
-		table.insert( parts, "no damage to you" );
-	end
-	return table.concat( parts, ", " );
-end
-
--- Players the move or attack of this unit onto the plot would declare war on (nil: none).
-local function WarTargets( unit:table, plot:table )
-	if unit == nil or plot == nil or not HubCore.IsPlotVisibleToLocal( plot ) then return nil; end
-	local ok:boolean, results = pcall( CombatManager.IsAttackChangeWarState, unit:GetComponentID(), plot:GetX(), plot:GetY() );
-	if ok and results ~= nil and #results > 0 then return results; end
-	return nil;
-end
-
-local function WarTargetNames( targets:table )
-	local names:table = {};
-	for _, playerID in ipairs( targets ) do table.insert( names, PlotDescription_GetCivName( playerID ) ); end
-	return table.concat( names, " and " );
-end
-
--- A visible unit or city of someone we are at war with (or barbarians) on the plot.
-local function EnemyVisibleAt( plot:table )
-	if not HubCore.IsPlotVisibleToLocal( plot ) then return false; end
-	for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
-		if HubCore.IsForeignUnitVisible( other ) and HubCore.IsHostile( other:GetOwner() ) then return true; end
-	end
-	if plot:IsCity() then
-		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
-		if city ~= nil and HubCore.IsHostile( city:GetOwner() ) then return true; end
-	end
-	return false;
-end
-
--- City and district ranged attacks (no unit): the plot indexes the selected city may hit.
-local function GetCityAttackTargets( city:table )
-	local set:table = {};
-	local ok:boolean, results = pcall( function()
-		local parameters:table = {};
-		parameters[CityCommandTypes.PARAM_RANGED_ATTACK] = UI.GetInterfaceModeParameter( CityCommandTypes.PARAM_RANGED_ATTACK );
-		return CityManager.GetCommandTargets( city, CityCommandTypes.RANGE_ATTACK, parameters );
-	end );
-	if not ok or results == nil then return nil; end
-	local plots:table = results[CityCommandResults.PLOTS];
-	local modifiers:table = results[CityCommandResults.MODIFIERS];
-	if plots == nil or modifiers == nil then return nil; end
-	for i, plotId in ipairs( plots ) do
-		if modifiers[i] == CityCommandResults.MODIFIER_IS_TARGET then set[ plotId ] = true; end
-	end
-	return set;
-end
-
--- Mode specific words for the cursor plot: path length for a move, valid target and odds for an attack.
-function Hub.TargetInfo( mode:number, plot:table, unit:table )
-	if unit == nil then
-		if mode == InterfaceModeTypes.CITY_RANGE_ATTACK or mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK then
-			local city:table = UI.GetHeadSelectedCity();
-			local targets:table = ( city ~= nil ) and GetCityAttackTargets( city ) or nil;
-			if targets == nil then return nil; end
-			if targets[ plot:GetIndex() ] then return "valid target"; end
-			return "no target";
-		end
-		return nil;
-	end
-	if mode == InterfaceModeTypes.MOVE_TO then
-		if unit:GetX() == plot:GetX() and unit:GetY() == plot:GetY() then return "here"; end
-		local war:table = WarTargets( unit, plot );
-		local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
-		local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
-		local enemy:boolean = EnemyVisibleAt( plot );
-		if not reachable and war == nil then
-			if m_attackIntent and enemy then return "enemy, cannot reach"; end
-			return "unreachable";
-		end
-		local text:string = "";
-		local turns:number = 1;
-		if reachable then
-			turns = path.turns[ #path.turns ] or 1;
-			text = HubCore.Plural( turns, "turn", "turns" );
-		end
-		if enemy or war ~= nil then
-			text = ( text ~= "" ) and ( "attack, " .. text ) or "attack";
-			if turns <= 1 then
-				local preview:string = CombatPreviewText( unit, plot, nil );
-				if preview ~= nil then text = text .. ", " .. preview; end
-			end
-		elseif m_attackIntent then
-			return "no enemy";
-		end
-		if war ~= nil then text = "would declare war on " .. WarTargetNames( war ) .. ", " .. text; end
-		return text;
-	elseif mode == InterfaceModeTypes.RANGE_ATTACK or mode == InterfaceModeTypes.AIR_ATTACK then
-		local operation:number = ( mode == InterfaceModeTypes.RANGE_ATTACK ) and UnitOperationTypes.RANGE_ATTACK or UnitOperationTypes.AIR_ATTACK;
-		local war:table = WarTargets( unit, plot );
-		if not GetAttackTargets( unit, operation )[ plot:GetIndex() ] and war == nil then return "no target"; end
-		local combatType = nil;
-		if mode == InterfaceModeTypes.RANGE_ATTACK then
-			combatType = CombatTypes.RANGED;
-			if unit:GetBombardCombat() > unit:GetRangedCombat() then combatType = CombatTypes.BOMBARD; end
-		end
-		local preview:string = CombatPreviewText( unit, plot, combatType );
-		local text:string = "valid target" .. ( preview ~= nil and ( ", " .. preview ) or "" );
-		if war ~= nil then text = "would declare war on " .. WarTargetNames( war ) .. ", " .. text; end
-		return text;
-	end
-	return nil;
-end
 
 -- ===========================================================================
 --	WHAT IS NEXT (N)
@@ -369,14 +130,14 @@ local function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:numb
 	if playerID ~= Game.GetLocalPlayer() then return; end
 	HubCore.CloseMode( false, true );
 	if not isSelected then
-		ResetStaleMode();
+		HubTargets.ResetStaleMode();
 		return;
 	end
-	m_enterWatch = -1;
+	HubCore.m_enterWatch = -1;
 	local unit:table = Players[playerID]:GetUnits():FindID( unitID );
 	if unit == nil then return; end
 	-- a move order that is no longer under way is forgotten
-	if m_movers[ unitID ] ~= nil and UnitManager.GetQueuedDestination( unit ) == nil then m_movers[ unitID ] = nil; end
+	if HubCore.m_movers[ unitID ] ~= nil and UnitManager.GetQueuedDestination( unit ) == nil then HubCore.m_movers[ unitID ] = nil; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil then return; end
 	HubCursor.SetCursor( plot:GetX(), plot:GetY(), false );
@@ -425,7 +186,7 @@ local function OnCitySelectionChanged( owner:number, cityID:number, i:number, j:
 	if owner ~= Game.GetLocalPlayer() then return; end
 	HubCore.CloseMode( false, true );
 	if not isSelected then return; end
-	m_enterWatch = -1;
+	HubCore.m_enterWatch = -1;
 	local city:table = Players[owner]:GetCities():FindID( cityID );
 	if city == nil then return; end
 	local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
@@ -470,7 +231,7 @@ local function OnLoadScreenClose()
 	m_lastSettleSpoken = nil;
 	HubCursor.ResetCursor();
 	m_ready = true;
-	m_movers = {};
+	HubCore.m_movers = {};
 	m_spotted = {};
 	m_arrivals = {};
 	m_arrivalTimer = -1;
@@ -490,8 +251,8 @@ end
 
 local function OnLocalPlayerTurnEnd()
 	HubCore.CloseMode( false, true );
-	m_enterWatch = -1;
-	if Hub.GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
+	HubCore.m_enterWatch = -1;
+	if HubTargets.GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	-- The event also fires when ending the turn is refused a moment later (a unit that finished exploring asks for
 	-- orders, turn number unchanged). Already inactive at event time: the turn really ended, say it now (a deferred
 	-- line could land after the next "Turn N"). Still active: check again shortly and speak only if the same turn
@@ -508,270 +269,6 @@ local function OnLocalPlayerTurnEnd()
 			OutputMessageToScreenReader( "Turn ended", true );
 		end
 	end );
-end
-
--- ===========================================================================
---	TARGET MODES: entering, confirming (Enter) and cancelling (Escape)
--- ===========================================================================
--- F8: the Reports screen has no input action of its own; the top panel button toggles it through these events.
-function Hub.ToggleReports()
-	local screen = ContextPtr:LookUpControl( "/InGame/ReportScreen" );
-	if screen ~= nil and not screen:IsHidden() then
-		LuaEvents.TopPanel_CloseReportsScreen();
-	else
-		LuaEvents.TopPanel_OpenReportsScreen();
-	end
-end
-
-Hub.lastModeLine = -1;		-- the target mode of the last mode line and when it was spoken
-Hub.lastModeTime = -100;
-Hub.attackTime = -100;		-- UI.GetElapsedTime() of the last confirmed attack
-
--- City ranged attack: the cursor starts on the nearest tile the city can hit (Enter on the city itself says "No valid target").
-function Hub.CursorToNearestCityTarget()
-	if not IsCityMode( UI.GetInterfaceMode() ) then return; end
-	local city:table = UI.GetHeadSelectedCity();
-	if city == nil then return; end
-	local targets:table = GetCityAttackTargets( city );
-	local bestPlot:table, bestDistance:number = nil, 99;
-	if targets ~= nil then
-		for plotIndex, _ in pairs( targets ) do
-			local plot:table = Map.GetPlotByIndex( plotIndex );
-			if plot ~= nil then
-				local distance:number = Map.GetPlotDistance( city:GetX(), city:GetY(), plot:GetX(), plot:GetY() );
-				if distance < bestDistance then bestPlot, bestDistance = plot, distance; end
-			end
-		end
-	end
-	if bestPlot == nil then
-		OutputMessageToScreenReader( "No enemy in range. Escape to cancel", true );
-		return;
-	end
-	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
-end
-
--- R and W with a city selected (UnitPanel is hidden then and says nothing): open the city's ranged attack, or say why not.
-function Hub.CityAttackKey()
-	if not HubCore.IsLocalPlayerActive() or Hub.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
-	local city:table = UI.GetHeadSelectedCity();
-	if city == nil or city:GetOwner() ~= Game.GetLocalPlayer() then return; end
-	local name:string = Locale.Lookup( city:GetName() );
-	if CityManager.CanStartCommand( city, CityCommandTypes.RANGE_ATTACK ) then
-		UI.SetInterfaceMode( InterfaceModeTypes.CITY_RANGE_ATTACK );
-	else
-		OutputMessageToScreenReader( name .. " can't attack: no enemy in range, or it already attacked this turn" );
-	end
-end
-
-local function OnInterfaceModeChanged( oldMode:number, newMode:number )
-	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
-	if HubCore.m_mode ~= nil and ( HubCore.m_mode.name == "menu" or m_targetModes[ newMode ] ~= nil or m_chooserModes[ newMode ] ) then HubCore.CloseMode( false, true ); end
-	-- placing a district or wonder: the placement browser opens; it ends with the mode (placed, cancelled or replaced)
-	if HubCore.IsModeOpen( "placement" ) then
-		m_placeReplaced = ( newMode == InterfaceModeTypes.DISTRICT_PLACEMENT or newMode == InterfaceModeTypes.BUILDING_PLACEMENT );
-		HubCore.CloseMode( false, true );
-		m_placeReplaced = false;
-	end
-	if newMode == InterfaceModeTypes.DISTRICT_PLACEMENT or newMode == InterfaceModeTypes.BUILDING_PLACEMENT then
-		OpenPlacement( newMode );
-		return;
-	end
-	m_enterWatch = -1;
-	if newMode ~= InterfaceModeTypes.MOVE_TO then m_attackIntent = false; end
-	local label:string = m_targetModes[ newMode ];
-	if label == nil then return; end
-	-- the cursor starts at the acting unit or city, and the tiles are chosen from there
-	local plot:table = HubCore.GetSelectionPlot();
-	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false ); end
-	-- CityPanel flips SELECTION -> CITY_RANGE_ATTACK when a city is selected in that mode: one mode line, not two
-	local now:number = UI.GetElapsedTime();
-	if Hub.lastModeLine == newMode and now - Hub.lastModeTime < 0.5 then return; end
-	Hub.lastModeLine, Hub.lastModeTime = newMode, now;
-	if newMode == InterfaceModeTypes.MOVE_TO and m_attackIntent then
-		OutputMessageToScreenReader( "Attack: choose a target with Shift+Arrows or X, Enter to attack, Escape to cancel" );
-		return;
-	end
-	OutputMessageToScreenReader( label .. ": choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel" );
-	if IsCityMode( newMode ) then HubCore.After( 0.3, Hub.CursorToNearestCityTarget ); end
-end
-
--- For modes without a direct call below: click the plot with the real mouse, like a sighted player would.
-local function ClickCursorPlot()
-	local x:number, y:number = HubCursor.GetCursor();
-	local screenWidth:number, screenHeight:number = UIManager:GetScreenSizeVal();
-	local px:number, py:number = math.floor( screenWidth / 2 ), math.floor( screenHeight / 2 );
-	local centerX:number, centerY:number = UI.GetPlotCoordFromNormalizedScreenPos( 0, 0 );
-	if centerX ~= x or centerY ~= y then
-		px, py = HubCursor.FindPlotScreenPos( x, y );
-		if px == nil then
-			HubCore.SayResult( "That tile is off screen" );
-			return;
-		end
-	end
-	HubCore.m_lastKeyTime = UI.GetElapsedTime();	-- the click is the player's own action
-	KeyNavMoveMouseToScreen( px, py );
-	HubCore.After( 0.4, function() KeyNavLeftClick(); end );
-end
-
--- Orders the unit to the plot through the game's own path (war declaration check included). A plain move is
--- remembered so that arrival or a stop can be told; an attack or a war declaration (the game asks first, and the
--- order only goes out after the answer) is not a move order.
-local function IssueMoveOrder( unit:table, plot:table, war:table, enemy:boolean )
-	local unitID:number = unit:GetID();
-	local record:table = nil;
-	if war == nil and not enemy then
-		record = { dest = plot:GetIndex(), issued = UI.GetElapsedTime(), from = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex() };
-		m_movers[ unitID ] = record;
-	end
-	MoveUnitToPlot( unit, plot:GetX(), plot:GetY() );
-	if record ~= nil then
-		HubCore.After( 1.0, function()
-			-- the order never started: blocked at once
-			if m_movers[ unitID ] ~= record then return; end
-			local mover:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( unitID );
-			if mover ~= nil and Map.GetPlot( mover:GetX(), mover:GetY() ):GetIndex() == record.from and UnitManager.GetQueuedDestination( mover ) == nil then
-				m_movers[ unitID ] = nil;
-				HubCore.SayResult( "Move blocked, the unit did not move" );
-			end
-		end );
-	end
-end
-
--- Enter in a target mode: what WorldInput does on the left click in that mode, for the cursor plot.
-local function ConfirmTarget()
-	local mode:number, label:string = Hub.GetTargetMode();
-	if mode == nil then return; end
-	local x:number, y:number = HubCursor.GetCursor();
-	local plot:table = Map.GetPlot( x, y );
-	local unit:table = UI.GetHeadSelectedUnit();
-	if plot == nil then return; end
-	if unit == nil and not IsCityMode( mode ) then
-		-- nothing is selected any more (the unit died or was deselected): leave the mode
-		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-		HubCore.SayResult( "Nothing selected, cancelled" );
-		return;
-	end
-	if mode == InterfaceModeTypes.MOVE_TO and unit ~= nil then
-		if unit:GetX() == x and unit:GetY() == y then
-			HubCore.SayResult( "Already here, choose another tile" );
-			return;
-		end
-		local war:table = WarTargets( unit, plot );
-		local enemy:boolean = EnemyVisibleAt( plot );
-		if war == nil then
-			if m_attackIntent and not enemy then
-				HubCore.SayResult( "No enemy there, choose a target" );
-				return;
-			end
-			local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
-			if path == nil or path.plots == nil or #path.plots < 2 then
-				HubCore.SayResult( "Unreachable" );
-				return;
-			end
-		end
-		IssueMoveOrder( unit, plot, war, enemy );
-		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-	elseif mode == InterfaceModeTypes.RANGE_ATTACK and unit ~= nil then
-		local parameters:table = {};
-		parameters[UnitOperationTypes.PARAM_X] = x;
-		parameters[UnitOperationTypes.PARAM_Y] = y;
-		local war:table = WarTargets( unit, plot );
-		if war ~= nil then
-			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
-		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.RANGE_ATTACK, nil, parameters ) then
-			UnitManager.RequestOperation( unit, UnitOperationTypes.RANGE_ATTACK, parameters );
-			Hub.attackTime = UI.GetElapsedTime();
-			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-			HubCore.SayResult( "Ranged attack" );
-		else
-			HubCore.SayResult( "No valid target there" );
-		end
-	elseif mode == InterfaceModeTypes.AIR_ATTACK and unit ~= nil then
-		local parameters:table = {};
-		parameters[UnitOperationTypes.PARAM_X] = x;
-		parameters[UnitOperationTypes.PARAM_Y] = y;
-		local war:table = WarTargets( unit, plot );
-		if war ~= nil then
-			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
-		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.AIR_ATTACK, nil, parameters ) then
-			UnitManager.RequestOperation( unit, UnitOperationTypes.AIR_ATTACK, parameters );
-			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-			HubCore.SayResult( "Air attack" );
-		else
-			HubCore.SayResult( "No valid target there" );
-		end
-	elseif IsCityMode( mode ) then
-		-- city and district ranged attacks: the targets come from the game; the attack itself is a click
-		local city:table = UI.GetHeadSelectedCity();
-		local targets:table = ( city ~= nil ) and GetCityAttackTargets( city ) or nil;
-		if targets ~= nil and not targets[ plot:GetIndex() ] then
-			HubCore.SayResult( "No valid target there" );
-			return;
-		end
-		Hub.attackTime = UI.GetElapsedTime();
-		HubCore.SayResult( "Attacking" );		-- the combat line arrives seconds later
-		-- the same request WorldInput's CityRangeAttack/DistrictRangeAttack send on a click; the click itself depends on
-		-- the real mouse hover (UI.GetCursorPlotID) and did not reach the target in the 2026-10-23 test
-		local params:table = {};
-		params[UnitOperationTypes.PARAM_X] = plot:GetX();
-		params[UnitOperationTypes.PARAM_Y] = plot:GetY();
-		local attacker:table = ( mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK ) and UI.GetHeadSelectedDistrict() or city;
-		if attacker ~= nil and CityManager.CanStartCommand( attacker, CityCommandTypes.RANGE_ATTACK, params ) then
-			CityManager.RequestCommand( attacker, CityCommandTypes.RANGE_ATTACK, params );
-			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-		else
-			HubCore.SayResult( "Cannot attack there" );
-		end
-	else
-		ClickCursorPlot();
-	end
-end
-
-local function CancelTarget()
-	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-	HubCore.SayResult( "Cancelled" );
-end
-
--- W (Attack). The game's own Attack hotkey only works while the mouse hovers an enemy (a combat preview is shown);
--- UnitPanel sends SRA_AttackKey when that is not the case. A ranged or air unit enters its attack mode, any other
--- military unit the move mode in which only enemies are valid ("Attack"). In a target mode W confirms, like Enter.
-local function AttackKey()
-	if not HubCore.IsLocalPlayerActive() then return; end
-	local mode:number = Hub.GetTargetMode();
-	if mode ~= nil then
-		if mode == InterfaceModeTypes.MOVE_TO and not m_attackIntent then
-			m_attackIntent = true;
-			OutputMessageToScreenReader( "Attack: choose a target with Shift+Arrows or X, Enter to attack, Escape to cancel" );
-			HubCursor.ScanUnits( false );
-		else
-			ConfirmTarget();
-		end
-		return;
-	end
-	local unit:table = UI.GetHeadSelectedUnit();
-	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then
-		OutputMessageToScreenReader( "No unit selected" );
-		return;
-	end
-	local name:string = Locale.Lookup( unit:GetName() );
-	if unit:GetCombat() <= 0 and unit:GetRangedCombat() <= 0 and unit:GetBombardCombat() <= 0 then
-		OutputMessageToScreenReader( name .. " cannot attack" );
-		return;
-	end
-	if unit:GetMovesRemaining() <= 0 then
-		OutputMessageToScreenReader( name .. " has no moves left" );
-		return;
-	end
-	local row:table = GameInfo.Units[ unit:GetUnitType() ];
-	if row ~= nil and row.Domain == "DOMAIN_AIR" then
-		UI.SetInterfaceMode( InterfaceModeTypes.AIR_ATTACK );
-	elseif unit:GetRangedCombat() > unit:GetCombat() or unit:GetBombardCombat() > unit:GetCombat() then
-		UI.SetInterfaceMode( InterfaceModeTypes.RANGE_ATTACK );
-	else
-		m_attackIntent = true;
-		UI.SetInterfaceMode( InterfaceModeTypes.MOVE_TO );
-	end
-	HubCore.After( 0.3, function() if Hub.GetTargetMode() ~= nil then HubCursor.ScanUnits( false ); end end );
 end
 
 -- ===========================================================================
@@ -836,13 +333,13 @@ local function SettleGo( item:table )
 		HubCore.SayResult( "Cannot settle there any more" .. ( ( extra ~= nil and extra ~= "" ) and ( ": " .. extra ) or "" ) );
 		return;
 	end
-	local war:table = WarTargets( unit, plot );
+	local war:table = HubTargets.WarTargets( unit, plot );
 	local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
 	if war == nil and ( path == nil or path.plots == nil or #path.plots < 2 ) then
 		HubCore.SayResult( "Unreachable" );
 		return;
 	end
-	IssueMoveOrder( unit, plot, war, false );
+	HubTargets.IssueMoveOrder( unit, plot, war, false );
 end
 
 m_settleList = KeyNavList_Create{
@@ -858,7 +355,7 @@ local function ScanKey()
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if HubCore.IsModeOpen( "settle" ) then HubCore.CloseMode( true, false ); return; end
 	local unit:table = UI.GetHeadSelectedUnit();
-	if HubCore.IsSettler( unit ) and Hub.GetTargetMode() == nil then
+	if HubCore.IsSettler( unit ) and HubTargets.GetTargetMode() == nil then
 		OpenSettleBrowser( unit );
 		return;
 	end
@@ -947,7 +444,7 @@ local function PlacementClosed( quiet:boolean )
 	HubCore.m_placeConfirm = nil;
 	m_placeBusy = false;
 	-- not when the close is the mode being replaced by another placement mode: that one must stay
-	if not m_placeReplaced and IsPlacementMode( UI.GetInterfaceMode() ) then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
+	if not HubCore.m_placeReplaced and IsPlacementMode( UI.GetInterfaceMode() ) then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	local plot:table = HubCore.GetSelectionPlot();
 	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
 end
@@ -1171,7 +668,7 @@ m_placeList = KeyNavList_Create{
 };
 
 -- The game entered DISTRICT_PLACEMENT / BUILDING_PLACEMENT: scan, open the mode, say what can be done.
-OpenPlacement = function( mode:number )
+HubCore.OpenPlacement = function( mode:number )
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil or not HubCore.IsLocalPlayerActive() then
 		OutputMessageToScreenReader( "Placement: nothing to browse, Escape to cancel" );
@@ -1340,7 +837,7 @@ local function ToggleUnitMenu()
 		OutputMessageToScreenReader( "Not your unit" );
 		return;
 	end
-	if not CanOpenMode() then return; end
+	if not HubTargets.CanOpenMode() then return; end
 	m_menuItems = FetchMenuItems( true );
 	if #m_menuItems == 0 then
 		OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " has no actions" );
@@ -1393,7 +890,7 @@ m_civMenu = KeyNavList_Create{
 local function ToggleCivMenu()
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if HubCore.IsModeOpen( "civ" ) then HubCore.CloseMode( true, false ); return; end
-	if not CanOpenMode() then return; end
+	if not HubTargets.CanOpenMode() then return; end
 	if #BuildCivItems() == 0 then
 		OutputMessageToScreenReader( "You have not met any other civilization" );
 		return;
@@ -1429,7 +926,7 @@ m_topList = KeyNavList_Create{
 
 local function ToggleTopPanel()
 	if HubCore.IsModeOpen( "top" ) then HubCore.CloseMode( true, false ); return; end
-	if not CanOpenMode() then return; end
+	if not HubTargets.CanOpenMode() then return; end
 	HubCore.OpenMode( "top", m_topList, "Top panel" );
 end
 
@@ -1814,7 +1311,7 @@ Hub.m_reportFacade = {
 
 local function ToggleCityReport()
 	if HubCore.IsModeOpen( "cityreport" ) then HubCore.CloseMode( true, false ); return; end
-	if not CanOpenMode() then return; end
+	if not HubTargets.CanOpenMode() then return; end
 	if not m_cityReportLoaded or CityReport_Gather == nil or CityReport_BuildItems == nil then
 		OutputMessageToScreenReader( "The city report is not available" );
 		return;
@@ -1956,7 +1453,7 @@ m_notifList = KeyNavList_Create{
 
 local function ToggleNotifications()
 	if HubCore.IsModeOpen( "notifications" ) then HubCore.CloseMode( true, false ); return; end
-	if not CanOpenMode() then return; end
+	if not HubTargets.CanOpenMode() then return; end
 	if #BuildNotificationItems() == 0 then
 		OutputMessageToScreenReader( m_notifAnswered and "No notifications" or "Notifications are not available" );
 		return;
@@ -2067,16 +1564,16 @@ end
 -- A move ordered with Enter in the move-to mode: arrived, still on the way, or stopped short.
 local function OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:number )
 	if playerID ~= Game.GetLocalPlayer() then return; end
-	local record:table = m_movers[ unitID ];
+	local record:table = HubCore.m_movers[ unitID ];
 	if record == nil then return; end
 	local unit:table = Players[ playerID ]:GetUnits():FindID( unitID );
 	if unit == nil then
-		m_movers[ unitID ] = nil;
+		HubCore.m_movers[ unitID ] = nil;
 		return;
 	end
 	local plot:table = Map.GetPlot( x, y );
 	if plot ~= nil and plot:GetIndex() == record.dest then
-		m_movers[ unitID ] = nil;
+		HubCore.m_movers[ unitID ] = nil;
 		local text:string = "Arrived, " .. MovesText( unit );
 		if HubCore.IsSettler( unit ) then
 			local ok:boolean, extra = SettleScan_CanFound( unit, plot );
@@ -2093,7 +1590,7 @@ local function OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:n
 	end
 	local queued = UnitManager.GetQueuedDestination( unit );
 	if queued == nil then
-		m_movers[ unitID ] = nil;
+		HubCore.m_movers[ unitID ] = nil;
 		local destPlot:table = Map.GetPlotByIndex( record.dest );
 		local text:string = "Stopped";
 		if destPlot ~= nil and plot ~= nil then
@@ -2328,7 +1825,7 @@ end
 function Hub.ArmEnterWatch()
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
 	m_enterLabel = ( label ~= nil ) and label:GetText() or "";
-	m_enterWatch = 0.8;
+	HubCore.m_enterWatch = 0.8;
 end
 
 -- Enter was pressed, nothing announced a new selection, turn end or mode: the game re-selected the same unit
@@ -2363,16 +1860,16 @@ function Hub.HandleInput( input:table )
 	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
-	if Hub.GetTargetMode() ~= nil then
+	if HubTargets.GetTargetMode() ~= nil then
 		-- Enter and Escape belong to the mode; both KeyDown and KeyUp are consumed, so ActionPanel never sees Enter
 		if UI.GetHeadSelectedUnit() == nil and UI.GetHeadSelectedCity() == nil then
-			ResetStaleMode();		-- nothing left to act: the keys go to the game again
+			HubTargets.ResetStaleMode();		-- nothing left to act: the keys go to the game again
 			return false;
 		end
 		if key == Keys.VK_RETURN or key == Keys.VK_ESCAPE then
 			-- consumed even when the handler fails, so that Enter never falls through to Next Action mid-mode
 			if msg == KeyEvents.KeyUp then
-				local ok:boolean, err = xpcall( function() if key == Keys.VK_RETURN then ConfirmTarget(); else CancelTarget(); end end, KeyNavErrorHandler );
+				local ok:boolean, err = xpcall( function() if key == Keys.VK_RETURN then HubTargets.ConfirmTarget(); else HubTargets.CancelTarget(); end end, KeyNavErrorHandler );
 				if not ok then
 					print( "InGameAccess target mode error: " .. tostring( err ) );
 					OutputMessageToScreenReader( "Something went wrong, Escape to cancel" );
@@ -2383,7 +1880,7 @@ function Hub.HandleInput( input:table )
 		return false;
 	end
 	-- Just after an attack the end-turn label can flash a governor blocker; Enter would open the Governors screen
-	if key == Keys.VK_RETURN and UI.GetElapsedTime() - Hub.attackTime < 5 and Hub.IsGovernorLabel() then
+	if key == Keys.VK_RETURN and UI.GetElapsedTime() - HubTargets.attackTime < 5 and Hub.IsGovernorLabel() then
 		if msg == KeyEvents.KeyUp then HubCore.SayResult( "The attack is still resolving, press Enter again in a moment" ); end
 		return true;
 	end
@@ -2422,10 +1919,10 @@ function Hub.OnUpdate( deltaTime:number )
 			i = i + 1;
 		end
 	end
-	if m_enterWatch >= 0 then
-		m_enterWatch = m_enterWatch - deltaTime;
-		if m_enterWatch < 0 then
-			m_enterWatch = -1;
+	if HubCore.m_enterWatch >= 0 then
+		HubCore.m_enterWatch = HubCore.m_enterWatch - deltaTime;
+		if HubCore.m_enterWatch < 0 then
+			HubCore.m_enterWatch = -1;
 			Hub.EnterFallback();
 		end
 	end
@@ -2451,6 +1948,7 @@ end
 -- Hub modules (Accessibility/Hub*.lua), see docs/ingame-plan.md
 include( "HubCore" );
 include( "HubCursor" );
+include( "HubTargets" );
 
 -- ===========================================================================
 function Initialize()
@@ -2483,9 +1981,9 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavNotifications",		ToggleNotifications );
 	Hub.RegisterAction( "KeyNavYields",				SpeakYields );
 	Hub.RegisterAction( "KeyNavCityReport",			ToggleCityReport );
-	Hub.RegisterAction( "KeyNavReports",			Hub.ToggleReports );
-	Hub.RegisterAction( "RangedAttack",			Hub.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
-	Hub.RegisterAction( "Attack",					Hub.CityAttackKey );
+	Hub.RegisterAction( "KeyNavReports",			HubTargets.ToggleReports );
+	Hub.RegisterAction( "RangedAttack",			HubTargets.CityAttackKey );		-- R and W with a city selected: UnitPanel is hidden and silent
+	Hub.RegisterAction( "Attack",					HubTargets.CityAttackKey );
 	HubCore.Listen( Events.InputActionTriggered, Hub.OnInputActionTriggered );
 
 	HubCore.Listen( Events.UnitSelectionChanged, HubCore.Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
@@ -2494,7 +1992,7 @@ function Initialize()
 	HubCore.Listen( Events.LoadScreenClose, HubCore.Safe( "LoadScreenClose", OnLoadScreenClose ) );
 	HubCore.Listen( Events.LocalPlayerTurnEnd, HubCore.Safe( "LocalPlayerTurnEnd", OnLocalPlayerTurnEnd ) );
 
-	HubCore.AddEvent( "InterfaceModeChanged",		OnInterfaceModeChanged );
+	HubCore.AddEvent( "InterfaceModeChanged",		HubTargets.OnInterfaceModeChanged );
 	HubCore.AddEvent( "UnitOperationStarted",		OnUnitOperationStarted );
 	HubCore.AddEvent( "UnitOperationAdded",			OnUnitOperationAdded );
 	HubCore.AddEvent( "UnitCommandStarted",			OnUnitCommandStarted );
@@ -2514,10 +2012,10 @@ function Initialize()
 	HubCore.Listen( LuaEvents.SRA_Notifications, OnNotificationsReceived );
 	HubCore.Listen( LuaEvents.SRA_NotificationAdded, HubCore.Safe( "NotificationAdded", OnNotificationAdded ) );
 	HubCore.Listen( LuaEvents.SRA_NotificationActivated, HubCore.Safe( "NotificationActivated", OnNotificationActivated ) );
-	HubCore.Listen( LuaEvents.SRA_AttackKey, HubCore.Safe( "AttackKey", AttackKey ) );
+	HubCore.Listen( LuaEvents.SRA_AttackKey, HubCore.Safe( "AttackKey", HubTargets.AttackKey ) );
 	HubCore.Listen( LuaEvents.SRA_TradeResult, HubCore.Safe( "TradeResult", OnTradeResult ) );		-- trade choosers: outcome of the route / move
 	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) HubCursor.SetCursor( x, y, false, false, true ); end ) );		-- City-States screen: Show on map
-	HubCore.AddEvent( "UnitRemovedFromMap",			function() HubCore.After( 0.3, ResetStaleMode ); end );
+	HubCore.AddEvent( "UnitRemovedFromMap",			function() HubCore.After( 0.3, HubTargets.ResetStaleMode ); end );
 	HubCore.AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )
 		local player:table = Players[ playerID ];
 		if player ~= nil then HubCore.RememberUnit( player:GetUnits():FindID( unitID ) ); end

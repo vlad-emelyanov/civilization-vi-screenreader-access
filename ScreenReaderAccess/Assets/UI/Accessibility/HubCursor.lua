@@ -92,12 +92,12 @@ local function DescribeCursorPlot( plot:table )
 	local localPlayer:number = Game.GetLocalPlayer();
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
 	local text:string = PlotDescription_GetShort( plot, options );
-	local mode:number = Hub.GetTargetMode();
+	local mode:number = HubTargets.GetTargetMode();
 	local placement:string = HubCore.PlacementPlotText( plot );
 	if placement ~= nil then
 		text = placement .. ". " .. text;
 	elseif mode ~= nil then
-		local info:string = Hub.TargetInfo( mode, plot, unit );
+		local info:string = HubTargets.TargetInfo( mode, plot, unit );
 		if info ~= nil then text = info .. ". " .. text; end
 		local build:string = ( unit ~= nil and unit:GetOwner() == localPlayer ) and HubCore.BuilderBuildText( unit, plot ) or nil;		-- builders walking to a tile
 		if build ~= nil then text = text .. ", " .. build; end
@@ -299,7 +299,7 @@ function HubCursor.SpeakPlotDetails()
 	local text:string = PlotDescription_GetDetailed( plot, options );
 	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
 	if relative ~= nil then text = text .. ". " .. relative; end
-	local build:string = ( unit ~= nil and Hub.GetTargetMode() == nil ) and HubCore.BuilderBuildText( unit, plot ) or nil;
+	local build:string = ( unit ~= nil and HubTargets.GetTargetMode() == nil ) and HubCore.BuilderBuildText( unit, plot ) or nil;
 	if build ~= nil then text = text .. ". " .. build; end
 	OutputMessageToScreenReader( text );
 end
