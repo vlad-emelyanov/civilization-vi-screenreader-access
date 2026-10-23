@@ -36,6 +36,7 @@ local m_cursorX				:number = nil;		-- map cursor (plot coordinates)
 local m_cursorY				:number = nil;
 local m_mouseTimer			:number = -1;		-- >= 0: seconds until the mouse is moved onto the cursor plot
 local m_actions				:table = {};		-- actionId -> handler
+local H						:table = {};			-- handlers defined late (a chunk holds at most 200 locals, this one was full)
 local m_lastAnnouncedTurn	:string = "";		-- "<local player>:<turn>" of the last turn announcement (hotseat: every player hears their turn)
 local m_cursorPlayer		:number = -1;		-- local player the cursor belongs to
 local m_ready				:boolean = false;	-- a game is loaded (LoadScreenClose seen): event announcements are allowed
@@ -2628,7 +2629,7 @@ end
 local m_combat:table = nil;
 
 -- Spoken name of one side of a fight (unit or city).
-local function CombatSide( data:table )
+function H.CombatSide( data:table )
 	if data == nil or data.playerID == nil or data.playerID < 0 or Players[ data.playerID ] == nil then return nil; end
 	local player:table = Players[ data.playerID ];
 	local side:table = { player = data.playerID, id = data.componentID };
@@ -2664,16 +2665,16 @@ local function CombatSide( data:table )
 	return side;
 end
 
-local function OnCombatVisBegin( data:table )
+function H.OnCombatVisBegin( data:table )
 	m_combat = nil;
 	if not m_ready or data == nil then return; end
-	local attacker:table, defender:table = CombatSide( data[ CombatVisType.ATTACKER ] ), CombatSide( data[ CombatVisType.DEFENDER ] );
+	local attacker:table, defender:table = H.CombatSide( data[ CombatVisType.ATTACKER ] ), H.CombatSide( data[ CombatVisType.DEFENDER ] );
 	if attacker == nil or defender == nil then return; end
 	m_combat = { attacker = attacker, defender = defender, time = UI.GetElapsedTime(), told = false };
 end
 
 -- "3 tiles north-east of Rome": where a plot is, seen from the nearest own city (else the selected unit).
-local function PlaceFromOwn( x:number, y:number )
+function H.PlaceFromOwn( x:number, y:number )
 	local localPlayer:number = Game.GetLocalPlayer();
 	local bestDistance:number, bestName:string, bestPlot:table = 99, nil, nil;
 	for _, city in Players[ localPlayer ]:GetCities():Members() do
@@ -2694,7 +2695,7 @@ local function PlaceFromOwn( x:number, y:number )
 	return relative .. " of " .. bestName;
 end
 
-local function OnUnitDamageChanged( playerID:number, unitID:number, newDamage:number, oldDamage:number )
+function H.OnUnitDamageChanged( playerID:number, unitID:number, newDamage:number, oldDamage:number )
 	if not m_ready or newDamage <= oldDamage then return; end
 	local player:table = Players[ playerID ];
 	if player == nil then return; end
@@ -2707,7 +2708,7 @@ local function OnUnitDamageChanged( playerID:number, unitID:number, newDamage:nu
 	local name:string = PlotDescription_GetUnitName( unit );
 	if playerID == Game.GetLocalPlayer() then name = "Your " .. name; end
 	local maxDamage:number = unit:GetMaxDamage();
-	if newDamage >= maxDamage then return; end		-- OnUnitKilledInCombat tells it
+	if newDamage >= maxDamage then return; end		-- H.OnUnitKilledInCombat tells it
 	local text:string = name .. " takes " .. ( newDamage - oldDamage ) .. " damage, " .. ( maxDamage - newDamage ) .. " of " .. maxDamage .. " left";
 	-- the first damage line of a fight says who attacked whom (and where, when it is not our fight)
 	local fight:table = m_combat;
@@ -2719,7 +2720,7 @@ local function OnUnitDamageChanged( playerID:number, unitID:number, newDamage:nu
 		local victim:table = ( fight.defender.player == playerID and fight.defender.id == unitID ) and fight.defender or fight.attacker;
 		local who:string = ( victim.player == localPlayer ) and victim.name or victim.short;
 		local place:string = nil;
-		if not ours then place = PlaceFromOwn( fight.defender.x, fight.defender.y ); end
+		if not ours then place = H.PlaceFromOwn( fight.defender.x, fight.defender.y ); end
 		text = fight.attacker.name .. " attacks " .. fight.defender.name .. ( place ~= nil and ( ", " .. place ) or "" ) .. ": "
 			.. who .. " takes " .. ( newDamage - oldDamage ) .. " damage, " .. ( maxDamage - newDamage ) .. " of " .. maxDamage .. " left";
 	end
@@ -2728,7 +2729,7 @@ local function OnUnitDamageChanged( playerID:number, unitID:number, newDamage:nu
 end
 
 -- (killed player, killed unit, killer player, killer unit): told when the local player is on either side.
-local function OnUnitKilledInCombat( killedPlayer:number, killedId:number, killerPlayer:number, killerId:number )
+function H.OnUnitKilledInCombat( killedPlayer:number, killedId:number, killerPlayer:number, killerId:number )
 	if not m_ready then return; end
 	local localPlayer:number = Game.GetLocalPlayer();
 	if killedPlayer ~= localPlayer and killerPlayer ~= localPlayer then return; end
@@ -2755,7 +2756,7 @@ local function OnUnitKilledInCombat( killedPlayer:number, killedId:number, kille
 	LuaEvents.SRA_CombatSpoken();		-- StatusMessagePanel drops its duplicate of this fight
 end
 
-local function OnCityAddedToMap( ownerID:number, cityID:number, x:number, y:number )
+function H.OnCityAddedToMap( ownerID:number, cityID:number, x:number, y:number )
 	if ownerID ~= Game.GetLocalPlayer() or not m_ready then return; end
 	local city:table = Players[ ownerID ]:GetCities():FindID( cityID );
 	local name:string = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "City";
@@ -2763,7 +2764,7 @@ local function OnCityAddedToMap( ownerID:number, cityID:number, x:number, y:numb
 end
 
 -- A builder finished an improvement on its own plot.
-local function OnImprovementAddedToMap( x:number, y:number, improvementType:number, owner:number )
+function H.OnImprovementAddedToMap( x:number, y:number, improvementType:number, owner:number )
 	if owner ~= Game.GetLocalPlayer() or not m_ready then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil or unit:GetX() ~= x or unit:GetY() ~= y then return; end
@@ -2784,7 +2785,7 @@ local function OnImprovementAddedToMap( x:number, y:number, improvementType:numb
 end
 
 -- "Barbarian Warrior spotted, 2 tiles north of Rome": hostile soldiers that come into view near our cities and units.
-local function OnUnitVisibilityChanged( playerID:number, unitID:number, visibility:number )
+function H.OnUnitVisibilityChanged( playerID:number, unitID:number, visibility:number )
 	local localPlayer:number = Game.GetLocalPlayer();
 	if not m_ready or playerID == localPlayer or visibility ~= RevealedState.VISIBLE or not IsHostile( playerID ) then return; end
 	local unit:table = Players[ playerID ]:GetUnits():FindID( unitID );
@@ -2823,12 +2824,12 @@ end
 -- ===========================================================================
 --	ENTER (Next Action) must always say something
 -- ===========================================================================
-local function IsUnitOrdersLabel( text:string )
+function H.IsUnitOrdersLabel( text:string )
 	return text == Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" ) or text == Locale.Lookup( "LOC_ACTION_PANEL_STACKED_UNIT" )
 		or text == Locale.Lookup( "LOC_ACTION_PANEL_UNIT_MOVES_REMAINING" );
 end
 
-local function ArmEnterWatch()
+function H.ArmEnterWatch()
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
 	m_enterLabel = ( label ~= nil ) and label:GetText() or "";
 	m_enterWatch = 0.8;
@@ -2836,8 +2837,8 @@ end
 
 -- Enter was pressed, nothing announced a new selection, turn end or mode: the game re-selected the same unit
 -- (or none could be selected). Say what is going on.
-local function EnterFallback()
-	if not IsUnitOrdersLabel( m_enterLabel ) then return; end
+function H.EnterFallback()
+	if not H.IsUnitOrdersLabel( m_enterLabel ) then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit ~= nil then
 		SayResult( UnitText( unit ) .. ", needs orders. Tab for its actions" );
@@ -2849,7 +2850,7 @@ end
 -- ===========================================================================
 --	INPUT HANDLER: runs before WorldInput and ActionPanel (see docs/ingame-plan.md, Input order)
 -- ===========================================================================
-local function HandleInput( input:table )
+function H.HandleInput( input:table )
 	if not IsLocalPlayerActive() then return false; end
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
@@ -2876,12 +2877,12 @@ local function HandleInput( input:table )
 		end
 		return false;
 	end
-	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp and not IsGamePopupOpen() then ArmEnterWatch(); end		-- an open screen (City-States, governors) takes Enter itself
+	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp and not IsGamePopupOpen() then H.ArmEnterWatch(); end		-- an open screen (City-States, governors) takes Enter itself
 	return false;
 end
 
-local function OnInput( input:table )
-	local ok:boolean, consumed = xpcall( function() return HandleInput( input ); end, KeyNavErrorHandler );
+function H.OnInput( input:table )
+	local ok:boolean, consumed = xpcall( function() return H.HandleInput( input ); end, KeyNavErrorHandler );
 	if not ok then
 		print( "InGameAccess input error: " .. tostring( consumed ) );
 		return false;
@@ -2889,7 +2890,7 @@ local function OnInput( input:table )
 	return consumed == true;
 end
 
-local function OnUpdate( deltaTime:number )
+function H.OnUpdate( deltaTime:number )
 	UpdateMouse( deltaTime );
 	if m_arrivalTimer >= 0 then
 		m_arrivalTimer = m_arrivalTimer - deltaTime;
@@ -2915,7 +2916,7 @@ local function OnUpdate( deltaTime:number )
 		m_enterWatch = m_enterWatch - deltaTime;
 		if m_enterWatch < 0 then
 			m_enterWatch = -1;
-			EnterFallback();
+			H.EnterFallback();
 		end
 	end
 end
@@ -2923,12 +2924,12 @@ end
 -- ===========================================================================
 --	INPUT ACTIONS
 -- ===========================================================================
-local function OnInputActionTriggered( actionId:number )
+function H.OnInputActionTriggered( actionId:number )
 	local handler = m_actions[ actionId ];
 	if handler ~= nil then handler(); end
 end
 
-local function RegisterAction( name:string, handler )
+function H.RegisterAction( name:string, handler )
 	local id:number = Input.GetActionId( name );
 	if id == nil then
 		print( "InGameAccess: unknown input action " .. name );
@@ -2952,23 +2953,23 @@ function Initialize()
 		for _, unit in Players[ Game.GetLocalPlayer() ]:GetUnits():Members() do RememberUnit( unit ); end
 	end
 
-	RegisterAction( "KeyNavMoveCellLeft",		function() MoveCursor( -1, 0 ); end );
-	RegisterAction( "KeyNavMoveCellRight",		function() MoveCursor( 1, 0 ); end );
-	RegisterAction( "KeyNavMoveCellUp",			function() MoveCursor( 0, 1 ); end );
-	RegisterAction( "KeyNavMoveCellDown",		function() MoveCursor( 0, -1 ); end );
-	RegisterAction( "KeyNavPlotDetails",		SpeakPlotDetails );
-	RegisterAction( "KeyNavCursorToSelection",	CursorToSelection );
-	RegisterAction( "KeyNavWhatsNext",			SpeakWhatsNext );
-	RegisterAction( "KeyNavUnitActions",		ToggleUnitMenu );
-	RegisterAction( "KeyNavSelectAtCursor",		SelectAtCursor );
-	RegisterAction( "KeyNavCycleAllUnits",		CycleAllUnits );
-	RegisterAction( "KeyNavScanUnits",			ScanKey );
-	RegisterAction( "KeyNavDiplomacy",			ToggleCivMenu );
-	RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
-	RegisterAction( "KeyNavNotifications",		ToggleNotifications );
-	RegisterAction( "KeyNavYields",				SpeakYields );
-	RegisterAction( "KeyNavCityReport",			ToggleCityReport );
-	Listen( Events.InputActionTriggered, OnInputActionTriggered );
+	H.RegisterAction( "KeyNavMoveCellLeft",		function() MoveCursor( -1, 0 ); end );
+	H.RegisterAction( "KeyNavMoveCellRight",		function() MoveCursor( 1, 0 ); end );
+	H.RegisterAction( "KeyNavMoveCellUp",			function() MoveCursor( 0, 1 ); end );
+	H.RegisterAction( "KeyNavMoveCellDown",		function() MoveCursor( 0, -1 ); end );
+	H.RegisterAction( "KeyNavPlotDetails",		SpeakPlotDetails );
+	H.RegisterAction( "KeyNavCursorToSelection",	CursorToSelection );
+	H.RegisterAction( "KeyNavWhatsNext",			SpeakWhatsNext );
+	H.RegisterAction( "KeyNavUnitActions",		ToggleUnitMenu );
+	H.RegisterAction( "KeyNavSelectAtCursor",		SelectAtCursor );
+	H.RegisterAction( "KeyNavCycleAllUnits",		CycleAllUnits );
+	H.RegisterAction( "KeyNavScanUnits",			ScanKey );
+	H.RegisterAction( "KeyNavDiplomacy",			ToggleCivMenu );
+	H.RegisterAction( "KeyNavTopPanel",			ToggleTopPanel );
+	H.RegisterAction( "KeyNavNotifications",		ToggleNotifications );
+	H.RegisterAction( "KeyNavYields",				SpeakYields );
+	H.RegisterAction( "KeyNavCityReport",			ToggleCityReport );
+	Listen( Events.InputActionTriggered, H.OnInputActionTriggered );
 
 	Listen( Events.UnitSelectionChanged, Safe( "UnitSelectionChanged", OnUnitSelectionChanged ) );
 	Listen( Events.CitySelectionChanged, Safe( "CitySelectionChanged", OnCitySelectionChanged ) );
@@ -2981,17 +2982,17 @@ function Initialize()
 	AddEvent( "UnitOperationAdded",			OnUnitOperationAdded );
 	AddEvent( "UnitCommandStarted",			OnUnitCommandStarted );
 	AddEvent( "UnitMoveComplete",			OnUnitMoveComplete );
-	AddEvent( "CombatVisBegin",				OnCombatVisBegin );
-	AddEvent( "UnitDamageChanged",			OnUnitDamageChanged );
-	AddEvent( "CityAddedToMap",				OnCityAddedToMap );
-	AddEvent( "ImprovementAddedToMap",		OnImprovementAddedToMap );
-	AddEvent( "UnitVisibilityChanged",		OnUnitVisibilityChanged );
+	AddEvent( "CombatVisBegin",				H.OnCombatVisBegin );
+	AddEvent( "UnitDamageChanged",			H.OnUnitDamageChanged );
+	AddEvent( "CityAddedToMap",				H.OnCityAddedToMap );
+	AddEvent( "ImprovementAddedToMap",		H.OnImprovementAddedToMap );
+	AddEvent( "UnitVisibilityChanged",		H.OnUnitVisibilityChanged );
 	-- "Promoted: X" is spoken by the UnitPromotionPopup override (the only keyboard way to promote)
 	AddEvent( "UnitUpgraded",				function( player:number, unitID:number, unitType:number )
 		local row:table = GameInfo.Units[ unitType ];
 		if player == Game.GetLocalPlayer() and m_ready and row ~= nil then SayResult( "Upgraded to " .. Locale.Lookup( row.Name ) ); end
 	end );
-	AddEvent( "UnitKilledInCombat",			OnUnitKilledInCombat );
+	AddEvent( "UnitKilledInCombat",			H.OnUnitKilledInCombat );
 	Listen( LuaEvents.SRA_UnitActions, OnUnitActionsReceived );
 	Listen( LuaEvents.SRA_Notifications, OnNotificationsReceived );
 	Listen( LuaEvents.SRA_NotificationAdded, Safe( "NotificationAdded", OnNotificationAdded ) );
@@ -3005,8 +3006,8 @@ function Initialize()
 		if player ~= nil then RememberUnit( player:GetUnits():FindID( unitID ) ); end
 	end );
 
-	ContextPtr:SetInputHandler( OnInput, true );
-	ContextPtr:SetUpdate( Safe( "Update", OnUpdate ) );
+	ContextPtr:SetInputHandler( H.OnInput, true );
+	ContextPtr:SetUpdate( Safe( "Update", H.OnUpdate ) );
 	ContextPtr:SetShutdown( OnShutdown );
 end
 Initialize();
