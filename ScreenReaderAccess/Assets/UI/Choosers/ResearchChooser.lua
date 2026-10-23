@@ -563,6 +563,7 @@ function Initialize()
 		isActive = function() return m_kSlideAnimator ~= nil and m_kSlideAnimator.IsVisible(); end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
+		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
 	};
 
 	-- Hot-reload events

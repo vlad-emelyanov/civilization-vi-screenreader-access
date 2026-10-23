@@ -388,7 +388,10 @@ end
 -- Show the supplied advisor if possible, else queue it.
 function ShowOrQueuePopup(advisorData:AdvisorItem)
 
-	if UI.CanShowPopup(PopupPriority.Tutorial) or IsTutorialRunning() then
+	-- ScreenReaderAccess mod change: while the diplomacy scene is open the advisor is invisible and keys go to it, so the player was stuck. Hold it until the scene closes (OnDiploSceneClosed).
+	if m_isDiplomacyUp then
+		table.insert(m_kQueuedPopups, advisorData);
+	elseif UI.CanShowPopup(PopupPriority.Tutorial) or IsTutorialRunning() then
 		ShowAdvisorPopup(advisorData);
 	else
 		-- Add to queue
@@ -400,6 +403,7 @@ end
 -- ===========================================================================
 function OnUIIdle()
 	-- The UI is idle, are we waiting to show a popup?
+	if m_isDiplomacyUp then return; end	-- ScreenReaderAccess mod change: held until the diplomacy scene closes
 	if UI.CanShowPopup(PopupPriority.Tutorial) then
 		ShowNextQueuedPopup();
 	end
@@ -414,6 +418,8 @@ function OnDiploSceneClosed()
 	local isAdvisorVisible	:boolean = (not Controls.AdvisorBase:IsHidden());
 	if isAdvisorVisible then
 		UITutorialManager:SetActiveAlways( true );
+	elseif #m_kQueuedPopups > 0 and UI.CanShowPopup(PopupPriority.Tutorial) then
+		ShowNextQueuedPopup();	-- ScreenReaderAccess mod change: an advisor held during diplomacy (if the UI is not ready, OnUIIdle shows it)
 	end
 end
 

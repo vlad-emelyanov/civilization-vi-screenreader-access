@@ -9,6 +9,7 @@
 --		onFocus    = function(item) ... end,             -- optional: the focus moved to this item (before it is spoken)
 --		extraKeys  ={ [Keys.VK_DELETE] = function() ... end },   -- optional: more keys, acted on at KeyUp
 --		horizontal = true,                                -- optional: Left/Right also move (like Up/Down)
+--		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
 --	         spoken by Space>, choosable = <false: Enter says item.reason> }
@@ -28,6 +29,7 @@ function KeyNavList_Create( config:table )
 	local list:table = {};
 	local m_focusKey = nil;
 	local m_lastSection:string = nil;
+	local m_openedAt:number = -100;
 
 	local function Build()
 		local items:table = {};
@@ -67,6 +69,7 @@ function KeyNavList_Create( config:table )
 
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
 	function list.Open( title:string, initialKey, silent:boolean )
+		if UI ~= nil and UI.GetElapsedTime ~= nil then m_openedAt = UI.GetElapsedTime(); end
 		local items:table = Build();
 		m_lastSection = nil;
 		if initialKey ~= nil then m_focusKey = initialKey; end
@@ -135,6 +138,7 @@ function KeyNavList_Create( config:table )
 	end
 
 	local function Activate()
+		if config.enterGuard ~= nil and UI ~= nil and UI.GetElapsedTime ~= nil and UI.GetElapsedTime() - m_openedAt < config.enterGuard then return; end
 		local items:table = Build();
 		local index:number = FindIndex( items );
 		if index == nil then FocusLost( items ); return; end

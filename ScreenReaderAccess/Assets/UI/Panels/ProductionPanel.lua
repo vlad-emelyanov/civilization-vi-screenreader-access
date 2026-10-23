@@ -12,6 +12,7 @@ include( "AdjacencyBonusSupport");
 include( "ProductionHelper" );
 
 include("ScreenReader");
+include("SRListen");		-- ScreenReaderAccess: removable listeners
 include("KeyNavList");		-- ScreenReaderAccess: keyboard navigation of the item list
 
 -- ===========================================================================
@@ -2822,6 +2823,14 @@ function SRA_OnBalanceChanged()
 		if not ok then print( "ProductionPanel pending error: " .. tostring(err) ); end
 	end
 end
+-- V (diplomacy list, a hub action) while the chooser is open: close the chooser first so its list and the hub's list do not fight over the keys.
+local m_srDiploAction:number = Input.GetActionId("KeyNavDiplomacy");
+function SRA_OnInputAction( actionId:number )
+	if actionId == m_srDiploAction and not ContextPtr:IsHidden() and m_srActive then Close(); end
+end
+function SRA_OnOpenDiplomacy()
+	if not ContextPtr:IsHidden() then Close(); end
+end
 -- End ScreenReaderAccess change
 
 -- ===========================================================================
@@ -2866,22 +2875,7 @@ end
 --	UI Event
 -- ===========================================================================
 function OnShutdown()
-	Events.TreasuryChanged.Remove( SRA_OnBalanceChanged );		-- ScreenReaderAccess
-	Events.FaithChanged.Remove( SRA_OnBalanceChanged );		-- ScreenReaderAccess
-	LuaEvents.CityBannerManager_ProductionToggle.Remove( OnCityBannerManagerProductionToggle );
-	LuaEvents.CityPanel_ChooseProduction.Remove( OnCityPanelChooseProduction );
-	LuaEvents.CityPanel_ChoosePurchase.Remove( OnCityPanelChoosePurchase );
-	LuaEvents.CityPanel_ProductionClose.Remove( OnProductionClose );
-	LuaEvents.CityPanel_ProductionOpen.Remove( OnCityPanelProductionOpen );
-	LuaEvents.CityPanel_PurchaseGoldOpen.Remove( OnCityPanelPurchaseGoldOpen );
-	LuaEvents.CityPanel_PurchaseFaithOpen.Remove( OnCityPanelPurchaseFaithOpen );
-	LuaEvents.CityPanel_ProductionOpenForQueue.Remove( OnProductionOpenForQueue );	
-	LuaEvents.CityPanel_PurchasePlot.Remove( OnCityPanelPurchasePlot );
-	LuaEvents.GameDebug_Return.Remove( OnGameDebugReturn );
-	LuaEvents.NotificationPanel_ChooseProduction.Remove( OnNotificationPanelChooseProduction );
-	LuaEvents.StrageticView_MapPlacement_ProductionOpen.Remove( OnStrategicViewMapPlacementProductionOpen );
-	LuaEvents.Tutorial_ProductionOpen.Remove( OnTutorialProductionOpen );
-	LuaEvents.ProductionManager_SelectedIndexChanged.Remove( OnManagerSelectedIndexChanged );
+	SRUnlistenAll();		-- ScreenReaderAccess: every listener was added with SRListen (stale ones kept firing after a hot reload)
 
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID,  "isHidden",		ContextPtr:IsHidden() );
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID,  "listMode",		m_CurrentListMode );	
@@ -3367,33 +3361,36 @@ function Initialize()
 		isActive = function() return m_srActive and not ContextPtr:IsHidden() and m_CurrentListMode ~= -1; end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
+		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
 		extraKeys = { [Keys.VK_TAB] = SRA_NextTab },
 	};
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
 
-	Events.CityProductionQueueChanged.Add( OnCityProductionQueueChanged );
-	Events.TreasuryChanged.Add( SRA_OnBalanceChanged );		-- ScreenReaderAccess
-	Events.FaithChanged.Add( SRA_OnBalanceChanged );		-- ScreenReaderAccess
-	Events.CitySelectionChanged.Add( OnCitySelectionChanged );
-	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
-	Events.UnitSelectionChanged.Add( OnUnitSelectionChanged );
-	Events.LocalPlayerChanged.Add( OnLocalPlayerChanged );		
+	SRListen( Events.CityProductionQueueChanged, OnCityProductionQueueChanged );
+	SRListen( Events.TreasuryChanged, SRA_OnBalanceChanged );		-- ScreenReaderAccess
+	SRListen( Events.FaithChanged, SRA_OnBalanceChanged );		-- ScreenReaderAccess
+	SRListen( Events.CitySelectionChanged, OnCitySelectionChanged );
+	SRListen( Events.InterfaceModeChanged, OnInterfaceModeChanged );
+	SRListen( Events.UnitSelectionChanged, OnUnitSelectionChanged );
+	SRListen( Events.LocalPlayerChanged, OnLocalPlayerChanged );
+	SRListen( Events.InputActionTriggered, SRA_OnInputAction );		-- ScreenReaderAccess
+	SRListen( LuaEvents.DiplomacyRibbon_OpenDiplomacyActionView, SRA_OnOpenDiplomacy );		-- ScreenReaderAccess		
 	
-	LuaEvents.CityBannerManager_ProductionToggle.Add( OnCityBannerManagerProductionToggle );
-	LuaEvents.CityPanel_ChooseProduction.Add( OnCityPanelChooseProduction );
-	LuaEvents.CityPanel_ChoosePurchase.Add( OnCityPanelChoosePurchase );
-	LuaEvents.CityPanel_ProductionClose.Add( OnProductionClose );
-	LuaEvents.CityPanel_ProductionOpen.Add( OnCityPanelProductionOpen );
-	LuaEvents.CityPanel_PurchaseGoldOpen.Add( OnCityPanelPurchaseGoldOpen );
-	LuaEvents.CityPanel_PurchaseFaithOpen.Add( OnCityPanelPurchaseFaithOpen );
-	LuaEvents.CityPanel_ProductionOpenForQueue.Add( OnProductionOpenForQueue );	
-	LuaEvents.CityPanel_PurchasePlot.Add( OnCityPanelPurchasePlot );
-	LuaEvents.GameDebug_Return.Add( OnGameDebugReturn );
-	LuaEvents.NotificationPanel_ChooseProduction.Add( OnNotificationPanelChooseProduction );
-	LuaEvents.StrageticView_MapPlacement_ProductionOpen.Add( OnStrategicViewMapPlacementProductionOpen );
-	LuaEvents.Tutorial_ProductionOpen.Add( OnTutorialProductionOpen );
-	LuaEvents.ProductionManager_SelectedIndexChanged.Add( OnManagerSelectedIndexChanged );
+	SRListen( LuaEvents.CityBannerManager_ProductionToggle, OnCityBannerManagerProductionToggle );
+	SRListen( LuaEvents.CityPanel_ChooseProduction, OnCityPanelChooseProduction );
+	SRListen( LuaEvents.CityPanel_ChoosePurchase, OnCityPanelChoosePurchase );
+	SRListen( LuaEvents.CityPanel_ProductionClose, OnProductionClose );
+	SRListen( LuaEvents.CityPanel_ProductionOpen, OnCityPanelProductionOpen );
+	SRListen( LuaEvents.CityPanel_PurchaseGoldOpen, OnCityPanelPurchaseGoldOpen );
+	SRListen( LuaEvents.CityPanel_PurchaseFaithOpen, OnCityPanelPurchaseFaithOpen );
+	SRListen( LuaEvents.CityPanel_ProductionOpenForQueue, OnProductionOpenForQueue );	
+	SRListen( LuaEvents.CityPanel_PurchasePlot, OnCityPanelPurchasePlot );
+	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );
+	SRListen( LuaEvents.NotificationPanel_ChooseProduction, OnNotificationPanelChooseProduction );
+	SRListen( LuaEvents.StrageticView_MapPlacement_ProductionOpen, OnStrategicViewMapPlacementProductionOpen );
+	SRListen( LuaEvents.Tutorial_ProductionOpen, OnTutorialProductionOpen );
+	SRListen( LuaEvents.ProductionManager_SelectedIndexChanged, OnManagerSelectedIndexChanged );
 end
 Initialize();
 
