@@ -4281,6 +4281,29 @@ local function SRBuildActions()
 				table.insert( m_srActions, { action = action } );
 					local reason = SRReasons( tooltip );
 					local detail = CleanTextForSpeech( tooltip );
+					-- Make Trade Route / Transfer to Another City: the game gives no tooltip for the disabled button
+					if action.Disabled == true and reason == "" and unit ~= nil and action.userTag ~= nil then
+						local okT:boolean, typeName = pcall( SRTypeName, action.userTag );
+						if okT and ( string.find( typeName, "MAKE_TRADE_ROUTE", 1, true ) or string.find( typeName, "TELEPORT_TO_CITY", 1, true ) ) then
+							local trade:string = nil;
+							pcall( function()
+								local pTrade = Players[ unit:GetOwner() ]:GetTrade();
+								if unit:GetMovesRemaining() <= 0 then
+									trade = "no moves left";
+								elseif string.find( typeName, "MAKE_TRADE_ROUTE", 1, true ) and pTrade:GetNumOutgoingRoutes() >= pTrade:GetOutgoingRouteCapacity() then
+									trade = "all trade route slots are in use, " .. pTrade:GetNumOutgoingRoutes() .. " of " .. pTrade:GetOutgoingRouteCapacity();
+								elseif string.find( typeName, "MAKE_TRADE_ROUTE", 1, true ) then
+									trade = "no destination in range";
+								else
+									trade = "the trader must be in one of your cities, with another city to move to";
+								end
+							end );
+							if trade ~= nil then
+								reason = trade;
+								detail = detail .. ". " .. reason;
+							end
+						end
+					end
 					if action.Disabled == true and reason == "" and unit ~= nil
 							and ( action.SRName ~= nil or category == "BUILD" or unit:GetBuildCharges() > 0 ) then
 						-- a builder action (improvement, Remove Feature, harvest ...) the engine refuses without giving a reason
