@@ -4,7 +4,7 @@
 # no-share-load
 load medieval-t100
 clear-advisors
-key V -Settle 2500
+action KeyNavDiplomacy -Settle 2500
 expect ^Diplomacy, met civilizations
 key Enter -Settle 2500
 expect ^Diplomacy with

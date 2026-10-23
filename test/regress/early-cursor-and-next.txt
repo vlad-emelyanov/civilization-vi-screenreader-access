@@ -3,13 +3,13 @@
 load early-start
 expect ^Turn 1\b
 # . = cursor to the selected unit, speaks the plot
-key OemPeriod -Settle 1500
+action KeyNavCursorToSelection -Settle 1500
 expect ^Settler\b
 # Shift+Arrows move the map cursor and speak the new plot, relative to the unit
-key Shift+Down -Settle 1500
+action KeyNavMoveCellDown -Settle 1500
 expect \d+ tiles? (north|south|east|west)
 # N = what Enter would do now (the end-turn blocker text)
-key N
+action KeyNavWhatsNext
 expect ^Unit needs orders
 # Enter must not end the turn while a unit needs orders
 key Enter

@@ -2,7 +2,7 @@
 # no-share-load
 load medieval-t100
 clear-advisors
-key OemPipe -Settle 1500
+action CapitalCity -Settle 1500
 expect ^\S.*, Population \d+
 key Control+I -Settle 2500
 expect ^.+ report, \d+ options

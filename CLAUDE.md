@@ -38,7 +38,9 @@ util\civctl.cmd build                # ModBuddy build + deploy to My Games\...\M
 util\civctl.cmd reload InGameAccess.lua   # force a hot reload of a file without content change
 util\civctl.cmd menu                 # is the in-game options menu / a popup open? (Escape with nothing open opens the menu)
 util\civctl.cmd stop; util\civctl.cmd start -Timeout 180   # full restart (~35 s to main menu, ~65 s back in a game)
-util\civctl.cmd key Down             # sends a key, prints the resulting "SR> ..." lines
+util\civctl.cmd key Down             # sends a key, prints the resulting "SR> ..." lines (plain navigation keys inside our own screens: Up, Down, Enter, Escape, Tab, letters)
+util\civctl.cmd action NextUnit      # sends the CURRENT key of a game/mod hotkey (user's InputSettings.json, else the default from Database/*.sql / the game), same output/lock/owner rules as key; errors if the action is unbound. Prefer it to `key` for rebindable hotkeys, also as an `action <Id>` step in test\regress scripts
+util\civctl.cmd keymap              # regenerates .claude/skills/civ-test/keymap.md from InputSettings.json + defaults (no game needed; python util/keybindings.py [--json] [ActionId] prints one binding)
 util/civctl lua InGame 'Game.GetCurrentGameTurn()'   # (Git Bash: `util/civctl`, keeps quotes/spaces; expressions and `return x` are printed) run Lua in a game state via FireTuner (GameCore_Tuner, InGame, InGameAccess, ...); `states` lists them
 util\civctl.cmd autoplay 29 -Save medieval-t100   # AI plays n turns for us (~5-20 s/turn, prints turn numbers every 30 s; run in background), then saves the fixture
 util\civctl.cmd shot                 # screenshot path, view only when output is confusing
@@ -68,6 +70,7 @@ util\civctl.cmd unlock              # release the lease (no owner needed, frees 
 
 ```
 python util/lint.py [-v] [files...]   # luacheck (fetches util/tools/luacheck.exe on first use; ~1 s). Exit 1 = syntax error anywhere or any warning in mod-only files (Accessibility/, UI/Additions/); 2 = tool problem. -v lists upstream warnings
+python -m unittest discover test/py   # tooling tests (keybindings, regress runner), no game
 python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install lupa on first use), test/lua/test_*.lua with stubs in test/lua/stubs/; <1 s. Exit 1 = failure
 ```
 

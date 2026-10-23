@@ -4,7 +4,7 @@
 load bug-promotion-tree-silent
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if UnitManager.CanStartCommand(u, UnitCommandTypes.PROMOTE, true) then UI.SelectUnit(u) break end end
-key Shift+U -Settle 2500
+action ExtraHotkeysPromote -Settle 2500
 expect ^Promote .+: \d+ available\. .+, tier \d, .+, \d+ of \d+$
 key Down -Settle 800
 expect , tier \d, .+, \d+ of \d+$

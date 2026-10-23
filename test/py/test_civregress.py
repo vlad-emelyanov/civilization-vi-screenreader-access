@@ -30,6 +30,11 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(steps[1].arg, "Enter -Settle 2000")
         self.assertEqual(steps[2].line, 5)
 
+    def test_action_step(self):
+        steps = cr.parse_script("action KeyNavCityReport -Settle 1500\n")
+        self.assertEqual(steps[0].kind, "action")
+        self.assertEqual(cr.civctl_args(steps[0])[0], ["action", "KeyNavCityReport", "-Settle", "1500"])
+
     def test_errors(self):
         for bad in ("frobnicate x", "key", "expect (", "lua InGame", "load a b"):
             with self.assertRaises(cr.ScriptError, msg=bad):

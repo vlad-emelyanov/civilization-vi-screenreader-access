@@ -2,7 +2,7 @@
 # no-share-load
 load medieval-t100
 clear-advisors
-key O -Settle 2500
+action ToggleGreatPeople -Settle 2500
 expect ^Great People, \d+ available\. .+, 1 of \d+
 key Down -Settle 800
 expect , 2 of \d+$

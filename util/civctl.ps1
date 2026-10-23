@@ -15,7 +15,8 @@
   .\util\civctl.ps1 key Down              # press a key (Down, Up, Enter, Escape, Tab, A, F1, ...)
   .\util\civctl.ps1 key Down -Count 3     # press it several times
   .\util\civctl.ps1 key Shift+E           # chord: Shift/Control/Alt + one key
-  .\util\civctl.ps1 keymap                # regenerate skills\civ-test\keymap.md from the Key Bindings dump in Lua.log
+  .\util\civctl.ps1 action NextUnit       # press the CURRENT key of a game/mod hotkey (InputSettings.json + defaults; util\keybindings.py), same output as `key`
+  .\util\civctl.ps1 keymap                # regenerate skills\civ-test\keymap.md from InputSettings.json + default hotkeys (no game needed)
   .\util\civctl.ps1 wait 'Exit to Desktop' -Timeout 10   # wait for a matching screen reader line
   .\util\civctl.ps1 shot                  # screenshot game window, prints the png path
   .\util\civctl.ps1 stop                  # kill game + console app
@@ -41,7 +42,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -391,7 +392,7 @@ function Invoke-Start {
 }
 
 # Keys that JAWS grabs: NumPad +/- toggle the JAWS cursor (arrows, Home, End then stop reaching any window, even after a game restart);
-# the other numpad keys and Insert are JAWS commands too. Divide stays allowed (a game hotkey).
+# the other numpad keys and Insert are JAWS commands too. Divide stays allowed (a game hotkey). Keep in sync with JAWS_RESERVED in util/keybindings.py (test/py checks).
 $JawsReservedKeys = @('Add', 'Subtract', 'Multiply', 'Decimal', 'Insert', 'Clear', 'NumPad0', 'NumPad1', 'NumPad2', 'NumPad3', 'NumPad4', 'NumPad5', 'NumPad6', 'NumPad7', 'NumPad8', 'NumPad9')
 
 function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle = $Settle) {
@@ -639,66 +640,19 @@ function Invoke-Stop {
     Write-Output 'Stopped.'
 }
 
-function ConvertTo-CivctlKey([string]$display) {
-    # Key Bindings display string ("Control+Shift+F", "Down Arrow", "]") -> argument for `civctl key`.
-    $names = @{
-        'Return' = 'Enter'; 'Space' = 'Space'; 'Delete' = 'Delete'; 'Insert' = 'Insert'; 'Home' = 'Home'; 'End' = 'End'
-        'Page Up' = 'Prior'; 'Page Down' = 'Next'; 'Up Arrow' = 'Up'; 'Down Arrow' = 'Down'; 'Left Arrow' = 'Left'; 'Right Arrow' = 'Right'
-        ',' = 'Oemcomma'; '.' = 'OemPeriod'; '[' = 'OemOpenBrackets'; ']' = 'OemCloseBrackets'; '\' = 'OemPipe'
-        '=' = 'Oemplus'; '-' = 'OemMinus'; '/ (Number Pad)' = 'Divide'; ';' = 'OemSemicolon'; "'" = 'OemQuotes'; '`' = 'Oemtilde'
-    }
-    $parts = $display -split '\+(?=.)'
-    $out = foreach ($p in $parts) {
-        if ($names.ContainsKey($p)) { $names[$p] }
-        elseif ($p -match '^[0-9]$') { "D$p" }
-        elseif ($p -match '^([A-Z]|F\d{1,2}|Shift|Control|Alt)$') { $p }
-        else { '?' }
-    }
-    $out -join '+'
+function Invoke-Keymap {
+    # util/keybindings.py reads the user's InputSettings.json + the default gestures (mod SQL, game config) and writes keymap.md.
+    # No game needed; the old `#KEYMAP` dump from Options.lua / Lua.log is no longer used (it needed the Options screen opened).
+    Quit-Civctl (Invoke-Python @((Join-Path $PSScriptRoot 'keybindings.py'), '--write-keymap'))
 }
 
-function Invoke-Keymap {
-    # Source of truth is the `#KEYMAP` dump that Options.lua prints whenever the Options screen is shown.
-    $outFile = Join-Path $RepoRoot '.claude\skills\civ-test\keymap.md'
-    $rows = $null
-    if (Test-Path $LuaLog) {
-        $fs = [IO.File]::Open($LuaLog, 'Open', 'Read', 'ReadWrite')
-        try { $lines = (New-Object IO.StreamReader($fs)).ReadToEnd() -split "`r?`n" } finally { $fs.Dispose() }
-        $current = $null
-        foreach ($l in $lines) {
-            $i = $l.IndexOf('#KEYMAP - ')
-            if ($i -lt 0) { continue }
-            $t = $l.Substring($i + 10)
-            if ($t -eq 'BEGIN') { $current = @() }
-            elseif ($t -eq 'END') { if ($null -ne $current) { $rows = $current; $current = $null } }
-            elseif ($null -ne $current) { $current += , ($t -split '\|', 5) }
-        }
-    }
-    if (-not $rows) {
-        Write-Output 'No complete #KEYMAP dump in Lua.log. Start the game (civctl start) and open Options from the main menu (Down to "Game Options", Enter), then run this again.'
-        Quit-Civctl 1
-    }
-    $md = New-Object System.Collections.Generic.List[string]
-    $md.Add('# Civ VI key bindings (generated)')
-    $md.Add('')
-    $md.Add("Generated by ``util\civctl.cmd keymap`` on $(Get-Date -Format 'yyyy-MM-dd') from the in-game Key Bindings list (Options.lua ``DumpKeyMap``). Do not edit by hand; regenerate after rebinding keys or changing mod hotkeys (``Database/*.sql``).")
-    $md.Add('')
-    $md.Add('"civctl key" is the argument for `util\civctl.cmd key <arg>`. These are in-game (World) hotkeys: they need a game in progress and no popup open. A blank key means unbound; `?` means civctl cannot send it yet (extend ConvertTo-CivctlKey).')
-    $unbound = @($rows | Where-Object { -not $_[2] })
-    if ($unbound) { $md.Add(''); $md.Add("**Unbound actions: $(($unbound | ForEach-Object { $_[1] }) -join ', ')**") }
-    foreach ($group in ($rows | Group-Object { $_[0] -replace ':\s*$', '' })) {
-        $md.Add('')
-        $md.Add("## $($group.Name)")
-        $md.Add('')
-        $md.Add('| Action | Key | civctl key | Alternate | Description |')
-        $md.Add('|---|---|---|---|---|')
-        foreach ($r in ($group.Group | Sort-Object { $_[1] })) {
-            $key = if ($r[2]) { ConvertTo-CivctlKey $r[2] } else { '' }
-            $md.Add("| $($r[1]) | $($r[2]) | $key | $($r[3]) | $($r[4]) |")
-        }
-    }
-    [IO.File]::WriteAllText($outFile, (($md -join "`n") + "`n"), (New-Object Text.UTF8Encoding($false)))
-    Write-Output "Wrote $outFile ($($rows.Count) actions, $($unbound.Count) unbound)."
+function Invoke-Action {
+    # `action <ActionId>`: press the action's current key (InputSettings.json / defaults), exactly like `key`.
+    if (-not $Arg) { throw 'Usage: civctl.ps1 action <ActionName> [-Count n]   (action ids: civctl keymap / python util/keybindings.py)' }
+    $out = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'keybindings.py'), '--key', $Arg)
+    $text = ($out -join ' ').Trim()
+    if ($script:PyExit -ne 0 -or -not $text) { Write-Output $text; Quit-Civctl 1 }
+    Invoke-Key $text
 }
 
 # --- tuner helpers, fixtures, profiles ---------------------------------------------------------------------------------------------
@@ -928,7 +882,7 @@ function Show-Status {
 
 $script:LockHeld = $false
 $script:DefaultHangGrace = if ($Command -in 'load', 'newgame', 'autoplay', 'wait') { 150 } else { 0 }
-$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
+$LockedCommands = @('deploy', 'reload', 'lua', 'start', 'stop', 'key', 'action', 'sr', 'wait', 'save', 'load', 'newgame', 'autoplay', 'scenario')   # + regress (below); build, menu, shot, keymap, status, fixtures, states, unlock need no owner
 if ($Command -eq 'regress') { Assert-Owner }
 if ($Command -in $LockedCommands) {
     Enter-Lock
@@ -944,6 +898,7 @@ switch ($Command) {
     'start' { Invoke-Start }
     'stop' { Invoke-Stop }
     'key' { Invoke-Key }
+    'action' { Invoke-Action }
     'sr' { Assert-GameHealthy -AllowStopped; Format-Lines (Read-NewLogLines) }
     'save' { Invoke-Save $Arg }
     'load' { Invoke-Load $Arg }

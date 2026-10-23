@@ -1,0 +1,12 @@
+{
+    "FoundCity": [ { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_B" }, {} ],
+    "NextUnit": [ { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_RBRACKET" }, { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_COMMA" } ],
+    "Toggle2DView": [ { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_PLUS" }, {} ],
+    "ToggleGreatWorks": [ {}, {} ],
+    "ToggleTechTree": [ { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_NP_PLUS" }, {} ],
+    "LensPlague": [ { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_F" }, {} ],
+    "ToggleGrid": [ { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_F" }, {} ],
+    "ToggleYield": [ { "type": "KBMouse", "data": "LOC_OPTIONS_KEY_F" }, {} ],
+    "NextAction": [ { "type": "Controller", "data": "LOC_OPTIONS_PAD_X" }, {} ],
+    "OldRemovedAction": [ {}, {} ]
+}

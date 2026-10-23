@@ -8,6 +8,10 @@ Scripts live in test/regress/<name>.txt, one step per line (blank lines and '#' 
   load <fixture>          civctl load <fixture>          (its SR> lines count, e.g. the "Turn 1" announcement)
   scenario <name>         civctl scenario <name>   (util/scenarios/<name>.lua in GameCore_Tuner)
   key <args>              civctl key <args>              e.g. key Enter -Settle 2000, key Shift+Down
+  action <ActionId> [-Settle ms]  civctl action <ActionId>: presses the action's CURRENT key (InputSettings.json / mod and game
+                          defaults, util/keybindings.py) like `key`. Use it for rebindable game/mod hotkeys (NextUnit, KeyNavCityReport,
+                          ToggleTechTree, ...); keep `key` for plain navigation keys inside our own screens (Up, Down, Enter, Escape, Tab, letters).
+                          An unbound action fails the step (civctl exit 1).
   wait <args>             civctl wait <args>             e.g. wait Turn \\d+ -Timeout 30 (no | or & in the regex: cmd.exe)
   lua <state> <expr>      civctl lua <state> <expr>      (the expression goes through a temp -File: quotes are safe)
   clear-advisors          presses Enter only while the AdvisorPopup context is visible (tuner probe, max 12 presses): the
@@ -25,7 +29,7 @@ checks in a row look at the same lines; the first action step after a check star
 Failure handling: a failed expect prints FAIL with the lines it saw and the script goes on. A failed load/scenario
 (non-zero exit) aborts the script, as does civctl exit 5 (game crashed/hung) at any step; exit 6 (lock held by another
 owner) and 7 (no owner given) abort the whole run. After an abort the next script starts with a fresh load. Other non-zero exits of
-key/wait/lua count as a failed step and the script goes on.
+key/action/wait/lua count as a failed step and the script goes on.
 
 A script whose checks were all skipped by a shared load is reported as SKIPPED-ALL with a warning (it checked nothing).
 A script that has a comment line `# no-share-load` always does its own load, and the next script does not share its game
@@ -56,7 +60,7 @@ TIMEOUT_RC = 124
 MAX_ADVISOR_PRESSES = 12
 LUA_LOG = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Firaxis Games", "Sid Meier's Civilization VI", "Logs", "Lua.log")
 
-ACTIONS = ("load", "scenario", "key", "wait", "lua", "clear-advisors", "no-lua-errors")
+ACTIONS = ("load", "scenario", "key", "action", "wait", "lua", "clear-advisors", "no-lua-errors")
 NO_ARG = ("clear-advisors", "no-lua-errors")
 CHECKS = ("expect", "expect-not")
 STEP_TIMEOUT = 600  # seconds per civctl call (a load is ~45 s, a newgame 70 s)
@@ -147,7 +151,7 @@ def civctl_args(step):
     k = step.kind
     if k == "load":
         return ["load", step.arg], None
-    if k in ("key", "wait"):
+    if k in ("key", "action", "wait"):
         return [k] + join_positional(step.arg), None
     if k == "scenario":
         path = os.path.join(SCENARIO_DIR, step.arg + ".lua")
