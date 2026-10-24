@@ -2,10 +2,14 @@
 # covers: **/WorldCrisisPopup_SRA.lua **/WorldCongressText.lua
 # no-share-load: closes the popup
 load bug-crisis-raw-loc
+clear-advisors
+# the popup is not restored by a load: open it the way the notification does (Aid Request that ended, target player 2, type 9)
+lua InGame LuaEvents.NotificationPanel_EmergencyClicked(2, 9, 0)
 wait (?i)enter to close -Timeout 10
+expect (?i)aid request
 expect-not LOC_[A-Z_]+
 expect-not (?i)unmet player,.*unmet player,
 key Down -Settle 600
-expect \d+ of \d+
+expect 1 unmet player.*1 of \d+
 key Enter -Settle 2000
 no-lua-errors

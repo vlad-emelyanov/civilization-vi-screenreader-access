@@ -3,7 +3,7 @@
 # no-share-load: city commands
 load bug-city-ranged-no-reason
 clear-advisors
-lua InGameAccess for c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Aquileia" then UI.SelectCity(c) end end
+lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Aquileia" then UI.SelectCity(c) end end
 wait Aquileia -Timeout 8
 key R -Settle 1500
 expect ^Aquileia can't attack: it needs walls

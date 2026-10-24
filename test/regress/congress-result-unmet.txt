@@ -2,9 +2,12 @@
 # covers: **/WorldCongressPopup_SRA.lua **/WorldCongressText.lua
 # no-share-load: reads the congress results
 load bug-congress-result-unmet
+clear-advisors
+# the popup is not restored by a load: open it like the results notification does
+lua InGame LuaEvents.NotificationPanel_OpenWorldCongressResults()
 wait (?i)option [AB] passed -Timeout 10
 expect-not (?i)target Unmet Player
-key Down -Settle 600
-key Right -Settle 800
+key Space -Settle 1000
+expect (?i)\d+ unmet players?: 1 vote for A
 expect-not (?i)(Unmet Player: [^.]*\. ){2}
 no-lua-errors

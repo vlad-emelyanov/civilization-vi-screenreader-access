@@ -1,20 +1,33 @@
-# Written blind (2026-10-24): "Changed: They give: Horses, 2. You give: Amber... They give: Horses, 2." (tail repeated), and Tab into Actions focused "Never mind" instead of Accept. Fixture pt-ai-deal-offer (turn 143, Suleiman proposes a deal; the screen opens on Actions).
+# Verified in game 2026-10-24 (verifier). Was: "Changed: They give: Horses, 2. You give: Amber... They give: Horses, 2." (tail repeated), and Tab into Actions focused "Never mind" instead of the first enabled action. The AI-proposal popup of fixture pt-ai-deal-offer is not restored by a load, so the deal is opened with Dido through V (Make Deal is the 5th entry while Friendly).
 # covers: **/SRA_DealView.lua **/DealSpeech.lua
 # no-share-load: changes the deal
 load pt-ai-deal-offer
-wait (?i)proposes a deal -Timeout 10
+clear-advisors
+key Enter -Settle 800
+action KeyNavDiplomacy -Settle 2500
+expect ^Diplomacy, met civilizations
+key Enter -Settle 2500
+expect ^Diplomacy with
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect ^Make Deal
+key Enter -Settle 3500
+expect ^Deal with
 key Tab -Settle 800
-expect ^Deal,
-key Tab -Settle 800
+expect ^Your items, \d+ items?
+key Enter -Settle 2000
+expect ^Added: You give
 key Tab -Settle 800
 key Tab -Settle 800
 expect ^Actions, \d+ items?
-expect (Accept|Propose)[^,]*, 1 of \d+
+expect (Give Gift|Accept|Propose)[^,]*, 1 of \d+
 expect-not Never mind, \d+ of \d+
-# Left/Right on a deal item changes its amount: the change is spoken once, then only the REST of the deal ("Changed: X. Also: ...")
-key Control+Tab -Settle 800
-key Control+Tab -Settle 800
-key Control+Tab -Settle 800
+key Tab -Settle 800
 key Right -Settle 1500
-expect-not (?i)(They give: [^.]*)\..*\1\.\s*$
+expect ^2 diplomatic favor
+expect-not (?i)(You give: [^.]*)\..*\1\.\s*$
+key Escape -Settle 1500
+key Escape -Settle 1500
 no-lua-errors
