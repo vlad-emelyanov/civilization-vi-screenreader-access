@@ -1,10 +1,10 @@
-# Verified 2026-10-23. Fixture bug-settler-no-skip: the besieged settler says it cannot skip and what to do instead; its Tab menu keeps Skip Turn as unavailable with the reason.
+# Verified 2026-10-23, wording updated 2026-10-24 (stacked-unit reason). Fixture bug-settler-no-skip: the besieged settler says it cannot skip and what to do instead; its Tab menu keeps Skip Turn as unavailable with the reason.
 # covers: **/UnitPanel.lua **/HubMenus.lua **/HubAnnounce.lua
 # no-share-load: Enter/Tab change the unit's orders
 load bug-settler-no-skip
 clear-advisors
 key Enter -Settle 1500
-expect Cannot skip: the game offers no skip
+expect Cannot skip: stacked with Builder
 key Tab -Settle 1200
 expect ^Settler actions
 expect-not (?i)fortify
