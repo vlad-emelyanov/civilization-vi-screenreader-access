@@ -2808,7 +2808,8 @@ local function SRA_NextTab()
 	local nextEntry:table = tabs[ current % #tabs + 1 ];
 	m_srPending = nil;
 	m_tabs.SelectTab( nextEntry.tab );
-	SRA_Announce( true );		-- a tab switch keeps the Enter guard of the real open
+	SRA_Announce( true );
+	m_srList.DisarmGuard();		-- Tab is deliberate: an Enter right after it chooses (the guard only covers a double Enter on the real open)
 end
 
 -- Called by the handlers that open the panel, once they have selected the tab (a SetUpdate callback never ran here).

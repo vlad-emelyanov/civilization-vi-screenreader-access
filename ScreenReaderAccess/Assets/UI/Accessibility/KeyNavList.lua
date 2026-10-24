@@ -85,6 +85,11 @@ function KeyNavList_Create( config:table )
 		Speak( items, index, false, true );
 	end
 
+	-- A deliberate key (Tab to another tab) ends the Enter guard: the Enter that follows is meant.
+	function list.DisarmGuard()
+		m_openedAt = -1000;
+	end
+
 	-- Moves the focus to the item with this key and speaks it (e.g. back to a slot after choosing in a sub-list).
 	function list.Focus( key, prefix:string )
 		local items:table = Build();
