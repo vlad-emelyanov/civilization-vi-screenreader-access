@@ -2957,7 +2957,8 @@ function OnInputActionTriggered( actionId )
         OnPromptToDeleteUnit();
     end
 	-- "Attack" Hotkey is pressed; should only work if combat evaluation is displayed. There is no action for basic attacks, necissitating this special case.
-	if m_combatResults ~= nil and m_AttackHotkeyId ~= nil and (actionId == m_AttackHotkeyId) then
+	-- ScreenReaderAccess mod change: m_combatResults goes stale when a target mode is cancelled; outside a target mode the hub answers
+	if m_combatResults ~= nil and UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION and m_AttackHotkeyId ~= nil and (actionId == m_AttackHotkeyId) then
 		MoveUnitToPlot( UI.GetHeadSelectedUnit(), m_locX, m_locY );
 	elseif m_AttackHotkeyId ~= nil and actionId == m_AttackHotkeyId then
 		LuaEvents.SRA_AttackKey();		-- ScreenReaderAccess mod change: no hovered target, the hub opens an attack target mode

@@ -375,7 +375,8 @@ end
 function HubTargets.CityAttackKey()
 	if not HubCore.IsLocalPlayerActive() or HubTargets.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
 	local city:table = UI.GetHeadSelectedCity();
-	if city == nil or city:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	if city == nil then OutputMessageToScreenReader( "No unit selected" ); return; end		-- UnitPanel is hidden without a selection: W would be silent
+	if city:GetOwner() ~= Game.GetLocalPlayer() then return; end
 	local name:string = Locale.Lookup( city:GetName() );
 	if CityManager.CanStartCommand( city, CityCommandTypes.RANGE_ATTACK ) then
 		UI.SetInterfaceMode( InterfaceModeTypes.CITY_RANGE_ATTACK );

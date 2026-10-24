@@ -1,0 +1,28 @@
+# W (Attack) after Escape from attack mode must answer again (a stale combat preview of UnitPanel made it move/say nothing).
+# covers: **/UnitPanel.lua **/HubTargets.lua
+# options: animations
+# no-share-load: Enter ends the turn
+load pt-t128
+clear-advisors
+key Enter -Settle 1500
+expect (?i)turn ended
+wait Turn 129 -Timeout 90
+clear-advisors
+lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
+wait Legion -Timeout 8
+key W -Settle 1500
+expect ^Attack: choose a target
+key Escape -Settle 1200
+expect ^Cancelled
+key W -Settle 1500
+expect ^Attack: choose a target
+key Escape -Settle 1200
+expect ^Cancelled
+key W -Settle 1500
+expect ^Attack: choose a target
+key Escape -Settle 1200
+expect ^Cancelled
+lua InGameAccess UI.DeselectAll()
+key W -Settle 1500
+expect ^No unit selected
+no-lua-errors
