@@ -286,6 +286,28 @@ test("without the mode a camp line has no clan words", function()
 	eq(item.clan, nil)
 end)
 
+local clanModeOn = true
+GameConfiguration = { GetValue = function(key) return key == "GAMEMODE_BARBARIAN_CLANS" and clanModeOn or nil end }
+PlotDescription_ResetClanMode()
+
+test("mode off: tribe data in the base game gives no clan words, no hint and a dead T line", function()
+	GameInfo.BarbarianTribeNames = { [7] = { TribeDisplayName = "Badger Claw" } }
+	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }
+	local manager = {
+		GetTribeIndexAtLocation = function(_, x, y) if x == 2 and y == 12 then return 0 end return -1 end,
+		GetTribeNameType = function() return 7 end, GetTribeType = function() return 2 end,
+	}
+	Game.GetBarbarianManager = function() return manager end
+	clanModeOn = false
+	PlotDescription_ResetClanMode()
+	local item = campItem({ plot = Map.GetPlot(5, 5) })
+	assert(not item.text:find("clan") and not item.text:find("treat"), item.text)
+	eq(item.clan, nil)
+	clanModeOn = true
+	PlotDescription_ResetClanMode()
+	Game.GetBarbarianManager = nil
+end)
+
 test("a clan camp says its clan and type first and offers T while in view", function()
 	GameInfo.BarbarianTribeNames = { [7] = { TribeDisplayName = "Badger Claw" } }
 	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }

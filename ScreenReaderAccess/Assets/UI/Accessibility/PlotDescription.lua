@@ -188,8 +188,24 @@ end
 -- Barbarian Clans mode: the named clan (tribe) of a barbarian camp on this plot, or nil. Everything is guarded, so it is a
 -- no-op without the mode (no Game.GetBarbarianManager / BarbarianTribes table / tribe method, or no tribe there: -1).
 -- Returns the clan's display name ("Badger Claw") and its type ("Melee Open"), and the tribe index.
+-- The tribe tables and the manager exist in the base game too, so the mode itself is the gate. Evaluated lazily and cached
+-- (GameConfiguration may not be ready at include time; nothing is cached until it is).
+local m_clanMode:boolean = nil;
+
+function PlotDescription_ResetClanMode()
+	m_clanMode = nil;
+end
+
+local function _ClanModeOn()
+	if m_clanMode == nil then
+		if GameConfiguration == nil or GameConfiguration.GetValue == nil then return false; end
+		m_clanMode = ( GameConfiguration.GetValue("GAMEMODE_BARBARIAN_CLANS") == true );
+	end
+	return m_clanMode;
+end
+
 function PlotDescription_GetClan( plot:table )
-	if plot == nil or Game == nil or Game.GetBarbarianManager == nil then return nil; end
+	if plot == nil or Game == nil or Game.GetBarbarianManager == nil or not _ClanModeOn() then return nil; end
 	if GameInfo.BarbarianTribes == nil or GameInfo.BarbarianTribeNames == nil then return nil; end
 	if PlotDescription_GetVisibility(plot) == "unexplored" then return nil; end		-- the camp banner is hidden there too
 	local ok:boolean, name, kind, tribe = pcall(function()

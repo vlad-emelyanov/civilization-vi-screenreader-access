@@ -52,6 +52,9 @@ test("relative words: distance and plural", function()
 end)
 
 -- Barbarian Clans mode
+local clanModeOn = true
+GameConfiguration = { GetValue = function(key) return key == "GAMEMODE_BARBARIAN_CLANS" and clanModeOn or nil end }
+PlotDescription_ResetClanMode()
 local function clanManager(index)
 	return {
 		GetTribeIndexAtLocation = function(_, x, y) if x == 4 and y == 4 then return index end return -1 end,
@@ -94,5 +97,21 @@ test("treat with the clan needs the plot in view; hidden plots say nothing", fun
 	world:set(4, 4, { hidden = true })
 	eq(PlotDescription_GetClanPhrase(plot), nil)
 	world:set(4, 4, { hidden = false, fogged = false })
+	Game.GetBarbarianManager = nil
+end)
+
+test("mode off: tribe data in the base game gives no clan words", function()
+	Game.GetBarbarianManager = function() return clanManager(0) end
+	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }
+	GameInfo.BarbarianTribeNames = { [7] = { TribeDisplayName = "Badger Claw" } }
+	clanModeOn = false
+	PlotDescription_ResetClanMode()
+	local plot = Map.GetPlot(4, 4)
+	eq(PlotDescription_GetClan(plot), nil)
+	eq(PlotDescription_GetClanPhrase(plot), nil)
+	eq(PlotDescription_CanTreatWithClan(plot), false)
+	clanModeOn = true
+	PlotDescription_ResetClanMode()
+	eq(PlotDescription_GetClanPhrase(plot), "Badger Claw clan, Melee Open")
 	Game.GetBarbarianManager = nil
 end)

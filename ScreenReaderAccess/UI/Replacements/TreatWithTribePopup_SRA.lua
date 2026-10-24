@@ -408,6 +408,8 @@ local function SRA_Items()
 			spec.reasons = CleanTextForSpeech(FormatFailureReasonsString(tResults));
 			if def.id == "Incite" then
 				spec.incite = { canStart = bCan and true or false };
+				-- SelectInciteTarget enables the button for any affordable cost, also when the operation is refused
+				if not bCan then spec.disabled = true; end
 				if m_SelectedInciteTargetID ~= -1 then
 					for _, target in ipairs(SRA_InciteTargets()) do
 						if target.id == m_SelectedInciteTargetID then
@@ -461,6 +463,10 @@ local function SRA_CycleTarget( delta : number )
 	local incite : table = nil;
 	for _, item in ipairs(items) do if item.id == "Incite" then incite = item; end end
 	if incite == nil then return; end
+	if incite.choosable == false and incite.unavailable then
+		OutputMessageToScreenReader(incite.reason);
+		return;
+	end
 	local targets : table = SRA_InciteTargets();
 	if #targets == 0 then
 		OutputMessageToScreenReader("No civilization to incite the clan against");

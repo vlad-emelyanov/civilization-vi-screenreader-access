@@ -84,6 +84,6 @@ globals = {
 	"ClimateText_Plural", "ClimateText_Signed", "ClimateText_Percent", "ClimateText_Tab", "ClimateText_Phase", "ClimateText_Temperature",
 	"ClimateText_Contribution", "ClimateText_Summary", "ClimateText_Chance", "ClimateText_Volcanoes", "ClimateText_Row", "ClimateText_Event", "ClimateText_Effects",
 	"TreatClanText_Opening", "TreatClanText_Target", "TreatClanText_Item", "TreatClanText_Result",
-	"PlotDescription_GetClan", "PlotDescription_GetClanPhrase", "PlotDescription_CanTreatWithClan",
+	"PlotDescription_ResetClanMode", "PlotDescription_GetClan", "PlotDescription_GetClanPhrase", "PlotDescription_CanTreatWithClan",
 	"TreeNav_Entries", "TreeNav_PrereqNames", "TreeNav_LeadsTo", "TreeNav_UnlockEntries", "TreeNav_QueuePos", "SRA_TreeInput",
 }

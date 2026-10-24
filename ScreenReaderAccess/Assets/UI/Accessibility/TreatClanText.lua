@@ -62,6 +62,7 @@ function TreatClanText_Item( spec:table )
 	end
 	if spec.disabled then
 		unavailable( reasons ~= "" and reasons or description );
+		item.unavailable = true;
 		return item;
 	end
 	item.text = description ~= "" and ( label .. ": " .. description ) or label;
