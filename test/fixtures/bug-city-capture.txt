@@ -1,0 +1,7 @@
+turn: 100
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: medieval-t100 + Free Cities city Ulundi at 57,27 (tuner), our Man-At-Arms at 58,28 adjacent; W, Shift+Down, Shift+Left, Enter captures it (RazeCity popup)
+mod commit: 1876fa3
+created: 2026-10-23
+size: 954 KB

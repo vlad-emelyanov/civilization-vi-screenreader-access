@@ -1,0 +1,37 @@
+# Verified 2026-10-23. bug-city-capture = medieval-t100 + Free Cities city (tuner, 0 defenders) with our Man-At-Arms next to it. Capturing it queues the
+# notification "Raze or Keep City" (the popup does not open by itself); Control+N, Enter on it opens the RazeCity popup. The city name is a raw
+# LOC_CITY_NAME_* key only because the tuner-made Free City got a Zulu name the game has no text for.
+# covers: **/RazeCity.lua **/HubTargets.lua **/HubRegions.lua
+# no-share-load: captures a city
+load bug-city-capture
+clear-advisors
+lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if u:GetX()==58 and u:GetY()==28 then UI.SelectUnit(u) end end
+wait Man-At-Arms -Timeout 8
+key W -Settle 1500
+expect ^Attack: choose a target
+action KeyNavCursorToSelection -Settle 800
+key Shift+Down -Settle 800
+key Shift+Left -Settle 900
+expect ^attack, 1 turn.* Free Cities city
+key Enter -Settle 4000 -Quiet 1500
+expect Attacking
+expect captured the enemy City
+clear-advisors
+action KeyNavNotifications -Settle 1500
+key Home -Settle 600
+expect ^Raze or Keep City, 1 of
+key Enter -Settle 3000 -Quiet 1500
+expect captured from Free Cities\. Population \d+, \d+ districts?\. Keep City, Raze City\. Space for details
+expect ^Keep City, 1 of 2
+key Space -Settle 800
+expect Grievances
+key Down -Settle 800
+expect ^Raze City, 2 of 2
+key Space -Settle 800
+expect clearing it and all its districts
+key Escape -Settle 800
+expect ^Choose an option
+key Home -Settle 500
+key Enter -Settle 2500 -Quiet 1200
+expect ^Kept
+no-lua-errors
