@@ -16,6 +16,35 @@ HubMenus.OPERATION_RESULTS = {
 	UNITOPERATION_ALERT = "On alert", UNITOPERATION_SKIP_TURN = "Turn skipped", UNITOPERATION_AUTOMATE_EXPLORE = "Exploring automatically",
 	UNITOPERATION_REST_REPAIR = "Resting", UNITCOMMAND_WAKE = "Awake", UNITCOMMAND_CANCEL = "Orders cancelled",
 };
+-- "Repairing Iron Mine, done next turn" (name "" = the tile is not known)
+function HubMenus.RepairText( name:string )
+	if name == nil or name == "" then return "Repairing, done next turn"; end
+	return "Repairing " .. name .. ", done next turn";
+end
+
+-- The result of Repair: what the builder's tile holds (a pillaged improvement, else a pillaged district). The value in
+-- OPERATION_RESULTS may be a function( unitId ) returning the text (HubEvents.OnUnitOperationStarted calls it).
+function HubMenus.RepairResult( unitId:number )
+	local name:string = "";
+	pcall( function()
+		local unit:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( unitId );
+		if unit == nil then return; end
+		local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+		if plot == nil then return; end
+		local improvement = plot:GetImprovementType();
+		local district = plot:GetDistrictType();
+		if improvement ~= nil and improvement >= 0 and plot:IsImprovementPillaged() then
+			name = Locale.Lookup( GameInfo.Improvements[ improvement ].Name );
+		elseif district ~= nil and district >= 0 and plot:IsDistrictPillaged() then
+			name = Locale.Lookup( GameInfo.Districts[ district ].Name );
+		elseif improvement ~= nil and improvement >= 0 then
+			name = Locale.Lookup( GameInfo.Improvements[ improvement ].Name );
+		end
+	end );
+	return HubMenus.RepairText( name );
+end
+HubMenus.OPERATION_RESULTS.UNITOPERATION_REPAIR = HubMenus.RepairResult;
+
 -- Actions that announce their outcome in another way (events below, popups, target modes).
 local RESULT_SILENT = {
 	UNITOPERATION_FOUND_CITY = true, UNITOPERATION_BUILD_IMPROVEMENT = true, UNITCOMMAND_UPGRADE = true, PROMOTION = true,
@@ -72,6 +101,14 @@ local function RunMenuItem( item:table )
 	LuaEvents.SRA_RunUnitAction( item.action.id, unit:GetID() );
 	-- Fortify, sleep ... speak their result from the game's UnitOperationStarted event (so the hotkeys are covered too);
 	-- target modes, found city, building and the like announce themselves. Anything else: say what was chosen.
+	if item.action.typeName == "UNITOPERATION_REPAIR" then
+		-- UnitOperationStarted normally speaks it (HubEvents); if nothing was said shortly after, say it here
+		local before:number = HubCore.m_lastResultTime;
+		local unitId:number = unit:GetID();
+		HubCore.After( 0.6, function()
+			if HubCore.m_lastResultTime == before then HubCore.SayResult( HubMenus.RepairResult( unitId ) ); end
+		end );
+	end
 	if UI.GetInterfaceMode() == modeBefore and not RESULT_SILENT[ item.action.typeName ]
 			and HubMenus.OPERATION_RESULTS[ item.action.typeName ] == nil then
 		HubCore.SayResult( item.action.name );

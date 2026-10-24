@@ -76,6 +76,49 @@ function PlotDescription_GetRelative( fromPlot:table, toPlot:table )
 	return distance .. " " .. _Plural(distance, "tile", "tiles") .. " " .. direction;
 end
 
+-- Danger refusals ("Cannot automate exploration: Danger"): the engine does not say what the danger is.
+-- Pure wording: "Danger" + ", Barbarian Galley 1 tile east". Other reasons and no enemy: unchanged.
+function PlotDescription_DangerReason( reason:string, enemyName:string, relative:string )
+	if reason == nil or enemyName == nil or enemyName == "" then return reason; end
+	if string.find( string.lower( reason ), "danger", 1, true ) == nil then return reason; end
+	return reason .. ", " .. enemyName .. ( ( relative ~= nil and relative ~= "" ) and ( " " .. relative ) or "" );
+end
+
+-- The nearest visible barbarian / at-war unit within radius tiles of the unit: its name and relative position
+-- ("Barbarian Galley", "1 tile east"), or nil. Soldiers first, civilians only when no soldier is near.
+function PlotDescription_NearestHostile( unit:table, radius:number )
+	if unit == nil then return nil; end
+	local localId:number = Game.GetLocalPlayer();
+	local diplomacy:table = Players[localId]:GetDiplomacy();
+	local ux:number, uy:number = unit:GetX(), unit:GetY();
+	local width:number = Map.GetGridSize();
+	local from:table = Map.GetPlot(ux, uy);
+	local best:table = nil;
+	for dy = -radius, radius do
+		for dx = -radius, radius do
+			local x:number = ux + dx;
+			if Map.IsWrapX() then x = x % width; end
+			local plot:table = Map.GetPlot(x, uy + dy);
+			if plot ~= nil and Map.GetPlotDistance(ux, uy, plot:GetX(), plot:GetY()) <= radius then
+				for _, other in ipairs(Units.GetUnitsInPlot(plot)) do
+					local owner:number = other:GetOwner();
+					local player:table = Players[owner];
+					if owner ~= localId and player ~= nil and PlotDescription_IsUnitVisible(other)
+							and (player:IsBarbarian() or (diplomacy ~= nil and diplomacy:IsAtWarWith(owner))) then
+						local distance:number = Map.GetPlotDistance(ux, uy, plot:GetX(), plot:GetY());
+						local soldier:number = (other:GetCombat() > 0 or other:GetRangedCombat() > 0) and 0 or 1;
+						if best == nil or soldier < best.soldier or (soldier == best.soldier and distance < best.distance) then
+							best = { unit = other, plot = plot, distance = distance, soldier = soldier };
+						end
+					end
+				end
+			end
+		end
+	end
+	if best == nil then return nil; end
+	return PlotDescription_GetUnitName(best.unit), PlotDescription_GetRelative(from, best.plot);
+end
+
 -- ===========================================================================
 --	Parts of a description
 -- ===========================================================================

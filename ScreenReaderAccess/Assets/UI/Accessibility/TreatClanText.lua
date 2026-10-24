@@ -33,7 +33,7 @@ function TreatClanText_Item( spec:table )
 	local label:string = spec.label or spec.id or "";
 	local description:string = spec.description or "";
 	local reasons:string = spec.reasons or "";
-	local item:table = { choosable = true };
+	local item:table = { choosable = true, description = description };
 	local function unavailable( why:string )
 		item.text = label .. ", unavailable" .. ( why ~= "" and ( ": " .. why ) or "" );
 		item.reason = "Unavailable" .. ( why ~= "" and ( ": " .. why ) or "" );
@@ -70,12 +70,29 @@ function TreatClanText_Item( spec:table )
 	return item;
 end
 
--- What is said after Enter on an option.
-function TreatClanText_Result( id:string, clan:string, target:string )
+-- The first sentence of an option's description (what the option does), shortened when long; "" when there is none.
+function TreatClanText_Effect( description:string )
+	local text:string = description or "";
+	text = string.gsub( text, "^%s+", "" );
+	local cut:number = string.find( text, "[%.!] " );
+	if cut ~= nil then text = string.sub( text, 1, cut - 1 ); end
+	text = string.gsub( text, "[%.%s]+$", "" );
+	if #text > 160 then
+		text = string.sub( text, 1, 160 );
+		text = string.gsub( text, "%s+%S*$", "" );
+	end
+	return text;
+end
+
+-- What is said after Enter on an option. description: the option's description text (optional); its first sentence
+-- is appended ("Bribed Rock Vulture clan: they will not attack you for 10 turns").
+function TreatClanText_Result( id:string, clan:string, target:string, description:string )
 	clan = ( clan ~= nil and clan ~= "" ) and ( clan .. " clan" ) or "the clan";
-	if id == "Hire" then return "Hired from " .. clan; end
-	if id == "Bribe" then return "Bribed " .. clan; end
-	if id == "Ransom" then return "Ransom paid to " .. clan; end
+	local effect:string = TreatClanText_Effect( description );
+	local suffix:string = ( effect ~= "" ) and ( ": " .. effect ) or "";
+	if id == "Hire" then return "Hired from " .. clan .. suffix; end
+	if id == "Bribe" then return "Bribed " .. clan .. suffix; end
+	if id == "Ransom" then return "Ransom paid to " .. clan .. suffix; end
 	if id == "Incite" then return "Incited " .. clan .. " against " .. ( target or "the chosen civilization" ); end
 	return "Closed";
 end
