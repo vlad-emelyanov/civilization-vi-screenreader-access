@@ -42,14 +42,9 @@ public sealed class LogFileWatcher
                     using StreamReader reader = new(fs);
                     fs.Seek(lastReadLength, SeekOrigin.Begin);
                     
-                    while (!reader.EndOfStream)
+                    string? line;
+                    while ((line = await reader.ReadLineAsync(cancellationToken)) is not null)
                     {
-                        string? line = reader.ReadLine();
-                        if (line is null)
-                        {
-                            break;
-                        }
-
                         this.mediator.ProcessLine(line);
                     }
 
@@ -64,6 +59,10 @@ public sealed class LogFileWatcher
                 initialFileSize = new FileInfo(filePath).Length;
                 lastReadLength = initialFileSize - 1024;
                 if (lastReadLength < 0) lastReadLength = 0;
+            }
+            catch (OperationCanceledException)
+            {
+                break;
             }
             catch (Exception e)
             {
