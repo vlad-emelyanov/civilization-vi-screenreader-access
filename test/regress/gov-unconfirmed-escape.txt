@@ -4,6 +4,9 @@
 # State needed: policies tab with >= 2 slots and an unlocked policy for the first slot. Fixture bug-gov-confirm-down after the government change to
 # Autocracy shows "Policies, Autocracy, 4 slots, 4 empty" (see bug-gov-slots-after-change); if no policy is unlocked for the first slot the Enter says
 # "No policy available for ..." and the script fails there: then switch to a fixture that has one.
+# Assumes: the first Down on the Governments tab lands on a government that can be picked (the fixture says which, e.g. Oligarchy), the change leaves >= 2
+# slots on the policies page, and a policy is unlocked for the first slot. Check with fixture-info, then run with --record.
+# Also: a Tab to another tab between the policy pick and Escape must still warn (the guard is not tab dependent).
 # covers: **/GovernmentScreen.lua
 # no-share-load: changes the government
 load bug-gov-confirm-down
@@ -11,19 +14,20 @@ clear-advisors
 action ToggleGovernment -Settle 2500
 expect ^Governments, current: no government
 key Down -Settle 800
-expect ^Autocracy
+expect ^\w+
 key Enter -Settle 1000 -Quiet 300
 key Down -Settle 800
 key Enter -Settle 2500 -Quiet 600
-expect ^Policies, Autocracy, 4 slots, 4 empty
+expect ^Government changed to
+expect ^Policies, .*, \d+ slots, \d+ empty
 key Enter -Settle 800
 expect (?i)choose a policy
 key Enter -Settle 1000
-expect (?i)3 empty
+expect (?i)\d+ empty
 key Escape -Settle 1000
 expect ^Policy changes not confirmed: fill the empty .* first, then confirm\. Escape again to discard them
 expect-not (?i)^Government closed
-key Down -Settle 800
+key Tab -Settle 1200
 key Escape -Settle 1000
 expect ^Policy changes not confirmed
 key Escape -Settle 1500

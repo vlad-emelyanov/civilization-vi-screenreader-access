@@ -2850,9 +2850,9 @@ local SRA_ROW_NAMES:table = {
 };
 
 -- Slots left empty by the player's changes (Confirm is disabled until none is empty): "Diplomatic slot" / "Military and Wildcard slots", or nil
--- when nothing would be lost silently (not the policies page, nothing changed, no empty slot).
+-- when nothing would be lost silently (nothing changed, no empty slot). Works on every tab (the slot rows exist regardless).
 function SRA_UnfilledRows()
-	if Controls.SelectPolicies:IsHidden() or not IsAbleToChangePolicies() then return nil; end
+	if not IsAbleToChangePolicies() then return nil; end		-- not tab dependent: slotted cards survive a tab switch
 	local names:table = {};
 	local slots:number = 0;
 	for nRowIndex, tRow in ipairs( m_ActivePolicyRows ) do
