@@ -4317,12 +4317,23 @@ local function SRFormationHint( unit:table )
 			return;
 		end
 		if unit:GetMilitaryFormation() ~= MilitaryFormationTypes.STANDARD_FORMATION then return; end	-- corps and armies are one unit
+		-- The API gives no formation id: the partners are formation units on this tile, of this unit's formation size.
+		-- When more candidates than partners exist (two escorted pairs on a tile), prefer other formation classes (escort + civilian) and cap at count - 1.
 		local names:table = {};
 		local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 		if plot ~= nil then
+			local myClass = ( GameInfo.Units[ unit:GetUnitType() ] or {} ).FormationClass;
+			local partners:number = unit:GetFormationUnitCount() - 1;
+			local same:table, different:table = {}, {};
 			for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
-				if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and other:GetFormationUnitCount() > 1 then
-					table.insert( names, Locale.Lookup( other:GetName() ) );
+				if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and other:GetFormationUnitCount() == unit:GetFormationUnitCount() then
+					local oclass = ( GameInfo.Units[ other:GetUnitType() ] or {} ).FormationClass;
+					table.insert( oclass ~= myClass and different or same, Locale.Lookup( other:GetName() ) );
+				end
+			end
+			for _, list in ipairs( { different, same } ) do
+				for _, name in ipairs( list ) do
+					if #names < partners then table.insert( names, name ); end
 				end
 			end
 		end
@@ -4498,13 +4509,13 @@ local function SRBuildActions()
 		if not hasSkip then
 			local why:string = SRRefusalReason( unit, GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash );
 			local formationHint:string = SRFormationHint( unit );
-			if formationHint ~= "" then why = formationHint; end
+			if why == "" then why = formationHint; end
 			if why == "" then why = "the game offers no skip for this unit now"; end
 			local alternatives:string = ( GameInfo.Units[unit:GetUnitType()].FoundCity ) and "move it, found a city or delete it" or "move it or delete it";
 			local hotkey:string = "";
 			local skipId = Input.GetActionId( "SkipTurn" );
 			if skipId ~= nil then hotkey = Input.GetGestureDisplayString( skipId, 0 ) or ""; end
-			local reason:string = ( formationHint ~= "" ) and why or ( why .. ". To get past it: " .. alternatives );
+			local reason:string = ( formationHint ~= "" and why == formationHint ) and why or ( why .. ". To get past it: " .. alternatives );
 			table.insert( m_srActions, { callback = function() OutputMessageToScreenReader( "Cannot skip: " .. reason ); end } );
 			table.insert( plain, {
 				id = #m_srActions, name = "Skip Turn", hotkey = hotkey, disabled = true, reason = reason, detail = reason,
