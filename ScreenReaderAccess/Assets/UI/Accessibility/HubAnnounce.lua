@@ -232,8 +232,11 @@ end
 
 -- "Turn 5, 3600 BC". Said once per turn: a new turn and a finished load both announce it, and a loaded game
 -- gets no turn-begin event at all.
+local m_endedTurn:number = -1;			-- game turn for which a turn end was seen and is not yet confirmed or refuted (see TurnNotEnded)
+
 function HubAnnounce.AnnounceTurn()
 	if not HubCore.IsLocalPlayerActive() then return; end
+	m_endedTurn = -1;
 	local turn:number = Game.GetCurrentGameTurn();
 	local key:string = Game.GetLocalPlayer() .. ":" .. turn;
 	if key == HubCore.m_lastAnnouncedTurn then return; end
@@ -257,6 +260,7 @@ end
 
 -- A game was loaded or started: forget everything about the previous one.
 function HubAnnounce.OnLoadScreenClose()
+	m_endedTurn = -1;
 	HubCore.ClearSpeechHold();
 	HubAnnounce.ResetReadyWatch();
 	HubCore.m_lastAnnouncedTurn = "";
@@ -285,16 +289,28 @@ end
 -- the end-of-turn processing asks for orders (or a screen still needs the player). IsTurnActive is true again within
 -- 0.1 s, but PlayerTurnActivated(local, false) and LocalPlayerTurnBegin only follow ~3 s later and the action panel
 -- says "Please wait" until then. So after "Turn ended" (or a turn end that did not happen) we watch for it.
-local m_endedTurn:number = -1;			-- game turn for which a turn end was seen and is not yet confirmed or refuted
 local m_notEndedWatch:number = 0;		-- id of the running label wait (a new turn end cancels an older one)
 
 -- Sentence case of the action panel's blocker text ("UNIT NEEDS ORDERS" -> "Unit needs orders"), "" while it only waits.
+-- Pure: "" when the label is empty or one of the ignored lower-cased non-blocker texts.
+function HubAnnounce.BlockerFromLabel( text:string, ignored:table )
+	if text == nil or text == "" then return ""; end
+	local lower:string = string.lower( text );
+	for _, other in ipairs( ignored ) do
+		if lower == other then return ""; end
+	end
+	return string.upper( string.sub( text, 1, 1 ) ) .. string.lower( string.sub( text, 2 ) );
+end
+
 local function BlockerText()
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
 	if label == nil then return ""; end
-	local text:string = CleanTextForSpeech( label:GetText() or "" );
-	if text == "" or string.lower( text ) == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_PLEASE_WAIT" ) ) ) then return ""; end
-	return string.upper( string.sub( text, 1, 1 ) ) .. string.lower( string.sub( text, 2 ) );
+	-- not blockers: "Please wait", "Next turn" (the blocker resolved), "Waiting for other players"
+	local ignored:table = {};
+	for _, key in ipairs( { "LOC_ACTION_PANEL_PLEASE_WAIT", "LOC_ACTION_PANEL_NEXT_TURN", "LOC_ACTION_PANEL_WAITING_FOR_PLAYERS" } ) do
+		table.insert( ignored, string.lower( CleanTextForSpeech( Locale.Lookup( key ) ) ) );
+	end
+	return HubAnnounce.BlockerFromLabel( CleanTextForSpeech( label:GetText() or "" ), ignored );
 end
 
 -- The local turn is active again in the same game turn: say what blocks it, once the panel has the text (max 6 s).
@@ -319,7 +335,9 @@ local function TurnNotEnded( turn:number )
 			HubCore.After( 0.25, Check );
 			return;
 		end
-		OutputMessageToScreenReader( text ~= "" and ( "Turn not ended: " .. text ) or "Turn not ended", true );
+		-- no real blocker text: the turn probably did end (slow IsTurnActive); say nothing rather than a bare "Turn not ended"
+		if text == "" then return; end
+		OutputMessageToScreenReader( "Turn not ended: " .. text, true );
 	end
 	Check();
 end
