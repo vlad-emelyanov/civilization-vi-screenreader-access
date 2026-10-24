@@ -1,0 +1,33 @@
+# Written blind (2026-10-24, batch F, not run in game). Was: after "What would it take?" the counter-offer named no focused item, the next Down said "Accept Deal, 1 of 2" and Enter accepted a deal the player meant to refuse; or Enter said "Item no longer available". Now the speech ends with "Focus: <first enabled action>, 1 of N" and Enter on a focus nobody announced announces it instead of acting.
+# covers: **/SRA_DealView.lua **/DealSpeech.lua
+# no-share-load: changes the deal
+load pt-ai-deal-offer
+clear-advisors
+key Enter -Settle 800
+action KeyNavDiplomacy -Settle 2500
+expect ^Diplomacy, met civilizations
+key Enter -Settle 2500
+expect ^Diplomacy with
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect ^Make Deal
+key Enter -Settle 3500
+expect ^Deal with
+key Tab -Settle 800
+expect ^Your items, \d+ items?
+key Enter -Settle 2000
+expect ^Added: You give
+key Tab -Settle 800
+key Tab -Settle 800
+expect ^Actions, \d+ items?
+# the "What would it take?" button (EqualizeDeal); its position and label come from the game
+key Down -Settle 500 -Count 3
+key Enter -Settle 6000 -Quiet 1500
+expect (?i)Focus: [^,]+, \d+ of \d+\. Up and Down to move
+key Down -Settle 600
+expect \d+ of \d+
+key Escape -Settle 1500
+key Escape -Settle 1500
+no-lua-errors

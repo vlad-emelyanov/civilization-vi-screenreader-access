@@ -3363,6 +3363,8 @@ local m_srSpokenLeader:string = "";
 local m_srSpokenSig:string = "";			-- the deal summary as last spoken
 local m_srAcceptTime = nil;					-- when the final Accept was pressed, so the hide says "Deal accepted"
 local m_srStatementTime = nil;				-- UI.GetElapsedTime() when it arrived
+local m_srNeedAnnounce:boolean = false;		-- the lists changed under the focus and nothing named the focused item: Enter announces it first
+local m_srActionSig:string = "";				-- the action buttons as last spoken
 local m_srStatement = nil;					-- what the leader said when the deal was opened (LuaEvents.SRA_DealStatement from DiplomacyActionView)
 
 local function SRA_Say( text:string, nointerrupt:boolean )
@@ -3778,6 +3780,7 @@ local function SRA_Announce()
 	table.insert( parts, "Tab switches sections: Deal, Your items, Their items, Actions. S reads the summary. Control+Tab goes back a section." );
 	m_srSpokenLeader = m_srLeaderText;
 	m_srSpokenSig = summary;
+	m_srActionSig = SRA_ActionNames();
 	SRA_Say( table.concat( parts, " " ), true );
 end
 
@@ -3789,6 +3792,8 @@ function SRA_ArmOpen()
 	m_srFlushWait = -1;
 	m_srIncomingAction = nil;
 	m_srAcceptTime = nil;
+	m_srNeedAnnounce = false;
+	m_srActionSig = "";
 	m_srSection = ( ms_InitiatedByPlayerID == ms_OtherPlayerID ) and 4 or 1;
 	for _, list in ipairs( m_srLists ) do list.Reset(); end
 	if m_srOptList ~= nil then m_srOptList.Reset(); end
@@ -3817,6 +3822,56 @@ function SRA_NoteIncoming( eAction )
 	SRA_Touch();
 end
 
+-- After a refresh that changed the deal or the buttons: all lists forget their focus; the action buttons get a defined
+-- focus (the first enabled one, e.g. Accept Deal) that is named in the speech. Returns that sentence (nil: no buttons).
+function SRA_RefocusAfterRefresh()
+	for _, list in ipairs( m_srLists ) do list.Reset(); end
+	local items:table = SRA_ActionItems();
+	if #items == 0 then
+		m_srNeedAnnounce = true;
+		return nil;
+	end
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.choosable then index = i; break; end
+	end
+	m_srSection = 4;
+	m_srLists[4].Open( "Actions", items[ index ].key, true );
+	m_srNeedAnnounce = false;
+	return "Focus: " .. items[ index ].text .. ", " .. index .. " of " .. #items .. ". Up and Down to move, Enter to choose.";
+end
+
+-- The focused item of the current section vanished in a refresh that did not rebuild the focus: forget it, so the
+-- next Enter announces the first item instead of acting.
+function SRA_CheckFocusStillThere()
+	local list:table = m_srLists[ m_srSection ];
+	local key = list.GetFocusKey();
+	if key == nil then return; end
+	for _, item in ipairs( SRA_BuildSection( m_srSection ) ) do
+		if item.key == key then return; end
+	end
+	list.Reset();
+	m_srNeedAnnounce = true;
+end
+
+-- Enter while the focus was never announced since the last refresh: name the focused item (the first when none).
+local function SRA_AnnounceFocusInsteadOfActing()
+	m_srNeedAnnounce = false;
+	local list:table = m_srLists[ m_srSection ];
+	local items:table = SRA_BuildSection( m_srSection );
+	if #items == 0 then SRA_Say( "Nothing available" ); return; end
+	local key = list.GetFocusKey();
+	local index:number = 1;
+	for i, item in ipairs( items ) do
+		if item.key == key then index = i; break; end
+	end
+	list.Focus( items[ index ].key, nil );
+	local item:table = items[ index ];
+	if item.choosable ~= false and not item.empty then
+		SRA_Say( "Enter again to choose it", true );
+	end
+end
+
 -- Speaks the answer of the other side and every change of the leader's text or the deal that nobody has spoken yet.
 local function SRA_Flush()
 	if not m_srAnnounced or ContextPtr:IsHidden() then return; end
@@ -3839,12 +3894,22 @@ local function SRA_Flush()
 		table.insert( parts, "Deal changed. " .. summary );
 		m_srSpokenSig = summary;
 	end
-	if #parts > 0 then
-		if action ~= nil then
-			local actions:string = SRA_ActionNames();
-			if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
+	local actionSig:string = SRA_ActionNames();
+	local refreshed:boolean = ( action ~= nil or actionSig ~= m_srActionSig );
+	m_srActionSig = actionSig;
+	if #parts > 0 or refreshed then
+		if action ~= nil and actionSig ~= "" then
+			table.insert( parts, "Actions: " .. actionSig .. "." );
 		end
-		SRA_Say( table.concat( parts, " " ), true );
+		-- the items and buttons changed (counter offer, answer of the other side, removed item): rebuild the focus from
+		-- the visible state and say it, so the next Enter never acts on something that was not announced
+		if refreshed and #parts > 0 then
+			local focusText:string = SRA_RefocusAfterRefresh();
+			if focusText ~= nil then table.insert( parts, focusText ); end
+		elseif #parts > 0 then
+			SRA_CheckFocusStillThere();
+		end
+		if #parts > 0 then SRA_Say( table.concat( parts, " " ), true ); end
 	end
 end
 
@@ -3857,7 +3922,8 @@ function SRA_OnHide()
 	m_srFlushWait = -1;
 	local accepted:boolean = ( m_srAcceptTime ~= nil and UI.GetElapsedTime() - m_srAcceptTime < 5 );
 	m_srAcceptTime = nil;
-	SRA_Say( accepted and "Deal accepted" or "Deal closed", true );
+	-- the leader screen stays open behind the deal with its Goodbye answer: it needs one more Enter
+	SRA_Say( ( accepted and "Deal accepted" or "Deal closed" ) .. ". The leader screen is open, Enter says goodbye.", true );
 end
 
 function SRA_OnUpdate( deltaTime:number )
@@ -3899,7 +3965,12 @@ local function SRA_HandleKey( input:table, key:number, isUp:boolean )
 		m_srOptList.HandleInput( input );
 		return;
 	end
+	if key == Keys.VK_RETURN and m_srNeedAnnounce then
+		if isUp then SRA_AnnounceFocusInsteadOfActing(); end
+		return;
+	end
 	if key == Keys.VK_TAB then
+		m_srNeedAnnounce = false;
 		if isUp then SRA_CycleSection( ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1 ); end
 		return;
 	end
