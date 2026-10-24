@@ -1,12 +1,12 @@
-# Written blind 2026-10-24 (not yet recorded; run with civregress --record first). Treat With Clan popup keys in the Barbarian Clans mode (fixture pt-modes-t75).
+# Recorded 2026-10-24. Treat With Clan popup keys in the Barbarian Clans mode (fixture pt-modes-t75).
 # The popup is opened with the camp banner's own event from a tuner call (the plot index is looked up from the camp improvement); Enter must not reach end turn.
 # Nothing is bought or incited: Right/Left only choose a target (no gold is spent), Enter is only pressed on Close.
 # covers: **/TreatWithTribePopup_SRA.lua **/TreatClanText.lua **/HelpText.lua
 load pt-modes-t75
 clear-advisors
 lua InGame local camp = GameInfo.Improvements["IMPROVEMENT_BARBARIAN_CAMP"].Index; for i = 0, Map.GetPlotCount() - 1 do local p = Map.GetPlotByIndex(i); if p:GetImprovementType() == camp then LuaEvents.CityBannerManager_OpenTreatWithTribePopup(i); return i end end
-wait (?i)^Treat With .* Clan -Timeout 8
-expect (?i)\d options?
+wait Treat With .* Clan -Timeout 8
+expect (?i)^Treat With .* Clan.*\d options?
 key End -Settle 800
 expect ^Close, \d of \d
 key Home -Settle 800

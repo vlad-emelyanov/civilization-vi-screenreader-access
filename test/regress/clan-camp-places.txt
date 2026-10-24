@@ -1,17 +1,20 @@
-# Written blind 2026-10-24 (not yet recorded; run with civregress --record first). Barbarian Clans mode (fixture pt-modes-t75): the places list names the clan of a camp,
+# Recorded 2026-10-24. A camp is only listed while VISIBLE (remembered then), so a Scout is spawned next to the known camp at 64,33 (6 tiles west of Rome).
+# Barbarian Clans mode (fixture pt-modes-t75): the places list names the clan of a camp,
 # T opens the Treat With Clan popup (our keyboard copy speaks and closes with Escape). The camp must be in view for T.
-# Categories are Your cities, Your units, Points of interest (Tab twice from the start); items are sorted by distance and the camp (7 tiles from Rome) is
+# Category 3 holds the Tribal Village first, then the camp (second, Down once); categories are Your cities, Your units, Points of interest (Tab twice from the start); items are sorted by distance and the camp (7 tiles from Rome) is
 # assumed to be the first point of interest: if the recording shows another item first, insert Down steps before T.
 # covers: **/HubPlaces.lua **/PlotDescription.lua **/TreatClanText.lua **/TreatWithTribePopup_SRA.lua **/HelpText.lua
+# no-share-load: spawns a unit
 load pt-modes-t75
+clear-advisors
+lua GameCore_Tuner return Players[0]:GetUnits():Create(GameInfo.Units["UNIT_SCOUT"].Index, 65, 33) ~= nil
 clear-advisors
 action KeyNavPlaces -Settle 1500
 key Tab -Settle 1000
 key Tab -Settle 1200
-expect ^Points of interest
-expect (?i)\w+ clan, .*Barbarian Outpost.*T to treat with the clan
-key Space -Settle 1000
-expect (?i)clan, .*Barbarian Outpost
+expect ^Points of interest.*Tribal Village
+key Down -Settle 1000
+expect (?i)\w+ clan, .*Barbarian Outpost.*T to treat with the clan, 2 of 2
 key T -Settle 2500 -Quiet 800
 expect (?i)^Treat With .* Clan
 expect (?i)\d options?
