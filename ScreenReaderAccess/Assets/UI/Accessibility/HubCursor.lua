@@ -292,7 +292,12 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		OutputMessageToScreenReader( "No foreign units in view" );
 		return;
 	end
+	-- in an attack mode the plots the unit can really attack come first, then hostile ones, then the rest
+	if HubTargets.GetTargetMode() ~= nil then
+		for _, entry in ipairs( found ) do entry.valid = HubTargets.IsAttackTarget( Map.GetPlot( entry.x, entry.y ) ); end
+	end
 	table.sort( found, function( a, b )
+		if ( a.valid == true ) ~= ( b.valid == true ) then return a.valid == true; end
 		if a.hostile ~= b.hostile then return a.hostile; end
 		if a.distance ~= b.distance then return a.distance < b.distance; end
 		return a.index < b.index;		-- stable: the same order every time the scan is opened

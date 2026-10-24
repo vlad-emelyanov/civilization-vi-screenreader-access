@@ -207,6 +207,16 @@ local function GetCityAttackTargets( city:table )
 	return set;
 end
 
+-- In a target mode: can the selected unit / city attack (or would its move attack) what is on this plot?
+function HubTargets.IsAttackTarget( plot:table )
+	local mode:number = HubTargets.GetTargetMode();
+	if mode == nil or plot == nil then return false; end
+	local ok:boolean, text = pcall( HubTargets.TargetInfo, mode, plot, UI.GetHeadSelectedUnit() );
+	if not ok or text == nil then return false; end
+	return string.find( text, "valid target", 1, true ) ~= nil or string.find( text, "attack", 1, true ) == 1
+		or string.find( text, "would declare war", 1, true ) == 1;
+end
+
 -- Mode specific words for the cursor plot: path length for a move, valid target and odds for an attack.
 function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 	if unit == nil then

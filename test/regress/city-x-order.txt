@@ -1,0 +1,13 @@
+# Written blind 2026-10-24, not yet recorded. City ranged attack: X cycles attackable enemies (nearest first) before any other unit.
+# covers: **/HubCursor.lua **/HubTargets.lua
+# no-share-load: scenario spawns units
+load bug-ranged-no-reason
+clear-advisors
+scenario city-x-order
+lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Ostia" then UI.SelectCity(c) end end
+wait Ostia -Timeout 8
+key R -Settle 1500
+expect ^City ranged attack
+key X -Settle 1500
+expect (?i)valid target. Barbarian Crossbowman
+no-lua-errors
