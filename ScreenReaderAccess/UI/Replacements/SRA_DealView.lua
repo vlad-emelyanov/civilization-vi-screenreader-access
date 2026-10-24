@@ -3361,8 +3361,12 @@ local m_srIncomingAction = nil;				-- the last DealProposalAction the other side
 local m_srLeaderText:string = "";			-- what the leader says now (set by SetLeaderDialog)
 local m_srSpokenLeader:string = "";
 local m_srSpokenSig:string = "";			-- the deal summary as last spoken
+local m_srSceneOpen:boolean = false;			-- the diplomacy scene (leader screen) behind the deal is open (DiploScene_SceneOpened/Closed)
+local m_srActionTime = nil;						-- when the player last activated an action button (propose, equalize ...)
 local m_srAcceptTime = nil;					-- when the final Accept was pressed, so the hide says "Deal accepted"
 local m_srStatementTime = nil;				-- UI.GetElapsedTime() when it arrived
+SRListen( LuaEvents.DiploScene_SceneOpened, function() m_srSceneOpen = true; end );
+SRListen( LuaEvents.DiploScene_SceneClosed, function() m_srSceneOpen = false; end );
 local m_srNeedAnnounce:boolean = false;		-- the lists changed under the focus and nothing named the focused item: Enter announces it first
 local m_srActionSig:string = "";				-- the action buttons as last spoken
 local m_srStatement = nil;					-- what the leader said when the deal was opened (LuaEvents.SRA_DealStatement from DiplomacyActionView)
@@ -3682,6 +3686,7 @@ local function SRA_OnActionActivate( item:table )
 	local id:string = item.id;
 	SRA_Say( item.label );
 	m_srAcceptTime = nil;
+	m_srActionTime = UI.GetElapsedTime();
 	if id == "AcceptDeal" or id == "DemandDeal" then
 		-- the final accept (the deal is equal on both sides) closes the screen: remember it for the hide
 		local act = ms_LastIncomingDealProposalAction;
@@ -3792,6 +3797,7 @@ function SRA_ArmOpen()
 	m_srFlushWait = -1;
 	m_srIncomingAction = nil;
 	m_srAcceptTime = nil;
+	m_srActionTime = nil;
 	m_srNeedAnnounce = false;
 	m_srActionSig = "";
 	m_srSection = ( ms_InitiatedByPlayerID == ms_OtherPlayerID ) and 4 or 1;
@@ -3826,6 +3832,14 @@ end
 -- focus (the first enabled one, e.g. Accept Deal) that is named in the speech. Returns that sentence (nil: no buttons).
 function SRA_RefocusAfterRefresh()
 	for _, list in ipairs( m_srLists ) do list.Reset(); end
+	-- an incoming AI action while the player browses another section must not move them: keep the section, forget the
+	-- focus (rebuilt from the visible state) and let the next Enter announce first
+	local own:boolean = ( m_srActionTime ~= nil and UI.GetElapsedTime() - m_srActionTime < 8 );
+	m_srActionTime = nil;
+	if not own then
+		m_srNeedAnnounce = true;
+		return nil;
+	end
 	local items:table = SRA_ActionItems();
 	if #items == 0 then
 		m_srNeedAnnounce = true;
@@ -3906,7 +3920,8 @@ local function SRA_Flush()
 		if refreshed and #parts > 0 then
 			local focusText:string = SRA_RefocusAfterRefresh();
 			if focusText ~= nil then table.insert( parts, focusText ); end
-		elseif #parts > 0 then
+		else
+			-- buttons changed silently (or only the leader/deal text did): the focus may be gone, then Enter announces first
 			SRA_CheckFocusStillThere();
 		end
 		if #parts > 0 then SRA_Say( table.concat( parts, " " ), true ); end
@@ -3923,7 +3938,14 @@ function SRA_OnHide()
 	local accepted:boolean = ( m_srAcceptTime ~= nil and UI.GetElapsedTime() - m_srAcceptTime < 5 );
 	m_srAcceptTime = nil;
 	-- the leader screen stays open behind the deal with its Goodbye answer: it needs one more Enter
-	SRA_Say( ( accepted and "Deal accepted" or "Deal closed" ) .. ". The leader screen is open, Enter says goodbye.", true );
+	local sceneOpen:boolean = m_srSceneOpen;
+	if not sceneOpen then
+		pcall( function()
+			local ctl = ContextPtr:LookUpControl( "/InGame/DiplomacyActionView" );
+			sceneOpen = ( ctl ~= nil and not ctl:IsHidden() );
+		end );
+	end
+	SRA_Say( ( accepted and "Deal accepted" or "Deal closed" ) .. ( sceneOpen and ". The leader screen is open, Enter says goodbye." or "." ), true );
 end
 
 function SRA_OnUpdate( deltaTime:number )
@@ -3984,6 +4006,9 @@ local function SRA_HandleKey( input:table, key:number, isUp:boolean )
 			SRA_ChangeAmount( ( key == Keys.VK_RIGHT ) and step or -step );
 		end
 		return;
+	end
+	if key == Keys.VK_UP or key == Keys.VK_DOWN or key == Keys.VK_HOME or key == Keys.VK_END then
+		m_srNeedAnnounce = false;		-- the list announces the item itself
 	end
 	m_srLists[ m_srSection ].HandleInput( input );
 end
