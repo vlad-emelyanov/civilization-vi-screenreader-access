@@ -20,4 +20,9 @@ action KeyNavEraProgress -Settle 2500
 expect ^Era progress\.
 action KeyNavEraProgress -Settle 1500
 expect ^Era progress closed
+# the game's own toggle (numpad Divide = ToggleEraProgress; `key` cannot deliver Divide to the game, so the action handler is called)
+lua EraProgressPanel OnInputActionTriggered(Input.GetActionId('ToggleEraProgress'))
+expect-lua Era progress. .+ age. Era score
+key Escape -Settle 1500
+expect ^Era progress closed
 no-lua-errors
