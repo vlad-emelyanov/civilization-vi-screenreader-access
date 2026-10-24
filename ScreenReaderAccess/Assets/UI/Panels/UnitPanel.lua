@@ -4262,11 +4262,12 @@ local function SRActionName( action:table, tooltip:string )
 	if CleanTextForSpeech( first ) == CleanTextForSpeech( Locale.Lookup( "LOC_GREATPERSON_ACTION_NAME_DEFAULT" ) ) then
 		local unit = UI.GetHeadSelectedUnit();
 		if unit ~= nil and unit:GetGreatPerson() ~= nil then
+			while string.sub( rest, 1, 9 ) == "[NEWLINE]" do rest = string.sub( rest, 10 ); end
 			local nl2:number = string.find( rest, "[NEWLINE]", 1, true );
 			if nl2 ~= nil and nl2 > 1 then rest = string.sub( rest, 1, nl2 - 1 ); end
 			local effect:string = CleanTextForSpeech( rest );
 			-- the first sentence-sized line of the ability text (Space reads the whole tooltip)
-			effect = string.gsub( effect, "^%s+", "" );
+			effect = string.gsub( effect, "^[%s%.]+", "" );
 			return "Activate " .. Locale.Lookup( unit:GetName() ) .. ( effect ~= "" and ( ": " .. effect ) or "" );
 		end
 	end
@@ -4570,7 +4571,9 @@ function SRSayBlockedHotkey( actionId:number )
 					local tooltip:string = action.helpString or "";
 					local name:string = SRActionName( action, tooltip );
 					local reason:string = SRActionReason( unit, action, tooltip );
-					OutputMessageToScreenReader( "Cannot " .. string.lower( name )
+					-- the great person's name keeps its capitals: "Cannot activate Mary Leakey: ..."
+					local lowered:string = string.find( name, "^Activate " ) and ( "activate " .. string.sub( name, 10 ) ) or string.lower( name );
+					OutputMessageToScreenReader( "Cannot " .. lowered
 						.. ( reason ~= "" and ( ": " .. reason ) or "" ) );
 					return;
 				end

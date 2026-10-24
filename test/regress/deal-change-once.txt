@@ -19,11 +19,9 @@ key Tab -Settle 800
 expect ^Your items, \d+ items?
 key Enter -Settle 2000
 expect ^Added: You give
-key Tab -Settle 800
-key Tab -Settle 800
-expect ^Actions, \d+ items?
-expect (Give Gift|Accept|Propose)[^,]*, 1 of \d+
-expect-not Never mind, \d+ of \d+
+# since 4e3e645 the refresh itself focuses the Actions section and names the first enabled action
+expect (?i)Focus: (Give Gift|Accept|Propose)[^,]*, 1 of \d+
+expect-not Focus: Never mind
 key Tab -Settle 800
 key Right -Settle 1500
 expect ^2 diplomatic favor
