@@ -1,0 +1,19 @@
+# Verified 2026-10-24. A city that already made its ranged attack this turn says so: Ostia's attack is used (saved state; the engine's target list is empty then), Mediolanum attacks once and R again says so too.
+# covers: **/HubTargets.lua
+# no-share-load: scenario spawns units, city attacks
+load bug-city-ranged-twice-reason
+clear-advisors
+scenario city-already-attacked
+lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Ostia" then UI.SelectCity(c) end end
+wait Ostia -Timeout 8
+key R -Settle 1500
+expect Ostia can't attack: it already attacked this turn
+lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Mediolanum" then UI.SelectCity(c) end end
+wait Mediolanum -Timeout 8
+key R -Settle 1500
+expect ^City ranged attack
+key Enter -Settle 4000
+expect ^Attacking
+key R -Settle 2000
+expect Mediolanum can't attack: it already attacked this turn
+no-lua-errors

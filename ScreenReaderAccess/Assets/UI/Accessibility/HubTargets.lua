@@ -398,6 +398,30 @@ function HubTargets.CursorToNearestCityTarget()
 	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
 end
 
+HubTargets.cityAttackTurn = {};		-- city id -> game turn of the last city ranged attack we confirmed
+
+-- A visible unit of a civ we are at war with within the city's ranged attack distance (2).
+local function HasEnemyInCityRange( city:table )
+	local found:boolean = false;
+	pcall( function()
+		local me:number = city:GetOwner();
+		local diplomacy = Players[me]:GetDiplomacy();
+		local visibility = PlayersVisibility[me];
+		for dx = -2, 2 do
+			for dy = -2, 2 do
+				local plot:table = Map.GetPlot( city:GetX() + dx, city:GetY() + dy );
+				if plot ~= nil and Map.GetPlotDistance( city:GetX(), city:GetY(), plot:GetX(), plot:GetY() ) <= 2 and visibility:IsVisible( plot:GetIndex() ) then
+					for _, unit in ipairs( Units.GetUnitsInPlot( plot ) ) do
+						local owner:number = unit:GetOwner();
+						if owner ~= me and diplomacy:IsAtWarWith( owner ) then found = true; end
+					end
+				end
+			end
+		end
+	end );
+	return found;
+end
+
 -- Why a city cannot make its ranged attack: the engine's own failure reasons first, then damaged walls / district,
 -- then "already attacked" (targets in range but refused) or "no enemy in range".
 function HubTargets.CityAttackReason( city:table )
@@ -434,6 +458,11 @@ function HubTargets.CityAttackReason( city:table )
 	if noWalls then return "it needs walls"; end
 	local targets:table = GetCityAttackTargets( city );
 	local hasTargets:boolean = targets ~= nil and next( targets ) ~= nil;
+	-- The engine has no "attacked this turn" query (District:CanAttack stays true, CanStartCommand gives no reason, and the
+	-- target list is EMPTY after the attack). So: our own record of the attack, or a visible enemy in range the engine refuses.
+	if not hasTargets and ( HubTargets.cityAttackTurn[ city:GetID() ] == Game.GetCurrentGameTurn() or HasEnemyInCityRange( city ) ) then
+		hasTargets = true;
+	end
 	if hasTargets then
 		return "it already attacked this turn" .. ( damaged ~= nil and ( ", or " .. damaged ) or "" );
 	end
@@ -723,6 +752,7 @@ function HubTargets.ConfirmTarget()
 		local attacker:table = ( mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK ) and UI.GetHeadSelectedDistrict() or city;
 		if attacker ~= nil and CityManager.CanStartCommand( attacker, CityCommandTypes.RANGE_ATTACK, params ) then
 			CityManager.RequestCommand( attacker, CityCommandTypes.RANGE_ATTACK, params );
+			if city ~= nil then HubTargets.cityAttackTurn[ city:GetID() ] = Game.GetCurrentGameTurn(); end
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 		else
 			HubCore.SayResult( "Cannot attack there" );
