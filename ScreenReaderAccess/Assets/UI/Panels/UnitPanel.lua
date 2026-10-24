@@ -4276,6 +4276,16 @@ local function SRIsRangedAttackName( typeName:string )
 	return typeName ~= nil and ( string.find( typeName, "RANGE_ATTACK", 1, true ) ~= nil or string.find( typeName, "AIR_ATTACK", 1, true ) ~= nil );
 end
 
+-- Red reasons of a disabled action's tooltip, else the derived ranged-attack reason (shared by the Tab menu and the hotkey).
+local function SRActionReason( unit:table, action:table, tooltip:string )
+	local reason:string = SRReasons( tooltip );
+	if reason == "" and action.Disabled == true and unit ~= nil and action.userTag ~= nil then
+		local ok:boolean, typeName = pcall( SRTypeName, action.userTag );
+		if ok and SRIsRangedAttackName( typeName ) then reason = SRRangedAttackReason( unit ); end
+	end
+	return reason;
+end
+
 -- Why the engine refuses an operation or command for this unit right now ("" when it says nothing).
 local function SRRefusalReason( unit:table, hash:number )
 	local reasons:table = {};
@@ -4341,15 +4351,9 @@ local function SRBuildActions()
 					if actionId ~= nil then hotkey = Input.GetGestureDisplayString( actionId, 0 ) or ""; end
 				end
 				table.insert( m_srActions, { action = action } );
-					local reason = SRReasons( tooltip );
+					local reason = SRActionReason( unit, action, tooltip );
 					local detail = CleanTextForSpeech( tooltip );
-					if action.Disabled == true and reason == "" and unit ~= nil and action.userTag ~= nil then
-						local okR:boolean, typeNameR = pcall( SRTypeName, action.userTag );
-						if okR and SRIsRangedAttackName( typeNameR ) then
-							reason = SRRangedAttackReason( unit );
-							detail = detail .. ". " .. reason;
-						end
-					end
+					if reason ~= "" and SRReasons( tooltip ) == "" then detail = detail .. ". " .. reason; end
 					-- Make Trade Route / Transfer to Another City: the game gives no tooltip for the disabled button
 					if action.Disabled == true and reason == "" and unit ~= nil and action.userTag ~= nil then
 						local okT:boolean, typeName = pcall( SRTypeName, action.userTag );
@@ -4487,7 +4491,7 @@ function SRSayBlockedHotkey( actionId:number )
 				if action.Disabled == true and action.HotkeyId ~= nil and Input.GetActionId( action.HotkeyId ) == actionId then
 					local tooltip:string = action.helpString or "";
 					local name:string = SRActionName( action, tooltip );
-					local reason:string = SRReasons( tooltip );
+					local reason:string = SRActionReason( unit, action, tooltip );
 					OutputMessageToScreenReader( "Cannot " .. string.lower( name )
 						.. ( reason ~= "" and ( ": " .. reason ) or "" ) );
 					return;
