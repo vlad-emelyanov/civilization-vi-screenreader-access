@@ -50,3 +50,68 @@ test("relative words: distance and plural", function()
 	eq(PlotDescription_GetRelative(from, Map.GetPlot(4, 4)), "1 tile west")
 	eq(PlotDescription_GetRelative(from, nil), nil)
 end)
+
+-- Barbarian Clans mode
+local clanModeOn = true
+GameConfiguration = { GetValue = function(key) return key == "GAMEMODE_BARBARIAN_CLANS" and clanModeOn or nil end }
+PlotDescription_ResetClanMode()
+local function clanManager(index)
+	return {
+		GetTribeIndexAtLocation = function(_, x, y) if x == 4 and y == 4 then return index end return -1 end,
+		GetTribeNameType = function() return 7 end, GetTribeType = function() return 2 end,
+	}
+end
+
+test("clan phrase is nil without the mode", function()
+	local plot = Map.GetPlot(4, 4)
+	Game.GetBarbarianManager = nil
+	eq(PlotDescription_GetClan(plot), nil)
+	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }
+	GameInfo.BarbarianTribeNames = { [7] = { TribeDisplayName = "Badger Claw" } }
+	eq(PlotDescription_GetClanPhrase(plot), nil)			-- no manager
+	Game.GetBarbarianManager = function() return {} end
+	eq(PlotDescription_GetClanPhrase(plot), nil)			-- manager without the tribe methods
+	Game.GetBarbarianManager = function() return clanManager(-1) end
+	eq(PlotDescription_GetClanPhrase(plot), nil)			-- no tribe on the plot
+	eq(PlotDescription_CanTreatWithClan(plot), false)
+end)
+
+test("clan phrase names the clan and its type", function()
+	Game.GetBarbarianManager = function() return clanManager(0) end
+	local plot = Map.GetPlot(4, 4)
+	eq(PlotDescription_GetClanPhrase(plot), "Badger Claw clan, Melee Open")
+	local name, kind, tribe = PlotDescription_GetClan(plot)
+	eq(name, "Badger Claw"); eq(kind, "Melee Open"); eq(tribe, 0)
+	eq(PlotDescription_GetClanPhrase(Map.GetPlot(5, 5)), nil)
+	GameInfo.BarbarianTribes = {}
+	eq(PlotDescription_GetClanPhrase(plot), "Badger Claw clan")		-- the type row is missing
+	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }
+end)
+
+test("treat with the clan needs the plot in view; hidden plots say nothing", function()
+	local plot = Map.GetPlot(4, 4)
+	eq(PlotDescription_CanTreatWithClan(plot), true)
+	world:set(4, 4, { fogged = true })
+	eq(PlotDescription_CanTreatWithClan(plot), false)
+	eq(PlotDescription_GetClanPhrase(plot), "Badger Claw clan, Melee Open")
+	world:set(4, 4, { hidden = true })
+	eq(PlotDescription_GetClanPhrase(plot), nil)
+	world:set(4, 4, { hidden = false, fogged = false })
+	Game.GetBarbarianManager = nil
+end)
+
+test("mode off: tribe data in the base game gives no clan words", function()
+	Game.GetBarbarianManager = function() return clanManager(0) end
+	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }
+	GameInfo.BarbarianTribeNames = { [7] = { TribeDisplayName = "Badger Claw" } }
+	clanModeOn = false
+	PlotDescription_ResetClanMode()
+	local plot = Map.GetPlot(4, 4)
+	eq(PlotDescription_GetClan(plot), nil)
+	eq(PlotDescription_GetClanPhrase(plot), nil)
+	eq(PlotDescription_CanTreatWithClan(plot), false)
+	clanModeOn = true
+	PlotDescription_ResetClanMode()
+	eq(PlotDescription_GetClanPhrase(plot), "Badger Claw clan, Melee Open")
+	Game.GetBarbarianManager = nil
+end)

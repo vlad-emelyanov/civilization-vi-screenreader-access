@@ -22,7 +22,7 @@ Goal: a blind player can play a full game with the keyboard and speech. The turn
 | Shift+Arrows | move the map cursor (existing actions `KeyNavMoveCell*`; logic moves from `WorldInput.lua` into the hub) |
 | I | detailed description of the cursor plot |
 | `.` | cursor to the selected unit/city ("where am I") and speak it (the default key was J until round 8) |
-| `J` | places list: Tab / Control+Tab = category (cities, units incl. automated, points of interest, notification places, foreign cities), Up/Down/Home/End, Space = plot + position, Enter = cursor there (a unit: selects it; in a target mode only moves the target), M = send a unit there, Escape closes |
+| `J` | places list: Tab / Control+Tab = category (cities, units incl. automated, points of interest, notification places, foreign cities), Up/Down/Home/End, Space = plot + position, Enter = cursor there (a unit: selects it; in a target mode only moves the target), M = send a unit there, T = treat with the clan on a Barbarian Clans camp in view (opens the DLC popup, our copy `UI/Replacements/TreatWithTribePopup_SRA.lua`), Escape closes |
 | `M` in the places list | "Send a unit to <place>": your units that can reach it, fastest first; Enter selects and orders the move, Escape goes back |
 | N | what's next: speak the current end-turn blocker (what Enter will do) |
 | Tab | selected unit: actions menu (Up/Down, Enter runs, Space reads the tooltip, Escape closes) |
