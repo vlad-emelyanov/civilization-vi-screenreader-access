@@ -2742,9 +2742,10 @@ local function SRA_SummaryItems()
 			table.insert( items, { key = "sprop:" .. key, kind = "info", text = text, detail = text } );
 		end
 	end
+	-- Back to voting before Submit: End must land on Submit, not on the way back
+	table.insert( items, { key = "back", kind = "back", text = "Back to voting", detail = "Goes back to the resolutions" } );
 	table.insert( items, { key = "submit", kind = "submit", text = "Submit votes",
 		detail = function() return "Sends your votes and ends your turn. " .. ( m_StartingFavor - m_WorkingFavor ) .. " favor spent, " .. m_WorkingFavor .. " left"; end } );
-	table.insert( items, { key = "back", kind = "back", text = "Back to voting", detail = "Goes back to the resolutions" } );
 	return items;
 end
 
@@ -3114,6 +3115,7 @@ local function SRA_CloseSpoken()
 		SRA_Say( "Closed. Resume Congress still blocks the turn; Enter or Control+N reopens it." );
 	else
 		SRA_Say( "World Congress closed" );
+		LuaEvents.SRA_CongressClosedSpoken();		-- a crisis popup that opened meanwhile was cut off by this line: it speaks again
 	end
 end
 
@@ -3196,7 +3198,7 @@ local function SRA_Help()
 	if mode == "vote" then
 		SRA_Say( "Up and Down move between resolutions and proposals. Left and Right choose option A or B. Equals or Shift Up adds a vote, minus or Shift Down removes one. T or Enter chooses the target. Space reads the whole resolution. N or the last item reviews your votes. Escape closes the screen; Resume Congress reopens it." );
 	elseif mode == "summary" then
-		SRA_Say( "Up and Down read your choices. Enter on Submit votes, or N, sends them and ends your turn. Back to voting returns. Escape closes the screen." );
+		SRA_Say( "Up and Down read your choices. Enter on Submit votes, or N, sends them and ends your turn. Back to voting, just before Submit, returns. End jumps to Submit votes. Escape closes the screen." );
 	elseif m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
 		SRA_Say( "Up and Down move. Enter selects or unselects a proposal. Space reads details. N or the Submit item sends them. Left and Right switch tabs. Escape closes." );
 	else

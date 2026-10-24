@@ -5,6 +5,7 @@ include("LeaderIcon");
 include("CivilizationIcon");
 include("WorldCrisisSupport");
 include("ScreenReader");		-- ScreenReaderAccess mod change
+include("SRListen");		-- ScreenReaderAccess mod change
 include("WorldCongressText");	-- ScreenReaderAccess mod change
 
 -- ===========================================================================
@@ -39,6 +40,9 @@ local m_srLines			:table = {};		-- detail lines for Up/Down (scoring, members an
 local m_srIndex			:number = 0;
 local m_srChoice		:number = 1;		-- answer required: 1 = Join, 2 = Reject
 local m_srHold			:boolean = false;
+local m_srUnread		:boolean = false;	-- the opening may not have been heard: nothing was read or answered since it was spoken
+local m_srRespeak		:number = -1;		-- seconds until the opening is spoken again
+local m_srClosedAt		:number = -100;		-- when the World Congress last said it closed (that line interrupts the opening)
 -- End ScreenReaderAccess mod change
 
 
@@ -322,6 +326,26 @@ function SRA_ReleaseHold()
 end
 
 -- ===========================================================================
+function SRA_Respeak()
+	if ContextPtr:IsHidden() or not m_srUnread or m_srOpening == "" then return; end
+	OutputMessageToScreenReader(m_srOpening);
+end
+
+function SRA_OnUpdate( deltaTime:number )
+	if m_srRespeak < 0 then return; end
+	m_srRespeak = m_srRespeak - deltaTime;
+	if m_srRespeak < 0 then
+		m_srRespeak = -1;
+		SRA_Respeak();
+	end
+end
+
+-- The congress closes with a line that interrupts speech: a crisis popup shown at the same time says its opening again.
+function SRA_OnCongressClosed()
+	m_srClosedAt = UI.GetElapsedTime();
+	if not ContextPtr:IsHidden() and m_srUnread then m_srRespeak = 0.6; end
+end
+
 function OnShow()
 	Controls.AnimSoundOnShow:SetToBeginning();	
 	Controls.SlideOnShow:SetToBeginning();
@@ -329,6 +353,8 @@ function OnShow()
 	Controls.SlideOnShow:Play();	
 	UI.PlaySound("ScoredCompetition_open");
 	if m_srOpening ~= "" then OutputMessageToScreenReader(m_srOpening); end		-- ScreenReaderAccess mod change
+	m_srUnread = true;
+	if UI.GetElapsedTime() - m_srClosedAt < 8 then m_srRespeak = 1.2; end		-- shown right after the congress: its closing line may have cut the opening off
 end
 
 -- ===========================================================================
@@ -449,6 +475,7 @@ function OnInputHandler( pInputStruct:table )
 		elseif not Controls.SlideOnShow:IsReversing() then Close(); end
 	-- Begin ScreenReaderAccess mod change: Enter closes (or answers), Up/Down read the details or choose Join / Reject
 	elseif msg == KeyEvents.KeyUp and not Controls.SlideOnShow:IsReversing() then
+		m_srUnread = false;
 		if key == Keys.VK_RETURN then
 			if m_isAnswerRequired then
 				if m_srChoice == 1 then OnJoinClicked(); else OnRejectClicked(); end
@@ -473,6 +500,7 @@ end
 --	UI EVENT
 -- ===========================================================================
 function OnShutdown()
+	SRUnlistenAll();
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "isVisible", not ContextPtr:IsHidden());
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "m_targetPlayerID", m_targetPlayerID);
 	LuaEvents.GameDebug_AddValue(RELOAD_CACHE_ID, "m_emergencyType", m_emergencyType);
@@ -510,6 +538,8 @@ function Initialize()
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShowHandler(OnShow);
 	ContextPtr:SetShutdown(OnShutdown);
+	ContextPtr:SetUpdate(SRA_OnUpdate);		-- ScreenReaderAccess mod change
+	SRListen( LuaEvents.SRA_CongressClosedSpoken, SRA_OnCongressClosed );
 
 	Controls.JoinButton:RegisterCallback( Mouse.eLClick, OnJoinClicked );
 	Controls.RejectButton:RegisterCallback( Mouse.eLClick, OnRejectClicked );

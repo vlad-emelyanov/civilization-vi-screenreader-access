@@ -4253,7 +4253,23 @@ local function SRActionName( action:table, tooltip:string )
 	if action.SRName ~= nil then return action.SRName; end
 	local first:string = tooltip or "";
 	local nl:number = string.find( first, "[NEWLINE]", 1, true );
-	if nl ~= nil then first = string.sub( first, 1, nl - 1 ); end
+	local rest:string = "";
+	if nl ~= nil then
+		rest = string.sub( first, nl + 9 );
+		first = string.sub( first, 1, nl - 1 );
+	end
+	-- A great person's own ability is titled "Activated Effect" by the game: "Activate Mary Leakey: <what it does>"
+	if CleanTextForSpeech( first ) == CleanTextForSpeech( Locale.Lookup( "LOC_GREATPERSON_ACTION_NAME_DEFAULT" ) ) then
+		local unit = UI.GetHeadSelectedUnit();
+		if unit ~= nil and unit:GetGreatPerson() ~= nil then
+			local nl2:number = string.find( rest, "[NEWLINE]", 1, true );
+			if nl2 ~= nil and nl2 > 1 then rest = string.sub( rest, 1, nl2 - 1 ); end
+			local effect:string = CleanTextForSpeech( rest );
+			-- the first sentence-sized line of the ability text (Space reads the whole tooltip)
+			effect = string.gsub( effect, "^%s+", "" );
+			return "Activate " .. Locale.Lookup( unit:GetName() ) .. ( effect ~= "" and ( ": " .. effect ) or "" );
+		end
+	end
 	return CleanTextForSpeech( first );
 end
 
