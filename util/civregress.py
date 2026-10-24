@@ -68,7 +68,7 @@ all-green, unaborted `regress all`), else (nothing recorded / unknown rev) every
 uncommitted tracked changes) + untracked files. Selected: a script whose covers glob matches a changed file; every script without a
 `# covers:` header; a script that changed itself (test/regress/<name>.txt); scripts using a changed util/scenarios/<s>.lua; scripts
 with `action` steps when a ScreenReaderAccess/Database/*.sql changed. CORE files (ScreenReader.lua, KeyNavList.lua, SRListen.lua,
-KeyboardNavigation.lua, UI/Additions/InGameAccess.lua, Accessibility/Hub*.lua) select EVERYTHING. Changed mod files that no script
+KeyboardNavigation.lua, UI/Additions/InGameAccess.lua, Accessibility/HubCore.lua) select EVERYTHING; other Hub*.lua go by `# covers:` (the end-of-round `regress all` backs this up: a script it fails that `changed` skipped needs the missing file in its `# covers:`). Changed mod files that no script
 covers are listed ("not covered"): they are not run by `changed`, only by `all`. `--dry-run` shows the selection and the reasons.
 
 Record mode (for a script written blind, never run against the game): `--record` runs the script (never shares loads) and
@@ -996,9 +996,10 @@ def breakdown_total(results):
 # ---------------------------------------------------------------- `regress changed`: which scripts do the changes affect
 
 MOD_DIR = "ScreenReaderAccess/"
-# Files every script depends on (the speech layer, list navigation, event bookkeeping, the in-game hub): a change selects everything.
+# Files every script depends on (the speech layer, list navigation, event bookkeeping, the hub wiring and HubCore): a change selects everything.
+# The other Hub*.lua modules are selected through each script's `# covers:` header.
 CORE_GLOBS = ("**/ScreenReader.lua", "**/KeyNavList.lua", "**/SRListen.lua", "**/KeyboardNavigation.lua",
-              "**/InGameAccess.lua", "**/Hub*.lua")
+              "**/InGameAccess.lua", "**/HubCore.lua")
 
 
 def glob_regex(glob):

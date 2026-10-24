@@ -67,10 +67,20 @@ class CoversTests(unittest.TestCase):
 
     def test_core_file_selects_everything(self):
         for core in ("Assets/UI/Accessibility/ScreenReader.lua", "Assets/UI/Accessibility/KeyNavList.lua",
-                     "Assets/UI/Accessibility/SRListen.lua", "UI/Additions/InGameAccess.lua", "Assets/UI/Accessibility/HubCursor.lua"):
+                     "Assets/UI/Accessibility/SRListen.lua", "UI/Additions/InGameAccess.lua", "Assets/UI/Accessibility/HubCore.lua",
+                     "Assets/UI/Accessibility/KeyboardNavigation.lua"):
             names, _, sel = self.sel(MOD + core)
             self.assertEqual(names, {n for n, _ in SCRIPTS}, core)
             self.assertIn("core", sel[next(iter(sel))])
+
+    def test_other_hub_modules_go_by_covers(self):
+        scripts = SCRIPTS + [("hubt", script("# covers: **/HubTargets.lua\nload f\nkey A"))]
+        s, _ = cr.select_changed(scripts, [MOD + "Assets/UI/Accessibility/HubTargets.lua"])
+        self.assertEqual(set(s), {"hubt", "nocovers"})
+        s, _ = cr.select_changed(scripts, [MOD + "Assets/UI/Accessibility/HubCursor.lua"])
+        self.assertEqual(set(s), {"nocovers"})
+        s, _ = cr.select_changed(scripts, [MOD + "Assets/UI/Accessibility/HubCore.lua"])
+        self.assertEqual(set(s), {n for n, _ in scripts})
 
     def test_script_itself_and_scenario(self):
         self.assertEqual(self.sel("test/regress/deal.txt")[0], {"deal", "nocovers"})
