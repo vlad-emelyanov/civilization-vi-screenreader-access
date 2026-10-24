@@ -319,6 +319,7 @@ function SRA_ReadLine( step:number )
 end
 
 function SRA_ReleaseHold()
+	m_srRespeak = -1;		-- the popup closes: no pending re-speak
 	if m_srHold then
 		m_srHold = false;
 		LuaEvents.SRA_SpeechHold( "WorldCrisisPopup", false );
@@ -328,7 +329,7 @@ end
 -- ===========================================================================
 function SRA_Respeak()
 	if ContextPtr:IsHidden() or not m_srUnread or m_srOpening == "" then return; end
-	OutputMessageToScreenReader(m_srOpening);
+	OutputMessageToScreenReader(m_srOpening, true);		-- nointerrupt: must not cut the player's own key speech
 end
 
 function SRA_OnUpdate( deltaTime:number )
@@ -347,6 +348,7 @@ function SRA_OnCongressClosed()
 end
 
 function OnShow()
+	m_srRespeak = -1;
 	Controls.AnimSoundOnShow:SetToBeginning();	
 	Controls.SlideOnShow:SetToBeginning();
 	Controls.AnimSoundOnShow:Play();	

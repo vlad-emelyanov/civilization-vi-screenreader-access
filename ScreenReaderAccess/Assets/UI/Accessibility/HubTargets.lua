@@ -398,7 +398,10 @@ function HubTargets.CursorToNearestCityTarget()
 	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
 end
 
-HubTargets.cityAttackTurn = {};		-- city id -> game turn of the last city ranged attack we confirmed
+HubTargets.cityAttackTurn = {};		-- "owner:city id" -> game turn of the last city ranged attack we confirmed
+HubTargets.districtAttackTurn = {};	-- "owner:district id" -> same for district attacks (not used for the city reason)
+
+local function AttackKey( obj:table ) return tostring( obj:GetOwner() ) .. ":" .. tostring( obj:GetID() ); end
 
 -- A visible unit of a civ we are at war with within the city's ranged attack distance (2).
 local function HasEnemyInCityRange( city:table )
@@ -460,8 +463,12 @@ function HubTargets.CityAttackReason( city:table )
 	local hasTargets:boolean = targets ~= nil and next( targets ) ~= nil;
 	-- The engine has no "attacked this turn" query (District:CanAttack stays true, CanStartCommand gives no reason, and the
 	-- target list is EMPTY after the attack). So: our own record of the attack, or a visible enemy in range the engine refuses.
-	if not hasTargets and ( HubTargets.cityAttackTurn[ city:GetID() ] == Game.GetCurrentGameTurn() or HasEnemyInCityRange( city ) ) then
-		hasTargets = true;
+	if not hasTargets and HubTargets.cityAttackTurn[ AttackKey( city ) ] == Game.GetCurrentGameTurn() then
+		return "it already attacked this turn" .. ( damaged ~= nil and ( ", or " .. damaged ) or "" );
+	end
+	-- not recorded: an enemy within 2 tiles the engine gives no target for may be an attack we did not see, or no line of sight
+	if not hasTargets and HasEnemyInCityRange( city ) then
+		return "no enemy it can target in range, or it already attacked this turn" .. ( damaged ~= nil and ( ", or " .. damaged ) or "" );
 	end
 	if hasTargets then
 		return "it already attacked this turn" .. ( damaged ~= nil and ( ", or " .. damaged ) or "" );
@@ -752,7 +759,11 @@ function HubTargets.ConfirmTarget()
 		local attacker:table = ( mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK ) and UI.GetHeadSelectedDistrict() or city;
 		if attacker ~= nil and CityManager.CanStartCommand( attacker, CityCommandTypes.RANGE_ATTACK, params ) then
 			CityManager.RequestCommand( attacker, CityCommandTypes.RANGE_ATTACK, params );
-			if city ~= nil then HubTargets.cityAttackTurn[ city:GetID() ] = Game.GetCurrentGameTurn(); end
+			if mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK then
+				HubTargets.districtAttackTurn[ AttackKey( attacker ) ] = Game.GetCurrentGameTurn();
+			else
+				HubTargets.cityAttackTurn[ AttackKey( attacker ) ] = Game.GetCurrentGameTurn();
+			end
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 		else
 			HubCore.SayResult( "Cannot attack there" );
