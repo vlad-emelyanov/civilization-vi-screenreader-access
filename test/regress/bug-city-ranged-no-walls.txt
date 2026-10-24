@@ -1,0 +1,10 @@
+# Written blind 2026-10-24 (batch A, not yet recorded). Aquileia has no walls: R says it needs walls (not "no enemy in range", an enemy is adjacent).
+# covers: **/HubTargets.lua **/HubEvents.lua **/HubCursor.lua
+# no-share-load: city commands
+load bug-city-ranged-no-reason
+clear-advisors
+lua InGameAccess for c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Aquileia" then UI.SelectCity(c) end end
+wait Aquileia -Timeout 8
+key R -Settle 1500
+expect ^Aquileia can't attack: it needs walls
+no-lua-errors

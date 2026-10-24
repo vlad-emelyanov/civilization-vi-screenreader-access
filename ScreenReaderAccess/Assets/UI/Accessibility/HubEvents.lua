@@ -237,7 +237,8 @@ function HubEvents.OnUnitKilledInCombat( killedPlayer:number, killedId:number, k
 	local localPlayer:number = Game.GetLocalPlayer();
 	-- a city shot reports no killer (-1): the fight announced just before names the attacker
 	local fight0:table = m_combat;
-	if killerPlayer < 0 and fight0 ~= nil and fight0.defender.player == killedPlayer and fight0.defender.id == killedId
+	-- (a city shot may also report the city's id as a unit id: it can match a unit of ours standing in the city)
+	if fight0 ~= nil and ( killerPlayer < 0 or fight0.attacker.isCity ) and fight0.defender.player == killedPlayer and fight0.defender.id == killedId
 			and UI.GetElapsedTime() - fight0.time < 15 then
 		killerPlayer, killerId = fight0.attacker.player, fight0.attacker.id;
 	end
@@ -251,6 +252,8 @@ function HubEvents.OnUnitKilledInCombat( killedPlayer:number, killedId:number, k
 	end
 	local killed:string = NameOf( killedPlayer, killedId ) or "unit";
 	local killer:string = NameOf( killerPlayer, killerId );
+	if fight0 ~= nil and fight0.attacker.isCity and fight0.attacker.player == killerPlayer and fight0.defender.player == killedPlayer
+			and fight0.defender.id == killedId then killer = nil; end		-- the city, not a unit that shares its id: told below
 	-- a city or district shot (bombard): the killer is no unit, but the fight announced just before names it
 	local fight:table = m_combat;
 	if killer == nil and fight ~= nil and fight.attacker.isCity and fight.attacker.player == killerPlayer

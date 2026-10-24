@@ -10,6 +10,7 @@ local m_cursorX				:number = nil;		-- map cursor (plot coordinates)
 local m_cursorY				:number = nil;
 local m_mouseTimer			:number = -1;		-- >= 0: seconds until the mouse is moved onto the cursor plot
 local m_scanOrigin			:number = nil;		-- plot the X scan started from
+local m_scanMode			:number = nil;		-- interface mode of the last scan: a new mode (an attack mode just opened) starts again at the nearest
 
 -- ===========================================================================
 --	MAP CURSOR
@@ -260,7 +261,9 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		originPlot = Map.GetPlot( x, y );
 	end
 	-- a scan that starts from somewhere else starts again at the nearest plot
-	if m_scanOrigin ~= originPlot:GetIndex() then
+	local scanMode:number = UI.GetInterfaceMode();
+	if m_scanOrigin ~= originPlot:GetIndex() or m_scanMode ~= scanMode then
+		m_scanMode = scanMode;
 		m_scanOrigin = originPlot:GetIndex();
 		m_scanKey = nil;
 	end
