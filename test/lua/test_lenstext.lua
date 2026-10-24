@@ -193,3 +193,24 @@ test("a hotkey right after the mode change keeps the mouse guess quiet", functio
 	eq(#said, 1)
 	contains(said[1][1], "Settler lens on")
 end)
+
+test("a lens that switches late (Tourism) still speaks on the second look", function()
+	reset(); mode = 1; LensText_OnModeChanged(7, 1); reset()
+	LensText_OnKey("LensTourism")
+	fire()
+	eq(#said, 0)		-- not yet: looks again
+	mode = 7
+	fire()
+	eq(#said, 1)
+	contains(said[1][1], "Tourism lens on")
+end)
+
+test("a lens the game does not offer says so instead of staying silent", function()
+	reset(); mode = 1; LensText_OnModeChanged(7, 1); reset()
+	GameCapabilities = { HasCapability = function() return false end }
+	LensText_OnKey("LensTourism")
+	fire(); fire()
+	GameCapabilities = { HasCapability = function() return true end }
+	eq(#said, 1)
+	contains(said[1][1], "Tourism lens is not available")
+end)

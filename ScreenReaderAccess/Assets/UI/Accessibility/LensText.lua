@@ -195,15 +195,32 @@ function LensText_Setup( after, speak )
 	m_after, m_speak = after, speak;
 end
 
+-- Spoken when the game did not switch the lens (capability missing in this game / scenario), else nil
+function LensText_Unavailable( action:string )
+	local lens:table = LensText_Actions[ action ];
+	if lens == nil or lens.id == "Political" then return nil; end
+	local ok:boolean, has = pcall( function() return GameCapabilities.HasCapability( "CAPABILITY_LENS_" .. string.upper( lens.id ) ); end );
+	if ok and not has then return lens.name .. " lens is not available in this game"; end
+	return nil;
+end
+
 function LensText_OnKey( action:string )
 	if LensText_Actions[ action ] == nil or m_after == nil then return; end
 	m_gen = m_gen + 1;
 	local gen:number = m_gen;
-	m_after( 0.3, function()
+	-- the mode change can take longer for some lenses (Tourism): look again once before giving up
+	local function Check( last:boolean )
 		if gen ~= m_gen then return; end		-- pressed again meanwhile: the last press speaks
-		local text:string = LensText_Toggled( action, UI.GetInterfaceMode() == InterfaceModeTypes.VIEW_MODAL_LENS );
+		local modal:boolean = UI.GetInterfaceMode() == InterfaceModeTypes.VIEW_MODAL_LENS;
+		local text:string = LensText_Toggled( action, modal );
+		if text == nil and not modal and not last then
+			m_after( 0.7, function() Check( true ); end );
+			return;
+		end
+		if text == nil and last then text = LensText_Unavailable( action ); end
 		if text ~= nil then m_speak( text, false ); end
-	end );
+	end
+	m_after( 0.3, function() Check( false ); end );
 end
 
 -- the lens whose layer is on, else nil (the layers are probed one by one: a missing layer name is skipped)

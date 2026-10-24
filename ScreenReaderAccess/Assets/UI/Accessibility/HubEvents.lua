@@ -41,6 +41,8 @@ function HubEvents.OnUnitCommandStarted( ownerID:number, unitID:number, commandI
 	if row == nil then return; end
 	local text:string = HubMenus.OPERATION_RESULTS[ row.CommandType ];
 	if text ~= nil then HubCore.SayResult( text ); end
+	-- Delete Unit: UnitPanel says "<unit> deleted"; the next unit the game selects must not cut it off
+	if row.CommandType == "UNITCOMMAND_DELETE" then HubCore.m_lastResultTime = UI.GetElapsedTime(); end
 end
 
 -- The trade choosers hide their contexts (and so stop their update loops) when they close; they ask the hub to tell the
