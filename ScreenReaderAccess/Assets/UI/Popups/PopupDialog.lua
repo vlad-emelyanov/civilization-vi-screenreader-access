@@ -55,6 +55,7 @@ PopupDialogInGame = {
 -- Label of a button we just announced ourselves (keyboard focus); the MouseEnter that follows the
 -- synthetic mouse move must not speak it a second time.
 local m_suppressControl = nil;	-- button control whose next MouseEnter is the echo of a keyboard focus move
+local m_srOpenedAt:number = -100;	-- UI.GetElapsedTime() when the keyboard focus was announced: a MouseEnter on ANOTHER button right after it is the real mouse resting there, not the player
 
 PopupDialog.TOP_CONTROL_ROW				= "Row";
 PopupDialog.TOP_CONTROL_TEXT			= "Text";
@@ -222,6 +223,10 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 	-- Set the same mouseover button sound for all popup buttons
 	pButtonControl:RegisterCallback( Mouse.eMouseEnter, function()
 		UI.PlaySound("Main_Menu_Mouse_Over");
+		if m_suppressControl ~= nil and m_suppressControl ~= pButtonControl and UI.GetElapsedTime() - m_srOpenedAt < 1.5 then
+			-- the mouse already rested on this button when the dialog appeared: stay quiet, keep the suppression for the focused one
+			return;
+		end
 		if m_suppressControl ~= nil and m_suppressControl == pButtonControl then
 			m_suppressControl = nil;
 		else
@@ -422,6 +427,7 @@ function PopupDialog:Open( optionalID:string )
 	if first ~= nil then
 		if first.Label ~= nil then
 			m_suppressControl = first.Control;
+			m_srOpenedAt = UI.GetElapsedTime();
 			OutputMessageToScreenReader(first.Label .. (srExtra ~= nil and (", selected. Up or Down for " .. srExtra) or ""), true);
 		end
 		KeyNavMoveMouse(first.Control, checkStable);
