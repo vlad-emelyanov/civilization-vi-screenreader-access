@@ -2568,6 +2568,16 @@ local function SRA_HasTargets( kRD:table )
 end
 
 -- Text of the target with this value of kResolutionChoice.target (nil: none chosen).
+-- A player id taken from result data (ChosenThing / ResolutionTarget is the player id itself there, not an index of
+-- PossibleTargets): the name, or "an unmet civilization" for one we have not met.
+local function SRA_ReviewPlayerText( pid:number )
+	if PlayerConfigurations[ pid ] == nil then return ""; end
+	if pid ~= Game.GetLocalPlayer() and not Players[ Game.GetLocalPlayer() ]:GetDiplomacy():HasMet( pid ) then
+		return "an unmet civilization";
+	end
+	return SRA_Clean( GetVisiblePlayerName( pid ) );
+end
+
 local function SRA_TargetText( kRD:table, target )
 	if target == nil or target == -1 then return nil; end
 	local text = GetPulldownNameAndIcons( kRD, target );
@@ -2734,19 +2744,26 @@ end
 -- Each voter's choice for a result resolution.
 local function SRA_ReviewVoters( kRD:table )
 	local parts:table = {};
+	local unmetTails:table = {};
 	for _, kData in pairs( kRD.PlayerSelections or {} ) do
 		local target:string = "";
 		if kRD.TargetType == "PlayerType" then
 			local tid = tonumber( kData.ResolutionTarget );
-			if tid ~= nil and tid ~= -1 then target = SRA_TargetText( kRD, tid ) or ""; end
+			if tid ~= nil and tid ~= -1 then target = SRA_ReviewPlayerText( tid ); end
 		else
 			target = SRA_Clean( kData.ResolutionTarget );
 		end
-		local line:string = SRA_PlayerName( tonumber( kData.PlayerID ) ) .. ": " .. WCText_Plural( kData.Votes, "vote" ) ..
-			" for " .. SRA_Clean( kData.OptionChosenLabel );
-		if target ~= "" then line = line .. ", target " .. target; end
-		table.insert( parts, line );
+		local pid = tonumber( kData.PlayerID );
+		local tail:string = WCText_Plural( kData.Votes, "vote" ) .. " for " .. SRA_Clean( kData.OptionChosenLabel );
+		if target ~= "" then tail = tail .. ", target " .. target; end
+		if pid ~= nil and pid ~= Game.GetLocalPlayer() and PlayerConfigurations[ pid ] ~= nil
+				and not Players[ Game.GetLocalPlayer() ]:GetDiplomacy():HasMet( pid ) then
+			table.insert( unmetTails, tail );
+		else
+			table.insert( parts, SRA_PlayerName( pid ) .. ": " .. tail );
+		end
 	end
+	for _, group in ipairs( WCText_UnmetGroups( unmetTails ) ) do table.insert( parts, group ); end
 	return table.concat( parts, ". " );
 end
 
@@ -2763,7 +2780,7 @@ local function SRA_ReviewResolutionItem( kRD:table, withVotes:boolean, turnsLeft
 	local target:string = "";
 	if kRD.TargetType == "PlayerType" then
 		local pid = tonumber( kRD.ChosenThing );
-		if pid ~= nil and pid ~= -1 then target = SRA_TargetText( kRD, pid ) or ""; end
+		if pid ~= nil and pid ~= -1 then target = SRA_ReviewPlayerText( pid ); end
 	else
 		target = SRA_Clean( kRD.ChosenThing );
 	end
@@ -2789,14 +2806,23 @@ local function SRA_ReviewProposalItem( kProposal:table, withVotes:boolean )
 	local title:string, desc:string = SRA_ProposalTexts( kProposal, target );
 	local upVotes, downVotes = nil, nil;
 	local voters:table = {};
+	local unmetTails:table = {};
 	if withVotes and kProposal.PlayerVotes ~= nil then
 		upVotes, downVotes = 0, 0;
 		for _, v in pairs( kProposal.PlayerVotes ) do
 			if v.Votes > 0 then upVotes = upVotes + v.Votes; elseif v.Votes < 0 then downVotes = downVotes - v.Votes; end
 			if v.Votes ~= 0 then
-				table.insert( voters, SRA_PlayerName( tonumber( v.PlayerType ) ) .. ": " .. WCText_Plural( math.abs( v.Votes ), "vote" ) .. ( v.Votes > 0 and " for" or " against" ) );
+				local vid = tonumber( v.PlayerType );
+				local tail:string = WCText_Plural( math.abs( v.Votes ), "vote" ) .. ( v.Votes > 0 and " for" or " against" );
+				if vid ~= nil and vid ~= Game.GetLocalPlayer() and PlayerConfigurations[ vid ] ~= nil
+						and not Players[ Game.GetLocalPlayer() ]:GetDiplomacy():HasMet( vid ) then
+					table.insert( unmetTails, tail );
+				else
+					table.insert( voters, SRA_PlayerName( vid ) .. ": " .. tail );
+				end
 			end
 		end
+		for _, group in ipairs( WCText_UnmetGroups( unmetTails ) ) do table.insert( voters, group ); end
 	end
 	local text:string = WCText_ReviewProposal( title, desc, upVotes, downVotes );
 	return { key = "rprop:" .. tostring( kProposal.TypeName ) .. "_" .. tostring( target ) .. "_" .. tostring( kProposal.Sender ),

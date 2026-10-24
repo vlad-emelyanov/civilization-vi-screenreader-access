@@ -3469,29 +3469,10 @@ local function SRA_SpeakChange( before:table, fallback:string )
 	local give:table, get:table = SRA_DealRecords();
 	local summary:string = DealSpeech_Summary( give, get );
 	m_srSpokenSig = summary;
-	-- "Added: X" already says which side gives X: name only the rest of the deal, not X again
-	if change ~= nil and string.sub( change, 1, 7 ) == "Added: " then
-		local added:string = string.sub( change, 8 );
-		local rest:table = {};
-		local skipped:boolean = false;
-		for _, rec in ipairs( give ) do
-			local text:string = DealSpeech_DealItemText( rec, true );
-			if text == added and not skipped then skipped = true; else table.insert( rest, text ); end
-		end
-		for _, rec in ipairs( get ) do
-			local text:string = DealSpeech_DealItemText( rec, false );
-			if text == added and not skipped then skipped = true; else table.insert( rest, text ); end
-		end
-		if skipped then
-			if #rest == 0 then
-				SRA_Say( change .. ". " .. ( string.sub( added, 1, 9 ) == "You give:" and "They give nothing." or "You give nothing." ) );
-			else
-				SRA_Say( change .. ". Also: " .. table.concat( rest, "; " ) );
-			end
-			return;
-		end
-	end
-	SRA_Say( ( change or fallback or "Nothing changed" ) .. ". " .. summary );
+	local giveTexts:table, getTexts:table = {}, {};
+	for _, rec in ipairs( give ) do table.insert( giveTexts, DealSpeech_DealItemText( rec, true ) ); end
+	for _, rec in ipairs( get ) do table.insert( getTexts, DealSpeech_DealItemText( rec, false ) ); end
+	SRA_Say( DealSpeech_ChangeSpeech( change, giveTexts, getTexts, summary, fallback ) );
 end
 
 -- ---------------------------------------------------------------------------
@@ -3742,7 +3723,15 @@ local function SRA_EnterSection( n:number )
 		return;
 	end
 	SRA_Say( name .. ", " .. SRA_Plural( count, "item" ) );
-	m_srLists[ n ].Focus( m_srLists[ n ].GetFocusKey(), "" );		-- the list speaks the focused item after the section name
+	local focusKey = m_srLists[ n ].GetFocusKey();
+	if n == 4 then
+		-- the buttons come and go (Accept appears once the deal is valid): never keep a stale focus, start on the first enabled one
+		focusKey = items[1].key;
+		for _, item in ipairs( items ) do
+			if item.choosable then focusKey = item.key; break; end
+		end
+	end
+	m_srLists[ n ].Focus( focusKey, "" );		-- the list speaks the focused item after the section name
 end
 
 local function SRA_CycleSection( delta:number )
