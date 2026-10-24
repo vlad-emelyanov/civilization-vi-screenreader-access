@@ -1,0 +1,25 @@
+# Places list: Move To a city the unit cannot enter says "Next to Rome" and moves the target beside it; M on a city-state lists "next to Zanzibar". Verified 2026-10-23.
+# covers: **/HubPlaces.lua **/HubTargets.lua
+# no-share-load: moves a unit
+load early-t60
+clear-advisors
+lua GameCore_Tuner for _,u in Players[0]:GetUnits():Members() do if u:GetX()==61 and u:GetY()==34 then UnitManager.PlaceUnit(u, 62, 31) UnitManager.RestoreMovement(u) end end
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==62 and u:GetY()==31 then UI.SelectUnit(u) break end end
+wait Scout -Timeout 8
+action MoveTo -Settle 1500
+expect ^Move to: choose a tile
+action KeyNavPlaces -Settle 1500
+key Enter -Settle 1500
+expect ^Next to Rome
+expect ^\d+ turns?\.
+key Enter -Settle 2500
+expect ^(Moving|Arrived)
+lua InGameAccess UI.DeselectAll()
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 600 -Count 3
+expect ^Foreign cities
+key M -Settle 2000
+expect next to Zanzibar
+key Escape -Settle 1000
+expect ^Places\. Foreign cities
+no-lua-errors

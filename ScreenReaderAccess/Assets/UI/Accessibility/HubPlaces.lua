@@ -130,8 +130,10 @@ function HubPlaces.OrderHint( unit:table )
 		return ok and can == true;
 	end
 	if activity:find( "^moving to" ) and Can( "CANCEL" ) then return "Shift+C cancels the move"; end
-	if ( activity == "sleeping" or activity == "fortified" or activity == "on alert" or activity == "turn skipped" or activity == "healing" ) and Can( "WAKE" ) then
-		return "Shift+W wakes it";
+	if activity == "sleeping" or activity == "fortified" or activity == "on alert" or activity == "turn skipped" or activity == "healing" then
+		-- a sleeping unit can be woken; a fortified one only cancelled (the game offers Cancel, WAKE is refused for it)
+		if Can( "WAKE" ) then return "Shift+W wakes it"; end
+		if Can( "CANCEL" ) then return "Shift+C cancels it"; end
 	end
 	return "Any order replaces it, Tab for actions";
 end
