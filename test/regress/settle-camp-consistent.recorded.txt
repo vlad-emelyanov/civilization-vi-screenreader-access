@@ -1,0 +1,36 @@
+# Verified 2026-10-24. Fixture pt-modes-t94: a barbarian camp lies on a revealed plot in the fog (64,33) that the player has not seen since; the settle browser used to name it ("but barbarian camp") while the places list did not know it.
+# covers: Accessibility/SettleScan.lua Accessibility/HubPlaces.lua Accessibility/HubSettle.lua
+# no-share-load: selects the settler
+load pt-modes-t94
+lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(917509)) return 1
+key X -Settle 1500
+expect ^Settle spots, \d+ options
+#   -> PASS; window had 18 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | You have built great cities of stone and seen early empires rise and fall. Soon you will stand under the towering pinnacles of castles alongside your gallant knights. That is where the story of your people will be written. Just as the young apprentice learns to carry a sword, so shall you grow to understand your place in this world.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 94, 1260 AD
+#      | All done. Enter ends the turn
+#      | Settler, 2 of 2 moves, moving to 5 tiles south of Aquileia, 4 turns. Lake, yours, 1 Food 1 Gold, 1 tile south-west of Aquileia
+#      | Cannot settle here: lake. Best: 4 tiles south, 4 turns, river, ring 1: stone, truffles. X to browse.
+#      | Settle spots, 8 options
+#      | 4 tiles south, 4 turns, river, ring 1: stone, truffles, 1 of 8
+key Down -Settle 600
+expect-not (?i)barbarian camp
+#   -> PASS; window had 1 SR> line(s):
+#      | 5 tiles north, 4 turns, river, ring 2: truffles, ring 1: sheep, but close to Aquileia, on sheep, recommended, 2 of 8
+key Down -Settle 600
+expect-not (?i)barbarian camp
+#   -> PASS; window had 1 SR> line(s):
+#      | 11 tiles east, 7 turns, ring 1: pearls, turtles, coast, ring 2: fish, stone, but coastal flooding, poor land, recommended, 3 of 8
+key Escape -Settle 800
+no-lua-errors

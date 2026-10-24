@@ -388,6 +388,14 @@ local function _Info( ctx:table, plot:table )
 	local improvement:number = plot:GetImprovementType();
 	info.camp = improvement ~= nil and improvement >= 0 and GameInfo.Improvements[ improvement ] ~= nil
 		and GameInfo.Improvements[ improvement ].ImprovementType == "IMPROVEMENT_BARBARIAN_CAMP";
+	-- A plot in the fog: what it holds now is not known to the player (a camp may have spawned there), only a camp
+	-- that was seen there counts (the places list remembers it).
+	if info.camp then
+		local vis:table = PlayersVisibility ~= nil and PlayersVisibility[ ctx.localPlayer ] or nil;
+		if vis ~= nil and not vis:IsVisible( index ) then
+			info.camp = HubPlaces ~= nil and HubPlaces.IsCampRemembered ~= nil and HubPlaces.IsCampRemembered( index ) or false;
+		end
+	end
 	if MapFeatureManager ~= nil and MapFeatureManager.CanSufferEruption ~= nil then
 		local ok:boolean, erupts = pcall( MapFeatureManager.CanSufferEruption, plot );
 		info.volcano = ok and erupts == true;
@@ -632,6 +640,7 @@ function SettleScan_Scan( unit:table, force:boolean )
 	if not force and key == m_scanKey and m_scan ~= nil then return m_scan; end
 
 	_RefreshGrid();
+	if HubPlaces ~= nil and HubPlaces.RefreshSeen ~= nil then pcall( HubPlaces.RefreshSeen ); end		-- the camps in view now are remembered
 	local result:table = { list = {} };
 	local plotCache:table = {};
 	local function PlotAt( x:number, y:number )

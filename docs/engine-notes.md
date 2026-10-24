@@ -148,3 +148,8 @@ The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goe
 ## Lua limits
 
 - A chunk holds at most 200 local variables (functions included): `InGameAccess.lua` hit it (the file did not compile: "too many local variables"). The hub is now split into `Accessibility/Hub*.lua` modules (one global table each, `function HubX.Name()` for anything shared): each file stays far below the limit (the hub itself has 2 top-level locals). `util/lint.py` warns when a file passes 185 top-level locals; luacheck itself does NOT report the limit; count with `grep -c '^local ' <file>`.
+
+## Turn end handed back (verified 2026-10-24, pt-modes-t90)
+
+- `Events.LocalPlayerTurnEnd` also fires when ending the turn is refused during the end-of-turn processing (an auto-exploring scout or a unit with a queued move finishes and asks for orders). `IsTurnActive()` is false at the event, true again within 0.1 s, but `Events.PlayerTurnActivated(local, false)` and `Events.LocalPlayerTurnBegin` (same game turn) only follow ~3 s later, and `/InGame/HUD/ActionPanel/EndTurnText` says "Please wait" until then, then "Unit needs orders". `HubAnnounce.OnLocalPlayerTurnEnd` therefore says "Turn ended" and, when the turn is active again 0.4 s later (or on PlayerTurnActivated with isFirstTime false), "Turn not ended: <panel text>" (waits for the text, max 6 s; a World Congress in session says so instead).
+- Plot memory: `plot:GetImprovementType()` on a revealed plot in the fog returns the live improvement (no `GetRevealed*` API exists in the UI Lua); only what the player saw while the plot was visible may be spoken (`HubPlaces` m_seen, shared with the settle scan via `HubPlaces.IsCampRemembered`). The memory is empty after a load.

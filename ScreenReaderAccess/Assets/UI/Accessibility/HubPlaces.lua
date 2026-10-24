@@ -220,6 +220,46 @@ local function UnitItems( ctx:table )
 	return SortItems( items );
 end
 
+-- What is on a VISIBLE plot is remembered (see ScanSeen); nil forgets it.
+local function RememberPlot( plot:table, index:number )
+	local localID:number = Game.GetLocalPlayer();
+	local entry:table = nil;
+	local improvement:number = plot:GetImprovementType();
+	if improvement ~= nil and improvement >= 0 then
+		local row:table = GameInfo.Improvements[ improvement ];
+		if row ~= nil and POINT_IMPROVEMENTS[ row.ImprovementType ] then
+			entry = { kind = "point", name = Locale.Lookup( row.Name ), camp = ( row.ImprovementType == "IMPROVEMENT_BARBARIAN_CAMP" ) };
+		end
+	end
+	if entry == nil and plot:IsCity() then
+		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+		local owner:table = ( city ~= nil ) and Players[ city:GetOwner() ] or nil;
+		if owner ~= nil and city:GetOwner() ~= localID and not owner:IsBarbarian() then
+			entry = { kind = "foreign", name = Locale.Lookup( city:GetName() ), owner = city:GetOwner(), id = city:GetID() };
+		end
+	end
+	m_seen[ index ] = entry;
+end
+
+-- For SettleScan (X): the settle browser must know about the same camps as the places list. A camp on a plot that is
+-- in the fog counts only when we saw it there (m_seen), never its live state.
+function HubPlaces.RefreshSeen()
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	if vis == nil then return; end
+	local width:number, height:number = Map.GetGridSize();
+	for y = 0, height - 1 do
+		for x = 0, width - 1 do
+			local plot:table = Map.GetPlot( x, y );
+			if plot ~= nil and vis:IsVisible( plot:GetIndex() ) then RememberPlot( plot, plot:GetIndex() ); end
+		end
+	end
+end
+
+function HubPlaces.IsCampRemembered( index:number )
+	local entry:table = m_seen[ index ];
+	return entry ~= nil and entry.camp == true;
+end
+
 -- Looks at every revealed plot: what is on a VISIBLE plot is remembered (tribal villages, barbarian camps, foreign cities)
 -- and forgotten once seen gone; fogged plots keep the memory. Returns the natural wonders (read live, once per wonder).
 local function ScanSeen( ctx:table )
@@ -235,20 +275,7 @@ local function ScanSeen( ctx:table )
 			local index:number = ( plot ~= nil ) and plot:GetIndex() or -1;
 			if plot ~= nil and vis:IsRevealed( index ) then
 				if vis:IsVisible( index ) then
-					local entry:table = nil;
-					local improvement:number = plot:GetImprovementType();
-					if improvement ~= nil and improvement >= 0 then
-						local row:table = GameInfo.Improvements[ improvement ];
-						if row ~= nil and POINT_IMPROVEMENTS[ row.ImprovementType ] then entry = { kind = "point", name = Locale.Lookup( row.Name ) }; end
-					end
-					if entry == nil and plot:IsCity() then
-						local city:table = Cities.GetCityInPlot( x, y );
-						local owner:table = ( city ~= nil ) and Players[ city:GetOwner() ] or nil;
-						if owner ~= nil and city:GetOwner() ~= localID and not owner:IsBarbarian() then
-							entry = { kind = "foreign", name = Locale.Lookup( city:GetName() ), owner = city:GetOwner(), id = city:GetID() };
-						end
-					end
-					m_seen[ index ] = entry;
+					RememberPlot( plot, index );
 				end
 				local featureType:number = plot:GetFeatureType();
 				local row:table = ( featureType ~= nil and featureType >= 0 ) and GameInfo.Features[ featureType ] or nil;
