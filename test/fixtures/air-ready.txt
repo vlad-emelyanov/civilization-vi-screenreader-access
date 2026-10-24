@@ -1,0 +1,7 @@
+turn: 221
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: pt-late-t221 + scenario air-units (2 Fighters+Bomber in Lugdunum, Fighter in Aquileia, 2 Ottoman Modern Armor 3 tiles from Lugdunum)
+mod commit: d68aebc
+created: 2026-10-24
+size: 1452 KB
