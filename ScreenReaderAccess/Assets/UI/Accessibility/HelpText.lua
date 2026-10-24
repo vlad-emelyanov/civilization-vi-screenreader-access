@@ -106,6 +106,7 @@ local m_sections:table = {
 		{ keys = "Enter",				text = "cursor there, a unit of yours is selected" },
 		{ keys = "M",					text = "send one of your units there, fastest first" },
 		{ keys = "Control+N then M",	text = "send a unit to the place of a notification" },
+		{ keys = "T",					text = "on a barbarian clan camp in view (Barbarian Clans mode): treat with the clan, opens hire, incite, bribe or ransom" },
 		{ keys = "Escape",				text = "close the list" },
 	} },
 	{ title = "Cities", entries = {
@@ -157,6 +158,8 @@ local m_sections:table = {
 		{ keys = "Space",				text = "read the rest of a popup" },
 		{ keys = "Up and Down",			text = "move between a popup's buttons" },
 		{ keys = "Escape",				text = "close a popup" },
+		{ keys = "Left and Right",		text = "treat with a clan popup: on Incite, choose the civilization to incite the clan against" },
+		{ keys = "Enter",				text = "treat with a clan popup: hire, incite, bribe, ransom or close; Space reads the full description" },
 		{ keys = "Any popup",			text = "other announcements wait until it closes, then they follow" },
 	} },
 };

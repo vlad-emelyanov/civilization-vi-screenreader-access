@@ -1,5 +1,17 @@
 -- Copyright 2020, Firaxis Games
 include("SupportFunctions");
+include("ScreenReader");		-- ScreenReaderAccess mod change
+include("KeyNavList");			-- ScreenReaderAccess mod change
+include("SRListen");			-- ScreenReaderAccess mod change
+include("TreatClanText");		-- ScreenReaderAccess mod change
+
+-- ScreenReaderAccess mod change: keyboard list over the visible options (Hire, Incite, Bribe or Ransom, Close), speech
+local m_srList		: table = nil;
+local m_srSpeakIn	: number = -1;		-- seconds until the opening is read (after the game filled the controls)
+local m_srTribeIndex: number = -1;
+local m_srClanName	: string = "";
+local m_srTargetLabel : string = "";	-- label of the chosen incite target (the pulldown entry text)
+local m_srHold		: boolean = false;
 
 local m_BarbarianTribePlotIndex : number;
 local m_SelectedInciteTargetID	: number = -1;
@@ -92,6 +104,12 @@ function OnOpenTreatWithTribePopup(plotIndex : number)
 		local strGameplayText = FormatOperationGameplayText(tBribeResults);
 		Controls.TreatOptionBribeDescription:SetText(strGameplayText);
 	end
+
+	-- ScreenReaderAccess mod change: the controls are filled; read the popup after a moment
+	m_srTribeIndex = tribeIndex;
+	m_srClanName = Locale.Lookup(pBarbTribe.TribeDisplayName);
+	m_srTargetLabel = "";
+	SRA_OnOpened();
 end
 
 -- ===========================================================================
@@ -131,7 +149,9 @@ function UpdateInciteTargetPulldown(tribeIndex : number)
 				local strOtherPlayerCivName : string = Locale.Lookup(pOtherPlayerConfig:GetCivilizationShortDescription());
 				local strOtherPlayerLeaderName : string = Locale.Lookup(pOtherPlayerConfig:GetLeaderName());
 				-- Other player cost
-				local iInciteCost : number = pBarbarianManager:GetTribeInciteCost(tribeIndex, iActivePlayer, otherPlayerID);
+				-- ScreenReaderAccess mod change: the original passed `otherPlayerID`, a global that is never set (nil), so the cost
+				-- it computed was for no target (probably 0 or wrong, which keeps Incite disabled). The loop's target is used.
+				local iInciteCost : number = pBarbarianManager:GetTribeInciteCost(tribeIndex, iActivePlayer, eTargetPlayer);
 				if(strOtherPlayerCivName ~= strOtherPlayerLeaderName)then
 					uiIncitePulldownEntry.Button:SetText(strOtherPlayerCivName .. " - " .. strOtherPlayerLeaderName);
 				else
@@ -321,17 +341,201 @@ end
 
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
-	local uiMsg :number = pInputStruct:GetMessageType();
-	if uiMsg == KeyEvents.KeyUp and pInputStruct:GetKey() == Keys.VK_ESCAPE then
-		ClosePopup();
-		return true;
+	-- ScreenReaderAccess mod change: the keyboard list takes the keys; every other key is swallowed while the popup is up
+	-- (Enter must never reach the end turn action); Escape is the list's onClose
+	if ContextPtr:IsHidden() then return false; end
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	return true;
+end
+
+-- ===========================================================================
+--	ScreenReaderAccess mod change: keyboard list and speech
+-- ===========================================================================
+local SR_OPTIONS : table = {
+	{ id = "Hire",   option = "HireOption",   button = "TreatOptionButtonHire",   desc = "TreatOptionHireDescription",   op = "HIRE_CLAN" },
+	{ id = "Incite", option = "InciteOption", button = "TreatOptionButtonIncite", desc = "TreatOptionInciteDescription", op = "INCITE_CLAN" },
+	{ id = "Bribe",  option = "BribeOption",  button = "TreatOptionButtonBribe",  desc = "TreatOptionBribeDescription",  op = "BRIBE_CLAN" },
+	{ id = "Ransom", option = "RansomOption", button = "TreatOptionButtonRansom", desc = "TreatOptionRansomDescription", op = "RANSOM_CLAN" },
+};
+
+-- the incite targets in the pulldown's order and with its skip rule (UpdateInciteTargetPulldown): { id, label, cost } each
+local function SRA_InciteTargets()
+	local targets : table = {};
+	local iActivePlayer : number = Game.GetLocalPlayer();
+	if iActivePlayer == -1 or m_srTribeIndex < 0 then return targets; end
+	local pBarbarianManager : table = Game.GetBarbarianManager();
+	local tInciteTargets : table = pBarbarianManager:GetTribeInciteTargets(m_srTribeIndex, iActivePlayer);
+	if tInciteTargets == nil then return targets; end
+	local inciteSourceID : number = pBarbarianManager:GetTribeInciteSourcePlayer(m_srTribeIndex);
+	local inciteTargetID : number = pBarbarianManager:GetTribeInciteTargetPlayer(m_srTribeIndex);
+	for _, eTargetPlayer in ipairs(tInciteTargets) do
+		if not (eTargetPlayer == inciteTargetID and iActivePlayer == inciteSourceID) then
+			local pOtherPlayerConfig : table = PlayerConfigurations[eTargetPlayer];
+			local strCiv : string = Locale.Lookup(pOtherPlayerConfig:GetCivilizationShortDescription());
+			local strLeader : string = Locale.Lookup(pOtherPlayerConfig:GetLeaderName());
+			local label : string = strCiv;
+			if strCiv ~= strLeader then label = strCiv .. " - " .. strLeader; end
+			-- the cost for THIS target (the original pulldown used an undefined variable, see UpdateInciteTargetPulldown)
+			local cost : number = pBarbarianManager:GetTribeInciteCost(m_srTribeIndex, iActivePlayer, eTargetPlayer);
+			table.insert(targets, { id = eTargetPlayer, label = label, cost = cost });
+		end
 	end
-	return false;
+	return targets;
+end
+
+local function SRA_Balance()
+	local pLocalPlayer : table = Players[Game.GetLocalPlayer()];
+	return pLocalPlayer:GetTreasury():GetGoldBalance();
+end
+
+local function SRA_Items()
+	local items : table = {};
+	local iActivePlayer : number = Game.GetLocalPlayer();
+	for _, def in ipairs(SR_OPTIONS) do
+		local container : table = Controls[def.option];
+		if container ~= nil and not container:IsHidden() then
+			local button : table = Controls[def.button];
+			local spec : table = {
+				id = def.id,
+				label = CleanTextForSpeech(button:GetTextControl():GetText()),
+				description = CleanTextForSpeech(Controls[def.desc]:GetText()),
+				disabled = button:IsDisabled(),
+			};
+			-- the failure reasons alone (the description label holds the help text and the reasons together)
+			local tParameters : table = {};
+			tParameters[PlayerOperations.PARAM_PLOT_ONE] = m_BarbarianTribePlotIndex;
+			local bCan, tResults = UI.CanStartPlayerOperation(iActivePlayer, PlayerOperations[def.op], tParameters, false);
+			spec.reasons = CleanTextForSpeech(FormatFailureReasonsString(tResults));
+			if def.id == "Incite" then
+				spec.incite = { canStart = bCan and true or false };
+				if m_SelectedInciteTargetID ~= -1 then
+					for _, target in ipairs(SRA_InciteTargets()) do
+						if target.id == m_SelectedInciteTargetID then
+							spec.incite.target = { label = target.label, cost = target.cost, balance = SRA_Balance() };
+						end
+					end
+				end
+			end
+			local item : table = TreatClanText_Item(spec);
+			item.key = def.id;
+			item.id = def.id;
+			table.insert(items, item);
+		end
+	end
+	table.insert(items, { key = "Close", id = "Close", text = "Close", detail = "Close without treating", choosable = true });
+	return items;
+end
+
+local function SRA_OnActivate( item : table )
+	if item.id == "Close" then
+		OutputMessageToScreenReader(TreatClanText_Result("Close"));
+		OnClose();
+		return;
+	end
+	local result : string = TreatClanText_Result(item.id, m_srClanName, m_srTargetLabel);
+	if item.id == "Incite" and m_SelectedInciteTargetID == -1 then
+		OutputMessageToScreenReader("Choose a target first, with Left and Right");
+		return;
+	end
+	OutputMessageToScreenReader(result);
+	-- the game's own functions send the operation and close the popup
+	if item.id == "Hire" then OnHire();
+	elseif item.id == "Incite" then OnIncite();
+	elseif item.id == "Bribe" then OnBribe();
+	elseif item.id == "Ransom" then OnRansom();
+	end
+end
+
+local function SRA_OnEscape()
+	OutputMessageToScreenReader(TreatClanText_Result("Close"));
+	ClosePopup();
+end
+
+-- Left / Right on the Incite option: the next or previous target, chosen through the game's SelectInciteTarget
+local function SRA_CycleTarget( delta : number )
+	if m_srList == nil or m_srList.GetFocusKey() ~= "Incite" then
+		OutputMessageToScreenReader("Left and Right choose the incite target on the Incite option");
+		return;
+	end
+	local items : table = SRA_Items();
+	local incite : table = nil;
+	for _, item in ipairs(items) do if item.id == "Incite" then incite = item; end end
+	if incite == nil then return; end
+	local targets : table = SRA_InciteTargets();
+	if #targets == 0 then
+		OutputMessageToScreenReader("No civilization to incite the clan against");
+		return;
+	end
+	local current : number = 0;
+	for i, target in ipairs(targets) do if target.id == m_SelectedInciteTargetID then current = i; end end
+	local nextIndex : number;
+	if current == 0 then nextIndex = (delta > 0) and 1 or #targets;
+	else
+		nextIndex = current + delta;
+		if nextIndex < 1 then nextIndex = #targets; end
+		if nextIndex > #targets then nextIndex = 1; end
+	end
+	local target : table = targets[nextIndex];
+	m_srTargetLabel = target.label;
+	SelectInciteTarget(target.id, target.label, target.cost);
+	OutputMessageToScreenReader(TreatClanText_Target(target.label, target.cost, SRA_Balance()));
+end
+
+local function SRA_Speak()
+	if ContextPtr:IsHidden() then return; end
+	local items : table = SRA_Items();
+	local header : string = CleanTextForSpeech(Controls.HeaderLabel:GetText());
+	local sub : string = CleanTextForSpeech(Controls.SubheaderLabel:GetText());
+	local opening : string = TreatClanText_Opening(header, sub, #items, nil);
+	if m_srList ~= nil and #items > 0 then
+		-- the opening, then the focused (first) option with its position
+		m_srList.Focus(items[1].key, opening);
+	else
+		OutputMessageToScreenReader(opening, true);
+	end
+end
+
+local function SRA_OnUpdate( deltaTime : number )
+	if m_srSpeakIn < 0 then return; end
+	m_srSpeakIn = m_srSpeakIn - deltaTime;
+	if m_srSpeakIn >= 0 then return; end
+	m_srSpeakIn = -1;
+	SRA_Speak();
+end
+
+-- the end of the game's open function (controls filled): open the list, hold the hub's speech, read after a moment
+function SRA_OnOpened()
+	LuaEvents.SRA_SpeechHold("TreatWithTribe", true, "/InGame/AdditionalUserInterfaces/" .. ContextPtr:GetID());
+	m_srHold = true;
+	if m_srList ~= nil then
+		m_srList.Reset();
+		m_srList.Open("", nil, true);
+	end
+	m_srSpeakIn = 0.2;
+end
+
+local function SRA_OnHide()
+	m_srSpeakIn = -1;
+	if m_srHold then
+		m_srHold = false;
+		LuaEvents.SRA_SpeechHold("TreatWithTribe", false);
+	end
 end
 
 -- ===========================================================================
 function Initialize()	
 	ContextPtr:SetInputHandler( OnInputHandler, true );
+	-- ScreenReaderAccess mod change
+	ContextPtr:SetHideHandler( SRA_OnHide );
+	ContextPtr:SetUpdate( SRA_OnUpdate );
+	ContextPtr:SetShutdown( function() SRUnlistenAll(); end );
+	m_srList = KeyNavList_Create{
+		build = SRA_Items,
+		isActive = function() return not ContextPtr:IsHidden(); end,
+		onActivate = SRA_OnActivate,
+		onClose = SRA_OnEscape,
+		extraKeys = { [Keys.VK_LEFT] = function() SRA_CycleTarget(-1); end, [Keys.VK_RIGHT] = function() SRA_CycleTarget(1); end },
+	};
 
 	Controls.CloseButton:RegisterCallback( Mouse.eLClick, OnClose);
 	Controls.CloseButton:RegisterCallback( Mouse.eMouseEnter, function() UI.PlaySound("Main_Menu_Mouse_Over"); end);
@@ -355,3 +559,4 @@ function Initialize()
 	Events.LocalPlayerTurnEnd.Add( OnLocalPlayerTurnEnd );
 end
 Initialize();
+print( "TreatWithTribePopup: ScreenReaderAccess copy loaded" );

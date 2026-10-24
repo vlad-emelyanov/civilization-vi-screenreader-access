@@ -1,0 +1,22 @@
+# Written blind 2026-10-24 (not yet recorded; run with civregress --record first). Barbarian Clans mode (fixture pt-modes-t75): the places list names the clan of a camp,
+# T opens the Treat With Clan popup (our keyboard copy speaks and closes with Escape). The camp must be in view for T.
+# covers: **/HubPlaces.lua **/PlotDescription.lua **/TreatClanText.lua **/TreatWithTribePopup_SRA.lua **/HelpText.lua
+load pt-modes-t75
+clear-advisors
+action KeyNavPlaces -Settle 1500
+key Control+Tab -Settle 1200
+expect ^Points of interest
+expect (?i)\w+ clan, .*Barbarian Outpost
+key Space -Settle 1000
+expect (?i)clan, .*Barbarian Outpost
+key T -Settle 2500 -Quiet 800
+expect (?i)^Treat With .* Clan
+expect (?i)\d options?
+expect (?i)^(Hire|Incite|Bribe|Ransom)\b.*, 1 of \d
+key Down -Settle 800
+expect , 2 of \d
+key Up -Settle 800
+expect , 1 of \d
+key Escape -Settle 1000
+expect ^Closed
+no-lua-errors

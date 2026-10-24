@@ -185,6 +185,43 @@ local function _TerrainParts( plot:table )
 	return parts;
 end
 
+-- Barbarian Clans mode: the named clan (tribe) of a barbarian camp on this plot, or nil. Everything is guarded, so it is a
+-- no-op without the mode (no Game.GetBarbarianManager / BarbarianTribes table / tribe method, or no tribe there: -1).
+-- Returns the clan's display name ("Badger Claw") and its type ("Melee Open"), and the tribe index.
+function PlotDescription_GetClan( plot:table )
+	if plot == nil or Game == nil or Game.GetBarbarianManager == nil then return nil; end
+	if GameInfo.BarbarianTribes == nil or GameInfo.BarbarianTribeNames == nil then return nil; end
+	if PlotDescription_GetVisibility(plot) == "unexplored" then return nil; end		-- the camp banner is hidden there too
+	local ok:boolean, name, kind, tribe = pcall(function()
+		local manager:table = Game.GetBarbarianManager();
+		if manager == nil or manager.GetTribeIndexAtLocation == nil then return nil; end
+		local index:number = manager:GetTribeIndexAtLocation(plot:GetX(), plot:GetY());
+		if index == nil or index < 0 then return nil; end
+		local nameRow:table = GameInfo.BarbarianTribeNames[ manager:GetTribeNameType(index) ];
+		if nameRow == nil or nameRow.TribeDisplayName == nil then return nil; end
+		local typeRow:table = GameInfo.BarbarianTribes[ manager:GetTribeType(index) ];
+		local kindText:string = nil;
+		if typeRow ~= nil and typeRow.Name ~= nil then kindText = Locale.Lookup(typeRow.Name); end
+		return Locale.Lookup(nameRow.TribeDisplayName), kindText, index;
+	end);
+	if not ok or name == nil then return nil; end
+	return name, kind, tribe;
+end
+
+-- "Badger Claw clan, Melee Open" (the type left out when the game has none), or nil.
+function PlotDescription_GetClanPhrase( plot:table )
+	local name:string, kind:string = PlotDescription_GetClan(plot);
+	if name == nil then return nil; end
+	local text:string = name .. " clan";
+	if kind ~= nil and kind ~= "" then text = text .. ", " .. kind; end
+	return text;
+end
+
+-- True when the clan camp can be treated with now: a clan there and the plot in view (the places list offers T for it).
+function PlotDescription_CanTreatWithClan( plot:table )
+	return PlotDescription_GetClan(plot) ~= nil and PlotDescription_GetVisibility(plot) == "visible";
+end
+
 local function _ImprovementParts( plot:table )
 	local parts:table = {};
 	local wonderType:number = plot:GetWonderType();
@@ -218,6 +255,8 @@ local function _ImprovementParts( plot:table )
 			local text:string = Locale.Lookup(row.Name);
 			if plot:IsImprovementPillaged() then text = text .. " " .. Locale.Lookup("LOC_TOOLTIP_PLOT_PILLAGED_TEXT"); end
 			table.insert(parts, text);
+			local clan:string = PlotDescription_GetClanPhrase(plot);
+			if clan ~= nil then table.insert(parts, clan); end
 		end
 	end
 	return parts;
@@ -356,5 +395,6 @@ function PlotDescription_GetDetailed( plot:table, options:table )
 	end
 
 	table.insert(parts, table.concat(facts, ", "));
+	if PlotDescription_CanTreatWithClan(plot) then table.insert(parts, "Open it from the places list with T"); end
 	return table.concat(parts, ". ");
 end

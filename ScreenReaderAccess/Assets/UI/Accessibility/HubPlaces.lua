@@ -284,6 +284,13 @@ local function PointItems( ctx:table )
 		if entry.kind == "point" and plot ~= nil then
 			local item:table = MakeItem( "p:" .. index, "point", entry.name, "", plot, ctx );
 			item.text = entry.name .. ( IsFogged( index ) and ", last seen, " or ", " ) .. Where( plot, ctx );
+			-- Barbarian Clans mode: the camp's clan leads the line, T opens the treat-with-clan popup while the camp is in view
+			local clan:string = PlotDescription_GetClanPhrase( plot );
+			if clan ~= nil then
+				item.text = clan .. ", " .. item.text;
+				item.clan = true;
+				if PlotDescription_CanTreatWithClan( plot ) then item.text = item.text .. ", T to treat with the clan"; end
+			end
 			table.insert( items, item );
 		end
 	end
@@ -487,6 +494,23 @@ local function SendKey()
 	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key } );
 end
 
+-- T on a clan camp: the banner's own call opens the DLC's Treat With Clan popup (our keyboard copy of it speaks)
+local function TreatKey()
+	local item:table = FocusedItem();
+	if item == nil then return; end
+	if item.kind ~= "point" or not item.clan then
+		OutputMessageToScreenReader( "Only a clan camp can be treated with" );
+		return;
+	end
+	local plot:table = Map.GetPlot( item.x, item.y );
+	if plot == nil or not PlotDescription_CanTreatWithClan( plot ) then
+		OutputMessageToScreenReader( "The clan camp is out of sight. Move a unit near it first" );
+		return;
+	end
+	HubCore.CloseMode( false, false );
+	LuaEvents.CityBannerManager_OpenTreatWithTribePopup( plot:GetIndex() );
+end
+
 local m_facade:table = {
 	-- the places were built before OpenMode (an empty list is not opened); this announces them
 	Open = function( title:string )
@@ -510,7 +534,7 @@ m_list = KeyNavList_Create{
 	isActive	= function() return HubCore.IsModeOpen( "places" ); end,
 	onActivate	= ActivateItem,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
-	extraKeys	= { [Keys.VK_TAB] = function() SwitchCategory( 1 ); end, [Keys.M] = SendKey },
+	extraKeys	= { [Keys.VK_TAB] = function() SwitchCategory( 1 ); end, [Keys.M] = SendKey, [Keys.T] = TreatKey },
 	ctrlKeys	= { [Keys.VK_TAB] = function() SwitchCategory( -1 ); end },
 };
 

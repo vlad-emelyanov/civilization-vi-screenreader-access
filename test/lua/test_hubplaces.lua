@@ -1,6 +1,7 @@
 -- HubPlaces.lua: the categories of the places list (J), their sorting, unit activity words, the send-a-unit chooser
 stub("engine")
 Keys.M = 77
+Keys.T = 84
 InterfaceModeTypes = {}
 local world = stub("world").new{ width = 30, height = 20 }
 world:install()
@@ -267,4 +268,40 @@ test("order hint: explore has no cancel; wake / cancel only when the game allows
 	eq(HubPlaces.OrderHint(u), "Shift+C cancels the move")
 	units[1].dest = nil
 	UnitCommandTypes = nil
+end)
+
+-- Barbarian Clans mode: the clan leads the camp's line, T is offered while the camp is in view
+local function campItem(ctx)
+	for _, c in ipairs(HubPlaces.BuildCategories(ctx)) do
+		if c.name == "Points of interest" then
+			for _, i in ipairs(c.items) do if i.name == "Barbarian Camp" then return i end end
+		end
+	end
+end
+
+test("without the mode a camp line has no clan words", function()
+	world:set(2, 12, { fogged = false, improvement = 3 })
+	local item = campItem({ plot = Map.GetPlot(5, 5) })
+	assert(item and not item.text:find("clan") and not item.text:find("treat"), item and item.text)
+	eq(item.clan, nil)
+end)
+
+test("a clan camp says its clan and type first and offers T while in view", function()
+	GameInfo.BarbarianTribeNames = { [7] = { TribeDisplayName = "Badger Claw" } }
+	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }
+	local manager = {
+		GetTribeIndexAtLocation = function(_, x, y) if x == 2 and y == 12 then return 0 end return -1 end,
+		GetTribeNameType = function() return 7 end, GetTribeType = function() return 2 end,
+	}
+	Game.GetBarbarianManager = function() return manager end
+	local item = campItem({ plot = Map.GetPlot(5, 5) })
+	assert(item.text:find("^Badger Claw clan, Melee Open, Barbarian Camp, "), item.text)
+	assert(item.text:find(", T to treat with the clan$"), item.text)
+	eq(item.clan, true)
+	world:set(2, 12, { fogged = true })
+	item = campItem({ plot = Map.GetPlot(5, 5) })
+	assert(item.text:find("^Badger Claw clan, Melee Open, Barbarian Camp, last seen, "), item.text)
+	assert(not item.text:find("T to treat"), item.text)
+	world:set(2, 12, { fogged = false })
+	Game.GetBarbarianManager = nil
 end)
