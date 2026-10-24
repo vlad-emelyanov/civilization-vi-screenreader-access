@@ -1,0 +1,17 @@
+# UNVERIFIED (blind-written). The government change confirm popup is spoken ("Popup: <question>", then "No, selected. Up or Down for Yes"), starts on No
+# (a second Enter must not change the government by accident) and cancelling says "Government not changed".
+# covers: **/GovernmentScreen.lua **/InGamePopup.lua **/PopupDialog.lua
+load bug-gov-confirm-down
+clear-advisors
+action ToggleGovernment -Settle 2500
+expect ^Governments, current: no government
+key Down -Settle 800
+expect ^Autocracy
+key Enter -Settle 1000 -Quiet 300
+expect (?i)^Popup: .*
+expect ^No, selected\. Up or Down for Yes
+key Enter -Settle 1200
+expect ^Government not changed
+key Escape -Settle 1500
+expect ^Government closed
+no-lua-errors

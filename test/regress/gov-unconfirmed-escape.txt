@@ -1,0 +1,31 @@
+# UNVERIFIED (blind-written, the verifier records it). Unconfirmed policies were dropped silently: Confirm stays disabled while a slot is empty, so Escape
+# closed the screen without a word. Now the first Escape warns and names the empty rows, the second one closes and says the changes were discarded;
+# any other key in between re-arms the first step.
+# State needed: policies tab with >= 2 slots and an unlocked policy for the first slot. Fixture bug-gov-confirm-down after the government change to
+# Autocracy shows "Policies, Autocracy, 4 slots, 4 empty" (see bug-gov-slots-after-change); if no policy is unlocked for the first slot the Enter says
+# "No policy available for ..." and the script fails there: then switch to a fixture that has one.
+# covers: **/GovernmentScreen.lua
+# no-share-load: changes the government
+load bug-gov-confirm-down
+clear-advisors
+action ToggleGovernment -Settle 2500
+expect ^Governments, current: no government
+key Down -Settle 800
+expect ^Autocracy
+key Enter -Settle 1000 -Quiet 300
+key Down -Settle 800
+key Enter -Settle 2500 -Quiet 600
+expect ^Policies, Autocracy, 4 slots, 4 empty
+key Enter -Settle 800
+expect (?i)choose a policy
+key Enter -Settle 1000
+expect (?i)3 empty
+key Escape -Settle 1000
+expect ^Policy changes not confirmed: fill the empty .* first, then confirm\. Escape again to discard them
+expect-not (?i)^Government closed
+key Down -Settle 800
+key Escape -Settle 1000
+expect ^Policy changes not confirmed
+key Escape -Settle 1500
+expect ^Government closed, policy changes discarded
+no-lua-errors

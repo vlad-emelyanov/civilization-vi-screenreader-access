@@ -174,6 +174,7 @@ end
 -- End ScreenReaderAccess change
 local m_isPoliciesChanged		:boolean= false;
 local m_srOpenPending		:boolean= false;	-- ScreenReaderAccess: announce once the screen is really shown
+local m_srDiscardArmed		:boolean= false;	-- ScreenReaderAccess: the first Escape warned that unconfirmed policies would be dropped
 local m_kPolicyCatalogData		:table	= {};
 local m_kPolicyCatalogOrder		:table  = {};		-- Track order of policies to display
 local m_kPolicyFilters			:table	= {};
@@ -991,6 +992,8 @@ end
 --	UI Callback
 -- ===========================================================================
 function OnCancelGovernmentChange()
+	SRA_ClearPopup();
+	OutputMessageToScreenReader( "Government not changed", true );		-- ScreenReaderAccess
 	m_governmentChangeType = "";
 	RealizeGovernmentsPage();
 end
@@ -1536,7 +1539,7 @@ end
 -- ===========================================================================
 --	Main close function all exit points should call.
 -- ===========================================================================
-function Close()
+function Close( srKeyboard:boolean )
 
 	if ContextPtr:IsHidden() then return; end
 	
@@ -1546,14 +1549,20 @@ function Close()
 		SRA_MarkPopup();		-- ScreenReaderAccess
 		popup:ShowYesNoDialog( TXT_GOV_POPUP_PROMPT_POLICIES_CLOSE, 
 			function() SRA_ClearPopup(); Controls.ConfirmPolicies:SetDisabled(true); Close() end ); -- no-op on cancel
+	elseif srKeyboard and not m_srDiscardArmed and SRA_UnfilledRows() ~= nil then
+		-- ScreenReaderAccess: Confirm is disabled while a slot is empty, so the game drops the cards silently: warn once
+		m_srDiscardArmed = true;
+		OutputMessageToScreenReader( "Policy changes not confirmed: fill the empty " .. SRA_UnfilledRows() .. " first, then confirm. Escape again to discard them." );
 	else
 		-- Actual close
+		local srDiscarded:boolean = m_srDiscardArmed and SRA_UnfilledRows() ~= nil;		-- ScreenReaderAccess
+		m_srDiscardArmed = false;
 		if not ContextPtr:IsHidden() then
 			UI.PlaySound("UI_Screen_Close");
 		end
 		UIManager:DequeuePopup(ContextPtr);
 		m_srOpenPending = false;		-- ScreenReaderAccess
-		if m_srCloseMessage ~= "" then OutputMessageToScreenReader( m_srCloseMessage, true ); else OutputMessageToScreenReader( "Government closed" ); end		-- ScreenReaderAccess
+		if m_srCloseMessage ~= "" then OutputMessageToScreenReader( m_srCloseMessage, true ); elseif srDiscarded then OutputMessageToScreenReader( "Government closed, policy changes discarded" ); else OutputMessageToScreenReader( "Government closed" ); end		-- ScreenReaderAccess
 		m_srCloseMessage = "";
 		m_governmentChangeType	= "";
 		m_isPoliciesChanged		= false;
@@ -1565,7 +1574,7 @@ end
 --	Control close via click
 -- ===========================================================================
 function OnClose()
-	Close();
+	Close( true );
 end
 
 -- ===========================================================================
@@ -1573,7 +1582,7 @@ end
 --	Close from launchbar control
 -- ===========================================================================
 function OnCloseFromLaunchBar()
-	Close();
+	Close( true );		-- ScreenReaderAccess: the toggle key
 end
 
 -- ===========================================================================
@@ -2840,6 +2849,23 @@ local SRA_ROW_NAMES:table = {
 	[ROW_INDEX.WILDCARD]	= "LOC_GOVT_POLICY_TYPE_WILDCARD",
 };
 
+-- Slots left empty by the player's changes (Confirm is disabled until none is empty): "Diplomatic slot" / "Military and Wildcard slots", or nil
+-- when nothing would be lost silently (not the policies page, nothing changed, no empty slot).
+function SRA_UnfilledRows()
+	if Controls.SelectPolicies:IsHidden() or not IsAbleToChangePolicies() then return nil; end
+	local names:table = {};
+	local slots:number = 0;
+	for nRowIndex, tRow in ipairs( m_ActivePolicyRows ) do
+		local free:number = GetFreeSlotCountForRow( nRowIndex );
+		if free > 0 then
+			slots = slots + free;
+			table.insert( names, Locale.Lookup( SRA_ROW_NAMES[nRowIndex] ) );
+		end
+	end
+	if slots == 0 or not SRA_PoliciesDiffer() then return nil; end
+	return table.concat( names, " and " ) .. ( slots > 1 and " slots" or " slot" );
+end
+
 local function SRA_CurrentTab()
 	if not Controls.SelectPolicies:IsHidden() then return "policies"; end
 	if not Controls.SelectGovernments:IsHidden() then return "governments"; end
@@ -2903,7 +2929,11 @@ local function SRA_SlotItems()
 		if not Controls.ConfirmPolicies:IsHidden() then
 			local text:string = SRA_Clean( Controls.ConfirmPolicies:GetText() );
 			if Controls.ConfirmPolicies:IsDisabled() then
-				local why:string = ( SRA_CountEmptySlots() > 0 ) and "Fill all policy slots first" or "No policy changes to confirm";
+				local unfilled:string = SRA_UnfilledRows();
+				local empty:number = SRA_CountEmptySlots();
+				local why:string = "No policy changes to confirm";
+				if unfilled ~= nil then why = "Fill the empty " .. unfilled .. " first";
+				elseif empty > 0 then why = "Fill all policy slots first"; end
 				table.insert( items, { key = "confirm", kind = "confirm", text = text .. ", " .. string.lower( why ), choosable = false, reason = why } );
 			else
 				table.insert( items, { key = "confirm", kind = "confirm", text = text } );
@@ -3011,6 +3041,7 @@ end
 
 -- Shown for real (another popup may have been in front when the open was requested).
 function SRA_OnShow()
+	m_srDiscardArmed = false;
 	m_srCloseMessage = "";
 	m_srAnnounceAfterChange = false;
 	m_srAnnounceDeadline = -1;
@@ -3114,7 +3145,7 @@ local function SRA_OnClose()
 		m_srList.Focus( "slot:" .. slotIndex, "Back" );
 		return;
 	end
-	Close();
+	Close( true );
 end
 -- End ScreenReaderAccess change
 
@@ -3136,11 +3167,15 @@ function OnInputHandler( pInputStruct:table )
 		end
 		return true;
 	end
-	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
+	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then
+		-- ScreenReaderAccess: any other list key ends the "Escape again to discard" step (the toggle key never reaches the list)
+		if pInputStruct:GetKey() ~= Keys.VK_ESCAPE then m_srDiscardArmed = false; end
+		return true;
+	end
 	if ( pInputStruct:GetMessageType() == KeyEvents.KeyUp ) then
 		local key:number = pInputStruct:GetKey();
 		if ( key == Keys.VK_ESCAPE ) then
-			Close();
+			Close( true );
 			return true;
 		elseif ( key == Keys.VK_RETURN ) then
 			-- Don't let enter propagate or it will hit action panel which will raise a screen (potentially this one again) tied to the action.

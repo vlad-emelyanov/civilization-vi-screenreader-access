@@ -66,6 +66,14 @@ test("Detail", function()
 		"Eureka, not done yet: Kill a unit with a Slinger. Requires Mining. Leads to Bronze Working, The Wheel")
 end)
 
+test("Detail: unrevealed followers are counted, not named", function()
+	local base = { name = "X", statusText = "X, researched", unlocks = {}, prereqs = {}, hiddenWord = "tech" }
+	base.leads, base.leadsHidden = { "Castles" }, 1
+	eq(TreeText_Detail(base), "X, researched. Unlocks nothing. No prerequisites. Leads to Castles and 1 unrevealed tech")
+	base.leads, base.leadsHidden, base.hiddenWord = {}, 2, "civic"
+	eq(TreeText_Detail(base), "X, researched. Unlocks nothing. No prerequisites. Leads to 2 unrevealed civics")
+end)
+
 test("Detail: researched, no prerequisites, boost done, no yield", function()
 	eq(TreeText_Detail({ name = "Pottery", statusText = "Pottery, researched", unlocks = {}, prereqs = {}, leads = {} }),
 		"Pottery, researched. Unlocks nothing. No prerequisites")
