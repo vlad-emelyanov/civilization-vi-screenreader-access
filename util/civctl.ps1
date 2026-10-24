@@ -1100,6 +1100,9 @@ function Invoke-WaitTurn([string]$n) {
         $r = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civturn.py'), 'poll', $n)
         $code = $script:PyExit
         $msg = ($r -join ' ').Trim()
+        # The poll takes a moment and a popup speaks right when it opens (an AI greeting, a disaster): print what was logged
+        # since the read above BEFORE reporting the turn / the open popup, also on the final iteration.
+        Format-Lines (Read-NewLogLines) | ForEach-Object { Write-Output $_ }
         if ($code -eq 0) { Write-Output $msg; return }
         if ($code -eq 1) { Write-Output $msg; Quit-Civctl 1 }
         if ($code -eq 11 -and $msg -ne $lastMsg) { Write-Output "popup> $msg" }   # reported, never answered with a key

@@ -4290,6 +4290,31 @@ local function SRActionReason( unit:table, action:table, tooltip:string )
 	return reason;
 end
 
+-- "in formation with Builder. Shift+E separates them, or move them together" ("" when the unit is not in an escort / civilian formation).
+-- The engine gives no refusal reason for Skip / Sleep / Fortify of a unit that escorts a civilian (UnitPanel: InFormation = GetFormationUnitCount() > 1).
+local function SRFormationHint( unit:table )
+	local text:string = "";
+	pcall( function()
+		if unit == nil or unit:GetFormationUnitCount() <= 1 then return; end
+		if unit:GetMilitaryFormation() ~= MilitaryFormationTypes.STANDARD_FORMATION then return; end	-- corps and armies are one unit
+		local names:table = {};
+		local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+		if plot ~= nil then
+			for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+				if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and other:GetFormationUnitCount() > 1 then
+					table.insert( names, Locale.Lookup( other:GetName() ) );
+				end
+			end
+		end
+		text = "in formation with " .. ( #names > 0 and table.concat( names, " and " ) or "another unit" );
+		local key:string = "";
+		local id = Input.GetActionId( "ExtraHotkeysEnterFormation" );
+		if id ~= nil then key = Input.GetGestureDisplayString( id, 0 ) or ""; end
+		text = text .. ". " .. ( key ~= "" and ( key .. " separates them" ) or "Leave the formation" ) .. ", or move them together";
+	end );
+	return text;
+end
+
 -- Why the engine refuses an operation or command for this unit right now ("" when it says nothing).
 local function SRRefusalReason( unit:table, hash:number )
 	local reasons:table = {};
@@ -4452,12 +4477,14 @@ local function SRBuildActions()
 		end
 		if not hasSkip then
 			local why:string = SRRefusalReason( unit, GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash );
+			local formationHint:string = SRFormationHint( unit );
+			if formationHint ~= "" then why = formationHint; end
 			if why == "" then why = "the game offers no skip for this unit now"; end
 			local alternatives:string = ( GameInfo.Units[unit:GetUnitType()].FoundCity ) and "move it, found a city or delete it" or "move it or delete it";
 			local hotkey:string = "";
 			local skipId = Input.GetActionId( "SkipTurn" );
 			if skipId ~= nil then hotkey = Input.GetGestureDisplayString( skipId, 0 ) or ""; end
-			local reason:string = why .. ". To get past it: " .. alternatives;
+			local reason:string = ( formationHint ~= "" ) and why or ( why .. ". To get past it: " .. alternatives );
 			table.insert( m_srActions, { callback = function() OutputMessageToScreenReader( "Cannot skip: " .. reason ); end } );
 			table.insert( plain, {
 				id = #m_srActions, name = "Skip Turn", hotkey = hotkey, disabled = true, reason = reason, detail = reason,
@@ -4522,6 +4549,7 @@ function SRSayBlockedHotkey( actionId:number )
 	-- the R key (RangedAttack) is shared with the air attack row, whose name would be wrong for a land unit
 	if row.HotkeyId == "RangedAttack" then name = "Ranged Attack"; end
 	local why:string = SRRefusalReason( unit, row.Hash );
+	if why == "" and ( row.Hash == GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash or row.OperationType == "UNITOPERATION_FORTIFY" or row.OperationType == "UNITOPERATION_SLEEP" ) then why = SRFormationHint( unit ); end
 	if why ~= "" then
 		OutputMessageToScreenReader( "Cannot " .. string.lower( name ) .. ": " .. why );
 	else

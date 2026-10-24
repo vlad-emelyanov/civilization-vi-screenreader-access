@@ -1,0 +1,10 @@
+# Written blind 2026-10-24 (not yet recorded). Fixture bug-unit-cannot-skip: the 2nd Crossbowman escorts a Builder; Skip/Sleep/Fortify are refused. Enter says why (the formation) and which key separates them; the Tab menu entry carries the same reason.
+# covers: **/UnitPanel.lua **/HubMenus.lua **/HubAnnounce.lua
+# no-share-load: selects units, Tab menu
+load bug-unit-cannot-skip
+clear-advisors
+key Enter -Settle 1500
+expect ^Cannot skip: in formation with \S.*Shift\+E separates them
+key Tab -Settle 1200
+expect (?i)skip turn.*in formation with
+no-lua-errors
