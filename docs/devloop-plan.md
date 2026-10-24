@@ -79,7 +79,7 @@ Setup parameters (ids as used by the Advanced Setup parameter system, verified):
 | Difficulty | `GameDifficulty` | |
 | Disaster intensity (Gathering Storm) | `Realism` | 0 to 4, default 2 |
 | Barbarians, tribal villages | `NoBarbarians`, `NoGoodyHuts` | |
-| Game modes | `GameMode_BarbarianClans`, `GameMode_SecretSocieties`, ... | only the modes installed show up |
+| Game modes | `GameMode_BarbarianClans`, `GameMode_Tree_Randomizer` (the owned modes; `GameMode_SecretSocieties` etc. are not owned) | only the modes installed show up |
 | Random seeds | `GameRandomSeed`, `MapRandomSeed` | number; re-randomised whenever the screen opens |
 | Leader | player parameter `PlayerLeader` | e.g. `LEADER_TRAJAN`; random unless set |
 
@@ -107,7 +107,7 @@ Profiles (`util/profiles/<name>.lua`; each one fixes the leader and both seeds):
 | `crowded` | contact, diplomacy, envoys, quests, war, AI requests | Online, Tiny map, many city-states |
 | `medieval` | trade routes, religion, governors, more districts, World Congress sooner | Online, Medieval (starts at turn 71) |
 | `industrial` / `modern` | late-game screens: corps and armies, great works, tourism, spies | Online, Industrial or Modern |
-| `modes` | secret-society governors (a known gap); one game mode per test | Secret Societies, others later |
+| `modes` | one game mode per test | Barbarian Clans + Tech/Civic Shuffle (Secret Societies not owned; `modes-start` was made without any mode) |
 
 Notes:
 - **Online speed** roughly halves the turns needed for production, research and growth compared with Standard.

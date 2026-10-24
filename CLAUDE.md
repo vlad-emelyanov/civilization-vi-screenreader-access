@@ -108,3 +108,4 @@ See `docs/keynav-guide.md` for the patterns that work (and the traps that cost t
 - Game: Steam, `C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization VI` (launching `CivilizationVI.exe` relaunches as `CivilizationVI_DX12`). The intro movie blocks the main menu until a key is pressed (`civctl start` handles it).
 - ModBuddy needs the VS Isolated Shell (`…\Sid Meier's Civilization VI SDK\ModBuddy\Redist\vs_isoshell.exe`, needs UAC approval from the user). Without it, ModBuddy shows "Cannot find one or more components" and `build` times out.
 - Driving the game takes over the real keyboard focus and mouse; the user can't use the PC meanwhile.
+- Owned content: base game + Gathering Storm only (plus the free Barbarian Clans and Tech/Civic Shuffle modes). Read `docs/game-content.md` before planning tests or features; no Secret Societies, Heroes, Monopolies, Dramatic Ages, Apocalypse or civ packs.
