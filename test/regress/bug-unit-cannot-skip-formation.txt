@@ -1,10 +1,16 @@
-# Written blind 2026-10-24 (not yet recorded). Fixture bug-unit-cannot-skip: the 2nd Crossbowman escorts a Builder; Skip/Sleep/Fortify are refused. Enter says why (the formation) and which key separates them; the Tab menu entry carries the same reason.
+# Fixture bug-unit-cannot-skip: Rome holds a Builder and TWO Crossbowmen (neither in a formation: GetFormationUnitCount = 1). The engine refuses
+# Skip/Sleep/Fortify for the second one because it is STACKED (two units of one formation class on a tile; LOC_CITY_UNIT_STACK_ILLEGAL, ActionPanel "Move stacked unit").
+# The hint names the other unit and says one must move; for a real escort formation SRFormationHint says "in formation with X ... Shift+E".
 # covers: **/UnitPanel.lua **/HubMenus.lua **/HubAnnounce.lua
 # no-share-load: selects units, Tab menu
 load bug-unit-cannot-skip
 clear-advisors
 key Enter -Settle 1500
-expect ^Cannot skip: in formation with \S.*Shift\+E separates them
+action SkipTurn -Settle 1200
+expect (?i)cannot skip.*stacked with Crossbowman.*move one
+action Fortify -Settle 1200
+expect (?i)cannot fortify.*stacked with
 key Tab -Settle 1200
-expect (?i)skip turn.*in formation with
+key Down -Count 3 -Settle 600
+expect (?i)skip turn.*unavailable.*stacked with
 no-lua-errors

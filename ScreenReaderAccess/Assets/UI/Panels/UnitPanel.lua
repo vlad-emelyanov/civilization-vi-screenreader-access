@@ -4295,7 +4295,24 @@ end
 local function SRFormationHint( unit:table )
 	local text:string = "";
 	pcall( function()
-		if unit == nil or unit:GetFormationUnitCount() <= 1 then return; end
+		if unit == nil then return; end
+		if unit:GetFormationUnitCount() <= 1 then
+			-- Not in a formation: the engine also refuses skip / sleep / fortify for a STACKED unit (LOC_CITY_UNIT_STACK_ILLEGAL "Too many
+			-- units of the same class in this location", the ActionPanel's "Move stacked unit" blocker): two own units of one formation class on a tile.
+			local row:table = GameInfo.Units[ unit:GetUnitType() ];
+			local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+			if row == nil or plot == nil or row.FormationClass == nil then return; end
+			local names:table = {};
+			for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+				local orow:table = GameInfo.Units[ other:GetUnitType() ];
+				if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and other:GetFormationUnitCount() <= 1
+					and orow ~= nil and orow.FormationClass == row.FormationClass then
+					table.insert( names, Locale.Lookup( other:GetName() ) );
+				end
+			end
+			if #names > 0 then text = "stacked with " .. table.concat( names, " and " ) .. ": only one unit of this class can stay on a tile. Move one of them away"; end
+			return;
+		end
 		if unit:GetMilitaryFormation() ~= MilitaryFormationTypes.STANDARD_FORMATION then return; end	-- corps and armies are one unit
 		local names:table = {};
 		local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
