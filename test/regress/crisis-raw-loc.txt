@@ -4,7 +4,7 @@
 load bug-crisis-raw-loc
 clear-advisors
 # the popup is not restored by a load: open it the way the notification does (Aid Request that ended, target player 2, type 9)
-lua InGame LuaEvents.NotificationPanel_EmergencyClicked(2, 9, 0)
+lua InGame local e; for _, x in pairs(Game.GetEmergencyManager():GetEmergencyInfoTable(Game.GetLocalPlayer())) do e = e or x end; LuaEvents.NotificationPanel_EmergencyClicked(e.TargetID, e.EmergencyType, 0)
 wait (?i)enter to close -Timeout 10
 expect (?i)aid request
 expect-not LOC_[A-Z_]+

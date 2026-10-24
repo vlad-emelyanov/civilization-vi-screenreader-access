@@ -2567,12 +2567,19 @@ local function SRA_HasTargets( kRD:table )
 	return kRD.PossibleTargets ~= nil and next( kRD.PossibleTargets ) ~= nil;
 end
 
+-- True when pid is a civilization the local player has not met (false without a local player, e.g. autoplay).
+local function SRA_IsUnmet( pid:number )
+	local localID:number = Game.GetLocalPlayer();
+	if localID == nil or localID < 0 or Players[ localID ] == nil or pid == localID then return false; end
+	return not Players[ localID ]:GetDiplomacy():HasMet( pid );
+end
+
 -- Text of the target with this value of kResolutionChoice.target (nil: none chosen).
 -- A player id taken from result data (ChosenThing / ResolutionTarget is the player id itself there, not an index of
 -- PossibleTargets): the name, or "an unmet civilization" for one we have not met.
 local function SRA_ReviewPlayerText( pid:number )
 	if PlayerConfigurations[ pid ] == nil then return ""; end
-	if pid ~= Game.GetLocalPlayer() and not Players[ Game.GetLocalPlayer() ]:GetDiplomacy():HasMet( pid ) then
+	if SRA_IsUnmet( pid ) then
 		return "an unmet civilization";
 	end
 	return SRA_Clean( GetVisiblePlayerName( pid ) );
@@ -2756,8 +2763,7 @@ local function SRA_ReviewVoters( kRD:table )
 		local pid = tonumber( kData.PlayerID );
 		local tail:string = WCText_Plural( kData.Votes, "vote" ) .. " for " .. SRA_Clean( kData.OptionChosenLabel );
 		if target ~= "" then tail = tail .. ", target " .. target; end
-		if pid ~= nil and pid ~= Game.GetLocalPlayer() and PlayerConfigurations[ pid ] ~= nil
-				and not Players[ Game.GetLocalPlayer() ]:GetDiplomacy():HasMet( pid ) then
+		if pid ~= nil and PlayerConfigurations[ pid ] ~= nil and SRA_IsUnmet( pid ) then
 			table.insert( unmetTails, tail );
 		else
 			table.insert( parts, SRA_PlayerName( pid ) .. ": " .. tail );
@@ -2814,8 +2820,7 @@ local function SRA_ReviewProposalItem( kProposal:table, withVotes:boolean )
 			if v.Votes ~= 0 then
 				local vid = tonumber( v.PlayerType );
 				local tail:string = WCText_Plural( math.abs( v.Votes ), "vote" ) .. ( v.Votes > 0 and " for" or " against" );
-				if vid ~= nil and vid ~= Game.GetLocalPlayer() and PlayerConfigurations[ vid ] ~= nil
-						and not Players[ Game.GetLocalPlayer() ]:GetDiplomacy():HasMet( vid ) then
+				if vid ~= nil and PlayerConfigurations[ vid ] ~= nil and SRA_IsUnmet( vid ) then
 					table.insert( unmetTails, tail );
 				else
 					table.insert( voters, SRA_PlayerName( vid ) .. ": " .. tail );

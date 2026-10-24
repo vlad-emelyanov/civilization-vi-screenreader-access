@@ -212,9 +212,8 @@ function HubTargets.IsAttackTarget( plot:table )
 	local mode:number = HubTargets.GetTargetMode();
 	if mode == nil or plot == nil then return false; end
 	local ok:boolean, text = pcall( HubTargets.TargetInfo, mode, plot, UI.GetHeadSelectedUnit() );
-	if not ok or text == nil then return false; end
-	return string.find( text, "valid target", 1, true ) ~= nil or string.find( text, "attack", 1, true ) == 1
-		or string.find( text, "would declare war", 1, true ) == 1;
+	if not ok or text == nil or string.find( text, "would declare war", 1, true ) ~= nil then return false; end	-- a peaceful civ is no target
+	return string.find( text, "valid target", 1, true ) ~= nil or string.find( text, "attack", 1, true ) == 1;
 end
 
 -- Mode specific words for the cursor plot: path length for a move, valid target and odds for an attack.

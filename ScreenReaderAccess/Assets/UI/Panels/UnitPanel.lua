@@ -75,6 +75,8 @@ local m_showPromotionBanner		:boolean = false;
 
 local m_attackerUnit = nil;
 local m_locX = nil;
+local m_srCursorX = nil;		-- ScreenReaderAccess: the hub's map / target cursor (LuaEvents.SRA_CursorMoved)
+local m_srCursorY = nil;
 local m_locY = nil;
 
 local INVALID_PLOT_ID	:number = -1;
@@ -2967,7 +2969,9 @@ function OnInputActionTriggered( actionId )
 	-- the hub confirms the cursor plot itself.
 	local srMode:number = UI.GetInterfaceMode();
 	local srKeyboardAttackMode:boolean = ( srMode == InterfaceModeTypes.MOVE_TO or srMode == InterfaceModeTypes.RANGE_ATTACK or srMode == InterfaceModeTypes.AIR_ATTACK );
-	if m_combatResults ~= nil and srMode ~= InterfaceModeTypes.SELECTION and not srKeyboardAttackMode and m_AttackHotkeyId ~= nil and (actionId == m_AttackHotkeyId) then
+	-- the preview is still the one to attack when the hub cursor sits on that very plot (keyboard and mouse agree)
+	local srCursorAgrees:boolean = m_srCursorX ~= nil and m_srCursorX == m_locX and m_srCursorY == m_locY;
+	if m_combatResults ~= nil and srMode ~= InterfaceModeTypes.SELECTION and ( not srKeyboardAttackMode or srCursorAgrees ) and m_AttackHotkeyId ~= nil and (actionId == m_AttackHotkeyId) then
 		MoveUnitToPlot( UI.GetHeadSelectedUnit(), m_locX, m_locY );
 	elseif m_AttackHotkeyId ~= nil and actionId == m_AttackHotkeyId then
 		LuaEvents.SRA_AttackKey();		-- ScreenReaderAccess mod change: no hovered target, the hub opens an attack target mode
@@ -4579,6 +4583,7 @@ function Initialize()
 	Controls.ExpandSecondaryActionsButton:RegisterMouseEnterCallback( OnSecondaryActionStackMouseEnter );
 	Controls.ExpandSecondaryActionsButton:RegisterMouseExitCallback( OnSecondaryActionStackMouseExit );
 
+	SRListen( LuaEvents.SRA_CursorMoved, function( x:number, y:number ) m_srCursorX = x; m_srCursorY = y; end );
 	SRListen( Events.BeginWonderReveal, OnBeginWonderReveal );
 	SRListen( Events.CitySelectionChanged, OnCitySelectionChanged );
 	SRListen( Events.CityReligionFollowersChanged, OnCityReligionFollowersChanged );

@@ -135,6 +135,7 @@ function HubCursor.SetCursor( x:number, y:number, speak:boolean, interrupt:boole
 	if plot == nil then return; end
 	HubCore.m_cursorPlayer = Game.GetLocalPlayer();
 	m_cursorX, m_cursorY = x, y;
+	LuaEvents.SRA_CursorMoved( x, y );		-- UnitPanel: the keyboard cursor and the hovered attack preview may agree
 	if HubCore.m_placeConfirm ~= nil and HubCore.m_placeConfirm ~= plot:GetIndex() then HubCore.m_placeConfirm = nil; end		-- moved away from the tile to confirm
 	UI.LookAtPlotScreenPosition( x, y, 0.5, 0.5 );
 	if noMouse then

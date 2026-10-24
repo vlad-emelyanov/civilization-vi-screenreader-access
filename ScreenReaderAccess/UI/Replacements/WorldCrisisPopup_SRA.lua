@@ -289,7 +289,7 @@ function SRA_BuildText( kData:table )
 	end
 	for _, group in ipairs(WCText_UnmetGroups(unmetScores)) do table.insert(members, group); end
 	if #members > 0 then
-		table.insert(lines, SRA_Clean(Controls.MemberLabel:GetText()) .. ": " .. table.concat(members, ", "));
+		table.insert(lines, (string.gsub(SRA_Clean(Controls.MemberLabel:GetText()), "%s*:%s*$", "")) .. ": " .. table.concat(members, "; "));
 	end
 	SRA_AddLines(lines, kData.rewardsDetails);
 

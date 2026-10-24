@@ -283,6 +283,12 @@ function PlotDescription_GetShort( plot:table, options:table )
 
 	-- Owner
 	local owner:string = _OwnerText(plot);
+	-- "yours" next to a foreign unit reads as if the unit were ours: say it is the territory
+	if owner == "yours" and visibility == "visible" then
+		for _, other in ipairs(Units.GetUnitsInPlot(plot)) do
+			if other:GetOwner() ~= Game.GetLocalPlayer() then owner = "your territory"; break; end
+		end
+	end
 	if owner ~= nil then table.insert(parts, owner); end
 
 	-- Yields

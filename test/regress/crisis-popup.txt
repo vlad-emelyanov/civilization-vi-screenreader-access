@@ -4,7 +4,7 @@
 load bug-crisis-popup-silent
 clear-advisors
 # the popup is not restored by a load: open it the way the notification does (emergency type 9 = Scored Competition, target player 2)
-lua InGame LuaEvents.NotificationPanel_EmergencyClicked(2, 9, 0)
+lua InGame local e; for _, x in pairs(Game.GetEmergencyManager():GetEmergencyInfoTable(Game.GetLocalPlayer())) do e = e or x end; LuaEvents.NotificationPanel_EmergencyClicked(e.TargetID, e.EmergencyType, 0)
 wait (?i)competition -Timeout 8
 expect (?i)competition.*enter to close
 key Down -Settle 600
