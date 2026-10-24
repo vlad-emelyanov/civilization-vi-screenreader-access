@@ -714,6 +714,8 @@ local function SRA_GovernorDetail( def:table, governor:table, pg:table )
 					end
 					local line:string;
 					if promo.BaseAbility then
+						-- the game's text ends with a static "Establishes in N turns."; for an appointed governor the list line says the real state
+						if governor ~= nil then desc = string.gsub( desc, "%s*Establishes in %d+ turns?%.?", "" ); end
 						line = "Base ability: " .. desc;
 					else
 						line = name .. ": " .. desc;

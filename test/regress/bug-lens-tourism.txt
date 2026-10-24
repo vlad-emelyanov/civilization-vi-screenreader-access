@@ -1,10 +1,10 @@
-# Written blind (not yet verified in game; run with --record first). Fixture bug-lens-silent (turn 128, Rome). Key 7 (LensTourism) used to be silent.
+# Verified 2026-10-24. Fixture bug-lens-silent (turn 128, Rome). Key 7 (LensTourism) used to be silent.
 # covers: **/LensText.lua UI/Additions/InGameAccess.lua
 # no-share-load: toggles the lens (interface mode)
 load bug-lens-silent
 clear-advisors
 action LensTourism -Settle 2500
-expect (?i)Tourism lens (on|is not available)
+expect (?i)^Tourism lens on
 action LensTourism -Settle 2500
 expect (?i)Tourism lens off
 no-lua-errors

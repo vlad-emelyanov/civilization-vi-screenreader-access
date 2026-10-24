@@ -1,10 +1,10 @@
-# Written blind (not yet verified in game; run with --record first). Fixture bug-lens-silent (turn 128, Rome).
+# Fixture bug-settler-no-skip (a Settler selected by Enter).
 # Delete Unit: after the Yes the unit is named as deleted, then the next unit is spoken.
 # covers: **/UnitPanel.lua **/HubEvents.lua **/InGamePopup.lua
 # no-share-load: deletes the unit
-load bug-lens-silent
+load bug-settler-no-skip
 clear-advisors
-action KeyNavCursorToSelection -Settle 1500
+key Enter -Settle 1500
 action DeleteUnit -Settle 1500
 expect (?i)^Popup: .*sure
 key Down -Settle 800
