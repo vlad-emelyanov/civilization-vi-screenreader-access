@@ -115,3 +115,10 @@ test("mode off: tribe data in the base game gives no clan words", function()
 	eq(PlotDescription_GetClanPhrase(plot), "Badger Claw clan, Melee Open")
 	Game.GetBarbarianManager = nil
 end)
+
+test("danger refusal names the enemy", function()
+	eq(PlotDescription_DangerReason("Danger", "Barbarian Galley", "1 tile east"), "Danger, Barbarian Galley 1 tile east")
+	eq(PlotDescription_DangerReason("Danger", nil, nil), "Danger")
+	eq(PlotDescription_DangerReason("no moves left", "Barbarian Galley", "1 tile east"), "no moves left")
+	eq(PlotDescription_DangerReason("Danger", "Barbarian Galley", nil), "Danger, Barbarian Galley")
+end)

@@ -3058,8 +3058,12 @@ end
 
 local function SRA_OnActivate( item:table )
 	if item.kind == "slot" then
-		if SRA_CurrentTab() ~= "policies" or not IsAbleToChangePolicies() then
+		if not IsAbleToChangePolicies() then
 			OutputMessageToScreenReader( "Policies can't be changed now" );
+			return;
+		end
+		if SRA_CurrentTab() ~= "policies" then
+			OutputMessageToScreenReader( "Policies are changed on the Policies tab. Tab to switch." );
 			return;
 		end
 		m_srCatalogSlotIndex = item.slot.GC_SlotIndex;

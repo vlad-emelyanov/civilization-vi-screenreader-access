@@ -11,6 +11,7 @@ include( "Civ6Common" );
 include( "EspionageSupport" );
 include("GameCapabilities");
 include("ScreenReader");	-- ScreenReaderAccess mod: CleanTextForSpeech
+include("PlotDescription");	-- ScreenReaderAccess mod: PlotDescription_NearestHostile
 include("SRListen");	-- ScreenReaderAccess mod: listeners that a hot reload can remove again
 
 
@@ -4300,6 +4301,17 @@ local function SRIsRangedAttackName( typeName:string )
 	return typeName ~= nil and ( string.find( typeName, "RANGE_ATTACK", 1, true ) ~= nil or string.find( typeName, "AIR_ATTACK", 1, true ) ~= nil );
 end
 
+-- "Danger" alone does not say what: name the nearest visible enemy / barbarian unit within 3 tiles ("Danger, Barbarian Galley 1 tile east").
+local function SRAddDanger( unit:table, reason:string )
+	if reason == nil or string.find( string.lower( reason ), "danger", 1, true ) == nil then return reason; end
+	local result:string = reason;
+	pcall( function()
+		local name, relative = PlotDescription_NearestHostile( unit, 3 );
+		result = PlotDescription_DangerReason( reason, name, relative );
+	end );
+	return result;
+end
+
 -- Red reasons of a disabled action's tooltip, else the derived ranged-attack reason (shared by the Tab menu and the hotkey).
 local function SRActionReason( unit:table, action:table, tooltip:string )
 	local reason:string = SRReasons( tooltip );
@@ -4307,7 +4319,7 @@ local function SRActionReason( unit:table, action:table, tooltip:string )
 		local ok:boolean, typeName = pcall( SRTypeName, action.userTag );
 		if ok and SRIsRangedAttackName( typeName ) then reason = SRRangedAttackReason( unit ); end
 	end
-	return reason;
+	return SRAddDanger( unit, reason );
 end
 
 -- "in formation with Builder. Shift+E separates them, or move them together" ("" when the unit is not in an escort / civilian formation).
@@ -4402,7 +4414,7 @@ local function SRRefusalReason( unit:table, hash:number )
 			table.insert( reasons, "needs another " .. Locale.Lookup( unit:GetName() ) .. " on an adjacent tile" );
 		end );
 	end
-	return table.concat( reasons, ", " );
+	return SRAddDanger( unit, table.concat( reasons, ", " ) );
 end
 
 -- Rebuilds m_srActions (callbacks) and returns the plain list for the hub.

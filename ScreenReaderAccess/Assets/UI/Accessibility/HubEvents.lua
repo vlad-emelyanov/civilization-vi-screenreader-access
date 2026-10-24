@@ -15,7 +15,8 @@ function HubEvents.OnUnitOperationStarted( ownerID:number, unitID:number, operat
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitOperations[ operationID ];
 	if row == nil then return; end
-	local text:string = HubMenus.OPERATION_RESULTS[ row.OperationType ];
+	local text = HubMenus.OPERATION_RESULTS[ row.OperationType ];
+	if type( text ) == "function" then text = text( unitID ); end
 	if text ~= nil then HubCore.SayResult( text ); end
 end
 

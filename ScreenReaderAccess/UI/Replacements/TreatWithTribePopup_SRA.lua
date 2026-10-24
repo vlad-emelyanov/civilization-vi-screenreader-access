@@ -434,7 +434,7 @@ local function SRA_OnActivate( item : table )
 		OnClose();
 		return;
 	end
-	local result : string = TreatClanText_Result(item.id, m_srClanName, m_srTargetLabel);
+	local result : string = TreatClanText_Result(item.id, m_srClanName, m_srTargetLabel, item.description);
 	if item.id == "Incite" and m_SelectedInciteTargetID == -1 then
 		OutputMessageToScreenReader("Choose a target first, with Left and Right");
 		return;
