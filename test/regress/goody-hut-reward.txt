@@ -1,0 +1,14 @@
+# Written 2026-10-24. A Scout walking onto a tribal village says what the village gave, after the move line (the reward is random: any "Tribal village: ..." text counts).
+# covers: **/HubEvents.lua UI/Additions/InGameAccess.lua
+# no-share-load: scenario puts a tribal village on the map and moves a unit
+load pt-modes-t82
+clear-advisors
+scenario goody-hut
+lua InGameAccess UI.SelectUnit(Players[0]:GetUnits():FindID(589831))
+wait Scout -Timeout 8
+action MoveTo -Settle 1500
+key Shift+Up -Settle 1500
+key Enter -Settle 3500
+expect ^Arrived
+expect ^Tribal village: \S
+no-lua-errors

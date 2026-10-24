@@ -1,0 +1,54 @@
+# Written 2026-10-24. A Scout walking onto a tribal village says what the village gave, after the move line (the reward is random: any "Tribal village: ..." text counts).
+# covers: **/HubEvents.lua UI/Additions/InGameAccess.lua
+# no-share-load: scenario puts a tribal village on the map and moves a unit
+load pt-modes-t82
+clear-advisors
+scenario goody-hut
+lua InGameAccess UI.SelectUnit(Players[0]:GetUnits():FindID(589831))
+wait Scout -Timeout 8
+action MoveTo -Settle 1500
+key Shift+Up -Settle 1500
+key Enter -Settle 3500
+expect ^Arrived
+#   -> PASS; window had 19 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 82, 940 AD
+#      | All done. Enter ends the turn
+#      | Scout, 3 of 3 moves, busy. Plains, Rainforest, 2 Food 1 Production, 7 tiles south-east of Aquileia
+#      | Move to: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+#      | 1 turn. Grassland, Woods, Tribal Village, 2 Food 1 Production. 1 tile north-east
+#      | Arrived, 3 of 3 moves
+#      | Tribal village: 30 faith
+expect ^Tribal village: \S
+#   -> PASS; window had 19 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 82, 940 AD
+#      | All done. Enter ends the turn
+#      | Scout, 3 of 3 moves, busy. Plains, Rainforest, 2 Food 1 Production, 7 tiles south-east of Aquileia
+#      | Move to: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+#      | 1 turn. Grassland, Woods, Tribal Village, 2 Food 1 Production. 1 tile north-east
+#      | Arrived, 3 of 3 moves
+#      | Tribal village: 30 faith
+no-lua-errors

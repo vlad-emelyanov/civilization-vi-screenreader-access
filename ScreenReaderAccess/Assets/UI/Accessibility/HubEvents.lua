@@ -307,6 +307,52 @@ function HubEvents.OnImprovementAddedToMap( x:number, y:number, improvementType:
 	end );
 end
 
+-- Tribal village reward, spoken as "Tribal village: 40 gold". Events.GoodyHutReward( playerID, unitID, goodyHutTypeHash, subTypeHash ):
+-- the hashes are DB.MakeHash of GoodyHuts.GoodyHutType / GoodyHutSubTypes.SubTypeGoodyHut. The game's Description strings take the amount
+-- as parameter; some have no text at all (units, population, relic: spoken here) and the boosts have no Description because the
+-- boost popup says them (BoostUnlockedPopup, BOOST_SOURCE_GOODYHUT): nothing is added for those.
+local GOODY_FALLBACK:table = {
+	GOODYHUT_ONE_RELIC = "a relic",
+	GOODYHUT_ADD_POP = "a new citizen",
+	GOODYHUT_GRANT_BUILDER = "a free Builder",
+	GOODYHUT_GRANT_TRADER = "a free Trader",
+	GOODYHUT_GRANT_SETTLER = "a free Settler",
+	GOODYHUT_ENVOY = "a free envoy",
+	GOODYHUT_FAVOR = "diplomatic favor",
+	GOODYHUT_RESOURCES = "strategic resources",
+};
+
+function HubEvents.GoodyRewardText( row:table )
+	local amount:number = nil;
+	for arg in GameInfo.ModifierArguments() do
+		if arg.ModifierId == row.ModifierID and arg.Name == "Amount" then amount = tonumber( arg.Value ); break; end
+	end
+	local speed:table = GameInfo.GameSpeeds[ GameConfiguration.GetGameSpeedType() ];
+	if amount ~= nil and speed ~= nil and ( row.GoodyHut == "GOODYHUT_GOLD" or row.GoodyHut == "GOODYHUT_FAITH" ) then
+		amount = math.floor( amount * speed.CostMultiplier / 100 );
+	end
+	local text:string = ( row.Description ~= nil ) and Locale.Lookup( row.Description, amount or 1 ) or "";
+	text = text:gsub( "%[ICON_Gold%]", " gold" ):gsub( "%[ICON_Faith%]", " faith" ):gsub( "%[ICON_Envoy%]", "" ):gsub( "%[ICON_Governor%]", "" );
+	text = text:gsub( "%[[%w_]+%]", "" ):gsub( "^%s*%+", "" ):gsub( "%s+", " " ):gsub( "^ ", "" ):gsub( " $", "" );
+	if text == "" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_BUILDER" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_TRADER" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_SETTLER"
+		or row.SubTypeGoodyHut == "GOODYHUT_ONE_RELIC" or row.SubTypeGoodyHut == "GOODYHUT_ADD_POP" then
+		text = GOODY_FALLBACK[ row.SubTypeGoodyHut ] or text;
+	end
+	return text;
+end
+
+function HubEvents.OnGoodyHutReward( playerID:number, unitID:number, typeHash:number, subTypeHash:number )
+	if playerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
+	local row:table = nil;
+	for r in GameInfo.GoodyHutSubTypes() do
+		if DB.MakeHash( r.SubTypeGoodyHut ) == subTypeHash then row = r; break; end
+	end
+	if row == nil then return; end
+	local text:string = HubEvents.GoodyRewardText( row );
+	if text == "" then return; end
+	HubCore.After( 0.3, function() HubCore.Announce( "Tribal village: " .. text, true ); end );		-- after "Arrived"
+end
+
 -- "Barbarian Warrior spotted, 2 tiles north of Rome": hostile soldiers that come into view near our cities and units.
 function HubEvents.OnUnitVisibilityChanged( playerID:number, unitID:number, visibility:number )
 	local localPlayer:number = Game.GetLocalPlayer();

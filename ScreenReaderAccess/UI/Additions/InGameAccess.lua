@@ -264,6 +264,7 @@ function Initialize()
 		local row:table = GameInfo.Units[ unitType ];
 		if player == Game.GetLocalPlayer() and HubCore.m_ready and row ~= nil then HubCore.SayResult( "Upgraded to " .. Locale.Lookup( row.Name ) ); end
 	end );
+	HubCore.AddEvent( "GoodyHutReward",				HubEvents.OnGoodyHutReward );
 	HubCore.AddEvent( "UnitKilledInCombat",			HubEvents.OnUnitKilledInCombat );
 	HubCore.Listen( LuaEvents.SRA_UnitActions, HubMenus.OnUnitActionsReceived );
 	HubCore.Listen( LuaEvents.SRA_Notifications, HubRegions.OnNotificationsReceived );
