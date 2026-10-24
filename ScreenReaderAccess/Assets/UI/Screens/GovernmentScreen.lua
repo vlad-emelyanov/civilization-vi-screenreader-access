@@ -145,14 +145,29 @@ local m_kBonuses				:table	= {}
 local m_governmentChangeType	:string = "";		-- The government type proposed being changed to.
 -- Begin ScreenReaderAccess change: a confirm dialog (InGamePopup) raised by this screen must get the keys from the first one
 local m_srAnnounceAfterChange	:boolean = false;	-- a government change was requested: say the new policies page once the game refreshed
-local m_srCloseSaid				:boolean = false;	-- the message before Close() already says the screen closes
+local m_srCloseMessage			:string = "";		-- spoken by Close() once the screen really hides ("" = "Government closed"); a warning dialog instead says nothing
+local m_srRequesting			:boolean = false;	-- inside RequestChangeGovernment (the refresh event may come before the Policies tab is selected)
+local m_srRefreshed				:boolean = false;	-- OnGovernmentChanged came while m_srRequesting
+local m_srAnnounceDeadline		:number = -1;		-- UI.GetElapsedTime() after which the page is said although no refresh event came
+local m_srPendingKey			= nil;				-- one KeyUp (Escape wins) that came while a dialog was raised but not visible yet
+local m_srPopupSeen				:boolean = false;	-- the dialog root was seen visible during this window
 local m_srPopupAt				:number = -100;		-- UI.GetElapsedTime() when this screen raised a dialog
 local function SRA_MarkPopup()
 	if UI ~= nil and UI.GetElapsedTime ~= nil then m_srPopupAt = UI.GetElapsedTime(); end
 end
-local function SRA_PopupOpen()
+local function SRA_PopupRootVisible()
 	local root = ContextPtr:LookUpControl( "/InGame/WorldPopups/InGamePopup/PopupRoot" );
-	if root ~= nil and not root:IsHidden() then return true; end
+	return root ~= nil and not root:IsHidden();
+end
+local function SRA_ClearPopup()
+	m_srPopupAt = -100;
+	m_srPopupSeen = false;
+	m_srPendingKey = nil;
+end
+local function SRA_PopupOpen()
+	if SRA_PopupRootVisible() then m_srPopupSeen = true; return true; end
+	-- the dialog was shown and is gone again (cancelled, answered): its window is over
+	if m_srPopupSeen then SRA_ClearPopup(); return false; end
 	-- just raised and not shown yet: the list underneath must not take the key either
 	return UI ~= nil and UI.GetElapsedTime ~= nil and UI.GetElapsedTime() - m_srPopupAt < 0.7;
 end
@@ -923,18 +938,30 @@ end
 --	UI Callback
 -- ===========================================================================
 function OnAcceptGovernmentChange()
+	SRA_ClearPopup();		-- ScreenReaderAccess
 	UI.PlaySound("UI_Policies_Change_Government");
 
 	local pPlayer		:table = Players[m_ePlayer];
 	local pPlayerCulture:table = pPlayer:GetCulture();
 	m_srAnnounceAfterChange = true;		-- ScreenReaderAccess: set before the request, the refresh event may come at once
-	if pPlayerCulture:RequestChangeGovernment( g_kGovernments[m_governmentChangeType].Hash ) then
+	m_srRefreshed = false;
+	m_srRequesting = true;
+	local srRequested:boolean = pPlayerCulture:RequestChangeGovernment( g_kGovernments[m_governmentChangeType].Hash );
+	m_srRequesting = false;
+	if srRequested then
 		g_kCurrentGovernment = g_kGovernments[m_governmentChangeType];
 		-- Update tabs and go to policies page.
 		RealizeTabs();
 		m_tabs.SelectTab( Controls.ButtonPolicies );
 		OutputMessageToScreenReader( "Government changed to " .. Locale.Lookup( g_kCurrentGovernment.Name ), true );		-- ScreenReaderAccess
-		-- ScreenReaderAccess: the slot count is only right after the game's GovernmentChanged refresh (OnGovernmentChanged speaks the page)
+		-- ScreenReaderAccess: the slot count is only right after the game's GovernmentChanged refresh (OnGovernmentChanged speaks the page).
+		-- It may have come during the request, before the Policies tab was selected: say the page now. Otherwise fall back to a timer.
+		if m_srRefreshed and m_srAnnounceAfterChange then
+			m_srAnnounceAfterChange = false;
+			SRA_OnOpen();
+		elseif UI ~= nil and UI.GetElapsedTime ~= nil then
+			m_srAnnounceDeadline = UI.GetElapsedTime() + 1.5;
+		end
 	else
 		m_srAnnounceAfterChange = false;
 	end
@@ -945,18 +972,19 @@ end
 --	UI Callback
 -- ===========================================================================
 function OnAcceptAnarchyChange()
+	SRA_ClearPopup();		-- ScreenReaderAccess
 	UI.PlaySound("UI_Policies_Change_Government");
 
 	local kPlayer		:table = Players[m_ePlayer];
 	local kPlayerCulture:table = kPlayer:GetCulture();
 	if kPlayerCulture:RequestChangeGovernment( g_kGovernments[m_governmentChangeType].Hash ) then
 		g_kCurrentGovernment = nil;
-		OutputMessageToScreenReader( "Changing to " .. Locale.Lookup( g_kGovernments[m_governmentChangeType].Name ) .. ", anarchy first. Government screen closed.", true );		-- ScreenReaderAccess
-		m_srCloseSaid = true;
+		OutputMessageToScreenReader( "Changing to " .. Locale.Lookup( g_kGovernments[m_governmentChangeType].Name ) .. ", anarchy first.", true );		-- ScreenReaderAccess
+		m_srCloseMessage = "Government screen closed";
 	end
 	m_governmentChangeType = "";
 	Close();
-	m_srCloseSaid = false;		-- ScreenReaderAccess
+	m_srCloseMessage = "";		-- ScreenReaderAccess: Close() may have gone to a warning dialog instead
 end
 
 -- ===========================================================================
@@ -1517,7 +1545,7 @@ function Close()
 		local popup:table = PopupDialogInGame:new( "WarnUnsavedChanges" );
 		SRA_MarkPopup();		-- ScreenReaderAccess
 		popup:ShowYesNoDialog( TXT_GOV_POPUP_PROMPT_POLICIES_CLOSE, 
-			function() Controls.ConfirmPolicies:SetDisabled(true); Close() end ); -- no-op on cancel
+			function() SRA_ClearPopup(); Controls.ConfirmPolicies:SetDisabled(true); Close() end ); -- no-op on cancel
 	else
 		-- Actual close
 		if not ContextPtr:IsHidden() then
@@ -1525,8 +1553,8 @@ function Close()
 		end
 		UIManager:DequeuePopup(ContextPtr);
 		m_srOpenPending = false;		-- ScreenReaderAccess
-		if not m_srCloseSaid then OutputMessageToScreenReader( "Government closed" ); end		-- ScreenReaderAccess
-		m_srCloseSaid = false;
+		if m_srCloseMessage ~= "" then OutputMessageToScreenReader( m_srCloseMessage, true ); else OutputMessageToScreenReader( "Government closed" ); end		-- ScreenReaderAccess
+		m_srCloseMessage = "";
 		m_governmentChangeType	= "";
 		m_isPoliciesChanged		= false;
 		LuaEvents.Government_CloseGovernment();
@@ -1601,10 +1629,11 @@ function OnConfirmPolicies()
 
 		m_isPoliciesChanged	= false;
 		Controls.ConfirmPolicies:SetDisabled( true );
-		OutputMessageToScreenReader( "Policies confirmed. Government screen closed.", true );		-- ScreenReaderAccess
-		m_srCloseSaid = true;
+		SRA_ClearPopup();		-- ScreenReaderAccess
+		OutputMessageToScreenReader( "Policies confirmed.", true );
+		m_srCloseMessage = "Government screen closed";
 		Close();
-		m_srCloseSaid = false;		-- ScreenReaderAccess: Close() may have gone to a warning dialog instead
+		m_srCloseMessage = "";		-- ScreenReaderAccess: Close() may have gone to a warning dialog instead
 	end
 
 	if(ShouldConfirmChanges())then
@@ -1947,8 +1976,11 @@ function OnGovernmentChanged( playerID:number )
 			Close();
 		end
 		-- ScreenReaderAccess: the data is fresh now, so the slot count of the policies page is right
-		if m_srAnnounceAfterChange and ContextPtr:IsVisible() and g_kCurrentGovernment ~= nil then
+		if m_srRequesting then
+			m_srRefreshed = true;		-- OnAcceptGovernmentChange says the page after it selected the Policies tab
+		elseif m_srAnnounceAfterChange and ContextPtr:IsVisible() and g_kCurrentGovernment ~= nil then
 			m_srAnnounceAfterChange = false;
+			m_srAnnounceDeadline = -1;
 			SRA_OnOpen();
 		end
 	end
@@ -2979,8 +3011,9 @@ end
 
 -- Shown for real (another popup may have been in front when the open was requested).
 function SRA_OnShow()
-	m_srCloseSaid = false;
+	m_srCloseMessage = "";
 	m_srAnnounceAfterChange = false;
+	m_srAnnounceDeadline = -1;
 	if m_srOpenPending then
 		m_srOpenPending = false;
 		SRA_OnOpen();
@@ -3093,13 +3126,14 @@ function OnInputHandler( pInputStruct:table )
 	-- ScreenReaderAccess: a confirm dialog is up (or being raised): the keys belong to it, never to the list or the screen below.
 	-- The InGamePopup context does not always get the first key, so hand it the KeyUp (it ignores it when it is not open yet).
 	if SRA_PopupOpen() then
-		if pInputStruct:GetMessageType() == KeyEvents.KeyUp then LuaEvents.SRA_InGamePopupKey( pInputStruct:GetKey() ); end
-		return true;
-	end
-	-- ScreenReaderAccess: the refresh after a government change never came: say the page now (instead of the key's own action)
-	if m_srAnnounceAfterChange and m_srList ~= nil then
-		m_srAnnounceAfterChange = false;
-		SRA_OnOpen();
+		if pInputStruct:GetMessageType() == KeyEvents.KeyUp then
+			local key = pInputStruct:GetKey();
+			if SRA_PopupRootVisible() then
+				LuaEvents.SRA_InGamePopupKey( key );
+			elseif m_srPendingKey == nil or key == Keys.VK_ESCAPE then
+				m_srPendingKey = key;		-- the dialog is not visible yet: SRA_Tick forwards it once it is
+			end
+		end
 		return true;
 	end
 	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
@@ -3119,10 +3153,32 @@ function OnInputHandler( pInputStruct:table )
 	return false;
 end
 
+-- ScreenReaderAccess: every frame while visible: forward a queued key to the dialog once it shows, and the page-announce fallback
+-- (the GovernmentChanged refresh never came); neither consumes input.
+local function SRA_Tick()
+	if m_srPendingKey ~= nil then
+		if SRA_PopupRootVisible() then
+			local key = m_srPendingKey;
+			m_srPendingKey = nil;
+			LuaEvents.SRA_InGamePopupKey( key );
+		elseif not SRA_PopupOpen() then
+			m_srPendingKey = nil;
+		end
+	end
+	if m_srAnnounceDeadline >= 0 and UI.GetElapsedTime() >= m_srAnnounceDeadline then
+		m_srAnnounceDeadline = -1;
+		if m_srAnnounceAfterChange and m_srList ~= nil then
+			m_srAnnounceAfterChange = false;
+			SRA_OnOpen();
+		end
+	end
+end
+
 -- ===========================================================================
 --	CTOR
 -- ===========================================================================
 function Initialize()
+	ContextPtr:SetUpdate( SRA_Tick );		-- ScreenReaderAccess
 	
 	Controls.LabelMilitary:SetText(Locale.Lookup("{LOC_GOVT_POLICY_TYPE_MILITARY:upper}"));
 	Controls.LabelEconomic:SetText(Locale.Lookup("{LOC_GOVT_POLICY_TYPE_ECONOMIC:upper}"));

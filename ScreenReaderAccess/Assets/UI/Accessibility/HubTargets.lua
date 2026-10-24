@@ -256,7 +256,10 @@ function HubTargets.ModeTargetPlots( mode:number, unit:table )
 			resultKey = UnitOperationResults.PLOTS;
 		end
 		if results == nil or resultKey == nil then set = nil; return; end
-		for _, plotId in ipairs( results[resultKey] or {} ) do set[ plotId ] = true; end
+		local plotList:table = results[resultKey];
+		-- WorldInput reads CityCommandResults.PLOTS for the kill/transform/restore/raid commands, UnitCommandResults.PLOTS for airlift
+		if plotList == nil and resultKey == UnitCommandResults.PLOTS then plotList = results[CityCommandResults.PLOTS]; end
+		for _, plotId in ipairs( plotList or {} ) do set[ plotId ] = true; end
 	end );
 	if not ok then return nil; end
 	return set;
@@ -542,21 +545,24 @@ local function ConfirmFormation( unit:table, plot:table, army:boolean )
 		parameters[UnitCommandTypes.PARAM_UNIT_ID] = partner:GetID();
 		if UnitManager.CanStartCommand( unit, command, parameters ) then
 			local partnerName:string = Locale.Lookup( partner:GetName() );
+			local partnerID:number = partner:GetID();
 			UnitManager.RequestCommand( unit, command, parameters );
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 			HubCore.SayResult( "Forming " .. ( army and "an " or "a " ) .. noun .. " with " .. partnerName );
 			-- the formation changes the units a moment later: tell the outcome
-			HubCore.After( 1.0, function()
+			local function CheckOutcome( attempt:number )
 				local merged:table = Players[ owner ]:GetUnits():FindID( unitID );
-				if merged == nil then merged = Players[ owner ]:GetUnits():FindID( partner:GetID() ); end
-				if merged == nil then return; end
-				local formation = merged:GetMilitaryFormation();
+				if merged == nil then merged = Players[ owner ]:GetUnits():FindID( partnerID ); end
+				local formation = ( merged ~= nil ) and merged:GetMilitaryFormation() or nil;
 				if formation == MilitaryFormationTypes.CORPS_FORMATION then
 					HubCore.SayResult( Locale.Lookup( merged:GetName() ) .. " " .. Locale.Lookup( "LOC_HUD_UNIT_PANEL_CORPS_SUFFIX" ) .. " formed" );
 				elseif formation == MilitaryFormationTypes.ARMY_FORMATION then
 					HubCore.SayResult( Locale.Lookup( merged:GetName() ) .. " " .. Locale.Lookup( "LOC_HUD_UNIT_PANEL_ARMY_SUFFIX" ) .. " formed" );
+				elseif attempt < 3 then
+					HubCore.After( 1.0, function() CheckOutcome( attempt + 1 ); end );
 				end
-			end );
+			end
+			HubCore.After( 1.0, function() CheckOutcome( 1 ); end );
 			return;
 		end
 	end
