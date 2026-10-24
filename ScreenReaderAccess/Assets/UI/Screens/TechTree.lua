@@ -1819,7 +1819,7 @@ local function SRA_TechInfo( techType:string )
 	else
 		info.status = "blocked";
 		info.turns = techs:GetTurnsToResearch( id );
-		info.needs = TreeNav_PrereqNames( item, function( p ) return techs:HasTech( p.Index ); end );
+		info.needs = TreeNav_PrereqNames( item, function( p ) return techs:HasTech( p.Index ); end, function( p ) return SRA_IsRevealed( techs, p ); end );
 	end
 	if item.IsBoostable and info.status ~= "researched" then info.boosted = techs:HasBoostBeenTriggered( id ); end
 	info.queuePos = TreeNav_QueuePos( techs:GetResearchQueue(), techs:GetResearchingTech(), id );
@@ -1835,8 +1835,9 @@ local function SRA_TechDetail( techType:string )
 	local d:table = {
 		name = info.name, statusText = TreeText_Item( info ), rateWord = "science",
 		unlocks = TreeNav_UnlockEntries( GetUnlockablesForTech_Cached( techType, ePlayer ) ),
-		prereqs = TreeNav_PrereqNames( item ), leads = TreeNav_LeadsTo( techType ),
+		prereqs = TreeNav_PrereqNames( item, nil, function( p ) return SRA_IsRevealed( techs, p ); end ), hiddenWord = "tech",
 	};
+	d.leads, d.leadsHidden = TreeNav_LeadsTo( techType, function( p ) return SRA_IsRevealed( techs, p ); end );
 	if info.status ~= "researched" then
 		d.cost = techs:GetResearchCost( item.Index );
 		d.progress = math.floor( techs:GetResearchProgress( item.Index ) + 0.5 );

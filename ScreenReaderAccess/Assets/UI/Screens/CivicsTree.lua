@@ -2192,7 +2192,7 @@ local function SRA_CivicInfo( civicType:string )
 	else
 		info.status = "blocked";
 		info.turns = culture:GetTurnsToProgressCivic( id );
-		info.needs = TreeNav_PrereqNames( item, function( p ) return culture:HasCivic( SRA_CivicId( p ) ); end );
+		info.needs = TreeNav_PrereqNames( item, function( p ) return culture:HasCivic( SRA_CivicId( p ) ); end, function( p ) return SRA_IsRevealed( culture, p ); end );
 	end
 	if item.IsBoostable and info.status ~= "researched" then info.boosted = culture:HasBoostBeenTriggered( id ); end
 	info.queuePos = TreeNav_QueuePos( culture:GetCivicQueue(), culture:GetProgressingCivic(), id );
@@ -2209,8 +2209,9 @@ local function SRA_CivicDetail( civicType:string )
 	local d:table = {
 		name = info.name, statusText = TreeText_Item( info ), rateWord = "culture",
 		unlocks = TreeNav_UnlockEntries( GetUnlockablesForCivic_Cached( civicType, ePlayer ) ),
-		prereqs = TreeNav_PrereqNames( item ), leads = TreeNav_LeadsTo( civicType ),
+		prereqs = TreeNav_PrereqNames( item, nil, function( p ) return SRA_IsRevealed( culture, p ); end ), hiddenWord = "civic",
 	};
+	d.leads, d.leadsHidden = TreeNav_LeadsTo( civicType, function( p ) return SRA_IsRevealed( culture, p ); end );
 	if info.status ~= "researched" then
 		d.cost = culture:GetCultureCost( id );
 		d.progress = math.floor( culture:GetCulturalProgress( id ) + 0.5 );

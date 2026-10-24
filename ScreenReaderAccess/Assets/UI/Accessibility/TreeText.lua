@@ -100,7 +100,8 @@ function TreeText_Unlocks( unlocks:table )
 end
 
 -- Space on a node. d: name, statusText (the TreeText_Item line), cost, progress, rate, rateWord ("science" / "culture"),
--- unlocks, boost { word = "Eureka"/"Inspiration", text = condition, done = bool }, prereqs (names), leads (names), description
+-- unlocks, boost { word = "Eureka"/"Inspiration", text = condition, done = bool }, prereqs (names), leads (names), leadsHidden (number of
+-- unrevealed followers), hiddenWord ("tech" / "civic"), description
 function TreeText_Detail( d:table )
 	local parts:table = { d.statusText or d.name };
 	if d.cost ~= nil and d.cost > 0 then
@@ -124,9 +125,14 @@ function TreeText_Detail( d:table )
 	else
 		table.insert( parts, "No prerequisites" );
 	end
-	if d.leads ~= nil and #d.leads > 0 then
-		table.insert( parts, "Leads to " .. table.concat( d.leads, ", " ) );
+	local leads:string = ( d.leads ~= nil and #d.leads > 0 ) and table.concat( d.leads, ", " ) or nil;
+	if d.leadsHidden ~= nil and d.leadsHidden > 0 then
+		-- Tech/Civic Shuffle: the tree shows these as "Not revealed yet", so they are counted, not named
+		local word:string = d.hiddenWord or "item";
+		local hidden:string = d.leadsHidden .. " unrevealed " .. word .. ( d.leadsHidden == 1 and "" or "s" );
+		leads = ( leads ~= nil ) and ( leads .. " and " .. hidden ) or hidden;
 	end
+	if leads ~= nil then table.insert( parts, "Leads to " .. leads ); end
 	if d.description ~= nil and d.description ~= "" then table.insert( parts, d.description ); end
 	return table.concat( parts, ". " );
 end

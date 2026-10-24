@@ -362,19 +362,25 @@ function TreeNav_Entries( isRevealed, hiddenName:string )
 end
 
 -- Names of the direct prerequisites, or only those for which done(prereqItem) is false.
-function TreeNav_PrereqNames( item:table, done )
+-- revealed(prereqItem) (optional): an unrevealed prerequisite (Tech/Civic Shuffle) is not named.
+function TreeNav_PrereqNames( item:table, done, revealed )
 	local names:table = {};
 	for _, prereq in ipairs( item.Prereqs ) do
 		if prereq ~= PREREQ_ID_TREE_START and g_kItemDefaults[ prereq ] ~= nil then
 			local p:table = g_kItemDefaults[ prereq ];
-			if done == nil or not done( p ) then table.insert( names, TreeNav_ItemName( p ) ); end
+			if revealed ~= nil and not revealed( p ) then
+				table.insert( names, "an unrevealed prerequisite" );
+			elseif done == nil or not done( p ) then
+				table.insert( names, TreeNav_ItemName( p ) );
+			end
 		end
 	end
 	return names;
 end
 
--- Names of the nodes that list typeName as a prerequisite, in tree order.
-function TreeNav_LeadsTo( typeName:string )
+-- Names of the nodes that list typeName as a prerequisite, in tree order. revealed(item) (optional): unrevealed nodes
+-- (Tech/Civic Shuffle) are not named but counted: the second result is their number.
+function TreeNav_LeadsTo( typeName:string, revealed )
 	local found:table = {};
 	for _, item in pairs( g_kItemDefaults ) do
 		for _, prereq in ipairs( item.Prereqs ) do
@@ -391,8 +397,11 @@ function TreeNav_LeadsTo( typeName:string )
 		return a.UITreeRow < b.UITreeRow;
 	end );
 	local names:table = {};
-	for _, item in ipairs( found ) do table.insert( names, TreeNav_ItemName( item ) ); end
-	return names;
+	local hidden:number = 0;
+	for _, item in ipairs( found ) do
+		if revealed ~= nil and not revealed( item ) then hidden = hidden + 1; else table.insert( names, TreeNav_ItemName( item ) ); end
+	end
+	return names, hidden;
 end
 
 -- unlockables as GetUnlockablesForTech_Cached / GetUnlockablesForCivic_Cached return them ({ typeName, nameTag, ... })

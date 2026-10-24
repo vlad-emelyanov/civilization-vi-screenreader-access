@@ -135,6 +135,7 @@ local m_sections:table = {
 		{ action = "ToggleCivicsTree",	default = "C",			text = "civics tree: the same keys as the tech tree" },
 		{ keys = "J, Q and F",			text = "in the trees: J current research, Q the queue, F search by name" },
 		{ action = "ToggleGovernment",	default = "F7",			text = "government: Tab switches policies, governments, my government" },
+		{ keys = "Escape in government",	text = "with an empty policy slot the changes are not confirmed: the first Escape warns, Escape again closes and discards them" },
 		{ action = "ToggleCityStates",	default = "F2",			text = "city-states: Space bonuses and quests, Enter actions" },
 		{ keys = "Enter, Left and C",		text = "city-states envoy mode: Enter adds an envoy, Left removes one, C confirms, A actions" },
 		{ action = "ToggleReligion",	default = "L",			text = "religion screen, also to found a religion and choose beliefs" },
