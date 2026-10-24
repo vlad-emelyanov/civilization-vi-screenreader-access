@@ -216,6 +216,52 @@ function HubTargets.IsAttackTarget( plot:table )
 	return string.find( text, "valid target", 1, true ) ~= nil or string.find( text, "attack", 1, true ) == 1;
 end
 
+-- Modes whose valid targets the game lists (WorldInput's OnInterfaceModeChange_* highlight them): the plots of
+-- GetOperationTargets / GetCommandTargets, or for Form Corps / Form Army the plots of the partner units.
+local m_listedOperations:table = { COASTAL_RAID = "COASTAL_RAID", DEPLOY = "DEPLOY", REBASE = "REBASE" };
+local m_listedCommands:table = { AIRLIFT = "AIRLIFT", KILL_WEAKER_UNIT = "KILL_WEAKER_UNIT", TRANSFORM_UNIT = "TRANSFORM_UNIT",
+	RESTORE_UNIT_MOVES = "RESTORE_UNIT_MOVES", NAVAL_GOLD_RAID = "NAVAL_GOLD_RAID" };
+
+-- Set of plot indexes the selected unit may choose in this mode (nil: the mode does not list its targets).
+function HubTargets.ModeTargetPlots( mode:number, unit:table )
+	if unit == nil then return nil; end
+	local set:table = {};
+	local ok:boolean = pcall( function()
+		if mode == InterfaceModeTypes.FORM_CORPS or mode == InterfaceModeTypes.FORM_ARMY then
+			local command = ( mode == InterfaceModeTypes.FORM_CORPS ) and UnitCommandTypes.FORM_CORPS or UnitCommandTypes.FORM_ARMY;
+			local results:table = UnitManager.GetCommandTargets( unit, command );
+			local units:table = results ~= nil and results[UnitCommandResults.UNITS] or nil;
+			for _, componentID in ipairs( units or {} ) do
+				local partner:table = Players[ unit:GetOwner() ]:GetUnits():FindID( componentID.id );
+				if partner ~= nil then set[ Map.GetPlotIndex( partner:GetX(), partner:GetY() ) ] = true; end
+			end
+			return;
+		end
+		local results:table = nil;
+		local resultKey = nil;
+		for key, mapped in pairs( m_listedOperations ) do
+			if InterfaceModeTypes[ key ] == mode and UnitOperationTypes[ mapped ] ~= nil then
+				results = UnitManager.GetOperationTargets( unit, UnitOperationTypes[ mapped ] );
+				resultKey = UnitOperationResults.PLOTS;
+			end
+		end
+		for key, mapped in pairs( m_listedCommands ) do
+			if InterfaceModeTypes[ key ] == mode and UnitCommandTypes[ mapped ] ~= nil then
+				results = UnitManager.GetCommandTargets( unit, UnitCommandTypes[ mapped ] );
+				resultKey = UnitCommandResults.PLOTS;
+			end
+		end
+		if mode == InterfaceModeTypes.SACRIFICE_SELECTION then
+			results = UnitManager.GetOperationTargets( unit, "UNITOPERATION_SOOTHSAYER_SACRIFICE" );
+			resultKey = UnitOperationResults.PLOTS;
+		end
+		if results == nil or resultKey == nil then set = nil; return; end
+		for _, plotId in ipairs( results[resultKey] or {} ) do set[ plotId ] = true; end
+	end );
+	if not ok then return nil; end
+	return set;
+end
+
 -- Mode specific words for the cursor plot: path length for a move, valid target and odds for an attack.
 function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 	if unit == nil then
@@ -227,6 +273,14 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 			return "no target";
 		end
 		return nil;
+	end
+	local listed:table = HubTargets.ModeTargetPlots( mode, unit );
+	if listed ~= nil then
+		if listed[ plot:GetIndex() ] then
+			if mode == InterfaceModeTypes.FORM_CORPS or mode == InterfaceModeTypes.FORM_ARMY then return "valid target, unit to join"; end
+			return "valid target";
+		end
+		return "no target";
 	end
 	if mode == InterfaceModeTypes.MOVE_TO then
 		if unit:GetX() == plot:GetX() and unit:GetY() == plot:GetY() then return "here"; end
@@ -433,6 +487,8 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if IsCityMode( newMode ) then HubCore.After( 0.3, HubTargets.CursorToNearestCityTarget ); end
 end
 
+local m_directRequests:table;
+
 -- For modes without a direct call below: click the plot with the real mouse, like a sighted player would.
 local function ClickCursorPlot()
 	local x:number, y:number = HubCursor.GetCursor();
@@ -473,6 +529,97 @@ function HubTargets.IssueMoveOrder( unit:table, plot:table, war:table, enemy:boo
 			end
 		end );
 	end
+end
+
+-- Form Corps / Form Army (WorldInput FormCorps / FormArmy): the selected unit joins a unit of the cursor plot.
+local function ConfirmFormation( unit:table, plot:table, army:boolean )
+	local command = army and UnitCommandTypes.FORM_ARMY or UnitCommandTypes.FORM_CORPS;
+	local noun:string = army and "army" or "corps";
+	local unitID:number, owner:number = unit:GetID(), unit:GetOwner();
+	for _, partner in ipairs( Units.GetUnitsInPlotLayerID( plot:GetX(), plot:GetY(), MapLayers.ANY ) ) do
+		local parameters:table = {};
+		parameters[UnitCommandTypes.PARAM_UNIT_PLAYER] = partner:GetOwner();
+		parameters[UnitCommandTypes.PARAM_UNIT_ID] = partner:GetID();
+		if UnitManager.CanStartCommand( unit, command, parameters ) then
+			local partnerName:string = Locale.Lookup( partner:GetName() );
+			UnitManager.RequestCommand( unit, command, parameters );
+			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+			HubCore.SayResult( "Forming " .. ( army and "an " or "a " ) .. noun .. " with " .. partnerName );
+			-- the formation changes the units a moment later: tell the outcome
+			HubCore.After( 1.0, function()
+				local merged:table = Players[ owner ]:GetUnits():FindID( unitID );
+				if merged == nil then merged = Players[ owner ]:GetUnits():FindID( partner:GetID() ); end
+				if merged == nil then return; end
+				local formation = merged:GetMilitaryFormation();
+				if formation == MilitaryFormationTypes.CORPS_FORMATION then
+					HubCore.SayResult( Locale.Lookup( merged:GetName() ) .. " " .. Locale.Lookup( "LOC_HUD_UNIT_PANEL_CORPS_SUFFIX" ) .. " formed" );
+				elseif formation == MilitaryFormationTypes.ARMY_FORMATION then
+					HubCore.SayResult( Locale.Lookup( merged:GetName() ) .. " " .. Locale.Lookup( "LOC_HUD_UNIT_PANEL_ARMY_SUFFIX" ) .. " formed" );
+				end
+			end );
+			return;
+		end
+	end
+	HubCore.SayResult( "No unit here can join a " .. noun );
+end
+
+-- Modes in which WorldInput sends one request for the cursor plot (PARAM_X / PARAM_Y). kind: the request is a unit
+-- operation or a unit command; war: the attack can declare war (the game asks first); say: the spoken confirmation.
+m_directRequests = {};
+do
+	local function Add( modeName:string, kind:string, typeName:string, say:string, war:boolean, nilArg:boolean )
+		local mode = InterfaceModeTypes[ modeName ];
+		if mode == nil then return; end
+		m_directRequests[mode] = { kind = kind, typeName = typeName, say = say, war = war, nilArg = nilArg };
+	end
+	Add( "COASTAL_RAID", "operation", "COASTAL_RAID", "Coastal raid", true );
+	Add( "DEPLOY", "operation", "DEPLOY", "Deploying", false );
+	Add( "REBASE", "operation", "REBASE", "Rebasing", false );
+	Add( "SACRIFICE_SELECTION", "operation", "UNITOPERATION_SOOTHSAYER_SACRIFICE", "Sacrificing", false );
+	Add( "AIRLIFT", "command", "AIRLIFT", "Airlifting", false, true );		-- WorldInput passes (unit, AIRLIFT, nil, params) to CanStartCommand
+	Add( "KILL_WEAKER_UNIT", "command", "KILL_WEAKER_UNIT", "Killing the weaker unit", false );
+	Add( "TRANSFORM_UNIT", "command", "TRANSFORM_UNIT", "Transforming", false );
+	Add( "RESTORE_UNIT_MOVES", "command", "RESTORE_UNIT_MOVES", "Restoring moves", false );
+	Add( "NAVAL_GOLD_RAID", "command", "NAVAL_GOLD_RAID", "Naval raid", false );
+end
+
+local function ConfirmDirectRequest( unit:table, plot:table, mode:number )
+	local entry:table = m_directRequests[mode];
+	local parameters:table = {};
+	local isOperation:boolean = ( entry.kind == "operation" );
+	local paramX = isOperation and UnitOperationTypes.PARAM_X or UnitCommandTypes.PARAM_X;
+	local paramY = isOperation and UnitOperationTypes.PARAM_Y or UnitCommandTypes.PARAM_Y;
+	parameters[paramX] = plot:GetX();
+	parameters[paramY] = plot:GetY();
+	local requestType = isOperation and ( UnitOperationTypes[ entry.typeName ] or entry.typeName ) or UnitCommandTypes[ entry.typeName ];
+	if requestType == nil then HubCore.SayResult( "Cannot do that" ); return; end
+	if entry.war then
+		local war:table = HubTargets.WarTargets( unit, plot );
+		if war ~= nil then
+			RememberWarReturn( mode );
+			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
+			return;
+		end
+	end
+	local can:boolean;
+	if isOperation then
+		can = UnitManager.CanStartOperation( unit, requestType, nil, parameters );
+	elseif entry.nilArg then
+		can = UnitManager.CanStartCommand( unit, requestType, nil, parameters );
+	else
+		can = UnitManager.CanStartCommand( unit, requestType, parameters );
+	end
+	if not can then
+		HubCore.SayResult( "Not possible there, choose a valid target" );
+		return;
+	end
+	if isOperation then
+		UnitManager.RequestOperation( unit, requestType, parameters );
+	else
+		UnitManager.RequestCommand( unit, requestType, parameters );
+	end
+	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+	HubCore.SayResult( entry.say );
 end
 
 -- Enter in a target mode: what WorldInput does on the left click in that mode, for the cursor plot.
@@ -574,6 +721,10 @@ function HubTargets.ConfirmTarget()
 		else
 			HubCore.SayResult( "Cannot attack there" );
 		end
+	elseif unit ~= nil and ( mode == InterfaceModeTypes.FORM_CORPS or mode == InterfaceModeTypes.FORM_ARMY ) then
+		ConfirmFormation( unit, plot, mode == InterfaceModeTypes.FORM_ARMY );
+	elseif unit ~= nil and m_directRequests[mode] ~= nil then
+		ConfirmDirectRequest( unit, plot, mode );
 	else
 		ClickCursorPlot();
 	end

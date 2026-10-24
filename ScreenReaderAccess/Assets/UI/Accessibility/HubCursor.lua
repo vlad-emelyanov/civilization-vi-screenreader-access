@@ -270,7 +270,24 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	end
 	local byPlot:table = {};
 	local found:table = {};
+	-- a target mode that lists its valid plots (form corps / army: the partner units; deploy, rebase, airlift ...): X walks those
+	local targetMode:number = HubTargets.GetTargetMode();
+	local listed:table = ( targetMode ~= nil ) and HubTargets.ModeTargetPlots( targetMode, UI.GetHeadSelectedUnit() ) or nil;
+	if listed ~= nil then
+		for plotIndex, _ in pairs( listed ) do
+			local plot:table = Map.GetPlotByIndex( plotIndex );
+			if plot ~= nil then
+				table.insert( found, { key = tostring( plotIndex ), index = plotIndex, x = plot:GetX(), y = plot:GetY(),
+					distance = Map.GetPlotDistance( originPlot:GetX(), originPlot:GetY(), plot:GetX(), plot:GetY() ), hostile = false, valid = true } );
+			end
+		end
+		if #found == 0 then
+			OutputMessageToScreenReader( "No valid target for this" );
+			return;
+		end
+	end
 	for playerID = 0, 63 do
+		if listed ~= nil then break; end
 		local player:table = Players[ playerID ];
 		if playerID ~= localPlayer and player ~= nil and player:IsAlive() then
 			local hostile:boolean = HubCore.IsHostile( playerID );
@@ -294,7 +311,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		return;
 	end
 	-- in an attack mode the plots the unit can really attack come first, then hostile ones, then the rest
-	if HubTargets.GetTargetMode() ~= nil then
+	if HubTargets.GetTargetMode() ~= nil and listed == nil then
 		for _, entry in ipairs( found ) do entry.valid = HubTargets.IsAttackTarget( Map.GetPlot( entry.x, entry.y ) ); end
 	end
 	table.sort( found, function( a, b )
