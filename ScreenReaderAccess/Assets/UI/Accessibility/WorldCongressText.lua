@@ -160,3 +160,25 @@ function WCText_ReviewProposal( title, description, upVotes, downVotes )
 	if description ~= nil and WCText_Strip( description ) ~= "" then text = text .. ". " .. WCText_Strip( description ); end
 	return text;
 end
+
+-- Players we have not met all show up as "Unmet Player" in the game. tails: one string per unmet player (what they did,
+-- e.g. "1 vote for B" or a score; "" for none). Equal tails are merged: { "3 unmet players: 1 vote for B each" }.
+function WCText_UnmetGroups( tails )
+	local order:table = {};
+	local counts:table = {};
+	for _, tail in ipairs( tails or {} ) do
+		if counts[ tail ] == nil then
+			counts[ tail ] = 0;
+			table.insert( order, tail );
+		end
+		counts[ tail ] = counts[ tail ] + 1;
+	end
+	local groups:table = {};
+	for _, tail in ipairs( order ) do
+		local n:number = counts[ tail ];
+		local text:string = WCText_Plural( n, "unmet player" );
+		if tail ~= "" then text = text .. ": " .. tail .. ( n > 1 and " each" or "" ); end
+		table.insert( groups, text );
+	end
+	return groups;
+end

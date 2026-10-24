@@ -118,3 +118,31 @@ function DealSpeech_ChangeText( before, after )
 	if added ~= nil then return "Changed: " .. added; end
 	return nil;
 end
+
+-- What is spoken after a click/key changed the deal: the change (from DealSpeech_ChangeText), then the REST of the deal.
+-- giveTexts / getTexts: DealSpeech_DealItemText of every item per side; summary: DealSpeech_Summary of the deal.
+-- "Added: X" / "Changed: X" already say which side gives X, so X is not repeated in the rest.
+function DealSpeech_ChangeSpeech( change, giveTexts, getTexts, summary, fallback )
+	if change ~= nil then
+		local prefix = nil;
+		if string.sub( change, 1, 7 ) == "Added: " then prefix = "Added: ";
+		elseif string.sub( change, 1, 9 ) == "Changed: " then prefix = "Changed: "; end
+		if prefix ~= nil then
+			local changed = string.sub( change, #prefix + 1 );
+			local rest = {};
+			local skipped = false;
+			for _, list in ipairs( { giveTexts, getTexts } ) do
+				for _, text in ipairs( list ) do
+					if text == changed and not skipped then skipped = true; else table.insert( rest, text ); end
+				end
+			end
+			if skipped then
+				if #rest == 0 then
+					return change .. ". " .. ( string.sub( changed, 1, 9 ) == "You give:" and "They give nothing." or "You give nothing." );
+				end
+				return change .. ". Also: " .. table.concat( rest, "; " );
+			end
+		end
+	end
+	return ( change or fallback or "Nothing changed" ) .. ". " .. summary;
+end

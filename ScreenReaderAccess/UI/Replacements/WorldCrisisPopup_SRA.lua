@@ -5,6 +5,7 @@ include("LeaderIcon");
 include("CivilizationIcon");
 include("WorldCrisisSupport");
 include("ScreenReader");		-- ScreenReaderAccess mod change
+include("WorldCongressText");	-- ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	CONSTANTS
@@ -255,7 +256,7 @@ function SRA_BuildText( kData:table )
 		text = SRA_Clean(text);
 		if text ~= "" then table.insert(head, text); end
 	end
-	add(kData.titleString);
+	add(Locale.Lookup(kData.titleString));		-- may be a raw LOC key (CompletedText of an ended crisis)
 	if GameInfo.Emergencies_XP2[kData.emergencyType].Hostile or kData.targetPlayer >= 0 then add(kData.crisisTargetTitle); end
 	add(kData.targetCityName);
 	add(kData.crisisTrinketTitle);
@@ -272,13 +273,21 @@ function SRA_BuildText( kData:table )
 	local lines:table = {};
 	SRA_AddLines(lines, kData.crisisDetails);
 	local members:table = {};
+	local unmetScores:table = {};		-- members we have not met: the game shows each as "Unmet Player"
+	local localID:number = Game.GetLocalPlayer();
+	local localDiplomacy:table = Players[localID]:GetDiplomacy();
 	for _, playerID in ipairs(kData.participantPlayers or {}) do
 		if playerID ~= -1 then
 			local score = kData.participantScores ~= nil and kData.participantScores[playerID] or nil;
-			local name:string = (playerID == Game.GetLocalPlayer()) and "You" or SRA_Clean(GetVisiblePlayerName(playerID));
-			table.insert(members, name .. (score ~= nil and (" " .. tostring(score)) or ""));
+			if playerID ~= localID and not localDiplomacy:HasMet(playerID) then
+				table.insert(unmetScores, score ~= nil and tostring(score) or "");
+			else
+				local name:string = (playerID == localID) and "You" or SRA_Clean(GetVisiblePlayerName(playerID));
+				table.insert(members, name .. (score ~= nil and (" " .. tostring(score)) or ""));
+			end
 		end
 	end
+	for _, group in ipairs(WCText_UnmetGroups(unmetScores)) do table.insert(members, group); end
 	if #members > 0 then
 		table.insert(lines, SRA_Clean(Controls.MemberLabel:GetText()) .. ": " .. table.concat(members, ", "));
 	end

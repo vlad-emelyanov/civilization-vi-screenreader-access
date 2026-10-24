@@ -1,0 +1,20 @@
+# Written blind (2026-10-24): "Changed: They give: Horses, 2. You give: Amber... They give: Horses, 2." (tail repeated), and Tab into Actions focused "Never mind" instead of Accept. Fixture pt-ai-deal-offer (turn 143, Suleiman proposes a deal; the screen opens on Actions).
+# covers: **/SRA_DealView.lua **/DealSpeech.lua
+# no-share-load: changes the deal
+load pt-ai-deal-offer
+wait (?i)proposes a deal -Timeout 10
+key Tab -Settle 800
+expect ^Deal,
+key Tab -Settle 800
+key Tab -Settle 800
+key Tab -Settle 800
+expect ^Actions, \d+ items?
+expect (Accept|Propose)[^,]*, 1 of \d+
+expect-not Never mind, \d+ of \d+
+# Left/Right on a deal item changes its amount: the change is spoken once, then only the REST of the deal ("Changed: X. Also: ...")
+key Control+Tab -Settle 800
+key Control+Tab -Settle 800
+key Control+Tab -Settle 800
+key Right -Settle 1500
+expect-not (?i)(They give: [^.]*)\..*\1\.\s*$
+no-lua-errors

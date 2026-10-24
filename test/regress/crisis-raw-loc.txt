@@ -1,0 +1,11 @@
+# Written blind (2026-10-24): the ended Scored Competition / Aid Request popup spoke the raw key LOC_EMERGENCY_REQUEST_AID_NAME and every unmet member as "Unmet Player". Fixture bug-crisis-raw-loc (turn 152, popup open at the start; if it is not, open it like crisis-popup.txt does).
+# covers: **/WorldCrisisPopup_SRA.lua **/WorldCongressText.lua
+# no-share-load: closes the popup
+load bug-crisis-raw-loc
+wait (?i)enter to close -Timeout 10
+expect-not LOC_[A-Z_]+
+expect-not (?i)unmet player,.*unmet player,
+key Down -Settle 600
+expect \d+ of \d+
+key Enter -Settle 2000
+no-lua-errors
