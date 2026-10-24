@@ -22,6 +22,16 @@ function HubMenus.RepairText( name:string )
 	return "Repairing " .. name .. ", done next turn";
 end
 
+-- Repair is spoken by the UnitOperationStarted event and by the menu's fallback timer; whichever comes first claims it.
+-- (Per unit; a claim holds for 2 s, so the next Repair order is spoken again.)
+HubMenus.m_repairSpoken = {};
+function HubMenus.ClaimRepairSpeech( unitId:number, now:number )
+	local last = HubMenus.m_repairSpoken[ unitId ];
+	if last ~= nil and now - last < 2.0 then return false; end
+	HubMenus.m_repairSpoken[ unitId ] = now;
+	return true;
+end
+
 -- The result of Repair: what the builder's tile holds (a pillaged improvement, else a pillaged district). The value in
 -- OPERATION_RESULTS may be a function( unitId ) returning the text (HubEvents.OnUnitOperationStarted calls it).
 function HubMenus.RepairResult( unitId:number )
@@ -43,7 +53,12 @@ function HubMenus.RepairResult( unitId:number )
 	end );
 	return HubMenus.RepairText( name );
 end
-HubMenus.OPERATION_RESULTS.UNITOPERATION_REPAIR = HubMenus.RepairResult;
+-- the event path: nil (silent) when the fallback already spoke
+function HubMenus.RepairEventResult( unitId:number )
+	if not HubMenus.ClaimRepairSpeech( unitId, UI.GetElapsedTime() ) then return nil; end
+	return HubMenus.RepairResult( unitId );
+end
+HubMenus.OPERATION_RESULTS.UNITOPERATION_REPAIR = HubMenus.RepairEventResult;
 
 -- Actions that announce their outcome in another way (events below, popups, target modes).
 local RESULT_SILENT = {
@@ -103,10 +118,9 @@ local function RunMenuItem( item:table )
 	-- target modes, found city, building and the like announce themselves. Anything else: say what was chosen.
 	if item.action.typeName == "UNITOPERATION_REPAIR" then
 		-- UnitOperationStarted normally speaks it (HubEvents); if nothing was said shortly after, say it here
-		local before:number = HubCore.m_lastResultTime;
 		local unitId:number = unit:GetID();
 		HubCore.After( 0.6, function()
-			if HubCore.m_lastResultTime == before then HubCore.SayResult( HubMenus.RepairResult( unitId ) ); end
+			if HubMenus.ClaimRepairSpeech( unitId, UI.GetElapsedTime() ) then HubCore.SayResult( HubMenus.RepairResult( unitId ) ); end
 		end );
 	end
 	if UI.GetInterfaceMode() == modeBefore and not RESULT_SILENT[ item.action.typeName ]
