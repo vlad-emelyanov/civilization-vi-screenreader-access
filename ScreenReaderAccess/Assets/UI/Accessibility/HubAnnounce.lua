@@ -281,26 +281,83 @@ function HubAnnounce.OnLoadScreenClose()
 	end
 end
 
+-- The engine can hand the turn back after LocalPlayerTurnEnd: a unit that finished a queued move or auto-explore during
+-- the end-of-turn processing asks for orders (or a screen still needs the player). IsTurnActive is true again within
+-- 0.1 s, but PlayerTurnActivated(local, false) and LocalPlayerTurnBegin only follow ~3 s later and the action panel
+-- says "Please wait" until then. So after "Turn ended" (or a turn end that did not happen) we watch for it.
+local m_endedTurn:number = -1;			-- game turn for which a turn end was seen and is not yet confirmed or refuted
+local m_notEndedWatch:number = 0;		-- id of the running label wait (a new turn end cancels an older one)
+
+-- Sentence case of the action panel's blocker text ("UNIT NEEDS ORDERS" -> "Unit needs orders"), "" while it only waits.
+local function BlockerText()
+	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
+	if label == nil then return ""; end
+	local text:string = CleanTextForSpeech( label:GetText() or "" );
+	if text == "" or string.lower( text ) == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_PLEASE_WAIT" ) ) ) then return ""; end
+	return string.upper( string.sub( text, 1, 1 ) ) .. string.lower( string.sub( text, 2 ) );
+end
+
+-- The local turn is active again in the same game turn: say what blocks it, once the panel has the text (max 6 s).
+local function TurnNotEnded( turn:number )
+	m_endedTurn = -1;
+	m_notEndedWatch = m_notEndedWatch + 1;
+	local id:number = m_notEndedWatch;
+	local waited:number = 0;
+	local function Check()
+		if id ~= m_notEndedWatch or Game.GetCurrentGameTurn() ~= turn then return; end
+		local player:table = Players[ Game.GetLocalPlayer() ];
+		if player == nil or not player:IsTurnActive() then return; end
+		local text:string = BlockerText();
+		-- (the panel says "Please wait" for the whole session: the congress screen is what needs the player)
+		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
+		if text == "" and okCongress and inSession then
+			OutputMessageToScreenReader( "Turn not ended: World Congress is waiting for your votes. Enter or Control+N resumes it", true );
+			return;
+		end
+		if text == "" and waited < 6 then
+			waited = waited + 0.25;
+			HubCore.After( 0.25, Check );
+			return;
+		end
+		OutputMessageToScreenReader( text ~= "" and ( "Turn not ended: " .. text ) or "Turn not ended", true );
+	end
+	Check();
+end
+
+function HubAnnounce.OnPlayerTurnActivated( playerID:number, isFirstTime:boolean )
+	if playerID ~= Game.GetLocalPlayer() or isFirstTime or m_endedTurn ~= Game.GetCurrentGameTurn() then return; end
+	TurnNotEnded( m_endedTurn );
+end
+
 function HubAnnounce.OnLocalPlayerTurnEnd()
 	HubCore.ReleaseSpeechAtTurnEnd();
 	HubAnnounce.ResetReadyWatch();
 	HubCore.CloseMode( false, true );
 	HubCore.m_enterWatch = -1;
 	if HubTargets.GetTargetMode() ~= nil then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
-	-- The event also fires when ending the turn is refused a moment later (a unit that finished exploring asks for
-	-- orders, turn number unchanged). Already inactive at event time: the turn really ended, say it now (a deferred
-	-- line could land after the next "Turn N"). Still active: check again shortly and speak only if the same turn
-	-- is now over; a new turn has announced itself.
+	-- Already inactive at event time: the turn (probably) ended, say it now (a deferred line could land after the next
+	-- "Turn N"), and watch for the engine handing the turn back. Still active: check again shortly and speak only if
+	-- the same turn is now over; a new turn has announced itself.
 	local turn:number = Game.GetCurrentGameTurn();
+	m_notEndedWatch = m_notEndedWatch + 1;
+	m_endedTurn = turn;
 	local player:table = Players[ Game.GetLocalPlayer() ];
 	if player == nil or not player:IsTurnActive() then
 		OutputMessageToScreenReader( "Turn ended", true );
+		-- the turn is back active within 0.1 s when it was refused: do not wait for the (late) engine event
+		HubCore.After( 0.4, function()
+			local current:table = Players[ Game.GetLocalPlayer() ];
+			if m_endedTurn == turn and Game.GetCurrentGameTurn() == turn and current ~= nil and current:IsTurnActive() then TurnNotEnded( turn ); end
+		end );
 		return;
 	end
 	HubCore.After( 0.7, function()
 		local current:table = Players[ Game.GetLocalPlayer() ];
-		if Game.GetCurrentGameTurn() == turn and ( current == nil or not current:IsTurnActive() ) then
+		if Game.GetCurrentGameTurn() ~= turn then return; end
+		if current == nil or not current:IsTurnActive() then
 			OutputMessageToScreenReader( "Turn ended", true );
+		elseif m_endedTurn == turn then
+			TurnNotEnded( turn );
 		end
 	end );
 end

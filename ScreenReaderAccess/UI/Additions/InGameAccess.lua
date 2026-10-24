@@ -245,6 +245,7 @@ function Initialize()
 	HubCore.Listen( Events.LocalPlayerTurnBegin, HubCore.Safe( "LocalPlayerTurnBegin", HubAnnounce.AnnounceTurn ) );
 	HubCore.Listen( Events.LoadScreenClose, HubCore.Safe( "LoadScreenClose", HubAnnounce.OnLoadScreenClose ) );
 	HubCore.Listen( Events.LocalPlayerTurnEnd, HubCore.Safe( "LocalPlayerTurnEnd", HubAnnounce.OnLocalPlayerTurnEnd ) );
+	HubCore.Listen( Events.PlayerTurnActivated, HubCore.Safe( "PlayerTurnActivated", HubAnnounce.OnPlayerTurnActivated ) );
 
 	HubCore.AddEvent( "InterfaceModeChanged",		HubTargets.OnInterfaceModeChanged );
 	HubCore.AddEvent( "UnitOperationStarted",		HubEvents.OnUnitOperationStarted );

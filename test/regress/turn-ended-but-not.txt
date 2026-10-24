@@ -1,0 +1,8 @@
+# Verified 2026-10-24. Fixture pt-modes-t90: the auto-exploring scout finishes during end-of-turn processing, so the engine hands the turn back.
+# covers: Accessibility/HubAnnounce.lua UI/Additions/InGameAccess.lua
+# no-share-load: ends the turn
+# The turn does not end: say why, in the action panel's own words.
+load pt-modes-t90
+key Enter -Settle 8000 -NoQuiet
+expect ^Turn not ended: Unit needs orders
+no-lua-errors
