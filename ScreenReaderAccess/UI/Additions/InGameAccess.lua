@@ -192,6 +192,7 @@ include( "HubRegions" );
 include( "HubPlaces" );
 include( "HubCityReport" );
 include( "HubEvents" );
+include( "HubHelp" );
 
 -- ===========================================================================
 function Initialize()
@@ -228,6 +229,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavReports",			HubTargets.ToggleReports );
 	Hub.RegisterAction( "KeyNavPlaces",				HubPlaces.TogglePlaces );
 	Hub.RegisterAction( "KeyNavGreatWorks",		HubRegions.ToggleGreatWorks );
+	Hub.RegisterAction( "KeyNavHelp",				HubHelp.Toggle );
 	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): LensText speaks once the game has switched
 	LensText_Setup( HubCore.After, function( text:string, nointerrupt:boolean ) OutputMessageToScreenReader( text, nointerrupt ); end );
 	for action, _ in pairs( LensText_Actions ) do

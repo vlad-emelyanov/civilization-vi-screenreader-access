@@ -68,6 +68,8 @@ Fixtures are named saves in `test/fixtures/` (committed; each ~0.5-1 MB; sidecar
 
 `.claude/skills/civ-test/keymap.md` lists every action on the Options > Key Bindings tab with its action id (for `civctl action <Id>`), its key and the exact `civctl key` argument (e.g. Found City = `B`, Next Ready Unit = `OemPeriod`, Form Army = `Control+Shift+F`). Do not read it whole: grep it, e.g. `grep -i "found city\|next ready" .claude/skills/civ-test/keymap.md`.
 
+A new hotkey also needs a description in `Accessibility/HelpText.lua` (the Control+H help list; `test/py/test_helptext.py` fails without it for `KeyNav*` actions); regenerate this file with `civctl keymap` to see it here.
+
 It is generated, not hand-written, and needs no running game: `util/keybindings.py` reads the user's `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VI\InputSettings.json` (their real bindings) and, for actions missing from it (a freshly added mod action), the default gestures of `ScreenReaderAccess/Database/*.sql` and the game's own `InputConfiguration.xml` (read-only). Run `util\civctl.cmd keymap` after rebinding keys or editing `Database/*.sql` hotkeys; `python util/keybindings.py [--json] [ActionId]` prints one binding. The file lists unbound actions, keys the harness must never send (JAWS reserved: NumPad Add/Subtract/Multiply/Decimal, Insert, ...; `Toggle2DView` is the main-keyboard `=` key = `OemPlus`, not NumPad plus) and duplicate bindings (one key, several actions) at the top. Prefer `util\civctl.cmd action <ActionId>` over `key` for these hotkeys, so scripts keep working after a rebinding.
 
 ## Never send NumPad + / - (civctl `Add` / `Subtract`)

@@ -1,0 +1,15 @@
+# Accessibility help list (Control+H, action KeyNavHelp). Written blind, unverified.
+# covers: **/HubHelp.lua **/HelpText.lua
+load early-t60
+clear-advisors
+action KeyNavHelp -Settle 1500
+expect ^Accessibility help\. .+, 1 of \d+ sections\. .+, 1 of \d+
+key Tab -Settle 800
+expect ^.+, 2 of \d+ sections\. .+, 1 of \d+
+key Down -Settle 800
+expect , 2 of \d+
+key Space -Settle 800
+expect .{5,}
+key Escape -Settle 800
+expect ^Help closed
+no-lua-errors

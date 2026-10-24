@@ -20,7 +20,7 @@ The console app must be running for clicks/mouse moves to happen, and for any an
 
 ## Layout
 
-- `ScreenReaderAccess/Assets/UI/Accessibility/`: mod-only helpers (`ScreenReader.lua`, `KeyboardNavigation.lua`, plot utils, `PlotDescription.lua`). Always read the first two.
+- `ScreenReaderAccess/Assets/UI/Accessibility/`: mod-only helpers (`ScreenReader.lua`, `KeyboardNavigation.lua`, plot utils, `PlotDescription.lua`). Always read the first two. `HelpText.lua` is the text of the Control+H help list: every new shortcut gets an entry there (Workflow rules).
 - `ScreenReaderAccess/UI/Additions/InGameAccess.{xml,lua}`: the in-game hub context (wiring only: input handler, update loop, `Initialize`); its code is in `Assets/UI/Accessibility/Hub*.lua` modules (map cursor, target modes, placement, menus, regions, city report, events ...; one global table each), see `docs/ingame-plan.md` Architecture and `docs/keynav-guide.md` (where new hub code goes).
 - `ScreenReaderAccess/Assets/UI/Frontend/`: front-end screens (MainMenu, AdvancedSetup = Create Game + Advanced Setup, LoadScreen, LoadGameMenu, FrontEndPopup).
 - `ScreenReaderAccess/Assets/UI/{Panels,Popups,ToolTips,Menus}/`, `WorldInput.lua`: in-game UI.
@@ -90,6 +90,7 @@ python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install
 
 ## Workflow rules
 
+- **Help list rule:** every new or changed shortcut (an input action in `Database/*.sql`, OR a key inside one of our lists and screens) needs an entry in `ScreenReaderAccess/Assets/UI/Accessibility/HelpText.lua`, the text of the Control+H accessibility help list (the player's place to look up what the mod can do). `test/py/test_helptext.py` fails for a `KeyNav*` input action without an `action = "..."` entry; keys inside screens have no automatic check, so add a `keys = "..."` entry yourself.
 - **New override of a game file:** first commit the untouched game file alone ("Add X.lua pristine asset"), then commit the mod changes on top. Register it in the `.civ6proj`: a `<File priority="10001">` entry in `FrontEndActionData` and/or `InGameActionData` (which context loads it: verify a print from your copy shows up in `Lua.log`) plus a `<Content Include>` entry. Any `Accessibility/` helper that a front-end screen `include`s must be listed in BOTH `FrontEndActionData` and `InGameActionData`, or it silently fails to load after returning from a game (the screen script aborts).
 - **Register files with `python util/civ6proj.py add <file> --context InGame|FrontEnd|Both [--replace-ui <LuaContext>]`** (adds the `<File>` / `ReplaceUIScript` entry and the `<Content Include>`; idempotent; keeps BOM and CRLF). `civ6proj.py list` shows what is registered. Merge conflicts in the `.civ6proj` (InGameActionData is one long line): `git config merge.civ6proj.driver "python util/civ6proj.py merge-driver %O %A %B"` + `merge.civ6proj.name x` once per clone (the .gitattributes line exists), or resolve by hand with `python util/civ6proj.py merge-union <ours> <theirs> --out <file>` (union of File / ReplaceUIScript / Content entries). Run `overridecheck.py` afterwards.
 - Worktree agents start with `git rebase master` (master moves fast).
