@@ -489,7 +489,12 @@ function GetUnitActionsTable( pUnit )
 								if (upgradeCost ~= nil) then
 									toolTipString = Locale.Lookup("LOC_UNITOPERATION_UPGRADE_INFO", upgradeUnitName, upgradeCost);
 								end
-								toolTipString = toolTipString .. AddUpgradeResourceCost(pUnit);
+								-- SR: the expansion's AddUpgradeResourceCost prints "Requires: 0 Iron" for upgrades that need none
+								local upRes, upResCost = nil, nil;
+								pcall( function() upRes, upResCost = pUnit:GetUpgradeResourceCost(); end );
+								if upResCost == nil or upResCost > 0 then
+									toolTipString = toolTipString .. AddUpgradeResourceCost(pUnit);
+								end
 							end
 						end
 					elseif (actionHash == UnitCommandTypes.FORM_CORPS) then
@@ -2958,7 +2963,11 @@ function OnInputActionTriggered( actionId )
     end
 	-- "Attack" Hotkey is pressed; should only work if combat evaluation is displayed. There is no action for basic attacks, necissitating this special case.
 	-- ScreenReaderAccess mod change: m_combatResults goes stale when a target mode is cancelled; outside a target mode the hub answers
-	if m_combatResults ~= nil and UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION and m_AttackHotkeyId ~= nil and (actionId == m_AttackHotkeyId) then
+	-- In the hub's keyboard attack modes the preview (m_locX, m_locY) belongs to wherever the real mouse last hovered, not to the keyboard cursor:
+	-- the hub confirms the cursor plot itself.
+	local srMode:number = UI.GetInterfaceMode();
+	local srKeyboardAttackMode:boolean = ( srMode == InterfaceModeTypes.MOVE_TO or srMode == InterfaceModeTypes.RANGE_ATTACK or srMode == InterfaceModeTypes.AIR_ATTACK );
+	if m_combatResults ~= nil and srMode ~= InterfaceModeTypes.SELECTION and not srKeyboardAttackMode and m_AttackHotkeyId ~= nil and (actionId == m_AttackHotkeyId) then
 		MoveUnitToPlot( UI.GetHeadSelectedUnit(), m_locX, m_locY );
 	elseif m_AttackHotkeyId ~= nil and actionId == m_AttackHotkeyId then
 		LuaEvents.SRA_AttackKey();		-- ScreenReaderAccess mod change: no hovered target, the hub opens an attack target mode
@@ -4257,6 +4266,16 @@ local function SRTypeName( hash:number )
 	return "";
 end
 
+-- The engine gives no failure reason for a ranged / air attack that has no target: say what it is.
+local function SRRangedAttackReason( unit:table )
+	if unit:GetMovesRemaining() <= 0 then return "no moves left"; end
+	return "no enemy it can target in range";
+end
+
+local function SRIsRangedAttackName( typeName:string )
+	return typeName ~= nil and ( string.find( typeName, "RANGE_ATTACK", 1, true ) ~= nil or string.find( typeName, "AIR_ATTACK", 1, true ) ~= nil );
+end
+
 -- Why the engine refuses an operation or command for this unit right now ("" when it says nothing).
 local function SRRefusalReason( unit:table, hash:number )
 	local reasons:table = {};
@@ -4276,6 +4295,9 @@ local function SRRefusalReason( unit:table, hash:number )
 			end
 		end
 	end );
+	if #reasons == 0 and SRIsRangedAttackName( SRTypeName( hash ) ) then
+		table.insert( reasons, SRRangedAttackReason( unit ) );
+	end
 	-- The engine gives no failure reason for Form Corps / Form Army: derive one
 	if #reasons == 0 and ( hash == UnitCommandTypes.FORM_CORPS or hash == UnitCommandTypes.FORM_ARMY ) then
 		pcall( function()
@@ -4321,6 +4343,13 @@ local function SRBuildActions()
 				table.insert( m_srActions, { action = action } );
 					local reason = SRReasons( tooltip );
 					local detail = CleanTextForSpeech( tooltip );
+					if action.Disabled == true and reason == "" and unit ~= nil and action.userTag ~= nil then
+						local okR:boolean, typeNameR = pcall( SRTypeName, action.userTag );
+						if okR and SRIsRangedAttackName( typeNameR ) then
+							reason = SRRangedAttackReason( unit );
+							detail = detail .. ". " .. reason;
+						end
+					end
 					-- Make Trade Route / Transfer to Another City: the game gives no tooltip for the disabled button
 					if action.Disabled == true and reason == "" and unit ~= nil and action.userTag ~= nil then
 						local okT:boolean, typeName = pcall( SRTypeName, action.userTag );

@@ -347,10 +347,12 @@ function HubTargets.CityAttackReason( city:table )
 	end );
 	if #reasons > 0 then return table.concat( reasons, ", " ); end
 	local damaged:string = nil;
+	local noWalls:boolean = false;
 	pcall( function()
 		local district:table = Players[ city:GetOwner() ]:GetDistricts():FindID( city:GetDistrictID() );
 		if district == nil then return; end
 		local wallsMax:number = district:GetMaxDamage( DefenseTypes.DISTRICT_OUTER );
+		noWalls = ( wallsMax <= 0 );
 		local walls:number = district:GetDamage( DefenseTypes.DISTRICT_OUTER );
 		local healthMax:number = district:GetMaxDamage( DefenseTypes.DISTRICT_GARRISON );
 		local health:number = district:GetDamage( DefenseTypes.DISTRICT_GARRISON );
@@ -362,6 +364,8 @@ function HubTargets.CityAttackReason( city:table )
 			damaged = "the city is damaged, " .. ( healthMax - health ) .. " of " .. healthMax .. " health";
 		end
 	end );
+	-- a city without walls has no ranged attack, whatever is in range
+	if noWalls then return "it needs walls"; end
 	local targets:table = GetCityAttackTargets( city );
 	local hasTargets:boolean = targets ~= nil and next( targets ) ~= nil;
 	if hasTargets then
@@ -373,7 +377,7 @@ end
 
 -- R and W with a city selected (UnitPanel is hidden then and says nothing): open the city's ranged attack, or say why not.
 function HubTargets.CityAttackKey()
-	if not HubCore.IsLocalPlayerActive() or HubTargets.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
+	if not HubCore.IsLocalPlayerActive() or HubCore.IsGamePopupOpen() or HubTargets.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then OutputMessageToScreenReader( "No unit selected" ); return; end		-- UnitPanel is hidden without a selection: W would be silent
 	if city:GetOwner() ~= Game.GetLocalPlayer() then return; end
