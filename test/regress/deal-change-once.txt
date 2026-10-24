@@ -19,10 +19,9 @@ key Tab -Settle 800
 expect ^Your items, \d+ items?
 key Enter -Settle 2000
 expect ^Added: You give
-# since 4e3e645 the refresh itself focuses the Actions section and names the first enabled action
-expect (?i)Focus: (Give Gift|Accept|Propose)[^,]*, 1 of \d+
-expect-not Focus: Never mind
-key Tab -Settle 800
+# the player stays in Your items after the AI answer; Control+Tab goes back to Deal
+expect (?i)Actions: Give Gift, What would you give me\?, Never mind
+key Control+Tab -Settle 800
 key Right -Settle 1500
 expect ^2 diplomatic favor
 expect-not (?i)(You give: [^.]*)\..*\1\.\s*$

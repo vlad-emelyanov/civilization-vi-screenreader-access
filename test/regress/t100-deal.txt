@@ -22,8 +22,8 @@ key Down -Settle 800
 expect ^Gold, \d+ available, 2 of \d+
 key Enter -Settle 2000
 expect ^Added: You give: \d+ gold\. They give nothing\.
-# since 4e3e645 the AI answer to the added item focuses the Actions section (4); Tab wraps to Deal
-key Tab -Settle 800
+# the player stays in the section after the AI answer (focus moves only after an action button); Control+Tab goes back to Deal
+key Control+Tab -Settle 800
 expect ^Deal, 1 item
 key S -Settle 800
 expect You give: \d+ gold
