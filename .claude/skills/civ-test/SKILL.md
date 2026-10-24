@@ -66,7 +66,7 @@ Fixtures are named saves in `test/fixtures/` (committed; each ~0.5-1 MB; sidecar
 
 ## In-game hotkeys
 
-`.claude/skills/civ-test/keymap.md` lists every action on the Options > Key Bindings tab with its action id (for `civctl action <Id>`), its key and the exact `civctl key` argument (e.g. Found City = `B`, Next Ready Unit = `OemPeriod`, Form Army = `Control+Shift+F`). Do not read it whole: grep it, e.g. `grep -i "found city\|next ready" .claude/skills/civ-test/keymap.md`.
+`.claude/skills/civ-test/keymap.md` lists every action on the Options > Key Bindings tab with its action id (for `civctl action <Id>`), its key and the exact `civctl key` argument (e.g. Found City = `B`, Next Ready Unit = `OemCloseBrackets`, Form Army = `Control+Shift+F`). Do not read it whole: grep it, e.g. `grep -i "found city\|next ready" .claude/skills/civ-test/keymap.md`.
 
 A new hotkey also needs a description in `Accessibility/HelpText.lua` (the Control+H help list; `test/py/test_helptext.py` fails without it for `KeyNav*` actions); regenerate this file with `civctl keymap` to see it here.
 

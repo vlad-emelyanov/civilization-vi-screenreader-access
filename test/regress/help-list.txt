@@ -1,15 +1,25 @@
-# Accessibility help list (Control+H, action KeyNavHelp). Written blind, unverified.
+# Accessibility help list (Control+H, action KeyNavHelp). Entry texts from the first run's recorded sidecar (key names follow the user's bindings, hence \S+ / [^:]+).
 # covers: **/HubHelp.lua **/HelpText.lua
 load early-t60
 clear-advisors
 action KeyNavHelp -Settle 1500
-expect ^Accessibility help\. .+, 1 of \d+ sections\. .+, 1 of \d+
+expect ^Accessibility help\. General list conventions, 1 of \d+ sections\. Up and Down: previous and next entry, wraps around, 1 of \d+
 key Tab -Settle 800
-expect ^.+, 2 of \d+ sections\. .+, 1 of \d+
+expect ^Map and turn, 2 of \d+ sections\. [^:]+: next action: select the next unit, open a chooser, or end the turn, 1 of \d+
 key Down -Settle 800
-expect , 2 of \d+
+expect ^\S+: what Enter will do next, 2 of \d+$
 key Space -Settle 800
-expect .{5,}
+expect ^\S+: what Enter will do next$
+key Control+Tab -Settle 800
+expect ^General list conventions, 1 of \d+ sections\. Up and Down: previous and next entry, wraps around, 1 of \d+
+key M -Settle 800
+expect ^Map and turn, 2 of \d+ sections\.
+key Q -Settle 800
+expect ^No section starting with Q$
+action KeyNavHelp -Settle 800
+expect ^Help closed$
+action KeyNavHelp -Settle 1500
+expect ^Accessibility help\.
 key Escape -Settle 800
-expect ^Help closed
+expect ^Help closed$
 no-lua-errors

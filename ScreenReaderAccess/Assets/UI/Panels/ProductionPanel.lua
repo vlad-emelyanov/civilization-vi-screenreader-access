@@ -2793,8 +2793,8 @@ local function SRA_Announce( keepGuard:boolean )
 	m_srList.Open( title, initialKey or firstChoosable, false, keepGuard );
 end
 
--- Tab: next tab of the panel (Production, Queue, Purchase gold, Purchase faith), like clicking it.
-local function SRA_NextTab()
+-- Tab / Control+Tab: next / previous tab of the panel (Production, Queue, Purchase gold, Purchase faith, wraps), like clicking it.
+local function SRA_SwitchTab( delta:number )
 	local tabs:table = { { mode = LISTMODE.PRODUCTION, tab = m_productionTab } };
 	if m_queueTab == Controls.QueueTab and not m_isTutorialRunning and not m_tutorialTestMode then
 		table.insert( tabs, { mode = LISTMODE.PROD_QUEUE, tab = m_queueTab } );
@@ -2805,12 +2805,14 @@ local function SRA_NextTab()
 	for i, entry in ipairs( tabs ) do
 		if entry.mode == m_CurrentListMode then current = i; end
 	end
-	local nextEntry:table = tabs[ current % #tabs + 1 ];
+	local nextEntry:table = tabs[ ( current - 1 + delta ) % #tabs + 1 ];
 	m_srPending = nil;
 	m_tabs.SelectTab( nextEntry.tab );
 	SRA_Announce( true );
 	m_srList.DisarmGuard();		-- Tab is deliberate: an Enter right after it chooses (the guard only covers a double Enter on the real open)
 end
+local function SRA_NextTab() SRA_SwitchTab( 1 ); end
+local function SRA_PrevTab() SRA_SwitchTab( -1 ); end
 
 -- Called by the handlers that open the panel, once they have selected the tab (a SetUpdate callback never ran here).
 function SRA_AnnounceIfPending()
@@ -3373,6 +3375,7 @@ function Initialize()
 		onClose = SRA_OnClose,
 		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
 		extraKeys = { [Keys.VK_TAB] = SRA_NextTab },
+		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab },
 	};
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );

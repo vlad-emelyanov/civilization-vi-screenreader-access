@@ -15,7 +15,7 @@ expect (?i)rankings|result|button
 key Tab -Settle 1500
 expect (?i)rankings, selected
 key Down -Settle 800
-expect (?i)graphs, 3 of \d+|\d+\.|score
+expect (?i)graphs, 3 of \d+
 key Tab -Settle 1500
 expect (?i)graphs, selected
 key Down -Settle 800

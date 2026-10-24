@@ -57,6 +57,7 @@ local function JumpToLetter( letter:string )
 			return;
 		end
 	end
+	OutputMessageToScreenReader( "No section starting with " .. letter:upper() );
 end
 
 local m_facade:table = {
