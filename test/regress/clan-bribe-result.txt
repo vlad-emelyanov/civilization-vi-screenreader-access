@@ -1,0 +1,15 @@
+# Fixture pt-modes-t75 (Barbarian Clans). Bribe: the result line names the clan and ends with the effect sentence of the option.
+# covers: **/TreatClanText.lua **/TreatWithTribePopup_SRA.lua
+# no-share-load: spends gold
+load pt-modes-t75
+clear-advisors
+lua GameCore_Tuner Players[0]:GetTreasury():ChangeGoldBalance(1000)
+clear-advisors
+lua InGame local camp = GameInfo.Improvements["IMPROVEMENT_BARBARIAN_CAMP"].Index; for i = 0, Map.GetPlotCount() - 1 do local p = Map.GetPlotByIndex(i); if p:GetImprovementType() == camp then LuaEvents.CityBannerManager_OpenTreatWithTribePopup(i); return i end end
+wait Clan.*4 options -Timeout 8
+key Down -Settle 800
+key Down -Settle 800
+expect ^Bribe: .*3 of 4
+key Enter -Settle 2500 -Quiet 700
+expect ^Bribed .+ clan: \S
+no-lua-errors

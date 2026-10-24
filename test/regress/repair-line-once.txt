@@ -1,0 +1,16 @@
+# Fixture pt-modes-t90 (Farms at 70,29 and 71,29 are pillaged). Repair says "Repairing <name>, done next turn" once, via the Tab menu and via the hotkey.
+# covers: **/HubMenus.lua **/HubEvents.lua
+# no-share-load: spawns builders
+load pt-modes-t90
+clear-advisors
+lua GameCore_Tuner Players[0]:GetUnits():Create(GameInfo.Units["UNIT_BUILDER"].Index, 70, 29)
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==70 and u:GetY()==29 and GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key Tab -Settle 1500
+expect ^Repair, key
+key Enter -Settle 2500 -Quiet 700
+expect ^Repairing Farm, done next turn
+lua GameCore_Tuner Players[0]:GetUnits():Create(GameInfo.Units["UNIT_BUILDER"].Index, 71, 29)
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==71 and u:GetY()==29 and GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+action ExtraHotkeysPillageOrRepair -Settle 2500 -Quiet 700
+expect ^Repairing Farm, done next turn
+no-lua-errors
