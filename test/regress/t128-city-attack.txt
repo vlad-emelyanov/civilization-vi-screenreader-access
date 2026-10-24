@@ -13,7 +13,7 @@ lua GameCore_Tuner local n=0; for i=0,63 do local p=Players[i]; if p and p:IsBar
 key Enter -Settle 1500
 expect ^City ranged attack: choose a tile
 expect valid target\. Barbarian Crossbowman
-key Enter -Settle 3500 -NoQuiet
+key Enter -Settle 8000 -NoQuiet
 expect ^Attacking Barbarian Crossbowman
 expect (?i)crossbowman killed by Ostia
 no-lua-errors
