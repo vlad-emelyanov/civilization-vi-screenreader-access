@@ -7,7 +7,7 @@ Screen reader support and keyboard navigation ("keynav") for Civ VI, for blind p
 Civ VI mods can't call DLLs, make HTTP calls or write files, so the only channel out of the game is Lua `print()` into `Lua.log`:
 
 - **Mod** (`ScreenReaderAccess/`): modified copies of the game's Lua UI files, overriding the originals via `ImportFiles` in `ScreenReaderAccess/ScreenReaderAccess.civ6proj`. They print prefixed lines.
-- **Console app** (`ScreenreaderAccess.Console/`, .NET 8, WinForms): tails `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VI\Logs\Lua.log` (`LogFileWatcher` → `Mediator`) and acts on the prefixes:
+- **Console app** (`ScreenreaderAccess.Console/`, .NET 10, WinForms): tails `%LOCALAPPDATA%\Firaxis Games\Sid Meier's Civilization VI\Logs\Lua.log` (`LogFileWatcher` → `Mediator`) and acts on the prefixes:
 
 | Prefix (printed by) | Console app does |
 |---|---|

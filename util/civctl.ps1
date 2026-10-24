@@ -144,7 +144,7 @@ function Prof([string]$name) {
 
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 $GameExe = "C:\Program Files (x86)\Steam\steamapps\common\Sid Meier's Civilization VI\Base\Binaries\Win64Steam\CivilizationVI.exe"
-$ConsoleExe = Join-Path $RepoRoot 'ScreenreaderAccess.Console\bin\Debug\net8.0-windows\ScreenreaderAccess.Console.exe'
+$ConsoleExe = Join-Path $RepoRoot 'ScreenreaderAccess.Console\bin\Debug\net10.0-windows\ScreenreaderAccess.Console.exe'
 $LuaLog = Join-Path $env:LOCALAPPDATA "Firaxis Games\Sid Meier's Civilization VI\Logs\Lua.log"
 $StateDir = Join-Path $env:TEMP 'civctl'
 $CursorFile = Join-Path $StateDir 'cursor.txt'
