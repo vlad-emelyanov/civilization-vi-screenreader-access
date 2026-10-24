@@ -1833,6 +1833,15 @@ local function SRA_Confirm()
 	OnConfirmPlacement();
 	if closes then m_srList.Reset(); end
 	SRA_Say( "Envoys sent: " .. summary .. ( closes and ". City-States closed" or "" ) );
+	if not closes then
+		-- the screen closed anyway (seen in play): the player must not press Escape into the game's options menu unwarned
+		m_srResult = { wait = 1.0, check = function()
+			if ContextPtr:IsHidden() then
+				m_srList.Reset();
+				SRA_Say( "City-States closed", true );
+			end
+		end };
+	end
 end
 
 local function SRA_OpenActions( iPlayer:number )

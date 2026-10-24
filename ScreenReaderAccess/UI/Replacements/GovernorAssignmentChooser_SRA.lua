@@ -561,7 +561,10 @@ local function SRA_CityItems()
 				text = text .. ", unavailable: " .. reason;
 				reason = "Unavailable: " .. reason;
 			end
-			local detail:string = "Establishes in " .. m_SelectedGovernor:GetTurnsToEstablish() .. " turns";
+			-- the full time: a governor who moves starts again, also one that is established in his present city
+			local turnsNew:number = m_SelectedGovernor:GetTurnsToEstablish();
+			local detail:string = ( m_SelectedGovernor:GetAssignedCity() ~= nil and "Moving there, he establishes again in " or "Establishes in " )
+				.. turnsNew .. ( turnsNew == 1 and " turn" or " turns" );
 			table.insert( items, { key = "city:" .. owner .. ":" .. cityID, text = text, owner = owner, cityID = cityID,
 				choosable = not disabled, reason = reason, detail = detail } );
 		end
@@ -614,10 +617,10 @@ function SRA_OnGovernorAssigned( cityPlayer:number, cityID:number, ePlayer:numbe
 	local text:string = SRA_Clean( def.Name ) .. " assigned to " .. SRA_Clean( city:GetName() );
 	local governor:table = GetAppointedGovernor( ePlayer, eGovernor );
 	if governor ~= nil then
-		if governor:IsEstablished() then
+		local turns:number = governor:GetTurnsToEstablish() - governor:GetTurnsOnSite();
+		if governor:IsEstablished() or turns <= 0 then
 			text = text .. ", established";
 		else
-			local turns:number = governor:GetTurnsToEstablish() - governor:GetTurnsOnSite();
 			text = text .. ", establishes in " .. turns .. ( turns == 1 and " turn" or " turns" );
 		end
 	end

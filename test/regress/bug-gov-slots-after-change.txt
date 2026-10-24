@@ -1,0 +1,19 @@
+# Written blind (not yet verified in game; run with --record first). Needs a government change to be possible on the fixture
+# (a civic completed this turn); if it is not, the first expect fails with the "can't change now" reason.
+# After a government change the policies page names the slots of the NEW government, once the game refreshed.
+# covers: **/GovernmentScreen.lua
+# no-share-load: changes the government
+load pt-modern-t161
+clear-advisors
+action ToggleGovernment -Settle 2500
+key Tab -Settle 1200
+key Tab -Settle 1200
+expect ^Governments, current: Oligarchy(?!, can't change)
+key Down -Settle 600
+key Enter -Settle 1500
+key Down -Settle 800
+key Enter -Settle 3000
+expect (?i)^Government changed to
+expect ^Policies, \w+( \w+)*, [1-9]\d* slots?(, \d+ empty)?
+expect-not (?i), 0 slots
+no-lua-errors

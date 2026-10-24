@@ -690,6 +690,14 @@ local function SRA_TurnsText( turns:number )
 	return turns .. ( turns == 1 and " turn" or " turns" );
 end
 
+-- ", established" / ", establishes in N turns" for an appointed governor in a city: one rule for every place that says it
+-- (established = the game's flag or no turns left, remaining = the game's turns-to-establish minus the turns on site)
+local function SRA_EstablishText( gov:table )
+	local remaining:number = gov:GetTurnsToEstablish() - gov:GetTurnsOnSite();
+	if gov:IsEstablished() or remaining <= 0 then return ", established"; end
+	return ", establishes in " .. SRA_TurnsText( remaining );
+end
+
 -- Base ability and the promotions (with have / available / locked for an appointed governor).
 local function SRA_GovernorDetail( def:table, governor:table, pg:table )
 	local parts:table = {};
@@ -746,11 +754,7 @@ function SRA_GovernorItems()
 				text = text .. ", neutralized for " .. SRA_TurnsText( neutral );
 			elseif city ~= nil then
 				text = text .. ", in " .. SRA_Clean( city:GetName() );
-				if gov:IsEstablished() then
-					text = text .. ", established";
-				else
-					text = text .. ", establishes in " .. SRA_TurnsText( gov:GetTurnsToEstablish() - gov:GetTurnsOnSite() );
-				end
+				text = text .. SRA_EstablishText( gov );
 			else
 				text = text .. ", not assigned";
 			end

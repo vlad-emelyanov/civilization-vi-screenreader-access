@@ -1,0 +1,14 @@
+# Written blind (not yet verified in game; run with --record first). Fixture bug-lens-silent (turn 128, Rome).
+# Delete Unit: after the Yes the unit is named as deleted, then the next unit is spoken.
+# covers: **/UnitPanel.lua **/HubEvents.lua **/InGamePopup.lua
+# no-share-load: deletes the unit
+load bug-lens-silent
+clear-advisors
+action KeyNavCursorToSelection -Settle 1500
+action DeleteUnit -Settle 1500
+expect (?i)^Popup: .*sure
+key Down -Settle 800
+expect ^Yes
+key Enter -Settle 2500
+expect (?i)\w+ deleted
+no-lua-errors

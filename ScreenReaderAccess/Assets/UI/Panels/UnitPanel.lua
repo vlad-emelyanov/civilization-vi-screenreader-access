@@ -2768,6 +2768,9 @@ function OnDeleteUnit(unitID : table)
 
 	local pUnit		:table	= UnitManager.GetUnit(unitID.player, unitID.id);
 	if (pUnit ~= nil) then
+		-- ScreenReaderAccess mod change: say what happened; the game selects the next unit right after and the hub speaks it
+		-- without cutting this off (HubEvents.OnUnitCommandStarted marks the delete as a result)
+		OutputMessageToScreenReader( Locale.Lookup( GameInfo.Units[pUnit:GetUnitType()].Name ) .. " deleted", false );
 		UnitManager.RequestCommand( pUnit, UnitCommandTypes.DELETE );
 	end
 
