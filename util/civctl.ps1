@@ -734,6 +734,29 @@ function Invoke-Deploy([string[]]$touch) {
         Write-Output "$(if ($same) { 'reloaded' } else { 'deployed' }) $rel"
         if ($rel -like 'Database\*') { $needsBuild += "$rel (database changes need a full restart)" }
     }
+    # The game re-inits a UI context only when its OWN script file is rewritten, not when an included helper changes
+    # (Hub*.lua, HelpText.lua, ...): rewrite the files that include a deployed .lua too (util/includers.py, transitive).
+    $luaDone = @($deployedRels | Where-Object { $_ -like '*.lua' })
+    if ($luaDone.Count -gt 0) {
+        $inc = Invoke-PythonCapture (@((Join-Path $PSScriptRoot 'includers.py'), $src) + $luaDone)
+        if ($script:PyExit -ne 0) { Write-Warning "includers.py failed (exit $($script:PyExit)); includers not reloaded." }
+        else {
+            Start-Sleep -Milliseconds 300   # the helper first, then the includers
+            foreach ($line in $inc) {
+                $parts = "$line" -split "`t"
+                if ($parts.Count -lt 2) { continue }
+                $rel = $parts[0]; $target = Join-Path $dst $rel
+                if (-not (Test-Path $target)) { continue }
+                if ($deployedRels -contains $rel) { continue }
+                $bytes = [IO.File]::ReadAllBytes((Join-Path $src $rel))
+                $same = [BitConverter]::ToString($sha.ComputeHash($bytes)) -eq [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($target)))
+                if (-not $same) { continue }   # differs from the repo: it is not deployed yet and gets its own entry
+                Write-InPlace $target $bytes
+                $copied++; $deployedRels += $rel
+                Write-Output "reloaded $rel (includes $($parts[1]))"
+            }
+        }
+    }
     if (-not $touch) {
         foreach ($f in (Get-ShippedFiles $dst)) {
             $rel = $f.FullName.Substring($dst.Length).TrimStart('\')
