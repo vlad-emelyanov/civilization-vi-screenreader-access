@@ -1,11 +1,11 @@
 # UNVERIFIED (blind-written). The Great People screen (O) always opens on its first section (the recruitable list), not on the last section used.
 # covers: **/GreatPeoplePopup.lua **/GreatPeopleText.lua
-load medieval-t100
+load pt-modes-t106
 clear-advisors
 action ToggleGreatPeople -Settle 2500
 expect ^Great People, \d+ available\.
-# Tab = next section, Control+Tab = previous (Shift+Tab is the Steam overlay); with two sections both land on the other one
-key Control+Tab -Settle 1000
+# Tab switches between the two sections (Control+Tab is not handled by this screen)
+key Tab -Settle 1000
 expect ^Previously recruited, \d+ (people|person)
 key Escape -Settle 1500
 expect ^Great People closed

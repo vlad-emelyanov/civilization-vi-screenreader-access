@@ -839,7 +839,7 @@ function Open()
 	end
 
 	-- ScreenReaderAccess: every open starts on the first section (the game keeps the last tab)
-	if srWasHidden and m_tabs ~= nil then m_tabs.SelectTab( Controls.ButtonGreatPeople ); end
+	if ( srWasHidden or not SRA_IsOpen() ) and m_tabs ~= nil and m_pGreatPeopleTabInstance ~= nil then m_tabs.SelectTab( m_pGreatPeopleTabInstance.Button ); end
 	Refresh();
 
 	-- From ModalScreen_PlayerYieldsHelper
@@ -1098,6 +1098,10 @@ end
 function SRA_SetPast( past:boolean )
 	m_srPast = past;
 	m_srActionsFor = nil;
+end
+
+function SRA_IsOpen()
+	return m_srOpen;
 end
 
 function SRA_ResetState()
