@@ -1902,7 +1902,7 @@ local function SRA_NotificationTexts( pNotification:table )
 	end
 	-- The title alone ("Unit Captured") does not name the unit and the hub speaks the title: speak the summary ("Your Settler was captured by
 	-- a Warrior from the Rome") instead.
-	if pNotification:GetTypeName() == "NOTIFICATION_UNIT_CAPTURED" and summary ~= "" and summary ~= pNotification:GetSummary() then message = summary; end
+	if pNotification:GetTypeName() == "NOTIFICATION_UNIT_CAPTURED" and summary ~= "" then message = summary; end
 	return message, summary;
 end
 
