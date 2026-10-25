@@ -183,7 +183,7 @@ function HubCursor.CursorToSelection()
 	local options:table = {};
 	if unit ~= nil then options.excludeUnitId = unit:GetID(); end
 	local name:string = "";	-- a selected city is named by its own plot description
-	if unit ~= nil then name = Locale.Lookup( unit:GetName() ) .. ". "; end
+	if unit ~= nil then name = PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. ". "; end
 	OutputMessageToScreenReader( name .. PlotDescription_GetShort( plot, options ) );
 end
 
