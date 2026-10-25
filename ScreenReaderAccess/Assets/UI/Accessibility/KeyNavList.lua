@@ -139,7 +139,13 @@ function KeyNavList_Create( config:table )
 			OutputMessageToScreenReader( "Nothing available" );
 			return;
 		end
-		OutputMessageToScreenReader( "Item no longer available" );
+		local said:string = "Item no longer available";
+		if config.focusLostText ~= nil then
+			-- optional: a more specific text (which item, why); nil keeps the generic one
+			local ok:boolean, text = xpcall( function() return config.focusLostText( m_focusKey ); end, KeyNavErrorHandler );
+			if ok and text ~= nil and text ~= "" then said = text; end
+		end
+		OutputMessageToScreenReader( said );
 		Speak( items, 1, false, true );
 	end
 
