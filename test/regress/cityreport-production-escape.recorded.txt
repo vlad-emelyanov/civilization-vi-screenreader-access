@@ -1,0 +1,67 @@
+# Written blind 2026-10-25 (not yet recorded). Escape in the production panel opened from the city report (Tab on the production line) closes only the panel and returns to the report, focused on the production line.
+# covers: UI/Additions/InGameAccess.lua **/HubCityReport.lua **/HubMenus.lua **/ProductionPanel.lua
+# no-share-load: opens the production panel
+load pt-modes-t132
+clear-advisors
+action CapitalCity -Settle 1500
+key Control+I -Settle 2500
+expect report
+#   -> PASS; window had 17 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | New powers call forth, from the barrel of muskets to flowers of fire in the sky. Even the quiet words on newly printed pages hold great changes within. The world, once so vast and mysterious, has grown smaller and more familiar. Yet, there are always questions to be answered, faiths to be tested, and national identities to be formed.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 132, 1760 AD
+#      | All done. Enter ends the turn
+#      | Rome, Population 12, Campus, 1 turn, grows in 8 turns, full loyalty
+#      | Rome report, 14 options
+#      | Yields: food plus 8, production 18, gold 32, science 17, culture 19.5, faith 16, 1 of 14
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+expect ^Production: .*Tab opens production
+#   -> PASS; window had 5 SR> line(s):
+#      | Population 12, plus 8 food, grows in 8 turns, housing 12 of 15, 2 of 14
+#      | Amenities 8 of 6, Content, 3 of 14
+#      | Loyalty 100, plus 37 per turn, Loyal, may turn to Free Cities, 4 of 14
+#      | Health 200 of 200, walls 200 of 200, defense strength 62, 5 of 14
+#      | Production: Campus, 1 turn, Tab opens production, 6 of 14
+key Tab -Settle 2000
+expect (?i)production
+#   -> PASS; window had 2 SR> line(s):
+#      | Rome, choose production, currently Campus, Space for description, 47 options
+#      | Districts and Buildings: Dam, district, 6 turns, 112 production, recommended, 15 of 47
+key Escape -Settle 2000
+expect ^City report, 
+#   -> PASS; window had 3 SR> line(s):
+#      | City report, Rome, 14 options
+#      | Production: Campus, 1 turn, Tab opens production, 6 of 14
+#      | Production closed
+expect Production: .*Tab opens production
+#   -> PASS; window had 3 SR> line(s):
+#      | City report, Rome, 14 options
+#      | Production: Campus, 1 turn, Tab opens production, 6 of 14
+#      | Production closed
+key Escape -Settle 1500
+expect (?i)closed
+#   -> PASS; window had 1 SR> line(s):
+#      | Closed
+# a third Escape with nothing open is the game menu as before
+key Escape -Settle 1500
+expect (?i)return to game
+#   -> PASS; window had 3 SR> line(s):
+#      | In game menu
+#      | RESTART
+#      | RETURN TO GAME
+key Escape -Settle 1500
+no-lua-errors

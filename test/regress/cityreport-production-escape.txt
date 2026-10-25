@@ -19,4 +19,8 @@ expect ^City report,
 expect Production: .*Tab opens production
 key Escape -Settle 1500
 expect (?i)closed
+# a third Escape with nothing open is the game menu as before
+key Escape -Settle 1500
+expect (?i)return to game
+key Escape -Settle 1500
 no-lua-errors

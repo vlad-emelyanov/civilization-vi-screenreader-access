@@ -1,0 +1,7 @@
+turn: 140
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play round 19 chain
+mod commit: 4d0cfa7
+created: 2026-10-25
+size: 1387 KB

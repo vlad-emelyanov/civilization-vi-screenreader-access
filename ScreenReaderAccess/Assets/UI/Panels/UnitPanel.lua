@@ -4368,7 +4368,7 @@ local function SRDistrictRefiner( unit:table, long:boolean )
 				if not pillaged and distance == 0 then
 					return;		-- already standing on one: the refusal is something else
 				elseif not pillaged and ( best == nil or distance < bestDistance ) then
-					local city = Cities.GetCityInPlot( x, y );
+					local city = Cities.GetCityInPlot( x, y ) or Cities.GetPlotPurchaseCity( Map.GetPlot( x, y ) );
 					best = { cityName = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "your city", relative = PlotDescription_GetRelative( from, Map.GetPlot( x, y ) ),
 						districtName = Locale.Lookup( GameInfo.Districts[ district:GetType() ].Name ) };
 					bestDistance = distance;
@@ -4714,7 +4714,13 @@ function SRSayBlockedHotkey( actionId:number )
 					local reason:string = SRActionReason( unit, action, tooltip );
 					-- the great person's name keeps its capitals: "Cannot activate Mary Leakey: ..."
 					local lowered:string = string.lower( name );
-					if string.find( name, "^Activate " ) then lowered = "activate " .. string.sub( name, 10 );
+					local _, gpVerb:string, gpPerson:string = SRGreatPersonActivateName( unit );
+					if gpPerson ~= nil and string.find( name, "^Activate " ) then
+						-- the ability text stays in the Tab menu item; the hotkey says only the reason
+						lowered = "activate " .. gpPerson;
+						local refine = SRDistrictRefiner( unit, true );
+						if refine ~= nil then reason = table.concat( refine( SRReasonList( tooltip ) ), ", " ); end
+					elseif string.find( name, "^Activate " ) then lowered = "activate " .. string.sub( name, 10 );
 					elseif string.find( name, "^Retire " ) then lowered = "retire " .. string.sub( name, 8 ); end
 					OutputMessageToScreenReader( "Cannot " .. lowered
 						.. ( reason ~= "" and ( ": " .. reason ) or "" ) );
