@@ -1,0 +1,18 @@
+# UNVERIFIED (blind-written). Enter on "Repair Commercial Hub" in the N production list either sets it or says why not; never silent.
+# covers: **/ProductionPanel.lua
+# no-share-load: sets production
+load bug-repair-hub-production-silent
+clear-advisors
+key N -Settle 1500
+key Enter -Settle 1500
+expect (?i)choose production
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+key Down -Settle 400
+expect (?i)repair commercial hub
+key Enter -Settle 2500 -Quiet 700
+expect (?i)Repairing Commercial Hub|Cannot repair
+no-lua-errors

@@ -2724,6 +2724,18 @@ local function SRA_OnActivate( item:table )
 		kind = "produce", name = name, queueMode = queueMode, repair = ( kItem.Repair == true ), turns = SRA_TurnsText( kItem.TurnsLeft ),
 		hash0 = queue:GetCurrentProductionTypeHash(), size0 = queue:GetSize(),
 	};
+	-- A repair needs no placement: if the game refuses it (e.g. an enemy unit on the district), say why instead of closing silently.
+	if kItem.Repair and ( item.kind == "district" or item.kind == "building" ) then
+		local ok:boolean, canProduce, results = pcall( function() return queue:CanProduce( kItem.Hash, false, true ); end );
+		if ok and canProduce == false then
+			local why:table = {};
+			local fr:table = results ~= nil and results[CityCommandResults.FAILURE_REASONS] or nil;
+			if fr ~= nil then for _, v in ipairs( fr ) do table.insert( why, CleanTextForSpeech( Locale.Lookup( v ) ) ); end end
+			m_srPending = nil;
+			OutputMessageToScreenReader( "Cannot repair " .. name .. ( #why > 0 and ( ": " .. table.concat( why, ", " ) ) or "" ) );
+			return;
+		end
+	end
 	if item.kind == "district" or item.kind == "wonder" then
 		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
 		local mode:number = UI.GetInterfaceMode();
