@@ -503,22 +503,25 @@ function PlotDescription_DistrictReason( districtName:string, nearest:table, lon
 	if nearest == nil then
 		return text .. ". You have no completed " .. districtName;
 	end
-	local where:string = nearest.cityName .. "'s " .. districtName;
+	local where:string = nearest.cityName .. "'s " .. ( nearest.districtName or districtName );
 	if nearest.relative ~= nil and nearest.relative ~= "" then where = where .. ", " .. nearest.relative; end
 	return text .. ". Nearest: " .. where;
 end
 
--- Replaces the engine's "Must be on a completed Campus." among its comma-separated reasons by newReason (other reasons stay).
-function PlotDescription_ReplaceDistrictRefusal( reason:string, newReason:string )
-	if reason == nil or newReason == nil then return reason; end
-	local parts:table, found:boolean = {}, false;
-	for part in string.gmatch( reason .. ", ", "(.-), " ) do
-		if not found and string.find( string.lower( part ), "must be on a completed", 1, true ) ~= nil then
-			table.insert( parts, newReason );
+-- reasons: the engine's refusal strings (list). Every entry that contains matchText (the engine's "Must be on a completed"
+-- prefix, case-insensitive) is replaced as a whole by newReason: the entry is "<ability text>: Must be on ...", and ability
+-- texts contain commas, so never split inside an entry. Returns the new list.
+function PlotDescription_ReplaceDistrictRefusal( reasons:table, matchText:string, newReason:string )
+	if reasons == nil or matchText == nil or matchText == "" or newReason == nil then return reasons; end
+	local result:table, found:boolean = {}, false;
+	local needle:string = string.lower( matchText );
+	for _, reason in ipairs( reasons ) do
+		if string.find( string.lower( reason ), needle, 1, true ) ~= nil then
+			if not found then table.insert( result, newReason ); end
 			found = true;
 		else
-			table.insert( parts, part );
+			table.insert( result, reason );
 		end
 	end
-	return table.concat( parts, ", " );
+	return result;
 end
