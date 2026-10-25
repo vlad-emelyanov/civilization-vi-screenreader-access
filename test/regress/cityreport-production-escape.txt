@@ -1,0 +1,22 @@
+# Written blind 2026-10-25 (not yet recorded). Escape in the production panel opened from the city report (Tab on the production line) closes only the panel and returns to the report, focused on the production line.
+# covers: UI/Additions/InGameAccess.lua **/HubCityReport.lua **/HubMenus.lua **/ProductionPanel.lua
+# no-share-load: opens the production panel
+load pt-modes-t132
+clear-advisors
+action CapitalCity -Settle 1500
+key Control+I -Settle 2500
+expect report
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+expect ^Production: .*Tab opens production
+key Tab -Settle 2000
+expect (?i)production
+key Escape -Settle 2000
+expect ^City report, 
+expect Production: .*Tab opens production
+key Escape -Settle 1500
+expect (?i)closed
+no-lua-errors
