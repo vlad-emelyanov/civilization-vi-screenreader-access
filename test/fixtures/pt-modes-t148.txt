@@ -1,0 +1,7 @@
+turn: 148
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play chain after Ostia lost to England
+mod commit: 7760d63
+created: 2026-10-25
+size: 1449 KB

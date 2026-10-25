@@ -1,0 +1,7 @@
+turn: 153
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: T153 Rome: Thomas Aquinas (Great Prophet) in Rome city center, U says only 'Cannot activate Thomas Aquinas', no reason/nearest holy site; Rome has Holy Site (Shrine, Temple); tab menu lists no Activate
+mod commit: 7760d63
+created: 2026-10-25
+size: 1473 KB

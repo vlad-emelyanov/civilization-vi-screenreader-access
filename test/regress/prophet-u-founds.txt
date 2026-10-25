@@ -1,12 +1,10 @@
-# BLIND-WRITTEN (not run in the game): fixture bug-prophet-u-cannot-activate (Great Prophet on Rome's Holy Site).
-# U starts founding the religion (the religion screen opens); Escape leaves WITHOUT founding.
+# fixture bug-prophet-u-cannot-activate (Great Prophet on Rome's Holy Site).
+# U on a Great Prophet standing on a Holy Site runs Found Religion (same as the Tab item): no refusal speech. Run in the game: the prophet is consumed, no screen opens, no speech.
 # covers: **/UnitPanel.lua **/HubMenus.lua **/HelpText.lua
 # no-share-load: selects the prophet
 load bug-prophet-u-cannot-activate
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do local r=GameInfo.Units[u:GetUnitType()]; if r and r.UnitType=="UNIT_GREAT_PROPHET" then UI.SelectUnit(u) break end end
 action ExtraHotkeysUpgrade -Settle 2000
-expect (?i)religion
 expect-not (?i)cannot (found|activate)
-key Escape -Settle 1000
 no-lua-errors

@@ -2684,6 +2684,30 @@ local function SRA_ResolvePending( fromEvent:boolean )
 	end
 end
 
+-- Name of a unit at war with us standing on the tile of the district (or the building's district) a repair item would repair, else nil.
+local function SRA_EnemyOnRepairTile( city:table, kItem:table, kind:string )
+	local result:string = nil;
+	pcall( function()
+		local districtRow:table = nil;
+		if kind == "district" then districtRow = GameInfo.Districts[ kItem.Type ];
+		else
+			local b:table = GameInfo.Buildings[ kItem.Hash ];
+			if b ~= nil and b.PrereqDistrict ~= nil then districtRow = GameInfo.Districts[ b.PrereqDistrict ]; end
+		end
+		if districtRow == nil then return; end
+		local district:table = city:GetDistricts():GetDistrict( districtRow.Index );
+		if district == nil then return; end
+		local me:number = Game.GetLocalPlayer();
+		for _, unit in ipairs( Units.GetUnitsInPlot( Map.GetPlot( district:GetX(), district:GetY() ) ) ) do
+			if unit:GetOwner() ~= me and Players[me]:GetDiplomacy():IsAtWarWith( unit:GetOwner() ) then
+				result = "an enemy " .. Locale.Lookup( GameInfo.Units[ unit:GetUnitType() ].Name );
+				return;
+			end
+		end
+	end );
+	return result;
+end
+
 local function SRA_OnActivate( item:table )
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
@@ -2726,6 +2750,14 @@ local function SRA_OnActivate( item:table )
 	};
 	-- A repair needs no placement: if the game refuses it (e.g. an enemy unit on the district), say why instead of closing silently.
 	if kItem.Repair and ( item.kind == "district" or item.kind == "building" ) then
+		-- The engine accepts the order (CanProduce is true) but drops it silently while an enemy unit stands on the district:
+		-- check that tile ourselves.
+		local enemyName:string = SRA_EnemyOnRepairTile( city, kItem, item.kind );
+		if enemyName ~= nil then
+			m_srPending = nil;
+			OutputMessageToScreenReader( "Cannot repair " .. name .. ": " .. enemyName .. " stands on the district" );
+			return;
+		end
 		local ok:boolean, canProduce, results = pcall( function() return queue:CanProduce( kItem.Hash, false, true ); end );
 		if ok and canProduce == false then
 			local why:table = {};

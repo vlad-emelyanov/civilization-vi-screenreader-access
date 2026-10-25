@@ -1,0 +1,7 @@
+turn: 155
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: T155 Rome Holy Site tile: Great Prophet Aquinas; Tab menu has enabled 'Found Religion' but hotkey U says 'Cannot activate Thomas Aquinas' (no reason)
+mod commit: 7760d63
+created: 2026-10-25
+size: 1479 KB

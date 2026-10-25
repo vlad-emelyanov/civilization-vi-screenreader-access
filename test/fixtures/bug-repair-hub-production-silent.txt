@@ -1,0 +1,7 @@
+turn: 153
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: T153 Arpinum: Enter on 'Repair Commercial Hub' in choose-production list closed list with no speech and did not set production (N still said Choose production: Arpinum). Production later set to Medieval Walls; reproduce by reopening Arpinum production
+mod commit: 7760d63
+created: 2026-10-25
+size: 1473 KB

@@ -1,0 +1,7 @@
+turn: 146
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: China deal popup T146: Accept gives 'Item no longer available' with no reason (which item?)
+mod commit: 7760d63
+created: 2026-10-25
+size: 1437 KB
