@@ -3756,6 +3756,19 @@ local function SRA_SpeakStatus()
 	SRA_Say( table.concat( parts, " " ) );
 end
 
+-- The focus at open, in the form of the refresh line: "Focus: Deal, empty." / "Focus: Deal, <first item>." / "Focus: Actions, <first enabled action>."
+local function SRA_OpenFocusText()
+	local items:table = SRA_BuildSection( m_srSection );
+	local name:string = SRA_SECTIONS[ m_srSection ];
+	local item:table = items[1];
+	for _, it in ipairs( items ) do
+		if it.choosable ~= false then item = it; break; end
+	end
+	if item == nil then return "Focus: " .. name .. ", nothing available."; end
+	if item.empty then return "Focus: " .. name .. ", empty."; end
+	return "Focus: " .. name .. ", " .. item.text .. ".";
+end
+
 local function SRA_Announce()
 	m_srAnnounced = true;
 	if g_OtherPlayer == nil or g_LocalPlayer == nil then return; end
@@ -3783,6 +3796,7 @@ local function SRA_Announce()
 		if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
 	end
 	table.insert( parts, "Tab switches sections: Deal, Your items, Their items, Actions. S reads the summary. Control+Tab goes back a section." );
+	table.insert( parts, SRA_OpenFocusText() );
 	m_srSpokenLeader = m_srLeaderText;
 	m_srSpokenSig = summary;
 	m_srActionSig = SRA_ActionNames();

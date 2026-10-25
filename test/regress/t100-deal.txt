@@ -15,7 +15,7 @@ key Down -Settle 500
 key Down -Settle 500
 expect ^Make Deal
 key Enter -Settle 3500
-expect ^Deal with .* of .*Tab switches sections: Deal, Your items, Their items, Actions
+expect ^Deal with .* of .*Tab switches sections: Deal, Your items, Their items, Actions.*Focus: Deal, empty.
 key Tab -Settle 1000
 expect ^Your items, \d+ items?
 key Down -Settle 800
