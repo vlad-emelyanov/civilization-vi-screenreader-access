@@ -60,6 +60,40 @@ function HubMenus.RepairEventResult( unitId:number )
 end
 HubMenus.OPERATION_RESULTS.UNITOPERATION_REPAIR = HubMenus.RepairEventResult;
 
+-- "Rebasing to Lugdunum": the name of the city or district at the rebase / deploy target (the hub cursor sits on it while
+-- the order is given). Pure helper: plotInfo = { city = name, district = name }.
+function HubMenus.TargetPhrase( verb:string, plotInfo:table )
+	local name:string = plotInfo ~= nil and ( plotInfo.city or plotInfo.district ) or nil;
+	if name == nil or name == "" then return verb; end
+	return verb .. " to " .. name;
+end
+
+local function CursorTargetResult( verb:string )
+	local info:table = {};
+	pcall( function()
+		local plot:table = nil;
+		local last = HubTargets ~= nil and HubTargets.m_lastDirectTarget or nil;
+		if last ~= nil and last.plot ~= nil and last.time ~= nil and UI.GetElapsedTime() - last.time <= 3.0 then
+			plot = Map.GetPlotByIndex( last.plot );
+		end
+		if plot == nil then
+			local cx:number, cy:number = HubCursor.GetCursor();
+			plot = Map.GetPlot( cx, cy );
+		end
+		if plot == nil then return; end
+		local x:number, y:number = plot:GetX(), plot:GetY();
+		local city:table = Cities.GetPlotPurchaseCity( plot );
+		if city ~= nil and city:GetX() == x and city:GetY() == y then info.city = Locale.Lookup( city:GetName() ); return; end
+		local districtType = plot:GetDistrictType();
+		if districtType ~= nil and districtType >= 0 and GameInfo.Districts[ districtType ] ~= nil then
+			info.district = Locale.Lookup( GameInfo.Districts[ districtType ].Name );
+		end
+	end );
+	return HubMenus.TargetPhrase( verb, info );
+end
+HubMenus.OPERATION_RESULTS.UNITOPERATION_REBASE = function() return CursorTargetResult( "Rebasing" ); end;
+HubMenus.OPERATION_RESULTS.UNITOPERATION_DEPLOY = function() return CursorTargetResult( "Deploying" ); end;
+
 -- Actions that announce their outcome in another way (events below, popups, target modes).
 local RESULT_SILENT = {
 	UNITOPERATION_FOUND_CITY = true, UNITOPERATION_BUILD_IMPROVEMENT = true, UNITCOMMAND_UPGRADE = true, PROMOTION = true,
@@ -77,14 +111,18 @@ function HubMenus.FetchMenuItems( refresh:boolean )
 	if UI.GetHeadSelectedUnit() == nil then return items; end
 	m_unitActions = {};
 	LuaEvents.SRA_RequestUnitActions( refresh );
+	local keyCount:table = {};
 	for _, action in ipairs( m_unitActions ) do
 		local text:string = action.name;
 		if action.hotkey ~= nil and action.hotkey ~= "" then text = text .. ", key " .. action.hotkey; end
 		if action.disabled then
 			text = text .. ", unavailable" .. ( action.reason ~= "" and ( ": " .. action.reason ) or "" );
 		end
+		-- the n-th item with the same tag and name gets "#n" (two items with one key made the focus land on the first)
+		local baseKey:string = tostring( action.tag ) .. "|" .. action.name;
+		keyCount[ baseKey ] = ( keyCount[ baseKey ] or 0 ) + 1;
 		table.insert( items, {
-			key = tostring( action.tag ) .. "|" .. action.name, text = text, detail = action.detail,
+			key = ( keyCount[ baseKey ] > 1 ) and ( baseKey .. "#" .. keyCount[ baseKey ] ) or baseKey, text = text, detail = action.detail,
 			choosable = not action.disabled, reason = ( action.reason ~= "" ) and action.reason or "Not available",
 			action = action } );
 	end

@@ -76,6 +76,7 @@ local m_showPromotionBanner		:boolean = false;
 
 local m_attackerUnit = nil;
 local m_locX = nil;
+local g_srNextLabel = nil;		-- ScreenReaderAccess: spoken name for the next action AddActionToTable adds
 local m_srCursorX = nil;		-- ScreenReaderAccess: the hub's map / target cursor (LuaEvents.SRA_CursorMoved)
 local m_srCursorY = nil;
 local m_locY = nil;
@@ -310,6 +311,11 @@ function AddActionToTable( actionsTable:table, action:table, disabled:boolean, t
 		HotkeyId			= action.HotkeyId,	-- ScreenReaderAccess mod change
 		SRName				= (action.ImprovementType ~= nil) and Locale.Lookup(action.Name) or nil	-- ScreenReaderAccess mod change
 		});
+	-- ScreenReaderAccess mod change: callers may name the entry just added (g_srNextLabel), e.g. one WMD strike per warhead type
+	if g_srNextLabel ~= nil then
+		actionsCategoryTable[ #actionsCategoryTable ].SRLabel = g_srNextLabel;
+		g_srNextLabel = nil;
+	end
 
 	-- Hotkey support
 	if (action.HotkeyId~=nil) and disabled==false then
@@ -653,6 +659,7 @@ function GetUnitActionsTable( pUnit )
 				local bCanStart = UnitManager.CanStartOperation( pUnit, UnitOperationTypes.WMD_STRIKE, nil, true);
 				if (bCanStart) then
 					for entry in GameInfo.WMDs() do
+						g_srNextLabel = Locale.Lookup(entry.Name) .. " strike";	-- ScreenReaderAccess mod change: "Nuclear Device strike"
 						local tParameters = {};
 						tParameters[UnitOperationTypes.PARAM_WMD_TYPE] = entry.Index;
 						bCanStart, tResults = UnitManager.CanStartOperation(pUnit, actionHash, nil, tParameters, true);
@@ -678,6 +685,7 @@ function GetUnitActionsTable( pUnit )
 						else
 							AddActionToTable( actionsTable, operationRow, isWMDTypeDisabled, toolTipString, actionHash, callBack ); 
 						end
+						g_srNextLabel = nil;
 											
 					end
 				end
@@ -4252,6 +4260,7 @@ end
 -- ===========================================================================
 local function SRActionName( action:table, tooltip:string )
 	if action.SRName ~= nil then return action.SRName; end
+	if action.SRLabel ~= nil then return action.SRLabel; end
 	local first:string = tooltip or "";
 	local nl:number = string.find( first, "[NEWLINE]", 1, true );
 	local rest:string = "";
@@ -4430,6 +4439,28 @@ local function SRRefusalReason( unit:table, hash:number )
 	return SRAddDanger( unit, table.concat( reasons, ", " ) );
 end
 
+-- A great person (or general) that has charges left but no moves: the game hides its Activate / Retire button then.
+-- Returns "Activate Robert Goddard: <effect>" (verb Retire for generals), the verb and the person, else nil.
+local function SRGreatPersonActivateName( unit:table )
+	local result:string, verb:string, person:string = nil, nil, nil;
+	pcall( function()
+		local gp = unit:GetGreatPerson();
+		if gp == nil then return; end
+		local row = GameInfo.GreatPersonIndividuals[ gp:GetIndividual() ];
+		verb = ( row ~= nil and row.ActionNameTextOverride == "LOC_GREATPERSON_ACTION_NAME_RETIRE" ) and "Retire" or "Activate";
+		person = Locale.Lookup( unit:GetName() );
+		local effect:string = "";
+		local okE:boolean, text = pcall( function() return gp:GetActionEffectText(); end );
+		if okE and type( text ) == "string" and text ~= "" then effect = text;
+		elseif row ~= nil and row.ActionEffectTextOverride ~= nil then effect = Locale.Lookup( row.ActionEffectTextOverride ); end
+		effect = CleanTextForSpeech( effect );
+		local nl:number = string.find( effect, "[NEWLINE]", 1, true );
+		if nl ~= nil then effect = string.sub( effect, 1, nl - 1 ); end
+		result = verb .. " " .. person .. ( effect ~= "" and ( ": " .. effect ) or "" );
+	end );
+	return result, verb, person;
+end
+
 -- Rebuilds m_srActions (callbacks) and returns the plain list for the hub.
 local function SRBuildActions()
 	m_srActions = {};
@@ -4493,6 +4524,14 @@ local function SRBuildActions()
 						end
 						detail = detail .. ". " .. reason;
 					end
+					if action.Disabled == true and reason == "" and unit ~= nil and action.userTag ~= nil then
+						-- Deploy: the engine gives no failure reason; the operation data names no range, so say what is missing
+						local okD:boolean, typeNameD = pcall( SRTypeName, action.userTag );
+						if okD and typeNameD == "UNITOPERATION_DEPLOY" then
+							reason = ( unit:GetMovesRemaining() <= 0 ) and "no moves left" or "no carrier or airstrip it can deploy to";
+							detail = detail .. ". " .. reason;
+						end
+					end
 					table.insert( plain, {
 						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey,
 						disabled = ( action.Disabled == true ), reason = reason,
@@ -4513,6 +4552,25 @@ local function SRBuildActions()
 					end
 				end
 			end
+		end
+	end
+	-- A great person with no moves left: the game hides Activate; list it, disabled, with the reason
+	if unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:GetMovesRemaining() <= 0 then
+		local activateName:string, verb:string, person:string = SRGreatPersonActivateName( unit );
+		local rowA = GameInfo.UnitCommands["UNITCOMMAND_ACTIVATE_GREAT_PERSON"];
+		local listed:boolean = false;
+		for _, entry in ipairs( plain ) do
+			if entry.typeName == "UNITCOMMAND_ACTIVATE_GREAT_PERSON" then listed = true; end
+		end
+		if activateName ~= nil and rowA ~= nil and not listed then
+			local hotkey:string = "";
+			local upId = Input.GetActionId( "ExtraHotkeysUpgrade" );
+			if upId ~= nil then hotkey = Input.GetGestureDisplayString( upId, 0 ) or ""; end
+			local reason:string = "no moves left this turn";
+			table.insert( m_srActions, { callback = function() OutputMessageToScreenReader( "Cannot " .. string.lower( verb ) .. " " .. person .. ": " .. reason ); end } );
+			table.insert( plain, {
+				id = #m_srActions, name = activateName, hotkey = hotkey, disabled = true, reason = reason, detail = activateName .. ". " .. reason,
+				category = "INPLACE", tag = rowA.Hash, typeName = "UNITCOMMAND_ACTIVATE_GREAT_PERSON" } );
 		end
 	end
 	-- Fortify / Sleep the engine accepts but the panel did not list (seen on a crossbowman that needed orders while
@@ -4622,9 +4680,31 @@ function SRSayBlockedHotkey( actionId:number )
 	end
 	local row = m_srHotkeyRows[actionId];
 	if row == nil or not row.VisibleInUI then return; end
+	-- One key, several actions: name the one this unit would get
+	local isGreat:boolean = false;
+	pcall( function() isGreat = unit:GetGreatPerson() ~= nil; end );
+	local unitRow = GameInfo.Units[ unit:GetUnitType() ];
+	if row.HotkeyId == "ExtraHotkeysUpgrade" and isGreat then
+		local _, verb:string, person:string = SRGreatPersonActivateName( unit );
+		local why:string = ( unit:GetMovesRemaining() <= 0 ) and "no moves left this turn"
+			or SRRefusalReason( unit, GameInfo.UnitCommands["UNITCOMMAND_ACTIVATE_GREAT_PERSON"].Hash );
+		OutputMessageToScreenReader( "Cannot " .. string.lower( verb or "activate" ) .. " " .. ( person or Locale.Lookup( unit:GetName() ) )
+			.. ( why ~= "" and ( ": " .. why ) or "" ) );
+		return;
+	elseif row.HotkeyId == "ExtraHotkeysUpgrade" then
+		row = GameInfo.UnitCommands["UNITCOMMAND_UPGRADE"] or row;	-- not a great person: the key means Upgrade
+	elseif row.HotkeyId == "ExtraHotkeysPillageOrRepair" and unitRow ~= nil then
+		-- Coastal Raid only for naval units; a land unit means Pillage
+		local pillage = GameInfo.UnitOperations["UNITOPERATION_PILLAGE"];
+		if unitRow.Domain ~= "DOMAIN_SEA" and pillage ~= nil then row = pillage; end
+	elseif row.HotkeyId == "ExtraHotkeysTeleportToCity" and unitRow ~= nil and unitRow.Domain == "DOMAIN_AIR" then
+		row = GameInfo.UnitOperations["UNITOPERATION_REBASE"] or row;
+	end
 	local name:string = CleanTextForSpeech( Locale.Lookup( row.Description ) );
 	-- the R key (RangedAttack) is shared with the air attack row, whose name would be wrong for a land unit
 	if row.HotkeyId == "RangedAttack" then name = "Ranged Attack"; end
+	-- the upgrade command's description is the panel's badge text "Upgrade Available!"
+	if row.CommandType == "UNITCOMMAND_UPGRADE" then name = "Upgrade"; end
 	local why:string = SRRefusalReason( unit, row.Hash );
 	if why == "" and ( row.Hash == GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash or row.OperationType == "UNITOPERATION_FORTIFY" or row.OperationType == "UNITOPERATION_SLEEP" ) then why = SRFormationHint( unit ); end
 	if why ~= "" then
