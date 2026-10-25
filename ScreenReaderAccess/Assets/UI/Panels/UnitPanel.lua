@@ -4259,8 +4259,13 @@ local function SRActionName( action:table, tooltip:string )
 		rest = string.sub( first, nl + 9 );
 		first = string.sub( first, 1, nl - 1 );
 	end
-	-- A great person's own ability is titled "Activated Effect" by the game: "Activate Mary Leakey: <what it does>"
-	if CleanTextForSpeech( first ) == CleanTextForSpeech( Locale.Lookup( "LOC_GREATPERSON_ACTION_NAME_DEFAULT" ) ) then
+	-- A great person's own ability is titled "Activated Effect" by the game: "Activate Mary Leakey: <what it does>";
+	-- a general's is titled "Retire" (ActionNameTextOverride): "Retire Timur: <what it does>"
+	local firstClean:string = CleanTextForSpeech( first );
+	local verb:string = nil;
+	if firstClean == CleanTextForSpeech( Locale.Lookup( "LOC_GREATPERSON_ACTION_NAME_DEFAULT" ) ) then verb = "Activate";
+	elseif firstClean == CleanTextForSpeech( Locale.Lookup( "LOC_GREATPERSON_ACTION_NAME_RETIRE" ) ) then verb = "Retire"; end
+	if verb ~= nil then
 		local unit = UI.GetHeadSelectedUnit();
 		if unit ~= nil and unit:GetGreatPerson() ~= nil then
 			while string.sub( rest, 1, 9 ) == "[NEWLINE]" do rest = string.sub( rest, 10 ); end
@@ -4269,10 +4274,18 @@ local function SRActionName( action:table, tooltip:string )
 			local effect:string = CleanTextForSpeech( rest );
 			-- the first sentence-sized line of the ability text (Space reads the whole tooltip)
 			effect = string.gsub( effect, "^[%s%.]+", "" );
-			return "Activate " .. Locale.Lookup( unit:GetName() ) .. ( effect ~= "" and ( ": " .. effect ) or "" );
+			return verb .. " " .. Locale.Lookup( unit:GetName() ) .. ( effect ~= "" and ( ": " .. effect ) or "" );
 		end
 	end
 	return CleanTextForSpeech( first );
+end
+
+-- The game pads some tooltips with empty lines that read as "Retire. . Grants ...": collapse ". ." into one stop.
+local function SRCleanDetail( text:string )
+	local result:string = text or "";
+	local count:number = 1;
+	while count > 0 do result, count = string.gsub( result, "%.%s+%.", "." ); end
+	return result;
 end
 
 local function SRReasons( tooltip:string )
@@ -4441,7 +4454,7 @@ local function SRBuildActions()
 				end
 				table.insert( m_srActions, { action = action } );
 					local reason = SRActionReason( unit, action, tooltip );
-					local detail = CleanTextForSpeech( tooltip );
+					local detail = SRCleanDetail( CleanTextForSpeech( tooltip ) );
 					if reason ~= "" and SRReasons( tooltip ) == "" then detail = detail .. ". " .. reason; end
 					-- Make Trade Route / Transfer to Another City: the game gives no tooltip for the disabled button
 					if action.Disabled == true and reason == "" and unit ~= nil and action.userTag ~= nil then
@@ -4584,7 +4597,9 @@ function SRSayBlockedHotkey( actionId:number )
 					local name:string = SRActionName( action, tooltip );
 					local reason:string = SRActionReason( unit, action, tooltip );
 					-- the great person's name keeps its capitals: "Cannot activate Mary Leakey: ..."
-					local lowered:string = string.find( name, "^Activate " ) and ( "activate " .. string.sub( name, 10 ) ) or string.lower( name );
+					local lowered:string = string.lower( name );
+					if string.find( name, "^Activate " ) then lowered = "activate " .. string.sub( name, 10 );
+					elseif string.find( name, "^Retire " ) then lowered = "retire " .. string.sub( name, 8 ); end
 					OutputMessageToScreenReader( "Cannot " .. lowered
 						.. ( reason ~= "" and ( ": " .. reason ) or "" ) );
 					return;
