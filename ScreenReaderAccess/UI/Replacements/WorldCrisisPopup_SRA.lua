@@ -445,7 +445,7 @@ function OnJoinClicked()
 	kParameters[PlayerOperations.PARAM_OTHER_PLAYER] = m_targetPlayerID;
 	kParameters[PlayerOperations.PARAM_EMERGENCY_TYPE] = m_emergencyType;
 	UI.RequestPlayerOperation(Game.GetLocalPlayer(), PlayerOperations.ACCEPT_EMERGENCY, kParameters);
-	OutputMessageToScreenReader("Joined the emergency");		-- ScreenReaderAccess
+	OutputMessageToScreenReader( "Joined the emergency", true );		-- ScreenReaderAccess
 
 	Close();
 end
@@ -459,7 +459,7 @@ function OnRejectClicked()
 	kParameters[PlayerOperations.PARAM_OTHER_PLAYER] = m_targetPlayerID;
 	kParameters[PlayerOperations.PARAM_EMERGENCY_TYPE] = m_emergencyType;
 	UI.RequestPlayerOperation(Game.GetLocalPlayer(), PlayerOperations.REJECT_EMERGENCY, kParameters);
-	OutputMessageToScreenReader("Rejected the emergency");		-- ScreenReaderAccess
+	OutputMessageToScreenReader( "Rejected the emergency", true );		-- ScreenReaderAccess
 
 	Close();
 end

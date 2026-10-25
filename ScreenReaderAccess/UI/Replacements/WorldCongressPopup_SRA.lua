@@ -2337,7 +2337,7 @@ function OnAccept()
 			m_CurrentPhase = 0;
 			m_kProposalVotes = {}
 
-			OutputMessageToScreenReader( "Proposals submitted" );		-- ScreenReaderAccess: the confirmation closed silently
+			OutputMessageToScreenReader( "Proposals submitted", true );		-- ScreenReaderAccess: the confirmation closed silently
 			ClosePopup();
 
 			if m_HasSpecialSessionNotification then

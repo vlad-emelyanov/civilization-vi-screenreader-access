@@ -31,6 +31,7 @@ function KeyNavList_Create( config:table )
 	local m_focusKey = nil;
 	local m_lastSection:string = nil;
 	local m_openedAt:number = -100;
+	local m_lostGuard:boolean = false;		-- focusLostSafe: the focus was moved after a loss; the next Enter only reads it
 
 	local function Build()
 		local items:table = {};
@@ -112,6 +113,7 @@ function KeyNavList_Create( config:table )
 	end
 
 	local function Move( delta:number, absolute )
+		m_lostGuard = false;
 		local items:table = Build();
 		if #items == 0 then
 			OutputMessageToScreenReader( "Nothing available" );
@@ -145,6 +147,18 @@ function KeyNavList_Create( config:table )
 			local ok:boolean, text = xpcall( function() return config.focusLostText( m_focusKey ); end, KeyNavErrorHandler );
 			if ok and text ~= nil and text ~= "" then said = text; end
 		end
+		if config.focusLostSafe then
+			-- the focus moved on its own: name where it landed and make the next Enter harmless
+			m_lostGuard = true;
+			m_focusKey = items[1].key;
+			m_lastSection = items[1].section;
+			if config.onFocus ~= nil then
+				local okF:boolean, errF = xpcall( function() config.onFocus( items[1] ); end, KeyNavErrorHandler );
+				if not okF then print( "KeyNavList onFocus error: " .. tostring(errF) ); end
+			end
+			OutputMessageToScreenReader( said .. ". Now on: " .. items[1].text );
+			return;
+		end
 		OutputMessageToScreenReader( said );
 		Speak( items, 1, false, true );
 	end
@@ -155,6 +169,11 @@ function KeyNavList_Create( config:table )
 		local index:number = FindIndex( items );
 		if index == nil then FocusLost( items ); return; end
 		local item:table = items[ index ];
+		if m_lostGuard then
+			m_lostGuard = false;
+			OutputMessageToScreenReader( item.text .. ". Enter again to choose it" );
+			return;
+		end
 		if item.choosable == false then
 			OutputMessageToScreenReader( item.reason or "Can't choose this" );
 			return;
