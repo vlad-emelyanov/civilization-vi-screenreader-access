@@ -428,6 +428,18 @@ class ResetCheckTests(unittest.TestCase):
         self.assertIn(["scenario", "foo"], r.calls)
         self.assertEqual(self.loads(r), 1)
 
+    def test_nothing_is_reused_after_a_dirtying_script_even_if_the_check_says_clean(self):
+        mk = cr.parse_script
+        r = HubRunner()   # every reset check answers "clean"
+        cr.run_all([("a", mk("# no-share-load: x\nload x\nkey A")), ("b", mk("# no-share-load: y\nload x\nkey B"))],
+                   r, share_load=True, out=lambda t: None)
+        self.assertEqual(self.loads(r), 2)
+        r = HubRunner()
+        cr.run_all([("o", mk("# options: animations\nload x\nkey A")), ("s", mk("load x\nkey B"))],
+                   r, share_load=True, out=lambda t: None)
+        self.assertEqual(self.loads(r), 2)
+        self.assertEqual(r.checks, [])
+
     def test_dirty_check_before_no_share_script_makes_it_load_fresh(self):
         mk = cr.parse_script
         r = HubRunner(verdicts=[(0, ["dirty open: Civilopedia"])])

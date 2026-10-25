@@ -905,7 +905,7 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None):
             r.clean_checks += 1 if "secs" in holder else 0
             # can the next script run on this game?
             current = None
-            if (share_load and r.loaded and not r.aborted and nxt is not None and can_start_shared(nxt)
+            if (share_load and r.loaded and not r.aborted and shares_game(steps) and nxt is not None and can_start_shared(nxt)
                     and first_fixture(nxt) == r.loaded):
                 if baseline is None:
                     out("  reset check skipped: no baseline of the loaded game -> the next script loads fresh")
