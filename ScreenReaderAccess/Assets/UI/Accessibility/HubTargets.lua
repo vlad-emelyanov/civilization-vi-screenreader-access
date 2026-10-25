@@ -33,6 +33,16 @@ for _, name in ipairs( { "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY", "SPY_TRAVEL_TO_
 	if InterfaceModeTypes[name] ~= nil then m_chooserModes[ InterfaceModeTypes[name] ] = true; end
 end
 
+-- A mode in which the unit attacks (ranged, air, strikes, or a move with the Attack key), not a plain move or deploy.
+function HubTargets.IsAttackMode( mode:number )
+	if mode == nil then return false; end
+	if mode == InterfaceModeTypes.MOVE_TO then return m_attackIntent; end
+	for _, key in ipairs( { "RANGE_ATTACK", "AIR_ATTACK", "PRIORITY_TARGET", "WMD_STRIKE", "ICBM_STRIKE" } ) do
+		if InterfaceModeTypes[key] ~= nil and InterfaceModeTypes[key] == mode then return true; end
+	end
+	return false;
+end
+
 function HubTargets.GetTargetMode()
 	local mode:number = UI.GetInterfaceMode();
 	local label:string = m_targetModes[mode];
