@@ -280,8 +280,8 @@ class OrderTests(unittest.TestCase):
             cr.run_all(scripts, r, share_load=True, out=lambda s: None)
         finally:
             cr.civctl_args = orig
-        # a loads; s fresh; m fresh; b fresh (m ended sharing); c shares b's game
-        self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 4)
+        # a loads; s starts on a's clean game (no load) but dirties it; m loads fresh; b loads fresh (m ended sharing); c shares b's game
+        self.assertEqual(len([c for c in r.calls if c[0] == "load"]), 3)
 
     def test_failed_shared_script_is_retried_with_own_load(self):
         scripts = [("a", cr.parse_script("load x\nkey A")), ("b", cr.parse_script("load x\nkey B\nexpect ^ok$"))]
@@ -387,8 +387,65 @@ class ResetCheckTests(unittest.TestCase):
         r = HubRunner()
         cr.run_all([("a", mk("load x\nkey A")), ("b", mk("# no-share-load: buys\nload x\nkey B")), ("c", mk("load y\nkey C"))],
                    r, share_load=True, out=lambda s: None)
+        # b may start on a's clean game (reset check after a), but c (other fixture) loads anyway; no check after b
+        self.assertEqual(len(r.checks), 2)   # baseline + one reset check
+        self.assertEqual(self.loads(r), 2)
+
+    def test_own_load_header_never_starts_shared_but_leaves_a_clean_game(self):
+        mk = cr.parse_script
+        s = mk("# own-load: checks the load speech\nload x\nexpect ^Turn")
+        self.assertTrue(cr.must_load_itself(s))
+        self.assertFalse(cr.dirties_game(s))
+        self.assertTrue(cr.shares_game(s))
+        self.assertFalse(cr.can_start_shared(s))
+        r = HubRunner()
+        cr.run_all([("a", mk("load x\nkey A")), ("o", s), ("c", mk("load x\nkey C"))], r, share_load=True, out=lambda t: None)
+        # a loads; o loads itself (its load check must run); c shares o's game
+        self.assertEqual(self.loads(r), 2)
+
+    def test_no_share_load_may_start_shared_but_ends_sharing(self):
+        mk = cr.parse_script
+        n = mk("# no-share-load: buys\nload x\nkey B")
+        self.assertTrue(cr.can_start_shared(n))
+        self.assertTrue(cr.dirties_game(n))
+        self.assertFalse(cr.shares_game(n))
+        r = HubRunner()
+        res = cr.run_all([("a", mk("load x\nkey A")), ("n", n), ("c", mk("load x\nkey C"))], r, share_load=True, out=lambda t: None)
+        self.assertEqual(self.loads(r), 2)   # a; n shares a's game; c loads fresh
+        self.assertTrue(res[1].load_skipped)
+        self.assertFalse(res[2].load_skipped)
+
+    def test_scenario_script_on_shared_game_still_runs_its_scenario(self):
+        mk = cr.parse_script
+        r = HubRunner()
+        orig = cr.civctl_args
+        try:
+            cr.civctl_args = lambda st, o=orig: (["scenario", "foo"], None) if st.kind == "scenario" else o(st)
+            res = cr.run_all([("a", mk("load x\nkey A")), ("s", mk("load x\nscenario foo\nkey S"))], r, share_load=True, out=lambda t: None)
+        finally:
+            cr.civctl_args = orig
+        self.assertTrue(res[1].load_skipped)
+        self.assertIn(["scenario", "foo"], r.calls)
+        self.assertEqual(self.loads(r), 1)
+
+    def test_nothing_is_reused_after_a_dirtying_script_even_if_the_check_says_clean(self):
+        mk = cr.parse_script
+        r = HubRunner()   # every reset check answers "clean"
+        cr.run_all([("a", mk("# no-share-load: x\nload x\nkey A")), ("b", mk("# no-share-load: y\nload x\nkey B"))],
+                   r, share_load=True, out=lambda t: None)
+        self.assertEqual(self.loads(r), 2)
+        r = HubRunner()
+        cr.run_all([("o", mk("# options: animations\nload x\nkey A")), ("s", mk("load x\nkey B"))],
+                   r, share_load=True, out=lambda t: None)
+        self.assertEqual(self.loads(r), 2)
         self.assertEqual(r.checks, [])
-        self.assertEqual(self.loads(r), 3)
+
+    def test_dirty_check_before_no_share_script_makes_it_load_fresh(self):
+        mk = cr.parse_script
+        r = HubRunner(verdicts=[(0, ["dirty open: Civilopedia"])])
+        res = cr.run_all([("a", mk("load x\nkey A")), ("n", mk("# no-share-load\nload x\nkey B"))], r, share_load=True, out=lambda t: None)
+        self.assertEqual(self.loads(r), 2)
+        self.assertFalse(res[1].load_skipped)
 
     def test_options_header_never_shares(self):
         mk = cr.parse_script
@@ -397,6 +454,8 @@ class ResetCheckTests(unittest.TestCase):
         r = HubRunner()
         cr.run_all([("a", mk("load x\nkey A")), ("b", mk("# options: animations\nload x\nkey B"))], r, share_load=True, out=lambda s: None)
         self.assertEqual(self.loads(r), 2)
+        self.assertTrue(cr.must_load_itself(mk("# options: animations\nload x")))
+        self.assertTrue(cr.dirties_game(mk("# options: animations\nload x")))
 
     def test_lock_during_check_stops_the_run(self):
         r = HubRunner(verdicts=[(6, ["game in use by x"])])
@@ -408,6 +467,9 @@ class ResetCheckTests(unittest.TestCase):
         scripts = [("f1", mk("# no-share-load: x\nload x")), ("s1", mk("load x")), ("f2", mk("# no-share-load: x\nload x")),
                    ("s2", mk("load x")), ("o", mk("load y"))]
         self.assertEqual([n for n, _ in cr.order_scripts(scripts)], ["s1", "s2", "f1", "f2", "o"])
+        scripts = [("n", mk("# no-share-load: x\nload x")), ("s", mk("load x")), ("op", mk("# options: animations\nload x")),
+                   ("ol", mk("# own-load: x\nload x"))]
+        self.assertEqual([n for n, _ in cr.order_scripts(scripts)], ["ol", "s", "n", "op"])
 
     def test_marker_with_reason_is_recognised(self):
         self.assertTrue(cr.parse_script("# no-share-load: buys a tile\nload x").fresh)

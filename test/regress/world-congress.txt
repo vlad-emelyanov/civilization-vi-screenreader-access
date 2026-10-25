@@ -1,6 +1,7 @@
 # Verified in game 2026-10-22. Assumes 2 resolutions, each with a target. Fixture bug-world-congress-silent (turn 110, congress blocker; copy it from the main repo test/fixtures).
 # covers: **/WorldCongress*_SRA.lua **/WorldCongressText.lua
 # no-share-load: votes in the congress
+# own-load: the first expect checks the congress intro the load itself speaks
 load bug-world-congress-silent
 expect (?i)enter to begin voting
 key Enter -Settle 2500

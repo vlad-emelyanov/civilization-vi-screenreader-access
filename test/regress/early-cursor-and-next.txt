@@ -1,6 +1,6 @@
 # Verified 2026-10-22 on early-start (turn 1, nothing founded; the settler is the first unit needing orders). N counts the selected settler too: "2 units need orders" (changed 2026-10-25).
 # covers: **/ScreenReaderPlotUtils.lua **/PlotDescription.lua **/PlotToolTip.lua **/SettleScan.lua **/PlacementScan.lua UI/Additions/InGameAccess.lua
-# no-share-load: Enter (next action) changes the selection, unsure what the reset restores
+# own-load: checks the turn announcement the load itself makes (the other changes are selection and cursor, which the reset check restores)
 load early-start
 expect ^Turn 1\b
 # . = cursor to the selected unit, speaks the plot

@@ -1,7 +1,6 @@
 # Verified 2026-10-23. Item 7: unit hotkeys that do not apply say why.
 # covers: **/UnitPanel.lua **/WorldInput.lua
 # Fixture early-start: turn 1, the first unit needing orders is the Settler.
-# no-share-load: Enter, Sleep and RangedAttack act on units
 load early-start
 clear-advisors
 key Enter -Settle 1500

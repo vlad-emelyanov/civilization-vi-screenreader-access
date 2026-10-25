@@ -1,5 +1,6 @@
 # Verified 2026-10-22 on early-start. Control+G speaks "Science 0. Culture 0. Faith 0. Gold 5".
 # covers: **/TopPanelData.lua UI/Additions/InGameAccess.lua
+# own-load: checks the load's turn announcement
 load early-start
 expect ^Turn 1\b
 key Control+G

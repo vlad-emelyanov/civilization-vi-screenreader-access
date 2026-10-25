@@ -1,6 +1,5 @@
 # Written blind 2026-10-23 (round 8, not yet recorded). The places list opens inside the Move To target mode: Enter on a city only moves the target cursor (with the turns), Escape in the list closes the list and keeps the mode.
 # covers: **/HubPlaces.lua **/HubTargets.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
-# no-share-load: enters a target mode
 load early-t60
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_SCOUT" then UI.SelectUnit(u) break end end

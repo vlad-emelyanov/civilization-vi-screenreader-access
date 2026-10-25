@@ -1,6 +1,6 @@
 # Verified 2026-10-22 on early-start (turn 1, Rome/Trajan).
 # covers: UI/Additions/InGameAccess.lua **/LoadScreen.lua
-# no-share-load: checks the announcement the load itself makes
+# own-load: checks the announcement the load itself makes
 # Loading announces the running turn ("Turn 1, 4000 BC").
 load early-start
 expect ^Turn 1, 4000 BC

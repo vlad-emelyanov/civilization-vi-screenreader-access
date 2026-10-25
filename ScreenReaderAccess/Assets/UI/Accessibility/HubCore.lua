@@ -160,6 +160,9 @@ local function TestSnapshot()
 		return table.concat( list, "," );
 	end );
 	table.insert( parts, "p" .. ( ok and slots or "?" ) );
+	-- government and founded religion: a script that adopts or founds one makes the next script load fresh
+	local okGov:boolean, gov = pcall( function() return tostring( culture:GetCurrentGovernment() ) .. "/" .. tostring( player:GetReligion():GetReligionTypeCreated() ); end );
+	table.insert( parts, "g" .. ( okGov and gov or "?" ) );
 	local text:string, hash:number = table.concat( parts, ";" ), 17;
 	for i = 1, #text do hash = ( hash * 31 + string.byte( text, i ) ) % 2147483629; end
 	return "t=" .. Game.GetCurrentGameTurn() .. ";g=" .. math.floor( player:GetTreasury():GetGoldBalance() )
