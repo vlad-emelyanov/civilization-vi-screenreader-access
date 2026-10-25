@@ -226,6 +226,12 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 	local text:string = CleanTextForSpeech( message );
 	if text == "" then text = CleanTextForSpeech( summary ); end
 	if text == "" then return; end
+	-- Founding a religion (U, Tab > Found Religion) opens no screen, only this notification: say how to get to the screen
+	if typeName == "NOTIFICATION_CHOOSE_RELIGION" then
+		text = "Religion founded: choose a name and beliefs. Control+N, then Enter on '" .. text .. "'";
+	elseif typeName == "NOTIFICATION_CHOOSE_BELIEF" then
+		text = text .. ". Control+N, then Enter to choose";
+	end
 	table.insert( HubCore.m_arrivals, { text = text, time = UI.GetElapsedTime(), spotType = ( typeName == "NOTIFICATION_BARBARIANS_SIGHTED" ) } );
 	if HubCore.m_arrivalTimer < 0 then HubCore.m_arrivalTimer = 0.8; end		-- flush 0.8 s after the first one: a trickle must not postpone the burst
 end
