@@ -1,15 +1,17 @@
-# manual (UNVERIFIED, blind-written). Needs a Great General unit of ours on the map, e.g. pt-modes fixture around T104 where Timur was patronized with faith,
-# or the tuner: GameCore_Tuner Players[0]:GetUnits():Create(GameInfo.Units["UNIT_GREAT_GENERAL"].Index, x, y) plus the individual (see util/scenarios).
-# The Tab menu names the general's ability "Retire <name>: <effect>" (like "Activate <name>: <effect>" for the other great people) and Enter says "<name> retired: <effect>".
+# Verified in game 2026-10-24. The Tab menu names the general's ability "Retire <name>: <effect>" (like "Activate <name>: <effect>" for the other great people) and Enter says "<name> retired: <effect>".
+# The fixture has no general: the tuner grants Aethelflaed (individual 59), the unit appears in Rome.
 # covers: **/UnitPanel.lua **/HubMenus.lua
-# no-share-load: retires (consumes) the unit
-load pt-modes-t104
+# no-share-load: grants and retires (consumes) a great person
+load pt-modes-t106
+clear-advisors
+lua GameCore_Tuner Game.GetGreatPeople():GrantPerson(59, GameInfo.GreatPersonClasses["GREAT_PERSON_CLASS_GENERAL"].Index, Game.GetEras():GetCurrentEra(), 0, 0, false)
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_GREAT_GENERAL" then UI.SelectUnit(u) end end
 key Tab -Settle 800
-expect ^\S.* actions, \d+ options.*Retire \S.*: \S.*, key \w
+expect ^\S.* actions, \d+ options
+expect Retire \S.*: \S.*, key \w
 key Space -Settle 800
-expect ^Retire \S.*: \S
+expect ^Retire\. \S
 expect-not \. \.
 key Enter -Settle 2500
 expect ^\S.* retired: \S

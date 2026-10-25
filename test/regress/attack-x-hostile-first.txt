@@ -1,13 +1,20 @@
-# BLIND-WRITTEN (verifier: run `python util/civregress.py attack-x-hostile-first --record`, fix the expects). Needs a fixture where a ranged or melee unit of ours has BOTH a barbarian and a peaceful foreign unit (Vilnius pikeman/builder) in view, the barbarian farther than the peaceful one: pt-modes-t104 / pt-modes-t106 (barbarians around Aquileia, at peace with Vilnius). Select that unit with the tuner line below (adjust the unit type).
-# Checks only the FIRST X stop (hostile, not 'would declare war'); no loop in the runner, so the Vilnius stops are not checked. If expect-not is unsupported, drop that line.
+# Verified in game 2026-10-24. X in an attack mode lists the hostile (barbarian) targets first and the "would declare war on <peaceful civ>" ones after them.
+# pt-modes-t106: the Roman Legion in Aquileia has barbarians 1-3 tiles around and a Vilnius pikeman / English units farther away (peace).
 # covers: **/HubCursor.lua **/HubTargets.lua
 # no-share-load: selects a unit and enters a target mode
-load pt-modes-t104
+load pt-modes-t106
 clear-advisors
-lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ARCHER" then UI.SelectUnit(u) end end
-wait Archer -Timeout 8
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
 key W -Settle 1500
-key X -Settle 800
-expect (?i)barbarian|at war
+expect Barbarian
 expect-not would declare war
+key X -Settle 800
+expect Barbarian
+expect-not would declare war
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+key X -Settle 800
+expect would declare war on Vilnius
+key Escape -Settle 800
 no-lua-errors
