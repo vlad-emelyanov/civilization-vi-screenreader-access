@@ -2967,8 +2967,19 @@ function OnInputActionTriggered( actionId )
         if m_kSoundCV1[actionId] ~= nil and m_kSoundCV1[actionId] ~= "" then
             UI.PlaySound(m_kSoundCV1[actionId]);
         end
+		-- ScreenReaderAccess mod change: U on a great person / general says what happened (the Tab menu does the same),
+		-- worded before the call because the unit is consumed by it
+		local srResult:string = nil;
+		if actionId == Input.GetActionId( "ExtraHotkeysUpgrade" ) then
+			local srUnit:table = UI.GetHeadSelectedUnit();
+			if srUnit ~= nil and srUnit:GetOwner() == Game.GetLocalPlayer() then
+				local srName:string = SRGreatPersonActivateName( srUnit );
+				if srName ~= nil then srResult = SRActionResultText( srName ); end
+			end
+		end
 		m_kHotkeyActions[actionId](m_kHotkeyCV1[actionId], m_kHotkeyCV2[actionId]);
-	else
+		if srResult ~= nil then OutputMessageToScreenReader( srResult, true ); end
+	elseif not SRTryFoundReligionHotkey( actionId ) then		-- ScreenReaderAccess mod change: U on a Great Prophet founds the religion
 		SRSayBlockedHotkey( actionId );		-- ScreenReaderAccess mod change: a disabled action has no hotkey entry, say why
 	end
     -- "Delete" Hotkey doesn't appear in UnitOperations.xml, we need to hotwire it here
@@ -4338,6 +4349,37 @@ local function SRAddDanger( unit:table, reason:string )
 	return result;
 end
 
+-- Nearest completed, unpillaged district of the required type (unique replacements count): returns best, standing.
+-- standing: the unit is already on one. best = { cityName, relative, districtName } or nil.
+local function SRNearestDistrict( unit:table, districtRow:table )
+	local accepted:table = { [ districtRow.Index ] = true };
+	for replace in GameInfo.DistrictReplaces() do
+		if replace.ReplacesDistrictType == districtRow.DistrictType and GameInfo.Districts[ replace.CivUniqueDistrictType ] ~= nil then
+			accepted[ GameInfo.Districts[ replace.CivUniqueDistrictType ].Index ] = true;
+		end
+	end
+	local from = Map.GetPlot( unit:GetX(), unit:GetY() );
+	local best:table = nil;
+	local bestDistance:number = 0;
+	for _, district in Players[ unit:GetOwner() ]:GetDistricts():Members() do
+		if accepted[ district:GetType() ] and district:IsComplete() then
+			local pillaged:boolean = false;
+			pcall( function() pillaged = district:IsPillaged(); end );
+			local x:number, y:number = district:GetX(), district:GetY();
+			local distance:number = Map.GetPlotDistance( unit:GetX(), unit:GetY(), x, y );
+			if not pillaged and distance == 0 then
+				return nil, true;
+			elseif not pillaged and ( best == nil or distance < bestDistance ) then
+				local city = Cities.GetCityInPlot( x, y ) or Cities.GetPlotPurchaseCity( Map.GetPlot( x, y ) );
+				best = { cityName = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "your city", relative = PlotDescription_GetRelative( from, Map.GetPlot( x, y ) ),
+					districtName = Locale.Lookup( GameInfo.Districts[ district:GetType() ].Name ) };
+				bestDistance = distance;
+			end
+		end
+	end
+	return best, false;
+end
+
 -- A great person whose ability needs a completed district (GreatPersonIndividuals.ActionRequiresCompletedDistrictType):
 -- returns a function that turns a list of engine refusal strings into one with the "Must be on a completed Campus." entry
 -- replaced by "must stand on a completed Campus district. Nearest: Rome's Campus, 1 tile north-west"; nil when the person needs
@@ -4350,31 +4392,8 @@ local function SRDistrictRefiner( unit:table, long:boolean )
 		local row = GameInfo.GreatPersonIndividuals[ gp:GetIndividual() ];
 		local districtRow = ( row ~= nil and row.ActionRequiresCompletedDistrictType ~= nil ) and GameInfo.Districts[ row.ActionRequiresCompletedDistrictType ] or nil;
 		if districtRow == nil then return; end
-		local accepted:table = { [ districtRow.Index ] = true };
-		for replace in GameInfo.DistrictReplaces() do
-			if replace.ReplacesDistrictType == districtRow.DistrictType and GameInfo.Districts[ replace.CivUniqueDistrictType ] ~= nil then
-				accepted[ GameInfo.Districts[ replace.CivUniqueDistrictType ].Index ] = true;
-			end
-		end
-		local from = Map.GetPlot( unit:GetX(), unit:GetY() );
-		local best:table = nil;
-		local bestDistance:number = 0;
-		for _, district in Players[ unit:GetOwner() ]:GetDistricts():Members() do
-			if accepted[ district:GetType() ] and district:IsComplete() then
-				local pillaged:boolean = false;
-				pcall( function() pillaged = district:IsPillaged(); end );
-				local x:number, y:number = district:GetX(), district:GetY();
-				local distance:number = Map.GetPlotDistance( unit:GetX(), unit:GetY(), x, y );
-				if not pillaged and distance == 0 then
-					return;		-- already standing on one: the refusal is something else
-				elseif not pillaged and ( best == nil or distance < bestDistance ) then
-					local city = Cities.GetCityInPlot( x, y ) or Cities.GetPlotPurchaseCity( Map.GetPlot( x, y ) );
-					best = { cityName = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "your city", relative = PlotDescription_GetRelative( from, Map.GetPlot( x, y ) ),
-						districtName = Locale.Lookup( GameInfo.Districts[ district:GetType() ].Name ) };
-					bestDistance = distance;
-				end
-			end
-		end
+		local best:table, standing:boolean = SRNearestDistrict( unit, districtRow );
+		if standing then return; end
 		local text:string = PlotDescription_DistrictReason( Locale.Lookup( districtRow.Name ), best, long );
 		-- the engine's text up to the district name: LOC_UNITCOMMAND_ACTIVATE_GREAT_PERSON_INVALID_DISTRICT = "Must be on a completed {1_DistrictName}."
 		local marker:string = "\1";
@@ -4499,7 +4518,7 @@ end
 
 -- A great person (or general) that has charges left but no moves: the game hides its Activate / Retire button then.
 -- Returns "Activate Robert Goddard: <effect>" (verb Retire for generals), the verb and the person, else nil.
-local function SRGreatPersonActivateName( unit:table )
+function SRGreatPersonActivateName( unit:table )
 	local result:string, verb:string, person:string = nil, nil, nil;
 	pcall( function()
 		local gp = unit:GetGreatPerson();
@@ -4700,6 +4719,74 @@ end
 
 local m_srHotkeyRows:table = nil;		-- input action id -> UnitOperations / UnitCommands row
 
+-- U (ExtraHotkeysUpgrade) on a Great Prophet: the prophet has no Activate command, its great-person action is the operation
+-- UNITOPERATION_FOUND_RELIGION (no hotkey of its own). U runs the very callback of the Tab menu item; when the action is not
+-- available it says why. Returns true when it handled the key (false: not a prophet / not this key).
+local function SRFindFoundReligionAction()
+	local actions:table = ( m_subjectData ~= nil ) and m_subjectData.Actions or nil;
+	if actions == nil then return nil; end
+	for category, list in pairs( actions ) do
+		if category ~= "displayOrder" and type( list ) == "table" then
+			for _, action in ipairs( list ) do
+				if action.userTag ~= nil then
+					local ok:boolean, typeName = pcall( SRTypeName, action.userTag );
+					if ok and typeName == "UNITOPERATION_FOUND_RELIGION" then return action; end
+				end
+			end
+		end
+	end
+	return nil;
+end
+
+function SRFoundReligionRefusal( unit:table, action:table )
+	-- 1. the engine's own refusal, unless it is the district one
+	local engine:string = "";
+	if action ~= nil then engine = SRActionReason( unit, action, action.helpString or "" ); end
+	if engine == "" then engine = SRRefusalReason( unit, GameInfo.UnitOperations["UNITOPERATION_FOUND_RELIGION"].Hash ); end
+	local holySite = GameInfo.Districts["DISTRICT_HOLY_SITE"];
+	local isDistrict:boolean = engine ~= "" and holySite ~= nil and string.find( string.lower( engine ), string.lower( Locale.Lookup( holySite.Name ) ), 1, true ) ~= nil;
+	if engine ~= "" and not isDistrict then return engine; end
+	-- 2. a religion cannot be founded any more
+	local owned:string = nil;
+	pcall( function()
+		local created = Players[ unit:GetOwner() ]:GetReligion():GetReligionTypeCreated();
+		if created ~= nil and created >= 0 and GameInfo.Religions[ created ] ~= nil then
+			owned = "you already founded " .. Locale.Lookup( GameInfo.Religions[ created ].Name );
+		end
+	end );
+	if owned ~= nil then return owned; end
+	local left = nil;
+	pcall( function() left = Game.GetReligion():GetNumReligionsStillToBeFounded(); end );
+	if left ~= nil and left <= 0 then return "no religions left to found"; end
+	-- 3. the Holy Site
+	local best:table, standing:boolean = nil, false;
+	if holySite ~= nil then best, standing = SRNearestDistrict( unit, holySite ); end
+	if holySite ~= nil and not standing then return PlotDescription_DistrictReason( Locale.Lookup( holySite.Name ), best, false ); end
+	if engine ~= "" then return engine; end
+	return "no action available here; Tab lists its actions";
+end
+
+function SRTryFoundReligionHotkey( actionId:number )
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return false; end
+	if actionId ~= Input.GetActionId( "ExtraHotkeysUpgrade" ) then return false; end
+	local isProphet:boolean = false;
+	pcall( function()
+		local gp = unit:GetGreatPerson();
+		local row = ( gp ~= nil ) and GameInfo.GreatPersonIndividuals[ gp:GetIndividual() ] or nil;
+		isProphet = row ~= nil and row.GreatPersonClassType == "GREAT_PERSON_CLASS_PROPHET";
+	end );
+	if not isProphet then return false; end
+	local action:table = SRFindFoundReligionAction();
+	if action ~= nil and action.Disabled ~= true then
+		if action.Sound ~= nil and action.Sound ~= "" then UI.PlaySound( action.Sound ); end
+		action.CallbackFunc( action.CallbackVoid1, action.CallbackVoid2 );
+		return true;
+	end
+	OutputMessageToScreenReader( "Cannot found a religion: " .. SRFoundReligionRefusal( unit, action ) );
+	return true;
+end
+
 -- The hotkey of an action that is disabled right now does nothing in the game; say "Cannot automate exploration: Danger".
 function SRSayBlockedHotkey( actionId:number )
 	local actions:table = (m_subjectData ~= nil) and m_subjectData.Actions or nil;
@@ -4722,6 +4809,7 @@ function SRSayBlockedHotkey( actionId:number )
 						if refine ~= nil then reason = table.concat( refine( SRReasonList( tooltip ) ), ", " ); end
 					elseif string.find( name, "^Activate " ) then lowered = "activate " .. string.sub( name, 10 );
 					elseif string.find( name, "^Retire " ) then lowered = "retire " .. string.sub( name, 8 ); end
+					if reason == "" and gpPerson ~= nil then reason = "no action available here; Tab lists its actions"; end
 					OutputMessageToScreenReader( "Cannot " .. lowered
 						.. ( reason ~= "" and ( ": " .. reason ) or "" ) );
 					return;
@@ -4752,6 +4840,7 @@ function SRSayBlockedHotkey( actionId:number )
 		local _, verb:string, person:string = SRGreatPersonActivateName( unit );
 		local why:string = ( unit:GetMovesRemaining() <= 0 ) and "no moves left this turn"
 			or SRRefusalReason( unit, GameInfo.UnitCommands["UNITCOMMAND_ACTIVATE_GREAT_PERSON"].Hash, SRDistrictRefiner( unit, true ) );
+		if why == "" then why = "no action available here; Tab lists its actions"; end
 		OutputMessageToScreenReader( "Cannot " .. string.lower( verb or "activate" ) .. " " .. ( person or Locale.Lookup( unit:GetName() ) )
 			.. ( why ~= "" and ( ": " .. why ) or "" ) );
 		return;

@@ -1,0 +1,11 @@
+# BLIND-WRITTEN (not run in the game): fixture bug-greatprophet-u-no-reason (Great Prophet in Rome's city centre, no Holy Site there).
+# U on a Great Prophet gives the reason (found a religion), not a bare "Cannot activate".
+# covers: **/UnitPanel.lua **/HubMenus.lua **/PlotDescription.lua **/HelpText.lua
+# no-share-load: selects the prophet
+load bug-greatprophet-u-no-reason
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do local r=GameInfo.Units[u:GetUnitType()]; if r and r.UnitType=="UNIT_GREAT_PROPHET" then UI.SelectUnit(u) break end end
+action ExtraHotkeysUpgrade -Settle 1200
+expect (?i)cannot found a religion: must stand on a completed Holy Site.*Nearest: .*Holy Site
+expect-not (?i)^Cannot activate \S+ \S+$
+no-lua-errors

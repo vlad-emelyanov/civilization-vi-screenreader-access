@@ -79,7 +79,7 @@ local m_sections:table = {
 		{ action = "ExtraHotkeysPromote",		default = "Shift+U",	text = "promotion list" },
 		{ action = "ExtraHotkeysFormCorps",		default = "Shift+F",	text = "form a corps" },
 		{ action = "ExtraHotkeysFormArmy",		default = "Control+Shift+F", text = "form an army" },
-		{ action = "ExtraHotkeysUpgrade",		default = "U",			text = "upgrade the unit, or activate a great person" },
+		{ action = "ExtraHotkeysUpgrade",		default = "U",			text = "upgrade the unit, or activate a great person (a Great Prophet founds its religion); says what happened, or why it cannot" },
 		{ action = "ExtraHotkeysEnterFormation",default = "Shift+E",	text = "create or leave an escort formation" },
 		{ action = "ExtraHotkeysPillageOrRepair",default = "Shift+P",	text = "pillage, coastal raid or repair" },
 		{ action = "DeleteUnit",				default = "Delete",		text = "delete the unit, asks first" },
