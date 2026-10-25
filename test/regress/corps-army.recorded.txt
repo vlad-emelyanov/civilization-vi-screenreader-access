@@ -1,0 +1,107 @@
+# Written 2026-10-24. Corps and armies: scenario corps-army puts three Musketmen on mutually adjacent owned plots (63,35 / 64,36 / 63,36 on air-ready) and grants Nationalism + Mobilization.
+# Tab menu offers Form Corps (Shift+F); X lists the neighbour; Enter forms it. The third unit then sees Form Army in its menu instead of Form Corps.
+# covers: **/HubTargets.lua **/HubCursor.lua **/HubMenus.lua **/UnitPanel.lua
+# no-share-load: scenario spawns units and forms a corps and an army
+load air-ready
+clear-advisors
+# the fixture opens with the Historic moment popup (Taking Flight)
+key Enter -Settle 1500
+scenario corps-army
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetX()==63 and u:GetY()==35 then UI.SelectUnit(u) end end
+key Tab -Settle 1500
+expect Musketman actions
+#   -> PASS; window had 21 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | New frontiers of discovery expand our understanding, from the tiny atom to the majesty of outer space. Mysteries long tolerated are closer than ever to revealing their deepest secrets, beyond what we can easily see. You will choose how to use this knowledge, and push back the greatest darkness we have yet faced.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 221, 2020 AD
+#      | Historic moment: Taking Flight. The Fighter of Rome went up, and did not immediately come down, to great rejoicing, plus 3 era score. Enter to continue
+#      | Notification: Command Units
+#      | Fighter, 8 of 8 moves. Lugdunum, city, Fighter, Bomber, Desert (Hills), coastal, yours, 2 Food 1 Production
+#      | Ottomans Tank spotted, 1 tile south-east of your Musketman
+#      | 4 new notifications: New Governor Title Available, Choose a Civic, First Civic of New Era and 1 more
+#      | Musketman, 2 of 2 moves. Plains, yours, 1 Food 1 Production, 2 tiles north-east of Aquileia
+#      | Musketman actions, 8 options
+#      | Move To, key M, 1 of 8
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+expect (?i)Form Corps, key Shift\+F
+#   -> PASS; window had 6 SR> line(s):
+#      | Fortify, key D, 2 of 8
+#      | Skip Turn, key Space, 3 of 8
+#      | Alert, key A, unavailable, 4 of 8
+#      | Automate Exploration, key E, unavailable: Danger, Ottomans Tank 1 tile south-east, 5 of 8
+#      | Upgrade to Line Infantry: 125 Gold, key U, 6 of 8
+#      | Form Corps, key Shift+F, 7 of 8
+key Enter -Settle 1500
+expect ^Form corps: choose a tile
+#   -> PASS; window had 1 SR> line(s):
+#      | Form corps: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+key X -Settle 1500
+expect valid target, unit to join. Musketman
+#   -> PASS; window had 1 SR> line(s):
+#      | valid target, unit to join. Musketman, Plains (Hills), coastal, Campus, yours, 2 Science. 1 tile north-west
+key Enter -Settle 3000
+expect ^Forming a corps with Musketman
+#   -> PASS; window had 2 SR> line(s):
+#      | Forming a corps with Musketman
+#      | Historic moment: First Civic of New Era. Let others say what they will, but the real flourishing of Modern Era culture began with the discovery of Mobilization by Rome, plus 1 era score. Enter to continue
+wait Musketman Corps formed -Timeout 8
+lua InGame local n=0 for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==1 then n=n+1 end end return 'corps='..n
+expect-lua ^corps=1$
+#   -> PASS; window had 1 SR> line(s):
+#      | corps=1
+# the Historic moment popup (first civic of the era) swallows keys
+key Enter -Settle 1500
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==0 then UI.SelectUnit(u) end end
+key Tab -Settle 1500
+expect Musketman actions
+#   -> PASS; window had 3 SR> line(s):
+#      | Musketman, 2 of 2 moves. Plains, coastal, yours, 1 Food 1 Production, 2 tiles north-west of Mediolanum
+#      | Musketman actions, 8 options
+#      | Move To, key M, 1 of 8
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+expect (?i)Form Army, key Control\+Shift\+F
+#   -> PASS; window had 6 SR> line(s):
+#      | Fortify, key D, 2 of 8
+#      | Skip Turn, key Space, 3 of 8
+#      | Alert, key A, unavailable, 4 of 8
+#      | Automate Exploration, key E, unavailable: Danger, Ottomans Tank 2 tiles south, 5 of 8
+#      | Upgrade to Line Infantry: 125 Gold, key U, 6 of 8
+#      | Form Army, key Control+Shift+F, 7 of 8
+key Enter -Settle 1500
+expect ^Form army: choose a tile
+#   -> PASS; window had 1 SR> line(s):
+#      | Form army: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+key X -Settle 1500
+expect valid target, unit to join. Musketman
+#   -> PASS; window had 1 SR> line(s):
+#      | valid target, unit to join. Musketman, Plains, yours, 1 Food 1 Production. 1 tile south-west
+key Enter -Settle 3000
+expect ^Forming an army with Musketman
+#   -> PASS; window had 1 SR> line(s):
+#      | Forming an army with Musketman
+wait Musketman Army formed -Timeout 8
+lua InGame local n=0 for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==2 then n=n+1 end end return 'army='..n
+expect-lua ^army=1$
+#   -> PASS; window had 1 SR> line(s):
+#      | army=1
+no-lua-errors

@@ -1,0 +1,60 @@
+# Written 2026-10-24. WMD strike with a Bomber: scenario nuke-ready gives one Nuclear Device. The Tab menu lists strike items; the target mode (opened with the same UI.SetInterfaceMode call as the menu callback, because the two items had the same label and Enter activated the unavailable one) lists targets with X; Enter on a target is a real mouse click (#KEYNAV_CLICK) that opens the game's launch confirmation; "Stand down" cancels. NO NUKE IS LAUNCHED (the weapon count stays 1).
+# covers: **/HubTargets.lua **/HubCursor.lua **/HubMenus.lua **/UnitPanel.lua
+# no-share-load: scenario gives a nuclear device
+load air-ready
+clear-advisors
+# the fixture opens with the Historic moment popup (Taking Flight)
+key Enter -Settle 1500
+scenario nuke-ready
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BOMBER" then UI.SelectUnit(u) break end end
+key Tab -Settle 1500
+expect Bomber actions
+#   -> PASS; window had 20 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | New frontiers of discovery expand our understanding, from the tiny atom to the majesty of outer space. Mysteries long tolerated are closer than ever to revealing their deepest secrets, beyond what we can easily see. You will choose how to use this knowledge, and push back the greatest darkness we have yet faced.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 221, 2020 AD
+#      | Historic moment: Taking Flight. The Fighter of Rome went up, and did not immediately come down, to great rejoicing, plus 3 era score. Enter to continue
+#      | Notification: Command Units
+#      | Fighter, 8 of 8 moves. Lugdunum, city, Fighter, Bomber, Desert (Hills), coastal, yours, 2 Food 1 Production
+#      | Notification: Civic Boost
+#      | Bomber, 10 of 10 moves. Lugdunum, city, Fighter, Fighter, Desert (Hills), coastal, yours, 2 Food 1 Production, in Lugdunum
+#      | Bomber actions, 9 options
+#      | Priority Target, 1 of 9
+key Down -Settle 600
+key Down -Settle 600
+expect (?i)strike
+#   -> PASS; window had 2 SR> line(s):
+#      | Air Attack, key R, 2 of 9
+#      | WMD Strike, 3 of 9
+key Escape -Settle 800
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BOMBER" then UI.SelectUnit(u); local t={}; t[UnitOperationTypes.PARAM_WMD_TYPE]=GameInfo.WMDs["WMD_NUCLEAR_DEVICE"].Index; UI.SetInterfaceMode(InterfaceModeTypes.WMD_STRIKE,t); break end end
+wait (?i)strike: choose a tile -Timeout 8
+key X -Settle 1500
+expect Modern Armor
+#   -> PASS; window had 3 SR> line(s):
+#      | Closed
+#      | Nuclear strike: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+#      | Ottomans Modern Armor, Desert, coastal, 1 Production. 3 tiles south-west
+key Enter -Settle 3000
+expect (?i)Commence bombing mission
+#   -> PASS; window had 2 SR> line(s):
+#      | Popup: ARE YOU SURE?. Commence bombing mission?
+#      | Stand down
+# Stand down (the default button) cancels; nothing is launched
+key Enter -Settle 1500
+lua GameCore_Tuner return 'warheads='..Players[0]:GetWMDs():GetWeaponCount(0)
+expect-lua ^warheads=1$
+#   -> PASS; window had 1 SR> line(s):
+#      | warheads=1
+key Escape -Settle 800
+no-lua-errors

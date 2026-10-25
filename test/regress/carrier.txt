@@ -1,0 +1,33 @@
+# Written 2026-10-24. Aircraft Carrier: scenario carrier puts one next to Lugdunum (55,32; carrier at 54,33). A Fighter's menu has Deploy (unavailable), Re-Base lists the carrier as a target (X), Enter rebases onto it; the carrier's own menu has no air actions.
+# covers: **/HubTargets.lua **/HubCursor.lua **/HubMenus.lua
+# no-share-load: scenario spawns a carrier and rebases a fighter
+load air-ready
+clear-advisors
+# the fixture opens with the Historic moment popup (Taking Flight)
+key Enter -Settle 1500
+scenario carrier
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetX()==55 and u:GetMovesRemaining()>0 then UI.SelectUnit(u) break end end
+key Tab -Settle 1500
+expect Fighter actions
+key Down -Settle 600
+key Down -Settle 600
+expect ^Deploy
+key Down -Settle 600
+expect Re-Base, key Shift\+R
+key Escape -Settle 800
+key Shift+R -Settle 1500
+expect ^Rebase: choose a tile
+key X -Settle 1200
+key X -Settle 1200
+expect valid target. Aircraft Carrier
+key Enter -Settle 3000
+expect ^Rebasing
+lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetMovesRemaining()==0 and u:GetX()==54 and u:GetY()==33 then return 'on carrier' end end
+expect-lua ^on carrier$
+# the carrier itself
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_AIRCRAFT_CARRIER" then UI.SelectUnit(u) break end end
+key Tab -Settle 1500
+expect Aircraft Carrier actions
+key Down -Settle 600
+expect Skip Turn
+no-lua-errors
