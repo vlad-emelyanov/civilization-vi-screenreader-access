@@ -1,0 +1,7 @@
+turn: 116
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Notification 'Suzerain Status Lost' does not say which city-state; Enter only reads the plot (Vilnius city ...)
+mod commit: d949077
+created: 2026-10-25
+size: 1062 KB

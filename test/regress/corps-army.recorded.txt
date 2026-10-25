@@ -56,11 +56,9 @@ expect valid target, unit to join. Musketman
 #      | valid target, unit to join. Musketman, Plains (Hills), coastal, Campus, yours, 2 Science. 1 tile north-west
 key Enter -Settle 3000
 expect ^Forming a corps with Musketman
-#   -> PASS; window had 4 SR> line(s):
+#   -> PASS; window had 2 SR> line(s):
 #      | Forming a corps with Musketman
 #      | Historic moment: First Civic of New Era. Let others say what they will, but the real flourishing of Modern Era culture began with the discovery of Mobilization by Rome, plus 1 era score. Enter to continue
-#      | 2 new notifications: First Corps, Command Units
-#      | Musketman Corps formed
 lua InGame local n=0 for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==1 then n=n+1 end end return 'corps='..n
 expect-lua ^corps=1$
 #   -> PASS; window had 1 SR> line(s):
@@ -70,21 +68,30 @@ key Enter -Settle 1500
 lua InGameAccess UI.DeselectAllUnits() for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==1 then UI.SelectUnit(u) end end
 key Tab -Settle 1500
 expect Musketman corps, \d of \d moves
-#   -> PASS; window had 3 SR> line(s):
+#   -> PASS; window had 5 SR> line(s):
+#      | 2 new notifications: First Corps, Command Units
+#      | Musketman Corps formed
 #      | Musketman corps, 0 of 2 moves. Plains, yours, 1 Food 1 Production, 2 tiles north-east of Aquileia
 #      | Musketman corps actions, 2 options
 #      | Activate Musketman, key U, unavailable: no moves left this turn, 1 of 2
 expect Musketman corps actions
-#   -> PASS; window had 3 SR> line(s):
+#   -> PASS; window had 5 SR> line(s):
+#      | 2 new notifications: First Corps, Command Units
+#      | Musketman Corps formed
 #      | Musketman corps, 0 of 2 moves. Plains, yours, 1 Food 1 Production, 2 tiles north-east of Aquileia
 #      | Musketman corps actions, 2 options
 #      | Activate Musketman, key U, unavailable: no moves left this turn, 1 of 2
-key Escape -Settle 800
+# blind edit: cursor-to-selection names the formation (was plain "Musketman.")
+key Escape -Settle 600
+action KeyNavCursorToSelection -Settle 1500
+expect Musketman corps
+#   -> PASS; window had 2 SR> line(s):
+#      | Closed
+#      | Musketman corps. Plains, yours, 1 Food 1 Production
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==0 then UI.SelectUnit(u) end end
 key Tab -Settle 1500
 expect Musketman actions
-#   -> PASS; window had 4 SR> line(s):
-#      | Closed
+#   -> PASS; window had 3 SR> line(s):
 #      | Musketman, 2 of 2 moves. Plains, coastal, yours, 1 Food 1 Production, 2 tiles north-west of Mediolanum
 #      | Musketman actions, 8 options
 #      | Move To, key M, 1 of 8

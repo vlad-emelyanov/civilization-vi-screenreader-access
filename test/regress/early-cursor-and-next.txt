@@ -1,4 +1,4 @@
-# Verified 2026-10-22 on early-start (turn 1, nothing founded; the settler is the first unit needing orders).
+# Verified 2026-10-22 on early-start (turn 1, nothing founded; the settler is the first unit needing orders). N counts the selected settler too: "2 units need orders" (changed 2026-10-25).
 # covers: **/ScreenReaderPlotUtils.lua **/PlotDescription.lua **/PlotToolTip.lua **/SettleScan.lua **/PlacementScan.lua UI/Additions/InGameAccess.lua
 # no-share-load: Enter (next action) changes the selection, unsure what the reset restores
 load early-start
@@ -11,7 +11,7 @@ action KeyNavMoveCellDown -Settle 1500
 expect \d+ tiles? (north|south|east|west)
 # N = what Enter would do now (the end-turn blocker text)
 action KeyNavWhatsNext
-expect ^Unit needs orders
+expect ^2 units need orders. Enter selects the next one
 # Enter must not end the turn while a unit needs orders
 key Enter
 expect-not (?i)turn ended

@@ -35,7 +35,6 @@ expect Musketman corps actions
 key Escape -Settle 600
 action KeyNavCursorToSelection -Settle 1500
 expect Musketman corps
-key Escape -Settle 800
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==0 then UI.SelectUnit(u) end end
 key Tab -Settle 1500
 expect Musketman actions
