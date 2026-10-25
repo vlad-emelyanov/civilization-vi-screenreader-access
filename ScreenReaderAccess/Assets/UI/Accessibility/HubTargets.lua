@@ -645,8 +645,8 @@ do
 		m_directRequests[mode] = { kind = kind, typeName = typeName, say = say, war = war, nilArg = nilArg };
 	end
 	Add( "COASTAL_RAID", "operation", "COASTAL_RAID", "Coastal raid", true );
-	Add( "DEPLOY", "operation", "DEPLOY", "Deploying", false );
-	Add( "REBASE", "operation", "REBASE", "Rebasing", false );
+	Add( "DEPLOY", "operation", "DEPLOY", nil, false );
+	Add( "REBASE", "operation", "REBASE", nil, false );
 	Add( "SACRIFICE_SELECTION", "operation", "UNITOPERATION_SOOTHSAYER_SACRIFICE", "Sacrificing", false );
 	Add( "AIRLIFT", "command", "AIRLIFT", "Airlifting", false, true );		-- WorldInput passes (unit, AIRLIFT, nil, params) to CanStartCommand
 	Add( "KILL_WEAKER_UNIT", "command", "KILL_WEAKER_UNIT", "Killing the weaker unit", false );
@@ -690,8 +690,9 @@ local function ConfirmDirectRequest( unit:table, plot:table, mode:number )
 	else
 		UnitManager.RequestCommand( unit, requestType, parameters );
 	end
+	HubTargets.m_lastDirectTarget = { plot = plot:GetIndex(), time = UI.GetElapsedTime() };		-- HubEvents reads the confirmed target (Rebasing / Deploying to <city>)
 	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-	HubCore.SayResult( entry.say );
+	if entry.say then HubCore.SayResult( entry.say ); end
 end
 
 -- Enter in a target mode: what WorldInput does on the left click in that mode, for the cursor plot.
