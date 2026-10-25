@@ -133,6 +133,23 @@ function PlotDescription_IsUnitVisible( unit:table )
 	return vis:IsVisible(unit:GetX(), unit:GetY()) and vis:IsUnitVisible(unit);
 end
 
+-- True when a land unit is on a water tile (embarked). Engine API: unit:IsEmbarked() (the unit flag uses it);
+-- fallback: land domain on a water plot.
+function PlotDescription_IsEmbarked( unit:table )
+	if unit == nil then return false; end
+	if unit.IsEmbarked ~= nil then return unit:IsEmbarked() == true; end
+	local row:table = GameInfo.Units[ unit:GetType() ];
+	if row == nil or row.Domain ~= "DOMAIN_LAND" then return false; end
+	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+	return plot ~= nil and plot:IsWater();
+end
+
+-- "embarked" for an embarked unit, else nil. Kept apart from the unit name (names are used as keys).
+function PlotDescription_UnitStateText( unit:table )
+	if PlotDescription_IsEmbarked( unit ) then return "embarked"; end
+	return nil;
+end
+
 -- Name of a unit with its military formation: "Musketman corps" / "Musketman army", "Frigate fleet" / "Frigate armada".
 -- Does not double the word when the name already ends with it.
 function PlotDescription_FormationName( unit:table, name:string )
@@ -183,6 +200,7 @@ local function _UnitsText( plot:table, excludeUnitId:number )
 	for _, unit in ipairs(Units.GetUnitsInPlot(plot)) do
 		if (excludeUnitId == nil or unit:GetID() ~= excludeUnitId or unit:GetOwner() ~= localPlayer) and PlotDescription_IsUnitVisible(unit) then
 			local text:string = PlotDescription_GetUnitName(unit);
+			if PlotDescription_IsEmbarked(unit) then text = text .. ", embarked"; end
 			local damage:number = unit:GetDamage();
 			if damage > 0 then
 				text = text .. " " .. (unit:GetMaxDamage() - damage) .. " of " .. unit:GetMaxDamage() .. " health";

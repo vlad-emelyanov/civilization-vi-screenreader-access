@@ -134,3 +134,14 @@ test("military formation names", function()
 	eq(PlotDescription_FormationName(u(6, 2), "Frigate"), "Frigate armada")
 	eq(PlotDescription_FormationName(u(5, 1), "Musketman Corps"), "Musketman Corps")
 end)
+
+test("embarked land unit", function()
+	GameInfo.Units = { [5] = { Domain = "DOMAIN_LAND" }, [6] = { Domain = "DOMAIN_SEA" } }
+	world:set(3, 3, { terrain = "water", lake = true })
+	local function u(t, x, y) return { GetType = function() return t end, GetX = function() return x end, GetY = function() return y end } end
+	eq(PlotDescription_UnitStateText(u(5, 3, 3)), "embarked")
+	eq(PlotDescription_UnitStateText(u(6, 3, 3)), nil)
+	eq(PlotDescription_UnitStateText(u(5, 4, 4)), nil)
+	local e = u(5, 4, 4); e.IsEmbarked = function() return true end
+	eq(PlotDescription_UnitStateText(e), "embarked")
+end)
