@@ -1,0 +1,12 @@
+# Fixture bug-greatperson-u-upgrade-text: a patronized Great Engineer with 0 moves. The Tab menu lists the disabled Activate item and
+# U says why instead of the raw "Upgrade Available!" label.
+# covers: **/UnitPanel.lua **/HubMenus.lua
+# no-share-load: selects the great person
+load bug-greatperson-u-upgrade-text
+clear-advisors
+key Tab -Settle 1500
+expect (?i)activate .*unavailable.*no moves left this turn
+key Escape -Settle 800
+action ExtraHotkeysUpgrade -Settle 1200
+expect (?i)cannot activate .*no moves left this turn
+no-lua-errors
