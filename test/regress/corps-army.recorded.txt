@@ -27,7 +27,7 @@ expect Musketman actions
 #      | Historic moment: Taking Flight. The Fighter of Rome went up, and did not immediately come down, to great rejoicing, plus 3 era score. Enter to continue
 #      | Notification: Command Units
 #      | Fighter, 8 of 8 moves. Lugdunum, city, Fighter, Bomber, Desert (Hills), coastal, yours, 2 Food 1 Production
-#      | Ottomans Tank spotted, 1 tile south-east of your Musketman
+#      | Ottomans Tank army spotted, 1 tile south-east of your Musketman
 #      | 4 new notifications: New Governor Title Available, Choose a Civic, First Civic of New Era and 1 more
 #      | Musketman, 2 of 2 moves. Plains, yours, 1 Food 1 Production, 2 tiles north-east of Aquileia
 #      | Musketman actions, 8 options
@@ -43,7 +43,7 @@ expect (?i)Form Corps, key Shift\+F
 #      | Fortify, key D, 2 of 8
 #      | Skip Turn, key Space, 3 of 8
 #      | Alert, key A, unavailable, 4 of 8
-#      | Automate Exploration, key E, unavailable: Danger, Ottomans Tank 1 tile south-east, 5 of 8
+#      | Automate Exploration, key E, unavailable: Danger, Ottomans Tank army 1 tile south-east, 5 of 8
 #      | Upgrade to Line Infantry: 125 Gold, key U, 6 of 8
 #      | Form Corps, key Shift+F, 7 of 8
 key Enter -Settle 1500
@@ -56,20 +56,35 @@ expect valid target, unit to join. Musketman
 #      | valid target, unit to join. Musketman, Plains (Hills), coastal, Campus, yours, 2 Science. 1 tile north-west
 key Enter -Settle 3000
 expect ^Forming a corps with Musketman
-#   -> PASS; window had 2 SR> line(s):
+#   -> PASS; window had 4 SR> line(s):
 #      | Forming a corps with Musketman
 #      | Historic moment: First Civic of New Era. Let others say what they will, but the real flourishing of Modern Era culture began with the discovery of Mobilization by Rome, plus 1 era score. Enter to continue
-wait Musketman Corps formed -Timeout 8
+#      | 2 new notifications: First Corps, Command Units
+#      | Musketman Corps formed
 lua InGame local n=0 for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==1 then n=n+1 end end return 'corps='..n
 expect-lua ^corps=1$
 #   -> PASS; window had 1 SR> line(s):
 #      | corps=1
 # the Historic moment popup (first civic of the era) swallows keys
 key Enter -Settle 1500
+lua InGameAccess UI.DeselectAllUnits() for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==1 then UI.SelectUnit(u) end end
+key Tab -Settle 1500
+expect Musketman corps, \d of \d moves
+#   -> PASS; window had 3 SR> line(s):
+#      | Musketman corps, 0 of 2 moves. Plains, yours, 1 Food 1 Production, 2 tiles north-east of Aquileia
+#      | Musketman corps actions, 2 options
+#      | Activate Musketman, key U, unavailable: no moves left this turn, 1 of 2
+expect Musketman corps actions
+#   -> PASS; window had 3 SR> line(s):
+#      | Musketman corps, 0 of 2 moves. Plains, yours, 1 Food 1 Production, 2 tiles north-east of Aquileia
+#      | Musketman corps actions, 2 options
+#      | Activate Musketman, key U, unavailable: no moves left this turn, 1 of 2
+key Escape -Settle 800
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==0 then UI.SelectUnit(u) end end
 key Tab -Settle 1500
 expect Musketman actions
-#   -> PASS; window had 3 SR> line(s):
+#   -> PASS; window had 4 SR> line(s):
+#      | Closed
 #      | Musketman, 2 of 2 moves. Plains, coastal, yours, 1 Food 1 Production, 2 tiles north-west of Mediolanum
 #      | Musketman actions, 8 options
 #      | Move To, key M, 1 of 8
@@ -84,7 +99,7 @@ expect (?i)Form Army, key Control\+Shift\+F
 #      | Fortify, key D, 2 of 8
 #      | Skip Turn, key Space, 3 of 8
 #      | Alert, key A, unavailable, 4 of 8
-#      | Automate Exploration, key E, unavailable: Danger, Ottomans Tank 2 tiles south, 5 of 8
+#      | Automate Exploration, key E, unavailable: Danger, Ottomans Tank army 2 tiles south, 5 of 8
 #      | Upgrade to Line Infantry: 125 Gold, key U, 6 of 8
 #      | Form Army, key Control+Shift+F, 7 of 8
 key Enter -Settle 1500
@@ -94,14 +109,29 @@ expect ^Form army: choose a tile
 key X -Settle 1500
 expect valid target, unit to join. Musketman
 #   -> PASS; window had 1 SR> line(s):
-#      | valid target, unit to join. Musketman, Plains, yours, 1 Food 1 Production. 1 tile south-west
+#      | valid target, unit to join. Musketman corps, Plains, yours, 1 Food 1 Production. 1 tile south-west
 key Enter -Settle 3000
 expect ^Forming an army with Musketman
 #   -> PASS; window had 1 SR> line(s):
 #      | Forming an army with Musketman
-wait Musketman Army formed -Timeout 8
 lua InGame local n=0 for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==2 then n=n+1 end end return 'army='..n
 expect-lua ^army=1$
 #   -> PASS; window had 1 SR> line(s):
 #      | army=1
+lua InGameAccess UI.DeselectAllUnits() for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==2 then UI.SelectUnit(u) end end
+key Tab -Settle 1500
+expect Musketman army, \d of \d moves
+#   -> PASS; window had 5 SR> line(s):
+#      | 2 new notifications: First Army, Command Units
+#      | Musketman Army formed
+#      | Musketman army, 0 of 2 moves. Plains, coastal, yours, 1 Food 1 Production, 2 tiles north-west of Mediolanum
+#      | Musketman army actions, 2 options
+#      | Activate Musketman, key U, unavailable: no moves left this turn, 1 of 2
+expect Musketman army actions
+#   -> PASS; window had 5 SR> line(s):
+#      | 2 new notifications: First Army, Command Units
+#      | Musketman Army formed
+#      | Musketman army, 0 of 2 moves. Plains, coastal, yours, 1 Food 1 Production, 2 tiles north-west of Mediolanum
+#      | Musketman army actions, 2 options
+#      | Activate Musketman, key U, unavailable: no moves left this turn, 1 of 2
 no-lua-errors
