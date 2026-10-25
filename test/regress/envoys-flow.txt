@@ -1,0 +1,24 @@
+# Merged scripts (one load + one scenario instead of two), scenario envoys-to-give on early-t60 (3 envoys to give):
+#  - t60-envoys-to-give (verified 2026-10-22): F2 opens the city-states screen with the envoys; Escape closes it.
+#  - envoys-escape-twostep (BLIND, the verifier records it): Escape in envoy send mode with pending envoys: first Escape warns, second discards.
+# The plain open/close part runs first; the discard part last reopens the screen (discarding leaves the 3 envoys to give).
+# covers: **/CityStates.lua **/HelpText.lua
+# no-share-load: scenario envoys-to-give
+load early-t60
+scenario envoys-to-give
+clear-advisors
+# --- part from t60-envoys-to-give ---
+key F2 -Settle 2500
+expect ^Send envoys: 3 to give\. .*, \d+ of \d+
+key Escape -Settle 1500
+expect ^City-States closed
+# --- part from envoys-escape-twostep ---
+key F2 -Settle 2500
+expect ^Send envoys: 3 to give\. .*, \d+ of \d+
+key Enter -Settle 1000
+expect pending
+key Escape -Settle 1000
+expect ^1 envoy not sent: C confirms them\. Escape again to discard\.
+key Escape -Settle 1500
+expect ^Envoys not sent\. City-States closed
+no-lua-errors
