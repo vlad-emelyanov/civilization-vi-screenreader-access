@@ -2150,7 +2150,9 @@ function OnWMDStrikeEnd( pInputStruct )
 			else
 				local pPopupDialog :table = PopupDialogInGame:new("ConfirmWMDStrike");
 				pPopupDialog:AddText(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_ARE_YOU_SURE"));
-				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_CANCEL"), nil);
+				-- Begin ScreenReaderAccess mod change
+				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_CANCEL"), function() OutputMessageToScreenReader("Launch cancelled. Still in nuclear strike mode: choose another target, or Escape to leave"); end);
+				-- End ScreenReaderAccess mod change
 				pPopupDialog:AddConfirmButton(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_LAUNCH"), strikeFn);
 				pPopupDialog:Open();
 			end
@@ -2165,6 +2167,9 @@ function WMDStrike( plot, unit, eWMD )
 	tParameters[UnitOperationTypes.PARAM_Y] = plot:GetY();
 	tParameters[UnitOperationTypes.PARAM_WMD_TYPE] = eWMD;
 	if (UnitManager.CanStartOperation( unit, UnitOperationTypes.WMD_STRIKE, nil, tParameters)) then
+		-- Begin ScreenReaderAccess mod change
+		OutputMessageToScreenReader("Launching");
+		-- End ScreenReaderAccess mod change
 		UnitManager.RequestOperation( unit, UnitOperationTypes.WMD_STRIKE, tParameters);
 		UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);
 	end
@@ -2253,7 +2258,9 @@ function OnICBMStrikeEnd( pInputStruct )
 			else
 				local pPopupDialog :table = PopupDialogInGame:new("ConfirmICBMStrike");
 				pPopupDialog:AddText(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_ARE_YOU_SURE"));
-				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_CANCEL"), nil);
+				-- Begin ScreenReaderAccess mod change
+				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_CANCEL"), function() OutputMessageToScreenReader("Launch cancelled. Still in missile strike mode: choose another target, or Escape to leave"); end);
+				-- End ScreenReaderAccess mod change
 				pPopupDialog:AddConfirmButton(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_LAUNCH"), strikeFn);
 				pPopupDialog:Open();
 			end
@@ -2269,6 +2276,9 @@ function ICBMStrike( fromCity, sourcePlotX, sourcePlotY, targetPlot, eWMD )
 	tParameters[CityCommandTypes.PARAM_Y1] = targetPlot:GetY();
 	tParameters[CityCommandTypes.PARAM_WMD_TYPE] = eWMD;
 	if (CityManager.CanStartCommand( fromCity, CityCommandTypes.WMD_STRIKE, tParameters)) then
+		-- Begin ScreenReaderAccess mod change
+		OutputMessageToScreenReader("Launching");
+		-- End ScreenReaderAccess mod change
 		CityManager.RequestCommand( fromCity, CityCommandTypes.WMD_STRIKE, tParameters);
 		UI.SetInterfaceMode(InterfaceModeTypes.SELECTION);
 	end

@@ -20,6 +20,7 @@ key Enter -Settle 3000
 expect (?i)Commence bombing mission
 # Stand down (the default button) cancels; nothing is launched
 key Enter -Settle 1500
+expect (?i)Launch cancelled
 lua GameCore_Tuner return 'warheads='..Players[0]:GetWMDs():GetWeaponCount(0)
 expect-lua ^warheads=1$
 key Escape -Settle 800
