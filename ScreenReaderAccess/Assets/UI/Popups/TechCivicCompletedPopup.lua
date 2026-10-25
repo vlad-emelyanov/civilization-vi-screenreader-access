@@ -353,6 +353,7 @@ function Close()
 	StopSound();
 	m_kPopupData = {};						-- Force no data (e.g., immediate end turn)
 	m_kCurrentData = nil;
+	m_srSpokenKey = nil;		-- ScreenReaderAccess mod change: see TryClose
 	UIManager:DequeuePopup( ContextPtr );	-- Triggers hide event
 end
 
@@ -380,6 +381,7 @@ function TryClose()
 	end
 	
 	m_kCurrentData = nil;
+	m_srSpokenKey = nil;		-- ScreenReaderAccess mod change: the player closed it, so a later reopen (Discovered notification) speaks again
 	-- If more left, continue...
 	if table.count(m_kPopupData) > 0 then
 		RealizeNextPopup();

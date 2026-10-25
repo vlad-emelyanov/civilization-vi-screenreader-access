@@ -1,0 +1,13 @@
+# BLIND-WRITTEN, unverified. Enter on a "Discovered <tech>" notification reopens the research-completed popup: it must speak again.
+# covers: **/TechCivicCompletedPopup.lua **/NotificationPanel.lua
+# no-share-load: opens and closes popups
+load bug-discovered-notif-silent
+clear-advisors
+action KeyNavNotifications -Settle 1500
+expect (?i)notifications
+key Down -Settle 300
+expect (?i)discovered
+key Enter -Settle 2000
+expect (?i)(research|civic).*completed.*enter to continue
+key Enter -Settle 1000
+no-lua-errors
