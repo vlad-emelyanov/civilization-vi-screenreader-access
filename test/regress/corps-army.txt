@@ -27,6 +27,8 @@ lua InGame local n=0 for _,u in Players[0]:GetUnits():Members() do if GameInfo.U
 expect-lua ^corps=1$
 # the Historic moment popup (first civic of the era) swallows keys
 key Enter -Settle 1500
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==1 then UI.SelectUnit(u) end end
+expect Musketman corps, \d of \d moves
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MUSKETMAN" and u:GetMilitaryFormation()==0 then UI.SelectUnit(u) end end
 key Tab -Settle 1500
 expect Musketman actions

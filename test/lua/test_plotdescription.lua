@@ -122,3 +122,15 @@ test("danger refusal names the enemy", function()
 	eq(PlotDescription_DangerReason("no moves left", "Barbarian Galley", "1 tile east"), "no moves left")
 	eq(PlotDescription_DangerReason("Danger", "Barbarian Galley", nil), "Danger, Barbarian Galley")
 end)
+
+test("military formation names", function()
+	MilitaryFormationTypes = { STANDARD_FORMATION = 0, CORPS_FORMATION = 1, ARMY_FORMATION = 2 }
+	GameInfo.Units = { [5] = { Domain = "DOMAIN_LAND" }, [6] = { Domain = "DOMAIN_SEA" } }
+	local function u(t, f) return { GetMilitaryFormation = function() return f end, GetType = function() return t end } end
+	eq(PlotDescription_FormationName(u(5, 0), "Musketman"), "Musketman")
+	eq(PlotDescription_FormationName(u(5, 1), "Musketman"), "Musketman corps")
+	eq(PlotDescription_FormationName(u(5, 2), "Musketman"), "Musketman army")
+	eq(PlotDescription_FormationName(u(6, 1), "Frigate"), "Frigate fleet")
+	eq(PlotDescription_FormationName(u(6, 2), "Frigate"), "Frigate armada")
+	eq(PlotDescription_FormationName(u(5, 1), "Musketman Corps"), "Musketman Corps")
+end)
