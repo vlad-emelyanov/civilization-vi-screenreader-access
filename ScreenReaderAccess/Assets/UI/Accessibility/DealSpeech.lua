@@ -146,3 +146,20 @@ function DealSpeech_ChangeSpeech( change, giveTexts, getTexts, summary, fallback
 	end
 	return ( change or fallback or "Nothing changed" ) .. ". " .. summary;
 end
+
+-- Why an action vanished: "Item no longer available: Coffee, 1 (you have 0 to trade)". invalid = { { text = <item text>, reason = <optional> } ... }
+-- nil when the deal has no invalid item (the caller keeps the generic wording).
+function DealSpeech_InvalidItemsText( invalid )
+	if invalid == nil or #invalid == 0 then return nil; end
+	local parts = {};
+	for i, entry in ipairs( invalid ) do
+		parts[i] = entry.text .. ( ( entry.reason ~= nil and entry.reason ~= "" ) and ( " (" .. entry.reason .. ")" ) or "" );
+	end
+	return ( #invalid == 1 and "Item no longer available: " or "Items no longer available: " ) .. table.concat( parts, "; " );
+end
+
+-- Reason for a resource that is not tradeable (amount in the deal vs what the giver can trade now), nil when it is fine.
+function DealSpeech_ResourceReason( giverIsYou, dealAmount, tradeable )
+	if tradeable == nil or tradeable >= ( dealAmount or 0 ) then return nil; end
+	return ( giverIsYou and "you have " or "they have " ) .. tradeable .. " to trade";
+end

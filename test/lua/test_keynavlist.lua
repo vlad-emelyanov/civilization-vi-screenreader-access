@@ -166,3 +166,29 @@ test("ctrlKeys: Control+Tab acts at KeyUp and is consumed; Control+Down is not",
 	eq(hit, 1)
 	eq(s.list.HandleInput(Input{ key = Keys.VK_DOWN, ctrl = true }), false)
 end)
+
+test("focusLostSafe: lost focus names the new focus and the next Enter only reads it", function()
+	local s = newList(abc(), { focusLostSafe = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_DOWN)		-- Beta
+	s.items = { { key = "a", text = "Alpha" } }
+	press(s.list, Keys.VK_RETURN, true)
+	listeq(Spoken(), { "Item no longer available. Now on: Alpha" })
+	eq(s.activated, nil)
+	press(s.list, Keys.VK_RETURN, true)
+	eq(s.activated, nil)
+	listeq(Spoken(), { "Alpha. Enter again to choose it" })
+	press(s.list, Keys.VK_RETURN, true)
+	eq(s.activated, "a")
+end)
+
+test("focusLostSafe: an arrow key clears the guard", function()
+	local s = newList(abc(), { focusLostSafe = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_DOWN)
+	s.items = { { key = "a", text = "Alpha" }, { key = "c", text = "Gamma" } }
+	press(s.list, Keys.VK_RETURN, true)
+	press(s.list, Keys.VK_DOWN)
+	press(s.list, Keys.VK_RETURN, true)
+	eq(s.activated, "c")
+end)

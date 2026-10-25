@@ -3672,6 +3672,28 @@ local function SRA_ActionItems()
 	return items;
 end
 
+-- The items of the working deal that the game no longer accepts (they make Validate fail and hide Accept), with the reason when the data gives one.
+local function SRA_InvalidItems()
+	local invalid:table = {};
+	local pDeal:table = SRA_WorkingDeal();
+	if pDeal == nil then return invalid; end
+	local localID:number = g_LocalPlayer:GetID();
+	for pDealItem in pDeal:Items() do
+		local ok:boolean, valid = pcall( function() return pDealItem:IsValid( pDeal ); end );
+		if ok and valid == false then
+			local rec:table = SRA_ItemRecord( pDeal, pDealItem );
+			local reason = nil;
+			if rec.kind == "resource" then
+				local giver:table = ( rec.from == localID ) and g_LocalPlayer or g_OtherPlayer;
+				local okAmount:boolean, tradeable = pcall( function() return giver:GetResources():GetResourceAmount( pDealItem:GetValueType() ); end );
+				if okAmount then reason = DealSpeech_ResourceReason( rec.from == localID, rec.amount, tradeable ); end
+			end
+			table.insert( invalid, { text = DealSpeech_DealItemText( rec, rec.from == localID ), reason = reason } );
+		end
+	end
+	return invalid;
+end
+
 local function SRA_ActionNames()
 	local names:table = {};
 	for _, item in ipairs( SRA_ActionItems() ) do table.insert( names, item.text ); end
@@ -4050,7 +4072,7 @@ function SRA_CreateLists()
 		extraKeys = { [ Keys.VK_DELETE ] = SRA_KeyDelete } };
 	m_srLists[2] = KeyNavList_Create{ build = function() return SRA_AvailableItems( LOCAL_PLAYER ); end, isActive = Active( 2 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
 	m_srLists[3] = KeyNavList_Create{ build = function() return SRA_AvailableItems( OTHER_PLAYER ); end, isActive = Active( 3 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
-	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };
+	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, focusLostSafe = true, focusLostText = function() return DealSpeech_InvalidItemsText( SRA_InvalidItems() ); end, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };
 	m_srOptList = KeyNavList_Create{ build = SRA_OptionItems, isActive = function() return not ContextPtr:IsHidden() and SRA_OptionsOpen() and not m_kPopupDialog:IsOpen(); end,
 		onActivate = SRA_OnOptionActivate, onClose = SRA_OnOptionsClose };
 end
