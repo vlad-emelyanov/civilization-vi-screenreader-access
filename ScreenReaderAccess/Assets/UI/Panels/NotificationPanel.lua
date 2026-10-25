@@ -1903,8 +1903,36 @@ local function SRA_NotificationTexts( pNotification:table )
 	-- The title alone ("Unit Captured") does not name the unit and the hub speaks the title: speak the summary ("Your Settler was captured by
 	-- a Warrior from the Rome") instead.
 	if pNotification:GetTypeName() == "NOTIFICATION_UNIT_CAPTURED" and summary ~= "" then message = summary; end
+	-- "Suzerain Status Lost" does not name the city-state in its title: say which one (the owner of the plot the notification points
+	-- at is the city-state) and who the suzerain is now.
+	if pNotification:GetTypeName() == "NOTIFICATION_CITYSTATE_USURPED" and pNotification:IsLocationValid() then
+		local x:number, y:number = pNotification:GetLocation();
+		local pPlot:table = Map.GetPlot( x, y );
+		local csID:number = (pPlot ~= nil) and pPlot:GetOwner() or -1;
+		if csID >= 0 and Players[ csID ] ~= nil and Players[ csID ]:IsMinor() then
+			local csName:string = Locale.Lookup( PlayerConfigurations[ csID ]:GetCivilizationShortDescription() );
+			message = message .. ": " .. csName;
+			local suzerainID:number = Players[ csID ]:GetInfluence():GetSuzerain();
+			if suzerainID == nil or suzerainID < 0 then
+				summary = "No one is suzerain of " .. csName .. " now";
+			elseif suzerainID == Game.GetLocalPlayer() then
+				summary = "You are suzerain of " .. csName .. " again";
+			elseif Players[ Game.GetLocalPlayer() ]:GetDiplomacy():HasMet( suzerainID ) then
+				summary = Locale.Lookup( PlayerConfigurations[ suzerainID ]:GetCivilizationShortDescription() ) .. " is now suzerain";
+			else
+				summary = "A civilization you have not met is now suzerain";
+			end
+		end
+	end
 	return message, summary;
 end
+
+-- Notifications whose activation opens a popup that may not appear (or nothing at all): the hub speaks the message and summary itself
+-- when Enter produced no other speech, so Enter is never silent.
+local SRA_SPEAK_ON_ACTIVATE:table = {
+	NOTIFICATION_CIVIC_DISCOVERED = true, NOTIFICATION_TECH_DISCOVERED = true,
+	NOTIFICATION_CIVIC_BOOST = true, NOTIFICATION_TECH_BOOST = true,
+};
 
 -- Told to the hub when a notification that the player can see has been added (after the load only).
 -- The engine re-adds notifications on a refresh, a player change and when the visual state is restored: only the first
@@ -1937,6 +1965,7 @@ function SRA_OnRequestNotifications()
 						activatable = pNotification:IsValidForPhase(),
 						blocking = pNotification:GetEndTurnBlocking() ~= EndTurnBlockingTypes.NO_ENDTURN_BLOCKING,
 						x = x, y = y,
+						speakOnEnter = ( pNotification:GetTypeName() == "NOTIFICATION_CITYSTATE_USURPED" ),
 					} );
 				end
 			end
@@ -1953,7 +1982,7 @@ function SRA_OnActivateNotification( id:number )
 	if pNotification ~= nil and pNotification:IsValidForPhase() then
 		found = true;
 		local activate = GetHandler( pNotification:GetType() ).Activate;
-		lookOnly = ( activate == OnLookAtActivate or activate == OnDefaultActivateNotification )
+		lookOnly = ( activate == OnLookAtActivate or activate == OnDefaultActivateNotification or SRA_SPEAK_ON_ACTIVATE[ pNotification:GetTypeName() ] == true )
 			and pNotification:GetEndTurnBlocking() == EndTurnBlockingTypes.NO_ENDTURN_BLOCKING;
 		pNotification:Activate( true );		-- true: the user does it (what OnDefaultTryActivateNotification does)
 	end

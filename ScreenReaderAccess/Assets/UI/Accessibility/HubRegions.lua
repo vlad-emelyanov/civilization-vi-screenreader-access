@@ -113,6 +113,11 @@ local function ActivateNotification( item:table )
 		if not Players[ player ]:IsTurnActive() or UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then return; end
 		if HubCore.IsGamePopupOpen() then return; end
 		if n.x >= 0 and n.y >= 0 then
+			if n.speakOnEnter then		-- e.g. Suzerain Status Lost: the city-state's name before the plot
+				local title:string = CleanTextForSpeech( n.message );
+				local summary:string = CleanTextForSpeech( n.summary );
+				OutputMessageToScreenReader( title .. ( summary ~= "" and summary ~= title and ( ". " .. summary ) or "" ) );
+			end
 			HubCursor.SetCursor( n.x, n.y, true, false, false, true );		-- a jump: the position from the nearest city follows
 		elseif lookOnly then
 			local title:string = CleanTextForSpeech( n.message );
