@@ -2978,7 +2978,7 @@ function OnInputActionTriggered( actionId )
 			end
 		end
 		m_kHotkeyActions[actionId](m_kHotkeyCV1[actionId], m_kHotkeyCV2[actionId]);
-		if srResult ~= nil then OutputMessageToScreenReader( srResult ); end
+		if srResult ~= nil then OutputMessageToScreenReader( srResult, true ); end
 	elseif not SRTryFoundReligionHotkey( actionId ) then		-- ScreenReaderAccess mod change: U on a Great Prophet founds the religion
 		SRSayBlockedHotkey( actionId );		-- ScreenReaderAccess mod change: a disabled action has no hotkey entry, say why
 	end
@@ -4739,17 +4739,31 @@ local function SRFindFoundReligionAction()
 end
 
 function SRFoundReligionRefusal( unit:table, action:table )
-	local reason:string = "";
+	-- 1. the engine's own refusal, unless it is the district one
+	local engine:string = "";
+	if action ~= nil then engine = SRActionReason( unit, action, action.helpString or "" ); end
+	if engine == "" then engine = SRRefusalReason( unit, GameInfo.UnitOperations["UNITOPERATION_FOUND_RELIGION"].Hash ); end
 	local holySite = GameInfo.Districts["DISTRICT_HOLY_SITE"];
+	local isDistrict:boolean = engine ~= "" and holySite ~= nil and string.find( string.lower( engine ), string.lower( Locale.Lookup( holySite.Name ) ), 1, true ) ~= nil;
+	if engine ~= "" and not isDistrict then return engine; end
+	-- 2. a religion cannot be founded any more
+	local owned:string = nil;
+	pcall( function()
+		local created = Players[ unit:GetOwner() ]:GetReligion():GetReligionTypeCreated();
+		if created ~= nil and created >= 0 and GameInfo.Religions[ created ] ~= nil then
+			owned = "you already founded " .. Locale.Lookup( GameInfo.Religions[ created ].Name );
+		end
+	end );
+	if owned ~= nil then return owned; end
+	local left = nil;
+	pcall( function() left = Game.GetReligion():GetNumReligionsStillToBeFounded(); end );
+	if left ~= nil and left <= 0 then return "no religions left to found"; end
+	-- 3. the Holy Site
 	local best:table, standing:boolean = nil, false;
 	if holySite ~= nil then best, standing = SRNearestDistrict( unit, holySite ); end
-	if holySite ~= nil and not standing then
-		reason = PlotDescription_DistrictReason( Locale.Lookup( holySite.Name ), best, false );
-	end
-	if reason == "" and action ~= nil then reason = SRActionReason( unit, action, action.helpString or "" ); end
-	if reason == "" then reason = SRRefusalReason( unit, GameInfo.UnitOperations["UNITOPERATION_FOUND_RELIGION"].Hash ); end
-	if reason == "" then reason = "no action available here; Tab lists its actions"; end
-	return reason;
+	if holySite ~= nil and not standing then return PlotDescription_DistrictReason( Locale.Lookup( holySite.Name ), best, false ); end
+	if engine ~= "" then return engine; end
+	return "no action available here; Tab lists its actions";
 end
 
 function SRTryFoundReligionHotkey( actionId:number )
