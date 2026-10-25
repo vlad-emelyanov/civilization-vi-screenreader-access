@@ -4524,6 +4524,7 @@ function SRGreatPersonActivateName( unit:table )
 		local gp = unit:GetGreatPerson();
 		if gp == nil then return; end
 		local row = GameInfo.GreatPersonIndividuals[ gp:GetIndividual() ];
+		if row == nil then return; end		-- an ordinary unit (U = upgrade) has a GreatPerson object without an individual
 		verb = ( row ~= nil and row.ActionNameTextOverride == "LOC_GREATPERSON_ACTION_NAME_RETIRE" ) and "Retire" or "Activate";
 		person = Locale.Lookup( unit:GetName() );
 		local effect:string = "";
