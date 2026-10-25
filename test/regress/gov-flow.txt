@@ -1,0 +1,50 @@
+# Merged scripts (one load instead of four), all on fixture bug-gov-confirm-down (Rome, no government yet; F7 opens on the Governments tab):
+#  - bug-gov-confirm-down: a key sent right after Enter on a government belongs to the confirm popup, never to the list underneath.
+#  - bug-gov-slots-after-change: after the change the policies page names the slots of the NEW government.
+#  - gov-policy-slot-hint: Enter on an empty slot of the "My government" tab points to the Policies tab.
+#  - gov-unconfirmed-escape (UNVERIFIED, blind-written, the verifier records it): unconfirmed policies were dropped silently; now the first Escape
+#    warns and names the empty rows, the second closes and says the changes were discarded; Tab in between does not re-arm.
+# Order: change the government once, then check the slots page, the My government hint (reached by Control+Tab from Policies), Tab back
+# to Policies (the hint says "Tab to switch"), and the destructive Escape-discard part last (it closes the screen).
+# Needs for the last part: >= 2 slots on the policies page and an unlocked policy for the first slot (else "No policy available for ...").
+# covers: **/GovernmentScreen.lua **/InGamePopup.lua
+# no-share-load: changes the government
+load bug-gov-confirm-down
+clear-advisors
+action ToggleGovernment -Settle 2500
+expect ^Governments, current: no government
+key Down -Settle 800
+expect ^Autocracy
+key Enter -Settle 1000 -Quiet 300
+expect-not (?i)^Governments, current
+key Down -Settle 800
+expect ^Yes
+key Enter -Settle 2500 -Quiet 600
+expect-not (?i)Popup: ARE YOU SURE
+# --- part from bug-gov-slots-after-change ---
+expect (?i)^Government changed to Autocracy
+expect ^Policies, Autocracy, 4 slots, 4 empty
+expect-not (?i), 0 slots
+# --- part from gov-policy-slot-hint ---
+clear-advisors
+key Control+Tab -Settle 1200
+expect ^My government, Autocracy
+key Down -Settle 800
+key Enter -Settle 1000
+expect ^Policies are changed on the Policies tab\. Tab to switch\.
+# --- part from gov-unconfirmed-escape (back on the Policies tab via Tab) ---
+key Tab -Settle 1200
+expect (?i)^Policies
+key Enter -Settle 800
+expect (?i)choose a policy
+key Enter -Settle 1000
+expect (?i)\d+ empty
+key Escape -Settle 1000
+expect ^Policy changes not confirmed: fill the empty .* first, then confirm\. Escape again to discard them
+expect-not (?i)^Government closed
+key Tab -Settle 1200
+key Escape -Settle 1000
+expect ^Policy changes not confirmed
+key Escape -Settle 1500
+expect ^Government closed, policy changes discarded
+no-lua-errors

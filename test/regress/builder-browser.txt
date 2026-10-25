@@ -1,0 +1,26 @@
+# Merged scripts (one load + one scenario instead of two), scenario builder-by-forest on early-t60, builder selected through InGameAccess:
+#  - builder-tile-browser (written blind 2026-10-23, round 8): X opens the tile browser of the city that owns the builder's tile.
+#  - t60-builder-by-forest (verified 2026-10-22): Tab lists the selected builder's actions.
+# The browser part runs first and is closed with Escape; the builder is re-selected before the Tab part.
+# covers: **/BuildScan.lua **/HubSettle.lua **/HubCore.lua **/UnitPanel.lua **/WorldInput.lua
+# no-share-load: scenario builder-by-forest
+load early-t60
+scenario builder-by-forest
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+# --- part from builder-tile-browser ---
+key X -Settle 2000
+expect ^Tiles to improve near \w+, \d+ tiles?
+expect (?i)plus \d+ \w+|repair
+key Down -Settle 800
+key Space -Settle 800
+expect (?i)can build
+key Left -Settle 800
+key Escape -Settle 800
+expect ^Closed
+# --- part from t60-builder-by-forest ---
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key Tab -Settle 1500
+expect ^Builder, \d+ of \d+ moves
+expect ^Builder actions, \d+ options
+no-lua-errors
