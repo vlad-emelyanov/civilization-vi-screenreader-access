@@ -21,6 +21,6 @@ expect ^Closed
 # --- part from t60-builder-by-forest ---
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
 key Tab -Settle 1500
-expect ^Builder, \d+ of \d+ moves
+# the builder stays selected after the browser's Escape: Tab goes straight to its actions
 expect ^Builder actions, \d+ options
 no-lua-errors

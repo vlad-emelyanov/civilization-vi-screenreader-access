@@ -20,7 +20,7 @@ key Enter -Settle 2000
 expect ^Rome, choose production
 # back to the map: close the chooser that the last Enter reopened
 key Escape -Settle 1500
-expect ^Closed
+expect ^Production closed
 # --- part from t100-chooser-enter-guard ---
 key Enter -Count 2 -Fast -Settle 100
 expect ^Rome, choose production
@@ -28,7 +28,6 @@ expect-not ^Place
 key Tab -Settle 50 -NoQuiet
 key Enter -Settle 1500
 expect ^Place .* for Rome
-key Escape -Settle 1200
 key Escape -Settle 1200
 key Escape -Settle 1200
 # --- part from t100-next-in-placement ---

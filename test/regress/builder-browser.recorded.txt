@@ -1,0 +1,75 @@
+# Merged scripts (one load + one scenario instead of two), scenario builder-by-forest on early-t60, builder selected through InGameAccess:
+#  - builder-tile-browser (written blind 2026-10-23, round 8): X opens the tile browser of the city that owns the builder's tile.
+#  - t60-builder-by-forest (verified 2026-10-22): Tab lists the selected builder's actions.
+# The browser part runs first and is closed with Escape; the builder is re-selected before the Tab part.
+# covers: **/BuildScan.lua **/HubSettle.lua **/HubCore.lua **/UnitPanel.lua **/WorldInput.lua
+# no-share-load: scenario builder-by-forest
+load early-t60
+scenario builder-by-forest
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+# --- part from builder-tile-browser ---
+key X -Settle 2000
+expect ^Tiles to improve near \w+, \d+ tiles?
+#   -> PASS; window had 19 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Builder, 2 of 2 moves, 3 charges. Plains (Hills), river, yours, 1 Food 2 Production, 1 tile south-east of Rome. X lists tiles to improve
+#      | Tiles to improve near Rome, 8 tiles
+#      | Amber, Mine plus 1 production, 2 tiles north-west, 2 turns, worked, 1 of 8
+expect (?i)plus \d+ \w+|repair
+#   -> PASS; window had 19 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Builder, 2 of 2 moves, 3 charges. Plains (Hills), river, yours, 1 Food 2 Production, 1 tile south-east of Rome. X lists tiles to improve
+#      | Tiles to improve near Rome, 8 tiles
+#      | Amber, Mine plus 1 production, 2 tiles north-west, 2 turns, worked, 1 of 8
+key Down -Settle 800
+key Space -Settle 800
+expect (?i)can build
+#   -> PASS; window had 2 SR> line(s):
+#      | Iron, Mine plus 1 production, 3 tiles south-west, 3 turns, 2 of 8
+#      | Desert (Hills), Iron (strategic), river, yours, 1 Production 1 Science. Can build: Mine plus 1 production
+key Left -Settle 800
+key Escape -Settle 800
+expect ^Closed
+#   -> PASS; window had 2 SR> line(s):
+#      | Only one city
+#      | Closed
+# --- part from t60-builder-by-forest ---
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key Tab -Settle 1500
+# the builder stays selected after the browser's Escape: Tab goes straight to its actions
+expect ^Builder actions, \d+ options
+#   -> PASS; window had 2 SR> line(s):
+#      | Builder actions, 8 options
+#      | Move To, key M, 1 of 8
+no-lua-errors
