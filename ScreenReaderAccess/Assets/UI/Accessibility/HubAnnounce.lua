@@ -124,6 +124,8 @@ end
 
 function HubAnnounce.UnitText( unit:table )
 	local parts:table = { PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) };
+	local state:string = PlotDescription_UnitStateText( unit );
+	if state ~= nil then table.insert( parts, state ); end
 	local maxMoves:number = unit:GetMaxMoves();
 	if maxMoves > 0 then
 		table.insert( parts, HubCore.FormatNumber( unit:GetMovesRemaining() ) .. " of " .. HubCore.FormatNumber( maxMoves ) .. " moves" );

@@ -95,7 +95,18 @@ function HubEvents.OnUnitMoveComplete( playerID:number, unitID:number, x:number,
 	local plot:table = Map.GetPlot( x, y );
 	if plot ~= nil and plot:GetIndex() == record.dest then
 		HubCore.m_movers[ unitID ] = nil;
-		local text:string = "Arrived, " .. MovesText( unit );
+		local text:string = "Arrived, ";
+		local state:string = PlotDescription_UnitStateText( unit );
+		if state ~= nil then
+			text = text .. state .. ", ";
+		elseif record.from ~= nil and Map.GetPlotByIndex ~= nil then
+			local fromPlot:table = Map.GetPlotByIndex( record.from );
+			local row:table = GameInfo.Units[ unit:GetType() ];
+			if fromPlot ~= nil and fromPlot:IsWater() and not plot:IsWater() and row ~= nil and row.Domain == "DOMAIN_LAND" then
+				text = text .. "disembarked, ";
+			end
+		end
+		text = text .. MovesText( unit );
 		if HubCore.IsSettler( unit ) then
 			local ok:boolean, extra = SettleScan_CanFound( unit, plot );
 			if not ok then
