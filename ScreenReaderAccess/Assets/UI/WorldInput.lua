@@ -4059,6 +4059,13 @@ function OnInputActionTriggered( actionId:number )
 		UI.SelectNextCity(curCity);
 		UI.PlaySound("Play_UI_Click");
 
+	elseif actionId == m_actionHotkeyCapitalCity and UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION then
+		-- Begin ScreenReaderAccess mod change
+		-- In a target mode (move to, rebase ...) the key moves the target cursor to the capital; the hub does that and
+		-- handles the other modes like the plain map (selects the capital).
+		LuaEvents.SRA_CapitalKey();
+		-- End ScreenReaderAccess mod change
+
 	elseif actionId == m_actionHotkeyCapitalCity then
 		local capital;
 		local ePlayer = Game.GetLocalPlayer();

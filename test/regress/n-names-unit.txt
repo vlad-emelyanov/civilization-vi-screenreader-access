@@ -1,0 +1,7 @@
+# Written blind 2026-10-24 (not yet recorded). early-t60 has the blocker ENDTURN_BLOCKING_UNITS: N names the unit Enter would select and where it is.
+# covers: **/HubAnnounce.lua
+load early-t60
+clear-advisors
+action KeyNavWhatsNext -Settle 1500
+expect ^Unit needs orders: .+\. Enter selects it
+no-lua-errors

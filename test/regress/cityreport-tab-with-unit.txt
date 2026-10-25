@@ -1,0 +1,17 @@
+# Written blind 2026-10-24 (not yet recorded). Fixture bug-cityreport-prod-tab-unit: a Fighter is selected in the city; in the city report Tab on the production line opens the city's production panel, not the Fighter's unit actions.
+# covers: UI/Additions/InGameAccess.lua **/HubCityReport.lua **/HubMenus.lua
+# no-share-load: opens the production panel
+load bug-cityreport-prod-tab-unit
+clear-advisors
+key Control+I -Settle 2500
+expect report
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+expect ^Production: .*Tab opens production
+key Tab -Settle 2000
+expect-not (?i)actions
+expect (?i)production
+no-lua-errors

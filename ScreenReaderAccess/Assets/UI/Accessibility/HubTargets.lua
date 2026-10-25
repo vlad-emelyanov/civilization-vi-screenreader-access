@@ -339,6 +339,26 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 	return nil;
 end
 
+-- The capital key (WorldInput sends SRA_CapitalKey outside the plain map mode). In a target mode it only moves the target
+-- cursor to the capital and says the usual target info for that plot; Enter confirms as usual. Elsewhere it selects the
+-- capital like on the plain map.
+function HubTargets.CapitalKey()
+	if not HubCore.IsLocalPlayerActive() then return; end
+	local capital:table = Players[ Game.GetLocalPlayer() ]:GetCities():GetCapitalCity();
+	if capital == nil then OutputMessageToScreenReader( "No capital" ); return; end
+	if HubTargets.GetTargetMode() ~= nil then
+		HubCursor.SetCursor( capital:GetX(), capital:GetY(), true, true, false, true );
+		return;
+	end
+	local selected:table = UI.GetHeadSelectedCity();
+	if selected ~= nil and selected:GetOwner() == capital:GetOwner() and selected:GetID() == capital:GetID() then
+		OutputMessageToScreenReader( "Capital: " .. Locale.Lookup( capital:GetName() ) );
+	else
+		UI.DeselectAllUnits();
+		UI.SelectCity( capital );
+	end
+end
+
 -- ===========================================================================
 --	TARGET MODES: entering, confirming (Enter) and cancelling (Escape)
 -- ===========================================================================

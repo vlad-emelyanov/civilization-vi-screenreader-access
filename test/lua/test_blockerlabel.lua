@@ -19,3 +19,46 @@ test("BlockerFromLabel: only a real blocker text is returned", function()
 	eq(fn("", ignored), "", "empty")
 	eq(fn(nil, ignored), "", "nil")
 end)
+
+-- N names the thing Enter takes you to (HubAnnounce.BlockerWithThing, pure)
+local body2 = src:match("(function HubAnnounce%.BlockerWithThing.-\nend)\n")
+assert(body2, "BlockerWithThing not found")
+assert(loadstring((body2:gsub("(%w+):(%w+)", "%1")), "BlockerWithThing"))()
+local thing = HubAnnounce.BlockerWithThing
+
+test("BlockerWithThing: unit, position and hint", function()
+	eq(thing("Unit needs orders", "Archer, 2 tiles east of Rome", "Enter selects it"),
+		"Unit needs orders: Archer, 2 tiles east of Rome. Enter selects it", "unit")
+	eq(thing("Choose production", "Rome and 1 more city", nil), "Choose production: Rome and 1 more city", "no hint")
+	eq(thing("Unit needs orders", nil, "x"), "Unit needs orders", "no thing")
+	eq(thing("Unit needs orders", "", "x"), "Unit needs orders", "empty thing")
+end)
+
+-- Tab belongs to the open region (Hub.UnitActionsKey in InGameAccess.lua)
+local f2 = assert(io.open("ScreenReaderAccess/UI/Additions/InGameAccess.lua", "rb"))
+local hubsrc = f2:read("*a"):gsub("\r\n", "\n")
+f2:close()
+local body3 = hubsrc:match("(function Hub%.UnitActionsKey.-\nend)\n")
+assert(body3, "UnitActionsKey not found")
+Hub = {}
+HubCore = {}
+local opened, tabbed = 0, 0
+HubMenus = { ToggleUnitMenu = function() opened = opened + 1 end }
+assert(loadstring((body3:gsub("(%w+):(%w+)", "%1")), "UnitActionsKey"))()
+
+test("Tab: regions get it, the unit menu opens only from the plain map", function()
+	opened, tabbed = 0, 0
+	HubCore.m_mode = nil
+	Hub.UnitActionsKey()
+	eq(opened, 1, "plain map opens the unit menu")
+	HubCore.m_mode = { name = "cityreport", list = { tabAction = function() tabbed = tabbed + 1 end } }
+	Hub.UnitActionsKey()
+	eq(opened, 1, "city report: no unit menu")
+	eq(tabbed, 1, "city report: its own Tab")
+	HubCore.m_mode = { name = "notifications", list = {} }
+	Hub.UnitActionsKey()
+	eq(opened, 1, "region without Tab: ignored")
+	HubCore.m_mode = { name = "menu", list = {} }
+	Hub.UnitActionsKey()
+	eq(opened, 2, "the unit menu itself toggles")
+end)

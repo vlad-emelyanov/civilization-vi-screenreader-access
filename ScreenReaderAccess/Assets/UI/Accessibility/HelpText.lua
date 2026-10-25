@@ -111,9 +111,11 @@ local m_sections:table = {
 	} },
 	{ title = "Cities", entries = {
 		{ action = "CapitalCity",		default = "\\",			text = "select the capital" },
+		{ keys = "Backslash",			text = "in a target mode (move to, rebase ...): move the target to the capital and say what it is, Enter confirms" },
 		{ action = "NextCity",			default = "Shift+0",	text = "next city" },
 		{ action = "PrevCity",			default = "Shift+9",	text = "previous city" },
 		{ keys = "Tab",					text = "with a city selected: production panel" },
+		{ keys = "Tab",					text = "in the city report: production panel of that city (the unit actions menu opens only from the map)" },
 		{ keys = "Tab and Control+Tab",	text = "in the production panel: production, queue, purchase with gold, purchase with faith" },
 		{ keys = "Enter",				text = "in the production panel: produce or buy; districts and wonders start the placement mode" },
 		{ action = "KeyNavCityReport",	default = "Control+I",	text = "city report: yields, growth, amenities, loyalty, defense, districts, citizens, religion" },
