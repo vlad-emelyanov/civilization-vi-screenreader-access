@@ -140,6 +140,7 @@ local m_sections:table = {
 		{ keys = "Escape in government",	text = "with an empty policy slot the changes are not confirmed: the first Escape warns, Escape again closes and discards them" },
 		{ action = "ToggleCityStates",	default = "F2",			text = "city-states: Space bonuses and quests, Enter actions" },
 		{ keys = "Enter, Left and C",		text = "city-states envoy mode: Enter adds an envoy, Left removes one, C confirms, A actions" },
+		{ keys = "Escape in city-states envoy mode",	text = "with pending envoys the first Escape warns, Escape again discards them and closes; C confirms them" },
 		{ action = "ToggleReligion",	default = "L",			text = "religion screen, also to found a religion and choose beliefs" },
 		{ action = "ToggleGreatPeople",	default = "O",			text = "great people: Enter opens recruit, pass, patronize; Tab previously recruited" },
 		{ action = "KeyNavGreatWorks",	default = "Control+W",	text = "great works: Enter picks up and places, V describes the work, Tab next building" },

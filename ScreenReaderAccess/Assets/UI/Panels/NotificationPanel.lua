@@ -1900,6 +1900,9 @@ local function SRA_NotificationTexts( pNotification:table )
 		if message == pNotification:GetMessage() then message = "World Congress results"; end
 		if summary == pNotification:GetSummary() then summary = "The World Congress session is over. Review the results"; end
 	end
+	-- The title alone ("Unit Captured") does not name the unit and the hub speaks the title: speak the summary ("Your Settler was captured by
+	-- a Warrior from the Rome") instead.
+	if pNotification:GetTypeName() == "NOTIFICATION_UNIT_CAPTURED" and summary ~= "" then message = summary; end
 	return message, summary;
 end
 

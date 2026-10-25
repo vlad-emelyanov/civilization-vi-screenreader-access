@@ -1,0 +1,15 @@
+# BLIND (not yet run in game). Escape in envoy send mode with pending envoys: first Escape warns, second discards.
+# covers: **/CityStates.lua, **/HelpText.lua
+# no-share-load: scenario envoys-to-give
+load early-t60
+scenario envoys-to-give
+clear-advisors
+key F2 -Settle 2500
+expect ^Send envoys: 3 to give\. .*, \d+ of \d+
+key Enter -Settle 1000
+expect pending
+key Escape -Settle 1000
+expect ^1 envoy not sent: C confirms them\. Escape again to discard\.
+key Escape -Settle 1500
+expect ^Envoys not sent\. City-States closed
+no-lua-errors

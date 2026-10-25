@@ -82,6 +82,7 @@ local m_srList					:table;				-- keyboard list of the city-states
 local m_srActions				:table;				-- keyboard list of the actions for one city-state
 local m_srActionPlayer			:number = -1;		-- city-state the action list is open for, -1 = none
 local m_srOpenPending			:boolean = false;
+local m_srDiscardArmed			:boolean = false;	-- the first Escape warned that pending envoys would be dropped (second Escape discards)
 local m_srOpenDelay				:number = 0;
 local m_srSingle				:boolean = false;	-- opened on one city-state (city banner click)
 local m_srResult				:table = nil;		-- { wait, check } a levy / peace request whose outcome is spoken once it settled
@@ -1873,6 +1874,14 @@ end
 
 local function SRA_OnListClose()
 	local discarded:boolean = SRA_IsSendMode() and SumEnvoyChanges() > 0;
+	if discarded and not m_srDiscardArmed then
+		-- two-step like the government screen: unconfirmed envoys are not dropped by a single stray Escape
+		m_srDiscardArmed = true;
+		local n:number = SumEnvoyChanges();
+		SRA_Say( n .. ( n == 1 and " envoy" or " envoys" ) .. " not sent: C confirms them. Escape again to discard." );
+		return;
+	end
+	m_srDiscardArmed = false;
 	OnClose();
 	m_srList.Reset();
 	SRA_Say( ( discarded and "Envoys not sent. " or "" ) .. "City-States closed" );
@@ -1987,6 +1996,7 @@ end
 function SRA_ArmOpen()
 	m_srActionPlayer = -1;
 	m_srOpenPending = true;
+	m_srDiscardArmed = false;
 	m_srOpenDelay = 0.4;
 end
 
@@ -2036,6 +2046,8 @@ end
 -- Handles the key for the list / action list; every other keyboard event is swallowed while the screen is open.
 function SRA_HandleInput( pInputStruct:table )
 	if ContextPtr:IsHidden() then return false; end
+	-- any key but Escape ends the "Escape again to discard" step
+	if pInputStruct:GetKey() ~= Keys.VK_ESCAPE then m_srDiscardArmed = false; end
 	if m_srList.HandleInput( pInputStruct ) or m_srActions.HandleInput( pInputStruct ) then return true; end
 	local msg:number = pInputStruct:GetMessageType();
 	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
