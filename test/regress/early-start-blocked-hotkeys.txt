@@ -1,5 +1,6 @@
 # Verified 2026-10-23. Item 7: unit hotkeys that do not apply say why.
 # covers: **/UnitPanel.lua **/WorldInput.lua
+# own-load: failed when started on a shared game (round 22); needs its own load
 # Fixture early-start: turn 1, the first unit needing orders is the Settler.
 load early-start
 clear-advisors

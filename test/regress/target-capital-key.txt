@@ -1,5 +1,6 @@
 # Written blind 2026-10-24 (not yet recorded). early-t60: in the Move To target mode the capital key moves the TARGET cursor to the capital and says the target info; Enter would confirm. Plain map: still selects the capital.
 # covers: UI/Additions/InGameAccess.lua **/HubTargets.lua **/WorldInput.lua **/HubCursor.lua
+# own-load: failed when started on a shared game (round 22); needs its own load
 load early-t60
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_WARRIOR" then UI.SelectUnit(u) break end end
