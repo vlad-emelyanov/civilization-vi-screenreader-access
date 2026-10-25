@@ -2047,7 +2047,9 @@ end
 function SRA_HandleInput( pInputStruct:table )
 	if ContextPtr:IsHidden() then return false; end
 	-- any key but Escape ends the "Escape again to discard" step
-	if pInputStruct:GetKey() ~= Keys.VK_ESCAPE then m_srDiscardArmed = false; end
+	-- (a Char message and mouse moves carry other key codes: only real key events count)
+	local srMsg:number = pInputStruct:GetMessageType();
+	if ( srMsg == KeyEvents.KeyDown or srMsg == KeyEvents.KeyUp ) and pInputStruct:GetKey() ~= Keys.VK_ESCAPE then m_srDiscardArmed = false; end
 	if m_srList.HandleInput( pInputStruct ) or m_srActions.HandleInput( pInputStruct ) then return true; end
 	local msg:number = pInputStruct:GetMessageType();
 	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;

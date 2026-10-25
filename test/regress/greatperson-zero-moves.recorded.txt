@@ -1,0 +1,35 @@
+# Fixture bug-greatperson-u-upgrade-text: a patronized Great Engineer with 0 moves. The Tab menu lists the disabled Activate item and
+# U says why instead of the raw "Upgrade Available!" label.
+# covers: **/UnitPanel.lua **/HubMenus.lua
+# no-share-load: selects the great person
+load bug-greatperson-u-upgrade-text
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do local gp=u:GetGreatPerson(); if gp and gp:IsGreatPerson() and u:GetMovesRemaining()==0 then UI.SelectUnit(u) break end end
+wait moves -Timeout 8
+key Tab -Settle 1500
+expect (?i)activate .*unavailable.*no moves left this turn
+#   -> PASS; window had 17 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | New frontiers of discovery expand our understanding, from the tiny atom to the majesty of outer space. Mysteries long tolerated are closer than ever to revealing their deepest secrets, beyond what we can easily see. You will choose how to use this knowledge, and push back the greatest darkness we have yet faced.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 225, 2024 AD
+#      | Fighter, 8 of 8 moves. Lugdunum, capital, Bomber, Robert Goddard, Desert (Hills), coastal, yours, 2 Food 1 Production
+#      | Robert Goddard, 0 of 4 moves. Lugdunum, capital, Fighter, Bomber, Desert (Hills), coastal, yours, 2 Food 1 Production, in Lugdunum
+#      | Robert Goddard actions, 2 options
+#      | Activate Robert Goddard, key U, unavailable: no moves left this turn, 1 of 2
+key Escape -Settle 800
+action ExtraHotkeysUpgrade -Settle 1200
+expect (?i)cannot activate .*no moves left this turn
+#   -> PASS; window had 2 SR> line(s):
+#      | Closed
+#      | Cannot activate Robert Goddard: no moves left this turn
+no-lua-errors

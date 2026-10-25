@@ -4,7 +4,7 @@
 load early-t60
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_WARRIOR" then UI.SelectUnit(u) break end end
-wait Warrior -Timeout 8
+expect (?i)warrior
 action MoveTo -Settle 1500
 expect (?i)move to
 action CapitalCity -Settle 1500

@@ -7,11 +7,10 @@ clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BOMBER" then UI.SelectUnit(u) end end
 key Tab -Settle 1500
 expect Bomber actions
-key Down -Count 3 -Settle 600
+key Down -Count 2 -Settle 600
+expect (?i)^nuclear device strike.*unavailable
 key Down -Settle 600
-expect (?i)nuclear device strike.*unavailable
-key Down -Settle 600
-expect (?i)thermonuclear device strike
+expect (?i)^thermonuclear device strike, .*, 4 of 9
 key Down -Settle 600
 expect (?i)[5-9] of 9
 key Down -Settle 600

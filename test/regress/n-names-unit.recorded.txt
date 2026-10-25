@@ -1,0 +1,25 @@
+# Written blind 2026-10-24 (not yet recorded). early-t60 has the blocker ENDTURN_BLOCKING_UNITS: N names the unit Enter would select and where it is.
+# covers: **/HubAnnounce.lua
+load early-t60
+clear-advisors
+action KeyNavWhatsNext -Settle 1500
+expect ^(Unit needs orders: .+\. Enter selects it|\d+ units need orders\. Enter selects the next one)
+#   -> PASS; window had 17 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | 5 units need orders. Enter selects the next one
+no-lua-errors
