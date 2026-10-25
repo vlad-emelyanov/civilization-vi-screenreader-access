@@ -45,7 +45,69 @@ function HubAnnounce.SpeakWhatsNext()
 			return;
 		end
 	end
-	OutputMessageToScreenReader( HubCore.Capitalize( text ) );
+	local spoken:string = HubCore.Capitalize( text );
+	local okDetail:boolean, detailed = pcall( HubAnnounce.BlockerDetail, spoken, text );
+	if okDetail and detailed ~= nil then spoken = detailed; end
+	OutputMessageToScreenReader( spoken );
+end
+
+-- Pure wording: "Unit needs orders" + "Archer, 2 tiles east of Rome" + "Enter selects it" -> "Unit needs orders: Archer, ...
+-- Enter selects it". No thing: the plain text.
+function HubAnnounce.BlockerWithThing( text:string, thing:string, hint:string )
+	if text == nil or text == "" or thing == nil or thing == "" then return text; end
+	local result:string = text .. ": " .. thing;
+	if hint ~= nil and hint ~= "" then result = result .. ". " .. hint; end
+	return result;
+end
+
+-- The units that need orders, not counting the selected one. UI.SelectNextReadyUnit has its own order and gives no
+-- preview, so a unit is named only when it is the only candidate.
+function HubAnnounce.ReadyUnits()
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	local list:table = {};
+	if player == nil then return list; end
+	local selected:table = UI.GetHeadSelectedUnit();
+	for _, unit in player:GetUnits():Members() do
+		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "needs orders"
+				and not ( selected ~= nil and unit:GetID() == selected:GetID() ) then
+			table.insert( list, unit );
+		end
+	end
+	return list;
+end
+
+-- Pure wording: none -> the plain text, one -> named (thing), several -> the count.
+function HubAnnounce.ReadyUnitsText( text:string, count:number, thing:string )
+	if count == 1 then return HubAnnounce.BlockerWithThing( text, thing, "Enter selects it" ); end
+	if count > 1 then return count .. " units need orders. Enter selects the next one"; end
+	return text;
+end
+
+-- N: the blocker text plus the thing Enter takes you to, when that is cheap to find ("Unit needs orders: Archer, 2 tiles
+-- east of Rome. Enter selects it", "Choose production: Rome"). nil: nothing to add.
+function HubAnnounce.BlockerDetail( spoken:string, label:string )
+	local lower:string = string.lower( label );
+	if lower == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" ) ) ) then
+		local units:table = HubAnnounce.ReadyUnits();
+		local thing:string = nil;
+		if #units == 1 then
+			thing = Locale.Lookup( units[1]:GetName() );
+			local position:string = HubAnnounce.PositionText( Map.GetPlot( units[1]:GetX(), units[1]:GetY() ) );
+			if position ~= nil then thing = thing .. ", " .. position; end
+		end
+		return HubAnnounce.ReadyUnitsText( spoken, #units, thing );
+	elseif lower == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_PRODUCTION" ) ) ) then
+		local names:table = {};
+		for _, city in Players[ Game.GetLocalPlayer() ]:GetCities():Members() do
+			local queue:table = city:GetBuildQueue();
+			if queue ~= nil and queue:GetCurrentProductionTypeHash() == 0 then table.insert( names, Locale.Lookup( city:GetName() ) ); end
+		end
+		if #names == 0 then return nil; end
+		local thing:string = names[1];
+		if #names > 1 then thing = thing .. " and " .. HubCore.Plural( #names - 1, "more city", "more cities" ); end
+		return HubAnnounce.BlockerWithThing( spoken, thing, nil );
+	end
+	return nil;
 end
 
 -- ===========================================================================

@@ -339,6 +339,31 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 	return nil;
 end
 
+-- The capital key (WorldInput sends SRA_CapitalKey outside the plain map mode). In a target mode it only moves the target
+-- cursor to the capital and says the usual target info for that plot; Enter confirms as usual. Elsewhere it selects the
+-- capital like on the plain map.
+function HubTargets.CapitalKey()
+	if not HubCore.IsLocalPlayerActive() then return; end
+	local capital:table = Players[ Game.GetLocalPlayer() ]:GetCities():GetCapitalCity();
+	if capital == nil then OutputMessageToScreenReader( "No capital" ); return; end
+	if HubTargets.GetTargetMode() ~= nil then
+		HubCursor.SetCursor( capital:GetX(), capital:GetY(), true, true, false, true );
+		return;
+	end
+	-- a placement or chooser mode (trade route ...): selecting the capital would cancel it
+	if UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION or HubCore.IsModeOpen( "placement" ) then
+		OutputMessageToScreenReader( "Escape first" );
+		return;
+	end
+	local selected:table = UI.GetHeadSelectedCity();
+	if selected ~= nil and selected:GetOwner() == capital:GetOwner() and selected:GetID() == capital:GetID() then
+		OutputMessageToScreenReader( "Capital: " .. Locale.Lookup( capital:GetName() ) );
+	else
+		UI.DeselectAllUnits();
+		UI.SelectCity( capital );
+	end
+end
+
 -- ===========================================================================
 --	TARGET MODES: entering, confirming (Enter) and cancelling (Escape)
 -- ===========================================================================
@@ -625,8 +650,8 @@ do
 		m_directRequests[mode] = { kind = kind, typeName = typeName, say = say, war = war, nilArg = nilArg };
 	end
 	Add( "COASTAL_RAID", "operation", "COASTAL_RAID", "Coastal raid", true );
-	Add( "DEPLOY", "operation", "DEPLOY", "Deploying", false );
-	Add( "REBASE", "operation", "REBASE", "Rebasing", false );
+	Add( "DEPLOY", "operation", "DEPLOY", nil, false );
+	Add( "REBASE", "operation", "REBASE", nil, false );
 	Add( "SACRIFICE_SELECTION", "operation", "UNITOPERATION_SOOTHSAYER_SACRIFICE", "Sacrificing", false );
 	Add( "AIRLIFT", "command", "AIRLIFT", "Airlifting", false, true );		-- WorldInput passes (unit, AIRLIFT, nil, params) to CanStartCommand
 	Add( "KILL_WEAKER_UNIT", "command", "KILL_WEAKER_UNIT", "Killing the weaker unit", false );
@@ -670,8 +695,9 @@ local function ConfirmDirectRequest( unit:table, plot:table, mode:number )
 	else
 		UnitManager.RequestCommand( unit, requestType, parameters );
 	end
+	HubTargets.m_lastDirectTarget = { plot = plot:GetIndex(), time = UI.GetElapsedTime() };		-- HubEvents reads the confirmed target (Rebasing / Deploying to <city>)
 	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
-	HubCore.SayResult( entry.say );
+	if entry.say then HubCore.SayResult( entry.say ); end
 end
 
 -- Enter in a target mode: what WorldInput does on the left click in that mode, for the cursor plot.

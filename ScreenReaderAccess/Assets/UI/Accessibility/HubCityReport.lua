@@ -374,10 +374,26 @@ HubCityReport.m_reportFacade = {
 		HubCityReport.m_tilesList.Reset();
 		HubCityReport.m_specList.Reset();
 	end,
+	tabAction	= function() HubCityReport.OpenProduction(); end,
 	HandleInput	= function( input:table )
 		return m_reportList.HandleInput( input ) or HubCityReport.m_focusList.HandleInput( input ) or HubCityReport.m_tilesList.HandleInput( input ) or HubCityReport.m_specList.HandleInput( input );
 	end,
 };
+
+-- Tab in the report: the production panel of the report's city (the production line says "Tab opens production"), whatever
+-- else is selected.
+function HubCityReport.OpenProduction()
+	if HubCityReport.m_manageView ~= nil then return; end
+	local city:table = GetReportCity();
+	if city == nil then return; end
+	local selected:table = UI.GetHeadSelectedCity();
+	HubCore.CloseMode( false, true );
+	if selected == nil or selected:GetOwner() ~= city:GetOwner() or selected:GetID() ~= city:GetID() then
+		UI.DeselectAllUnits();
+		UI.SelectCity( city );
+	end
+	LuaEvents.CityPanel_ProductionOpen();
+end
 
 function HubCityReport.ToggleCityReport()
 	if HubCore.IsModeOpen( "cityreport" ) then HubCore.CloseMode( true, false ); return; end

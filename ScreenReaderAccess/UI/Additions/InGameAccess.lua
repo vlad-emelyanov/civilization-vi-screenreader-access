@@ -171,6 +171,22 @@ function Hub.OnInputActionTriggered( actionId:number )
 	if handler ~= nil then handler(); end
 end
 
+-- Tab (KeyNavUnitActions) belongs to the open hub region (city report: production, help / places: next section ...). The
+-- unit actions menu opens only from the plain map (or closes itself again). A region without its own Tab (top panel,
+-- notifications ...) ignores the key. A region declares its Tab as list.tabAction.
+function Hub.UnitActionsKey()
+	local mode:table = HubCore.m_mode;
+	if mode ~= nil and mode.name ~= "menu" then
+		if mode.list ~= nil and mode.list.tabAction ~= nil then
+			mode.list.tabAction();
+		else
+			OutputMessageToScreenReader( "Nothing for Tab here" );		-- (regions that use Tab consume it before it becomes an action)
+		end
+		return;
+	end
+	HubMenus.ToggleUnitMenu();
+end
+
 function Hub.RegisterAction( name:string, handler )
 	local id:number = Input.GetActionId( name );
 	if id == nil then
@@ -217,7 +233,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavPlotDetails",		HubCursor.SpeakPlotDetails );
 	Hub.RegisterAction( "KeyNavCursorToSelection",	HubCursor.CursorToSelection );
 	Hub.RegisterAction( "KeyNavWhatsNext",			HubAnnounce.SpeakWhatsNext );
-	Hub.RegisterAction( "KeyNavUnitActions",		HubMenus.ToggleUnitMenu );
+	Hub.RegisterAction( "KeyNavUnitActions",		Hub.UnitActionsKey );
 	Hub.RegisterAction( "KeyNavSelectAtCursor",		HubCursor.SelectAtCursor );
 	Hub.RegisterAction( "KeyNavCycleAllUnits",		HubCursor.CycleAllUnits );
 	Hub.RegisterAction( "KeyNavScanUnits",			HubSettle.ScanKey );
@@ -271,6 +287,7 @@ function Initialize()
 	HubCore.Listen( LuaEvents.SRA_Notifications, HubRegions.OnNotificationsReceived );
 	HubCore.Listen( LuaEvents.SRA_NotificationAdded, HubCore.Safe( "NotificationAdded", HubRegions.OnNotificationAdded ) );
 	HubCore.Listen( LuaEvents.SRA_NotificationActivated, HubCore.Safe( "NotificationActivated", HubRegions.OnNotificationActivated ) );
+	HubCore.Listen( LuaEvents.SRA_CapitalKey, HubCore.Safe( "CapitalKey", HubTargets.CapitalKey ) );		-- WorldInput: the capital key outside the plain map
 	HubCore.Listen( LuaEvents.SRA_AttackKey, HubCore.Safe( "AttackKey", HubTargets.AttackKey ) );
 	HubCore.Listen( LuaEvents.SRA_TradeResult, HubCore.Safe( "TradeResult", HubEvents.OnTradeResult ) );		-- trade choosers: outcome of the route / move
 	HubCore.Listen( LuaEvents.SRA_SpeechHold, HubCore.Safe( "SpeechHold", HubCore.SetSpeechHold ) );		-- popups that speak: event announcements wait
