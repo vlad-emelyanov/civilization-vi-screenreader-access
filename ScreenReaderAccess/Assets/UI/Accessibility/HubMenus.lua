@@ -204,10 +204,10 @@ function HubMenus.ToggleUnitMenu()
 	if not HubTargets.CanOpenMode() then return; end
 	m_menuItems = HubMenus.FetchMenuItems( true );
 	if #m_menuItems == 0 then
-		OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " has no actions" );
+		OutputMessageToScreenReader( PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " has no actions" );
 		return;
 	end
-	HubCore.OpenMode( "menu", m_menu, Locale.Lookup( unit:GetName() ) .. " actions" );
+	HubCore.OpenMode( "menu", m_menu, PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " actions" );
 end
 
 m_menu = KeyNavList_Create{

@@ -26,6 +26,7 @@ lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:Get
 expect-lua ^on carrier$
 # the carrier itself
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_AIRCRAFT_CARRIER" then UI.SelectUnit(u) break end end
+expect (?i)Aircraft Carrier.*(carrying \d of \d aircraft|no aircraft, \d slots)
 key Tab -Settle 1500
 expect Aircraft Carrier actions
 key Down -Settle 600

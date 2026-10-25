@@ -115,7 +115,7 @@ end
 -- ===========================================================================
 
 function HubAnnounce.UnitText( unit:table )
-	local parts:table = { Locale.Lookup( unit:GetName() ) };
+	local parts:table = { PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) };
 	local maxMoves:number = unit:GetMaxMoves();
 	if maxMoves > 0 then
 		table.insert( parts, HubCore.FormatNumber( unit:GetMovesRemaining() ) .. " of " .. HubCore.FormatNumber( maxMoves ) .. " moves" );
@@ -128,6 +128,19 @@ function HubAnnounce.UnitText( unit:table )
 	local damage:number = unit:GetDamage();
 	if damage > 0 then
 		table.insert( parts, ( unit:GetMaxDamage() - damage ) .. " of " .. unit:GetMaxDamage() .. " health" );
+	end
+	-- a carrier: how many aircraft it holds (same API as the unit flag's air counter)
+	if unit.GetAirSlots ~= nil then
+		local slots:number = unit:GetAirSlots();
+		if slots ~= nil and slots > 0 then
+			local hasAir:boolean, airUnits:table = unit:GetAirUnits();
+			local count:number = ( hasAir and airUnits ~= nil ) and #airUnits or 0;
+			if count == 0 then
+				table.insert( parts, "no aircraft, " .. slots .. " slots" );
+			else
+				table.insert( parts, "carrying " .. count .. " of " .. slots .. " aircraft" );
+			end
+		end
 	end
 	-- what it is doing (exploring, fortified, moving to ...); a unit picked from the places list also hears how to cancel
 	if HubPlaces ~= nil then

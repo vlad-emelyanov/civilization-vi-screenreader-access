@@ -133,10 +133,29 @@ function PlotDescription_IsUnitVisible( unit:table )
 	return vis:IsVisible(unit:GetX(), unit:GetY()) and vis:IsUnitVisible(unit);
 end
 
+-- Name of a unit with its military formation: "Musketman corps" / "Musketman army", "Frigate fleet" / "Frigate armada".
+-- Does not double the word when the name already ends with it.
+function PlotDescription_FormationName( unit:table, name:string )
+	local formation:number = unit:GetMilitaryFormation();
+	if formation == nil or formation == MilitaryFormationTypes.STANDARD_FORMATION then return name; end
+	local row:table = GameInfo.Units[ unit:GetType() ];
+	local naval:boolean = ( row ~= nil and row.Domain == "DOMAIN_SEA" );
+	local suffix:string;
+	if formation == MilitaryFormationTypes.CORPS_FORMATION then
+		suffix = naval and "fleet" or "corps";
+	elseif formation == MilitaryFormationTypes.ARMY_FORMATION then
+		suffix = naval and "armada" or "army";
+	else
+		return name;
+	end
+	if string.lower( string.sub( name, -#suffix ) ) == suffix then return name; end
+	return name .. " " .. suffix;
+end
+
 -- "Warrior" for the local player's units, "Roman Warrior" / "Barbarian Warrior" for the others. The owner is
 -- not repeated when the unit's own name already starts with it ("Barbarian Horseman").
 function PlotDescription_GetUnitName( unit:table )
-	local text:string = Locale.Lookup(unit:GetName());
+	local text:string = PlotDescription_FormationName(unit, Locale.Lookup(unit:GetName()));
 	local owner:number = unit:GetOwner();
 	if owner ~= Game.GetLocalPlayer() then
 		local player:table = Players[owner];
