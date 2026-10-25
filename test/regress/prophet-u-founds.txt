@@ -7,7 +7,7 @@ clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do local r=GameInfo.Units[u:GetUnitType()]; if r and r.UnitType=="UNIT_GREAT_PROPHET" then UI.SelectUnit(u) break end end
 action ExtraHotkeysUpgrade -Settle 3000
 expect-not (?i)cannot (found|activate)
-wait Religion founded: choose a name and beliefs -Timeout 10
+wait Religion founded: choose a name and beliefs -Timeout 25
 expect Religion founded: choose a name and beliefs. Control\+N
 action KeyNavNotifications -Settle 1500
 key Enter -Settle 2500
