@@ -4691,6 +4691,8 @@ function SRSayBlockedHotkey( actionId:number )
 		OutputMessageToScreenReader( "Cannot " .. string.lower( verb or "activate" ) .. " " .. ( person or Locale.Lookup( unit:GetName() ) )
 			.. ( why ~= "" and ( ": " .. why ) or "" ) );
 		return;
+	elseif row.HotkeyId == "ExtraHotkeysUpgrade" then
+		row = GameInfo.UnitCommands["UNITCOMMAND_UPGRADE"] or row;	-- not a great person: the key means Upgrade
 	elseif row.HotkeyId == "ExtraHotkeysPillageOrRepair" and unitRow ~= nil then
 		-- Coastal Raid only for naval units; a land unit means Pillage
 		local pillage = GameInfo.UnitOperations["UNITOPERATION_PILLAGE"];

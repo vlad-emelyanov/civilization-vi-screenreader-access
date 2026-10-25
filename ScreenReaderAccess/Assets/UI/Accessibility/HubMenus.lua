@@ -71,9 +71,17 @@ end
 local function CursorTargetResult( verb:string )
 	local info:table = {};
 	pcall( function()
-		local x:number, y:number = HubCursor.GetCursor();
-		local plot:table = Map.GetPlot( x, y );
+		local plot:table = nil;
+		local last = HubTargets ~= nil and HubTargets.m_lastDirectTarget or nil;
+		if last ~= nil and last.plot ~= nil and last.time ~= nil and UI.GetElapsedTime() - last.time <= 3.0 then
+			plot = Map.GetPlotByIndex( last.plot );
+		end
+		if plot == nil then
+			local cx:number, cy:number = HubCursor.GetCursor();
+			plot = Map.GetPlot( cx, cy );
+		end
 		if plot == nil then return; end
+		local x:number, y:number = plot:GetX(), plot:GetY();
 		local city:table = Cities.GetPlotPurchaseCity( plot );
 		if city ~= nil and city:GetX() == x and city:GetY() == y then info.city = Locale.Lookup( city:GetName() ); return; end
 		local districtType = plot:GetDistrictType();
