@@ -33,6 +33,9 @@ test("ReadyUnitsText: named only when exactly one", function()
 	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 1, "Archer, in Rome"), "Unit needs orders: Archer, in Rome. Enter selects it", "one")
 	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 3, nil), "3 units need orders. Enter selects the next one", "several")
 	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 0, nil), "Unit needs orders", "none")
+	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 1, "Scout, 4 tiles west of Aquileia", true),
+		"Unit needs orders: Scout, 4 tiles west of Aquileia, selected. Tab opens its actions", "selected")
+	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 2, nil, true), "2 units need orders. Enter selects the next one", "selected + other")
 end)
 
 test("BlockerWithThing: unit, position and hint", function()
