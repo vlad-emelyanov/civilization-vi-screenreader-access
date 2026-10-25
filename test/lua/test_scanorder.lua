@@ -44,3 +44,13 @@ test("no enemy message", function()
 		"No enemy in range of the Archer. Nearest enemy: Barbarian Archer, 6 tiles north-east")
 	eq(HubCursor.NoEnemyText("Archer", nil, nil), "No enemy in view")
 end)
+
+test("IsAttackMode: only attack modes, a move only with the attack intent", function()
+	InterfaceModeTypes.MOVE_TO = 1
+	InterfaceModeTypes.RANGE_ATTACK = 2
+	InterfaceModeTypes.DEPLOY = 3
+	istrue(HubTargets.IsAttackMode(2))
+	istrue(not HubTargets.IsAttackMode(3))
+	istrue(not HubTargets.IsAttackMode(1))
+	istrue(not HubTargets.IsAttackMode(nil))
+end)

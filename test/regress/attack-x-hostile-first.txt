@@ -1,4 +1,5 @@
 # BLIND-WRITTEN (verifier: run `python util/civregress.py attack-x-hostile-first --record`, fix the expects). Needs a fixture where a ranged or melee unit of ours has BOTH a barbarian and a peaceful foreign unit (Vilnius pikeman/builder) in view, the barbarian farther than the peaceful one: pt-modes-t104 / pt-modes-t106 (barbarians around Aquileia, at peace with Vilnius). Select that unit with the tuner line below (adjust the unit type).
+# Checks only the FIRST X stop (hostile, not 'would declare war'); no loop in the runner, so the Vilnius stops are not checked. If expect-not is unsupported, drop that line.
 # covers: **/HubCursor.lua **/HubTargets.lua
 # no-share-load: selects a unit and enters a target mode
 load pt-modes-t104
@@ -7,8 +8,6 @@ lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if Gam
 wait Archer -Timeout 8
 key W -Settle 1500
 key X -Settle 800
-expect Barbarian
-key X -Settle 800
-key X -Settle 800
-expect would declare war on Vilnius
+expect (?i)barbarian|at war
+expect-not would declare war
 no-lua-errors

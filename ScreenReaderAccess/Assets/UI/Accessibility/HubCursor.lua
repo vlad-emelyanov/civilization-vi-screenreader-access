@@ -330,7 +330,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	end
 	local attackMode:boolean = listed == nil and HubTargets.GetTargetMode() ~= nil;
 	if #found == 0 then
-		local unit:table = attackMode and UI.GetHeadSelectedUnit() or nil;
+		local unit:table = ( attackMode and HubTargets.IsAttackMode( HubTargets.GetTargetMode() ) ) and UI.GetHeadSelectedUnit() or nil;
 		if unit ~= nil then
 			local enemyName:string, relative:string = PlotDescription_NearestHostile( unit, 30 );
 			OutputMessageToScreenReader( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative ) );
