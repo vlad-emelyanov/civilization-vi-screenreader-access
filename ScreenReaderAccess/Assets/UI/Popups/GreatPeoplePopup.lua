@@ -838,6 +838,8 @@ function Open()
 		UI.PlaySound("UI_Screen_Open");
 	end
 
+	-- ScreenReaderAccess: every open starts on the first section (the game keeps the last tab)
+	if srWasHidden and m_tabs ~= nil then m_tabs.SelectTab( Controls.ButtonGreatPeople ); end
 	Refresh();
 
 	-- From ModalScreen_PlayerYieldsHelper
