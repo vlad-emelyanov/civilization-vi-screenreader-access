@@ -4297,12 +4297,16 @@ local function SRCleanDetail( text:string )
 	return result;
 end
 
-local function SRReasons( tooltip:string )
+local function SRReasonList( tooltip:string )
 	local reasons:table = {};
 	for reason in string.gmatch( tooltip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
 		table.insert( reasons, CleanTextForSpeech( reason ) );
 	end
-	return table.concat( reasons, ", " );
+	return reasons;
+end
+
+local function SRReasons( tooltip:string )
+	return table.concat( SRReasonList( tooltip ), ", " );
 end
 
 local function SRTypeName( hash:number )
@@ -4334,9 +4338,62 @@ local function SRAddDanger( unit:table, reason:string )
 	return result;
 end
 
+-- A great person whose ability needs a completed district (GreatPersonIndividuals.ActionRequiresCompletedDistrictType):
+-- returns a function that turns a list of engine refusal strings into one with the "Must be on a completed Campus." entry
+-- replaced by "must stand on a completed Campus district. Nearest: Rome's Campus, 1 tile north-west"; nil when the person needs
+-- no district or already stands on one. Unique replacement districts (DistrictReplaces) count as the required district.
+local function SRDistrictRefiner( unit:table, long:boolean )
+	local refiner = nil;
+	pcall( function()
+		local gp = unit:GetGreatPerson();
+		if gp == nil then return; end
+		local row = GameInfo.GreatPersonIndividuals[ gp:GetIndividual() ];
+		local districtRow = ( row ~= nil and row.ActionRequiresCompletedDistrictType ~= nil ) and GameInfo.Districts[ row.ActionRequiresCompletedDistrictType ] or nil;
+		if districtRow == nil then return; end
+		local accepted:table = { [ districtRow.Index ] = true };
+		for replace in GameInfo.DistrictReplaces() do
+			if replace.ReplacesDistrictType == districtRow.DistrictType and GameInfo.Districts[ replace.CivUniqueDistrictType ] ~= nil then
+				accepted[ GameInfo.Districts[ replace.CivUniqueDistrictType ].Index ] = true;
+			end
+		end
+		local from = Map.GetPlot( unit:GetX(), unit:GetY() );
+		local best:table = nil;
+		local bestDistance:number = 0;
+		for _, district in Players[ unit:GetOwner() ]:GetDistricts():Members() do
+			if accepted[ district:GetType() ] and district:IsComplete() then
+				local pillaged:boolean = false;
+				pcall( function() pillaged = district:IsPillaged(); end );
+				local x:number, y:number = district:GetX(), district:GetY();
+				local distance:number = Map.GetPlotDistance( unit:GetX(), unit:GetY(), x, y );
+				if not pillaged and distance == 0 then
+					return;		-- already standing on one: the refusal is something else
+				elseif not pillaged and ( best == nil or distance < bestDistance ) then
+					local city = Cities.GetCityInPlot( x, y );
+					best = { cityName = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "your city", relative = PlotDescription_GetRelative( from, Map.GetPlot( x, y ) ),
+						districtName = Locale.Lookup( GameInfo.Districts[ district:GetType() ].Name ) };
+					bestDistance = distance;
+				end
+			end
+		end
+		local text:string = PlotDescription_DistrictReason( Locale.Lookup( districtRow.Name ), best, long );
+		-- the engine's text up to the district name: LOC_UNITCOMMAND_ACTIVATE_GREAT_PERSON_INVALID_DISTRICT = "Must be on a completed {1_DistrictName}."
+		local marker:string = "\1";
+		local prefix:string = CleanTextForSpeech( Locale.Lookup( "LOC_UNITCOMMAND_ACTIVATE_GREAT_PERSON_INVALID_DISTRICT", marker ) );
+		local cut:number = string.find( prefix, marker, 1, true );
+		if cut == nil or cut <= 1 then return; end
+		prefix = string.sub( prefix, 1, cut - 1 );
+		refiner = function( reasons:table ) return PlotDescription_ReplaceDistrictRefusal( reasons, prefix, text ); end
+	end );
+	return refiner;
+end
+
 -- Red reasons of a disabled action's tooltip, else the derived ranged-attack reason (shared by the Tab menu and the hotkey).
 local function SRActionReason( unit:table, action:table, tooltip:string )
 	local reason:string = SRReasons( tooltip );
+	if reason ~= "" and unit ~= nil and action.Disabled == true then
+		local refine = SRDistrictRefiner( unit, false );		-- mod: where the district is, not the ability text
+		if refine ~= nil then reason = table.concat( refine( SRReasonList( tooltip ) ), ", " ); end
+	end
 	if reason == "" and action.Disabled == true and unit ~= nil and action.userTag ~= nil then
 		local ok:boolean, typeName = pcall( SRTypeName, action.userTag );
 		if ok and SRIsRangedAttackName( typeName ) then reason = SRRangedAttackReason( unit ); end
@@ -4398,7 +4455,7 @@ local function SRFormationHint( unit:table )
 end
 
 -- Why the engine refuses an operation or command for this unit right now ("" when it says nothing).
-local function SRRefusalReason( unit:table, hash:number )
+local function SRRefusalReason( unit:table, hash:number, refine )
 	local reasons:table = {};
 	pcall( function()
 		local results:table = nil;
@@ -4436,6 +4493,7 @@ local function SRRefusalReason( unit:table, hash:number )
 			table.insert( reasons, "needs another " .. Locale.Lookup( unit:GetName() ) .. " on an adjacent tile" );
 		end );
 	end
+	if refine ~= nil and #reasons > 0 then reasons = refine( reasons ); end
 	return SRAddDanger( unit, table.concat( reasons, ", " ) );
 end
 
@@ -4687,7 +4745,7 @@ function SRSayBlockedHotkey( actionId:number )
 	if row.HotkeyId == "ExtraHotkeysUpgrade" and isGreat then
 		local _, verb:string, person:string = SRGreatPersonActivateName( unit );
 		local why:string = ( unit:GetMovesRemaining() <= 0 ) and "no moves left this turn"
-			or SRRefusalReason( unit, GameInfo.UnitCommands["UNITCOMMAND_ACTIVATE_GREAT_PERSON"].Hash );
+			or SRRefusalReason( unit, GameInfo.UnitCommands["UNITCOMMAND_ACTIVATE_GREAT_PERSON"].Hash, SRDistrictRefiner( unit, true ) );
 		OutputMessageToScreenReader( "Cannot " .. string.lower( verb or "activate" ) .. " " .. ( person or Locale.Lookup( unit:GetName() ) )
 			.. ( why ~= "" and ( ": " .. why ) or "" ) );
 		return;
