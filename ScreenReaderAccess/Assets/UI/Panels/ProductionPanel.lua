@@ -2527,7 +2527,7 @@ end
 
 local function SRA_Item( kItem:table, kind:string, section:string, owner:string )
 	local name:string = Locale.Lookup( kItem.Name );
-	if kItem.Repair then name = name .. " (repair)"; end
+	if kItem.Repair then name = "Repair " .. name; end		-- a pillaged building or district: the item repairs it
 	local parts:table = { name };
 	if owner ~= nil then table.insert( parts, "in " .. owner ); end
 	local built:boolean = kind == "district" and kItem.HasBeenBuilt and not kItem.Repair and not kItem.Contaminated
@@ -2672,6 +2672,7 @@ local function SRA_ResolvePending( fromEvent:boolean )
 		if not changed then return; end
 		m_srPending = nil;
 		local text:string = ( pending.queueMode and "Queued " or "Producing " ) .. pending.name;
+		if pending.repair then text = ( pending.queueMode and "Queued repair of " or "Repairing " ) .. pending.name; end
 		if pending.turns ~= nil and not pending.queueMode then text = text .. ", " .. pending.turns; end
 		if not m_srActive then text = text .. ". Production closed"; end		-- the panel closed itself (units, projects)
 		OutputMessageToScreenReader( text );
@@ -2720,7 +2721,7 @@ local function SRA_OnActivate( item:table )
 
 	local queue:table = city:GetBuildQueue();
 	m_srPending = {
-		kind = "produce", name = name, queueMode = queueMode, turns = SRA_TurnsText( kItem.TurnsLeft ),
+		kind = "produce", name = name, queueMode = queueMode, repair = ( kItem.Repair == true ), turns = SRA_TurnsText( kItem.TurnsLeft ),
 		hash0 = queue:GetCurrentProductionTypeHash(), size0 = queue:GetSize(),
 	};
 	if item.kind == "district" or item.kind == "wonder" then
