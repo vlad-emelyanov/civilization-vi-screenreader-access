@@ -236,7 +236,6 @@ local m_endedTurn:number = -1;			-- game turn for which a turn end was seen and 
 
 function HubAnnounce.AnnounceTurn()
 	if not HubCore.IsLocalPlayerActive() then return; end
-	m_endedTurn = -1;
 	local turn:number = Game.GetCurrentGameTurn();
 	local key:string = Game.GetLocalPlayer() .. ":" .. turn;
 	if key == HubCore.m_lastAnnouncedTurn then return; end
