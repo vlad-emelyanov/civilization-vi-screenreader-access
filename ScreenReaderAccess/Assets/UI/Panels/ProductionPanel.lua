@@ -2756,6 +2756,7 @@ local function SRA_OnClose()
 		OutputMessageToScreenReader( "Queue selection cleared" );
 	else
 		local willClose:boolean = Controls.SlideIn:IsStopped();
+		if willClose then LuaEvents.SRA_ProductionEscape(); end		-- ScreenReaderAccess: the hub returns to the city report this was opened from
 		Close();
 		if willClose then OutputMessageToScreenReader( "Production closed" ); end
 	end

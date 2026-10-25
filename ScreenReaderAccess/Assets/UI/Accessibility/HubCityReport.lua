@@ -100,10 +100,12 @@ function HubCityReport.ManageWatch( read, before:string, say )
 			local ok:boolean, now = pcall( read );
 			if ok and now ~= before then
 				HubCityReport.m_manageBusy = false;
+		HubCityReport.DisarmReturn();
 				local ok2:boolean, err = pcall( say, now );
 				if not ok2 then print( "InGameAccess city management error: " .. tostring( err ) ); end
 			elseif tries >= 5 then
 				HubCityReport.m_manageBusy = false;
+		HubCityReport.DisarmReturn();
 				print( "InGameAccess: the city management request changed nothing" );
 				OutputMessageToScreenReader( "Nothing changed" );
 			else
@@ -364,11 +366,18 @@ HubCityReport.m_specList = KeyNavList_Create{
 
 -- What the mode holds: the report list and its sub-lists (each handles keys only while it is the active view).
 HubCityReport.m_reportFacade = {
-	Open		= function( title:string ) HubCityReport.m_manageView = nil; m_reportList.Open( title ); end,
+	Open		= function( title:string )
+			HubCityReport.m_manageView = nil;
+			HubCityReport.DisarmReturn();
+			local key = HubCityReport.m_openKey;
+			HubCityReport.m_openKey = nil;
+			m_reportList.Open( title, key );
+		end,
 	Reset		= function()
 		HubCityReport.m_manageView = nil;
 		HubCityReport.m_manageConfirm = nil;
 		HubCityReport.m_manageBusy = false;
+		HubCityReport.DisarmReturn();
 		m_reportList.Reset();
 		HubCityReport.m_focusList.Reset();
 		HubCityReport.m_tilesList.Reset();
@@ -392,11 +401,58 @@ function HubCityReport.OpenProduction()
 		UI.DeselectAllUnits();
 		UI.SelectCity( city );
 	end
+	HubCityReport.m_returnPending = true;
 	LuaEvents.CityPanel_ProductionOpen();
+	HubCityReport.m_returnPending = false;
 end
+
+-- The production panel opened from the report returns to it when it closes (Escape closes only the panel).
+HubCityReport.m_returnPending = false;
+HubCityReport.m_returnArmed = false;
+HubCityReport.m_returnCity = nil;
+
+function HubCityReport.OnProductionPanelOpen()
+	HubCityReport.DisarmReturn();
+	HubCityReport.m_returnArmed = HubCityReport.m_returnPending;
+	if HubCityReport.m_returnArmed then
+		local city:table = UI.GetHeadSelectedCity();
+		if city ~= nil then HubCityReport.m_returnCity = city:GetName(); end
+	end
+end
+
+-- Escape (or the panel's back key) in the panel: the next close returns to the report. Any other close just disarms.
+function HubCityReport.OnProductionEscape()
+	if HubCityReport.m_returnArmed then HubCityReport.m_returnEscape = true; end
+end
+
+function HubCityReport.DisarmReturn()
+	HubCityReport.m_returnArmed = false;
+	HubCityReport.m_returnEscape = false;
+	HubCityReport.m_returnCity = nil;
+end
+
+function HubCityReport.OnProductionPanelClose()
+	local armed:boolean = HubCityReport.m_returnArmed and HubCityReport.m_returnEscape;
+	local name = HubCityReport.m_returnCity;
+	HubCityReport.DisarmReturn();
+	if not armed then return; end
+	if HubCore.IsModeOpen( "cityreport" ) or HubCore.IsModeOpen( "placement" ) or HubTargets.GetTargetMode() ~= nil then return; end
+	local title:string = "City report";
+	if name ~= nil then title = title .. ", " .. Locale.Lookup( name ); end
+	HubCityReport.OpenReport( title, "production" );
+end
+
+HubCore.Listen( LuaEvents.ProductionPanel_Open, HubCityReport.OnProductionPanelOpen );
+HubCore.Listen( LuaEvents.SRA_ProductionEscape, HubCityReport.OnProductionEscape );
+HubCore.Listen( LuaEvents.ProductionPanel_Close, HubCityReport.OnProductionPanelClose );
 
 function HubCityReport.ToggleCityReport()
 	if HubCore.IsModeOpen( "cityreport" ) then HubCore.CloseMode( true, false ); return; end
+	HubCityReport.OpenReport( nil, nil );
+end
+
+-- title / initialKey (optional): a different opening line and the report item to focus (the return from production).
+function HubCityReport.OpenReport( title:string, initialKey )
 	if not HubTargets.CanOpenMode() then return; end
 	if not Hub.m_cityReportLoaded or CityReport_Gather == nil or CityReport_BuildItems == nil then
 		OutputMessageToScreenReader( "The city report is not available" );
@@ -415,5 +471,6 @@ function HubCityReport.ToggleCityReport()
 		return;
 	end
 	m_reportCity = { owner = city:GetOwner(), id = city:GetID() };
-	HubCore.OpenMode( "cityreport", HubCityReport.m_reportFacade, Locale.Lookup( city:GetName() ) .. " report", function() m_reportCity = nil; end );
+	HubCityReport.m_openKey = initialKey;
+	HubCore.OpenMode( "cityreport", HubCityReport.m_reportFacade, title or ( Locale.Lookup( city:GetName() ) .. " report" ), function() m_reportCity = nil; end );
 end
