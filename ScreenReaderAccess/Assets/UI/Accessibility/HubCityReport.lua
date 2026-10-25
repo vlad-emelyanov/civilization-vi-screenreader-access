@@ -100,10 +100,12 @@ function HubCityReport.ManageWatch( read, before:string, say )
 			local ok:boolean, now = pcall( read );
 			if ok and now ~= before then
 				HubCityReport.m_manageBusy = false;
+		HubCityReport.DisarmReturn();
 				local ok2:boolean, err = pcall( say, now );
 				if not ok2 then print( "InGameAccess city management error: " .. tostring( err ) ); end
 			elseif tries >= 5 then
 				HubCityReport.m_manageBusy = false;
+		HubCityReport.DisarmReturn();
 				print( "InGameAccess: the city management request changed nothing" );
 				OutputMessageToScreenReader( "Nothing changed" );
 			else
@@ -366,6 +368,7 @@ HubCityReport.m_specList = KeyNavList_Create{
 HubCityReport.m_reportFacade = {
 	Open		= function( title:string )
 			HubCityReport.m_manageView = nil;
+			HubCityReport.DisarmReturn();
 			local key = HubCityReport.m_openKey;
 			HubCityReport.m_openKey = nil;
 			m_reportList.Open( title, key );
@@ -374,6 +377,7 @@ HubCityReport.m_reportFacade = {
 		HubCityReport.m_manageView = nil;
 		HubCityReport.m_manageConfirm = nil;
 		HubCityReport.m_manageBusy = false;
+		HubCityReport.DisarmReturn();
 		m_reportList.Reset();
 		HubCityReport.m_focusList.Reset();
 		HubCityReport.m_tilesList.Reset();
@@ -408,23 +412,38 @@ HubCityReport.m_returnArmed = false;
 HubCityReport.m_returnCity = nil;
 
 function HubCityReport.OnProductionPanelOpen()
+	HubCityReport.DisarmReturn();
 	HubCityReport.m_returnArmed = HubCityReport.m_returnPending;
-	HubCityReport.m_returnCity = nil;
 	if HubCityReport.m_returnArmed then
 		local city:table = UI.GetHeadSelectedCity();
 		if city ~= nil then HubCityReport.m_returnCity = city:GetName(); end
 	end
 end
 
-function HubCityReport.OnProductionPanelClose()
-	if not HubCityReport.m_returnArmed then return; end
+-- Escape (or the panel's back key) in the panel: the next close returns to the report. Any other close just disarms.
+function HubCityReport.OnProductionEscape()
+	if HubCityReport.m_returnArmed then HubCityReport.m_returnEscape = true; end
+end
+
+function HubCityReport.DisarmReturn()
 	HubCityReport.m_returnArmed = false;
-	local name = HubCityReport.m_returnCity;
+	HubCityReport.m_returnEscape = false;
 	HubCityReport.m_returnCity = nil;
-	HubCityReport.OpenReport( "City report, " .. ( name ~= nil and Locale.Lookup( name ) or "" ), "production" );
+end
+
+function HubCityReport.OnProductionPanelClose()
+	local armed:boolean = HubCityReport.m_returnArmed and HubCityReport.m_returnEscape;
+	local name = HubCityReport.m_returnCity;
+	HubCityReport.DisarmReturn();
+	if not armed then return; end
+	if HubCore.IsModeOpen( "cityreport" ) or HubCore.IsModeOpen( "placement" ) or HubTargets.GetTargetMode() ~= nil then return; end
+	local title:string = "City report";
+	if name ~= nil then title = title .. ", " .. Locale.Lookup( name ); end
+	HubCityReport.OpenReport( title, "production" );
 end
 
 HubCore.Listen( LuaEvents.ProductionPanel_Open, HubCityReport.OnProductionPanelOpen );
+HubCore.Listen( LuaEvents.SRA_ProductionEscape, HubCityReport.OnProductionEscape );
 HubCore.Listen( LuaEvents.ProductionPanel_Close, HubCityReport.OnProductionPanelClose );
 
 function HubCityReport.ToggleCityReport()
