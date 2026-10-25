@@ -1,4 +1,4 @@
-# Verified 2026-10-23 (reordered round 9: a plain X scan first leaves the cursor on a far target and W then attacks it directly). Attack-mode scan order is stable and the last target says "X wraps to the first"; W X Enter on a far enemy says "Moving to attack X, N turns"; W toward a non-hostile civ opens the war dialog and Escape returns to choosing ("War not declared. Still choosing a target").
+# Verified 2026-10-24 (hostile targets first since round 15; reordered round 9: a plain X scan first leaves the cursor on a far target and W then attacks it directly). Attack-mode scan order is stable and the last target says "X wraps to the first"; W X Enter on a far enemy says "Moving to attack X, N turns"; W toward a non-hostile civ opens the war dialog and Escape returns to choosing ("War not declared. Still choosing a target").
 # covers: **/HubTargets.lua **/HubCursor.lua **/HubEvents.lua
 # options: animations
 # Setup: end turn 128 (barbarians approach), select the Legion with the tuner.
@@ -13,7 +13,7 @@ lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if Gam
 wait Legion -Timeout 8
 key W -Settle 1500
 expect ^Attack: choose a target
-key X -Settle 800
+# order: hostile first (Catapult from W, Ram, Crossbowman, Musketman, Musketman), then Hong Kong (would declare war), then the unreachable Ottomans
 key X -Settle 800
 key X -Settle 800
 key X -Settle 800
@@ -24,6 +24,8 @@ key Enter -Settle 2500
 expect ^DECLARE WAR
 key Escape -Settle 3000
 expect ^War not declared\. Still choosing a target
+key X -Settle 800
+expect Last target, X wraps
 key X -Settle 800
 expect Barbarian Catapult
 key X -Settle 800
