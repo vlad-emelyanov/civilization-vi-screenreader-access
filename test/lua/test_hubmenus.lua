@@ -59,3 +59,8 @@ test("rebase / deploy result names the target", function()
 	eq(HubMenus.TargetPhrase("Deploying", nil), "Deploying")
 	eq(HubMenus.TargetPhrase("Deploying", {}), "Deploying")
 end)
+
+test("SRActionResultText is the shared wording (Tab menu and U key)", function()
+	eq(SRActionResultText("Activate Jakob Fugger: Gives gold"), "Jakob Fugger activated: Gives gold")
+	eq(SRActionResultText("Found Religion"), "Found Religion")
+end)

@@ -137,3 +137,14 @@ function SRDescriptionFirst( name:string, description:string, tooltip:string )
 	end
 	return text;
 end
+
+-- What a great person's / general's action says once it ran: "Activate Mary Leakey: <effect>" becomes "Mary Leakey activated: <effect>",
+-- "Retire Timur: <effect>" "Timur retired: <effect>"; any other action name is spoken as it is. Shared by the Tab menu (HubMenus)
+-- and the U hotkey (UnitPanel).
+function SRActionResultText( name:string )
+	local verb:string, person:string, effect:string = string.match( name or "", "^(%a+) ([^:]+): (.*)$" );
+	if verb == nil then verb, person = string.match( name or "", "^(%a+) ([^:]+)$" ); effect = nil; end
+	local past:string = ( verb == "Activate" and "activated" ) or ( verb == "Retire" and "retired" ) or nil;
+	if past == nil then return name; end
+	return person .. " " .. past .. ( ( effect ~= nil and effect ~= "" ) and ( ": " .. effect ) or "" );
+end

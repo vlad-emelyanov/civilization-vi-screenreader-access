@@ -132,11 +132,7 @@ end
 -- What an action says once it ran. A great person's "Activate Mary Leakey: <effect>" becomes "Mary Leakey activated: <effect>",
 -- a general's "Retire Timur: <effect>" "Timur retired: <effect>"; any other action name is spoken as it is.
 function HubMenus.ActionResultText( name:string )
-	local verb:string, person:string, effect:string = string.match( name or "", "^(%a+) ([^:]+): (.*)$" );
-	if verb == nil then verb, person = string.match( name or "", "^(%a+) ([^:]+)$" ); effect = nil; end
-	local past:string = ( verb == "Activate" and "activated" ) or ( verb == "Retire" and "retired" ) or nil;
-	if past == nil then return name; end
-	return person .. " " .. past .. ( ( effect ~= nil and effect ~= "" ) and ( ": " .. effect ) or "" );
+	return SRActionResultText( name );
 end
 
 local function BuildMenuItems()
