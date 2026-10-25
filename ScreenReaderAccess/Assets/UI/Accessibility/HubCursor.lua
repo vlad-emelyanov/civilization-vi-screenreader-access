@@ -248,6 +248,28 @@ function HubCursor.SelectAtCursor()
 	end
 end
 
+-- Order of the X scan. Rank 0: listed or attackable without declaring war; 1: hostile (at war, barbarians); 2: would
+-- declare war (entry.war); 3: the rest. Within a rank the nearest first, then the plot index (stable).
+function HubCursor.ScanEntryRank( entry:table )
+	if entry.valid == true then return 0; end
+	if entry.war == true then return 2; end
+	if entry.hostile then return 1; end
+	return 3;
+end
+
+function HubCursor.ScanEntryBefore( a:table, b:table )
+	local rankA:number, rankB:number = HubCursor.ScanEntryRank( a ), HubCursor.ScanEntryRank( b );
+	if rankA ~= rankB then return rankA < rankB; end
+	if a.distance ~= b.distance then return a.distance < b.distance; end
+	return a.index < b.index;
+end
+
+-- W / X in an attack mode with no foreign unit within 10 tiles: name the nearest hostile unit far away, if any.
+function HubCursor.NoEnemyText( unitName:string, enemyName:string, relative:string )
+	if enemyName == nil then return "No enemy in view"; end
+	return "No enemy in range of the " .. unitName .. ". Nearest enemy: " .. enemyName .. ( relative ~= nil and ( ", " .. relative ) or "" );
+end
+
 -- X: the cursor jumps to the nearest plot with foreign units in view (hostile ones first); pressed again, to the
 -- next one. One stop per plot (the plot description lists the stack). Finds targets for the attack modes, and
 -- threats in general. Said like a cursor move, so target modes add their info.
@@ -306,20 +328,27 @@ function HubCursor.ScanUnits( interrupt:boolean )
 			end
 		end
 	end
+	local attackMode:boolean = listed == nil and HubTargets.GetTargetMode() ~= nil;
 	if #found == 0 then
-		OutputMessageToScreenReader( "No foreign units in view" );
+		local unit:table = attackMode and UI.GetHeadSelectedUnit() or nil;
+		if unit ~= nil then
+			local enemyName:string, relative:string = PlotDescription_NearestHostile( unit, 30 );
+			OutputMessageToScreenReader( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative ) );
+		else
+			OutputMessageToScreenReader( "No foreign units in view" );
+		end
 		return;
 	end
-	-- in an attack mode the plots the unit can really attack come first, then hostile ones, then the rest
-	if HubTargets.GetTargetMode() ~= nil and listed == nil then
-		for _, entry in ipairs( found ) do entry.valid = HubTargets.IsAttackTarget( Map.GetPlot( entry.x, entry.y ) ); end
+	-- in an attack mode: targets attackable without a war first, then hostile ones, then those that would declare war
+	if attackMode then
+		local unit:table = UI.GetHeadSelectedUnit();
+		for _, entry in ipairs( found ) do
+			local plot:table = Map.GetPlot( entry.x, entry.y );
+			entry.valid = HubTargets.IsAttackTarget( plot );
+			entry.war = ( not entry.hostile ) and unit ~= nil and HubTargets.WarTargets( unit, plot ) ~= nil;
+		end
 	end
-	table.sort( found, function( a, b )
-		if ( a.valid == true ) ~= ( b.valid == true ) then return a.valid == true; end
-		if a.hostile ~= b.hostile then return a.hostile; end
-		if a.distance ~= b.distance then return a.distance < b.distance; end
-		return a.index < b.index;		-- stable: the same order every time the scan is opened
-	end );
+	table.sort( found, HubCursor.ScanEntryBefore );
 	local next:number = 1;
 	for i, entry in ipairs( found ) do
 		if entry.key == m_scanKey then next = i % #found + 1; end
