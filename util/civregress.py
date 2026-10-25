@@ -34,9 +34,12 @@ owner) and 7 (no owner given) abort the whole run. After an abort the next scrip
 key/action/wait/lua count as a failed step and the script goes on.
 
 A script whose checks were all skipped by a shared load is reported as SKIPPED-ALL with a warning (it checked nothing).
-A script with a comment line `# no-share-load: <reason>` always does its own load, and the next script does not share its game
-(use it when the script changes game state the reset check cannot see: gold, tiles, units, focus, a deal, turns, a save, a scenario).
-`# options:` scripts and scenario scripts are treated the same.
+Two separate header kinds (the first says "may START on a shared game", the second "may the NEXT script reuse what it leaves"):
+`# own-load: <reason>`: the script does its own load because it checks what the load itself says (the turn announcement, a popup the
+load opens); the checks right after a skipped load would be skipped. It does not dirty the game: the next script may share it.
+`# no-share-load: <reason>`: the script changes game state the reset check cannot see (gold, tiles, units, focus, a deal, turns, a
+save, a scenario). It may start on a clean shared game (no load of its own), but the next script loads fresh.
+`# options:` scripts do both (own load, next loads fresh). Scenario scripts count as `# no-share-load`.
 
 Loads: `all` shares one load per fixture by default (--no-share-load disables it); named scripts load fresh unless --share-load.
 Sharing skips the first `load` of a script (and the `expect` lines right after it, they would see no lines) when the previous script
@@ -44,7 +47,7 @@ loaded the same fixture, finished without an abort AND a reset check proved the 
 check is ONE tuner call (HubCore.TestResetState in the InGameAccess state): in game and our turn, no popup/screen/options menu open, hub in
 plain map mode (no mode, target or placement), and turn/gold/units/cities equal to a baseline taken right after the load (HubCore.TestSnapshotText,
 after the first clear-advisors). If clean it puts the map cursor and the selection back; otherwise (or on no answer) the next script loads
-fresh. A dirty check never fails a script. Inside a fixture group the sharing scripts run first, the `# no-share-load` ones after them.
+fresh. A dirty check never fails a script. Inside a fixture group the `# own-load` (clean) scripts run first, then the sharing ones, then the `# no-share-load` and scenario ones.
 A script that fails on a shared game is run once more with its own load (RETRY in the output; the
 second result counts, TIMING marks it): drift must not fail a script that passes alone. Scripts run grouped by their first fixture.
 The run ends with a TIMING table (seconds per script) and TOTAL. `key Shift+Tab` is rejected when the script is parsed (Steam overlay).
@@ -80,7 +83,7 @@ alone (see the sidecar). Review the diff: a recorded line can be the wrong one. 
 
 Game options: unless --real-options, a run applies util/testopts.py `on` (advisor disabled, quick combat/movement, no combat camera
 look-at, no historic moment animation) and restores the user's values in a finally. If a run is killed: python util/testopts.py restore.
-Header `# options: animations` and/or `# options: advisor` (needs `# no-share-load`-like handling, implied): that script runs with
+Header `# options: animations` and/or `# options: advisor` (implies own load and no sharing afterwards): that script runs with
 those option groups at the user's real values (switched before its load, back after it). Without `advisor` the clear-advisors steps are
 skipped (no popups with the advisor off). Helper script_needs_fresh(steps) = must load fresh.
 
@@ -136,7 +139,8 @@ class Step:
 
 
 class Steps(list):
-    fresh = False  # '# no-share-load' in the script
+    fresh = False  # '# no-share-load' (or a scenario / options): the script dirties the game, the next one loads fresh
+    own_load = False  # '# own-load': the script must do its own load (checks the load's speech) but leaves the game clean
     text = ""      # the script source (record mode rewrites it)
     manual = False # '# manual' in the script: only run when named (all / changed skip it)
     options = frozenset()  # '# options: animations advisor' headers: option groups this script wants at the USER's values
@@ -167,7 +171,17 @@ def parse_options(text, name="script"):
 
 
 def script_needs_fresh(steps):
-    """True when the script must do its own load and never share its game (no-share-load, scenario, option opt-outs)."""
+    """True when the script either must load itself or dirties its game (no-share-load, scenario, own-load, option opt-outs)."""
+    return must_load_itself(steps) or dirties_game(steps)
+
+
+def must_load_itself(steps):
+    """True when the script may not START on a shared game: '# own-load' (checks the load's own speech) and '# options:'."""
+    return bool(getattr(steps, "own_load", False) or getattr(steps, "options", ()))
+
+
+def dirties_game(steps):
+    """True when the game this script leaves must not be shared: '# no-share-load', a scenario, '# options:'."""
     return bool(getattr(steps, "fresh", False) or getattr(steps, "options", ()))
 
 
@@ -175,6 +189,7 @@ def parse_script(text, name="script"):
     """Text -> [Step]. Raises ScriptError with file:line for unknown steps, missing arguments and bad regexes."""
     steps = Steps()
     steps.fresh = bool(re.search(r"^#\s*no-share-load", text, re.M))
+    steps.own_load = bool(re.search(r"^#\s*own-load", text, re.M))
     steps.text = text
     steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
     steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
@@ -509,9 +524,14 @@ def clear_advisors(runner, out=print, line=0):
 
 
 def shares_game(steps):
-    """The single predicate: may the next script run on the game this one leaves? Not for '# no-share-load', a scenario or an
-    '# options:' header (see script_needs_fresh)."""
-    return not script_needs_fresh(steps)
+    """May the next script run on the game this one leaves? Not after '# no-share-load', a scenario or an '# options:' header."""
+    return not dirties_game(steps)
+
+
+def can_start_shared(steps):
+    """May this script skip its load and start on a clean shared game? Not with '# own-load' or '# options:'. A '# no-share-load' or
+    scenario script may (it just dirties the game afterwards)."""
+    return not must_load_itself(steps)
 
 
 _RESET_ANSWER = re.compile(r"^(clean|dirty|snap)\b\s*(.*)$")
@@ -734,7 +754,7 @@ def run_script(name, steps, runner, out=print, skip_load=False, on_settled=None)
         res.loaded = None
     res.skipped_all = res.skipped > 0 and res.passed + res.failed == 0
     if res.skipped_all:
-        out("   WARNING: SKIPPED-ALL: every check of this script was skipped by the shared load; it checked nothing (add '# no-share-load')")
+        out("   WARNING: SKIPPED-ALL: every check of this script was skipped by the shared load; it checked nothing (add '# own-load: <reason>')")
     out("   -> %d passed, %d failed%s%s" % (res.passed, res.failed, ", %d skipped" % res.skipped if res.skipped else "",
                                            ", ABORTED: " + res.aborted if res.aborted else ""))
     return res
@@ -825,9 +845,15 @@ def order_scripts(scripts):
             order.append(f)
         groups[f].append(item)
     order.sort(key=lambda f: f is None)
-    # inside a fixture group the scripts that may share a game run first (one load serves them all); the ones that change the
-    # game load fresh and end sharing, so they go last. sorted() is stable: the order within each kind stays.
-    return [item for f in order for item in sorted(groups[f], key=lambda it: not shares_game(it[1]))]
+    # inside a fixture group: own-load scripts that leave the game clean first (their load serves the whole group), then the
+    # plain sharing scripts, then the ones that dirty the game but may start on a shared one (no-share-load, scenario; each ends
+    # the sharing), then those that need their own load AND dirty it (options). sorted() is stable.
+    def rank(it):
+        s = it[1]
+        if not dirties_game(s):
+            return 0 if must_load_itself(s) else 1
+        return 3 if must_load_itself(s) else 2
+    return [item for f in order for item in sorted(groups[f], key=rank)]
 
 
 def run_all(scripts, runner, share_load=False, out=print, switch=None):
@@ -846,10 +872,10 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None):
     holder = {}
     for idx, (name, steps) in enumerate(scripts):
         f = first_fixture(steps)
-        skip = share_load and f is not None and f == current and shares_game(steps)
+        skip = share_load and f is not None and f == current and can_start_shared(steps)
         nxt = scripts[idx + 1][1] if idx + 1 < len(scripts) else None
         want_baseline = (share_load and f is not None and shares_game(steps) and nxt is not None
-                         and first_fixture(nxt) == f and shares_game(nxt))
+                         and first_fixture(nxt) == f and can_start_shared(nxt))
 
         def settled():
             holder["baseline"] = None
@@ -879,7 +905,7 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None):
             r.clean_checks += 1 if "secs" in holder else 0
             # can the next script run on this game?
             current = None
-            if (share_load and r.loaded and not r.aborted and nxt is not None and shares_game(nxt)
+            if (share_load and r.loaded and not r.aborted and nxt is not None and can_start_shared(nxt)
                     and first_fixture(nxt) == r.loaded):
                 if baseline is None:
                     out("  reset check skipped: no baseline of the loaded game -> the next script loads fresh")
@@ -1251,7 +1277,7 @@ def main(argv=None):
     run_everything = not a.names or a.names == ["all"]
     share = (a.share_load or run_everything or changed_mode) and not a.no_share_load and not record
     if share:
-        print("(sharing one load per fixture when the reset check says the game is clean; scenario, '# options:' and '# no-share-load' scripts load fresh; --no-share-load disables)")
+        print("(sharing one load per fixture when the reset check says the game is clean; '# own-load:' and '# options:' scripts load fresh, '# no-share-load' and scenario scripts end the sharing; --no-share-load disables)")
     t0 = time.time()
     ok, lock = acquire_run_lock()
     if not ok:

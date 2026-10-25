@@ -1,6 +1,5 @@
 # Written blind 2026-10-23 (round 8), run with --record first. early-start (turn 1, settler selected): the X browser items name the resources per ring.
 # covers: **/SettleScan.lua **/HubSettle.lua **/HubCursor.lua
-# no-share-load: Enter/Escape change the selection and cursor
 load early-start
 clear-advisors
 key X -Settle 1500
