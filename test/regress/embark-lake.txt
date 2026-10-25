@@ -1,0 +1,21 @@
+# Embarked land units: Enter-ordered move onto a lake says "Arrived, embarked", the cursor/selection text says "embarked", and the move back says "Arrived, disembarked".
+# covers: **/HubEvents.lua **/HubAnnounce.lua **/HubCursor.lua **/PlotDescription.lua
+# no-share-load: moves a unit
+load pt-modes-t123
+clear-advisors
+lua InGameAccess local p=Players[0] for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) print("selected", u:GetX(), u:GetY()) end end
+expect-lua ^selected
+action KeyNavCursorToSelection -Settle 1000
+expect (?i)^Legion\.
+action MoveTo -Settle 1000
+key Shift+Down
+expect (?i)Lake
+key Enter -Settle 2000
+expect (?i)^Arrived, embarked, \d of \d moves
+action KeyNavCursorToSelection -Settle 1000
+expect (?i)^Legion, embarked\. Lake
+action MoveTo -Settle 1000
+key Shift+Up
+key Enter -Settle 2000
+expect (?i)^Arrived, disembarked, \d of \d moves
+no-lua-errors

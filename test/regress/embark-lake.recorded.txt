@@ -1,0 +1,37 @@
+# Embarked land units: Enter-ordered move onto a lake says "Arrived, embarked", the cursor/selection text says "embarked", and the move back says "Arrived, disembarked".
+# covers: **/HubEvents.lua **/HubAnnounce.lua **/HubCursor.lua **/PlotDescription.lua
+# no-share-load: moves a unit
+load pt-modes-t123
+clear-advisors
+lua InGameAccess local p=Players[0] for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) print("selected", u:GetX(), u:GetY()) end end
+expect-lua ^selected
+#   -> PASS; window had 1 SR> line(s):
+#      | selected	65	29
+action KeyNavCursorToSelection -Settle 1000
+expect (?i)^Legion\.
+#   -> PASS; window had 2 SR> line(s):
+#      | Legion, 2 of 2 moves, 1 charge, fortified. Aquileia, city, Grassland, coastal, yours, 2 Food 1 Production, in Aquileia
+#      | Legion. Aquileia, city, Grassland, coastal, yours, 2 Food 1 Production
+action MoveTo -Settle 1000
+key Shift+Down
+expect (?i)Lake
+#   -> PASS; window had 2 SR> line(s):
+#      | Move to: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+#      | 1 turn. Lake, yours, 1 Food 1 Gold. 1 tile south-west
+key Enter -Settle 2000
+expect (?i)^Arrived, embarked, \d of \d moves
+#   -> PASS; window had 1 SR> line(s):
+#      | Arrived, embarked, 2 of 2 moves
+action KeyNavCursorToSelection -Settle 1000
+expect (?i)^Legion, embarked\. Lake
+#   -> PASS; window had 1 SR> line(s):
+#      | Legion, embarked. Lake, yours, 1 Food 1 Gold
+action MoveTo -Settle 1000
+key Shift+Up
+key Enter -Settle 2000
+expect (?i)^Arrived, disembarked, \d of \d moves
+#   -> PASS; window had 3 SR> line(s):
+#      | Move to: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+#      | 1 turn. Aquileia, city, Grassland, coastal, yours, 2 Food 1 Production. 1 tile north-east
+#      | Arrived, disembarked, 1 of 2 moves
+no-lua-errors

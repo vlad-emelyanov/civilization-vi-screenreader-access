@@ -1,0 +1,7 @@
+turn: 121
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Enter on Discovered Banking notification (list Control+N) opens TechCivicCompletedPopup silently, text was already spoken as popup earlier same turn
+mod commit: f50e41d
+created: 2026-10-25
+size: 1076 KB
