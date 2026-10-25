@@ -1,0 +1,14 @@
+# BLIND-WRITTEN (not run in the game): fixture pt-modes-t136 (not in the repo at writing time; Great Scientist James Young in Rome, off the Campus).
+# U and the Tab menu say the requirement and the nearest Campus, not the ability text.
+# covers: **/UnitPanel.lua **/HubMenus.lua **/PlotDescription.lua
+# no-share-load: selects the great person
+load pt-modes-t136
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do local r=GameInfo.Units[u:GetUnitType()]; if r and r.UnitType=="UNIT_GREAT_SCIENTIST" then UI.SelectUnit(u) break end end
+wait moves -Timeout 8
+action ExtraHotkeysUpgrade -Settle 1200
+expect (?i)cannot activate .*must stand on a completed Campus district\. Nearest: .*Campus
+expect-not (?i)triggers the eureka
+key Tab -Settle 1500
+expect (?i)activate .*unavailable: must stand on a completed Campus\. Nearest: .*Campus
+no-lua-errors

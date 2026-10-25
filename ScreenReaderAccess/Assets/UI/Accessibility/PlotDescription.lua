@@ -494,3 +494,31 @@ function PlotDescription_GetDetailed( plot:table, options:table )
 	if PlotDescription_CanTreatWithClan(plot) then table.insert(parts, "Open it from the places list with T"); end
 	return table.concat(parts, ". ");
 end
+
+-- A great person that must stand on a completed district (GreatPersonIndividuals.ActionRequiresCompletedDistrictType):
+-- "must stand on a completed Campus district. Nearest: Rome's Campus, 1 tile north-west". Pure wording.
+-- nearest: { cityName = "Rome", relative = "1 tile north-west" } or nil (no completed district). long: add the word "district".
+function PlotDescription_DistrictReason( districtName:string, nearest:table, long:boolean )
+	local text:string = "must stand on a completed " .. districtName .. ( long and " district" or "" );
+	if nearest == nil then
+		return text .. ". You have no completed " .. districtName;
+	end
+	local where:string = nearest.cityName .. "'s " .. districtName;
+	if nearest.relative ~= nil and nearest.relative ~= "" then where = where .. ", " .. nearest.relative; end
+	return text .. ". Nearest: " .. where;
+end
+
+-- Replaces the engine's "Must be on a completed Campus." among its comma-separated reasons by newReason (other reasons stay).
+function PlotDescription_ReplaceDistrictRefusal( reason:string, newReason:string )
+	if reason == nil or newReason == nil then return reason; end
+	local parts:table, found:boolean = {}, false;
+	for part in string.gmatch( reason .. ", ", "(.-), " ) do
+		if not found and string.find( string.lower( part ), "must be on a completed", 1, true ) ~= nil then
+			table.insert( parts, newReason );
+			found = true;
+		else
+			table.insert( parts, part );
+		end
+	end
+	return table.concat( parts, ", " );
+end
