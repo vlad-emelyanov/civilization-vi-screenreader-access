@@ -350,6 +350,11 @@ function HubTargets.CapitalKey()
 		HubCursor.SetCursor( capital:GetX(), capital:GetY(), true, true, false, true );
 		return;
 	end
+	-- a placement or chooser mode (trade route ...): selecting the capital would cancel it
+	if UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION or HubCore.IsModeOpen( "placement" ) then
+		OutputMessageToScreenReader( "Escape first" );
+		return;
+	end
 	local selected:table = UI.GetHeadSelectedCity();
 	if selected ~= nil and selected:GetOwner() == capital:GetOwner() and selected:GetID() == capital:GetID() then
 		OutputMessageToScreenReader( "Capital: " .. Locale.Lookup( capital:GetName() ) );

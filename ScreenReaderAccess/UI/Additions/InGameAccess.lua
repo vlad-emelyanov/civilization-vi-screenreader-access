@@ -177,7 +177,11 @@ end
 function Hub.UnitActionsKey()
 	local mode:table = HubCore.m_mode;
 	if mode ~= nil and mode.name ~= "menu" then
-		if mode.list ~= nil and mode.list.tabAction ~= nil then mode.list.tabAction(); end
+		if mode.list ~= nil and mode.list.tabAction ~= nil then
+			mode.list.tabAction();
+		else
+			OutputMessageToScreenReader( "Nothing for Tab here" );		-- (regions that use Tab consume it before it becomes an action)
+		end
 		return;
 	end
 	HubMenus.ToggleUnitMenu();

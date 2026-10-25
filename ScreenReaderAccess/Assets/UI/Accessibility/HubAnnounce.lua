@@ -60,22 +60,27 @@ function HubAnnounce.BlockerWithThing( text:string, thing:string, hint:string )
 	return result;
 end
 
--- The unit Enter selects for "Unit needs orders", found without selecting it: the game's UI.SelectNextReadyUnit gives no
--- preview, so this takes the first unit that needs orders after the selected one (unit order, wrapping around).
-function HubAnnounce.NextReadyUnit()
+-- The units that need orders, not counting the selected one. UI.SelectNextReadyUnit has its own order and gives no
+-- preview, so a unit is named only when it is the only candidate.
+function HubAnnounce.ReadyUnits()
 	local player:table = Players[ Game.GetLocalPlayer() ];
-	if player == nil then return nil; end
+	local list:table = {};
+	if player == nil then return list; end
 	local selected:table = UI.GetHeadSelectedUnit();
-	local passed:boolean = ( selected == nil );
-	local first:table, after:table = nil, nil;
 	for _, unit in player:GetUnits():Members() do
-		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "needs orders" then
-			if first == nil then first = unit; end
-			if passed and after == nil then after = unit; end
+		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "needs orders"
+				and not ( selected ~= nil and unit:GetID() == selected:GetID() ) then
+			table.insert( list, unit );
 		end
-		if selected ~= nil and unit:GetID() == selected:GetID() then passed = true; end
 	end
-	return after or first;
+	return list;
+end
+
+-- Pure wording: none -> the plain text, one -> named (thing), several -> the count.
+function HubAnnounce.ReadyUnitsText( text:string, count:number, thing:string )
+	if count == 1 then return HubAnnounce.BlockerWithThing( text, thing, "Enter selects it" ); end
+	if count > 1 then return count .. " units need orders. Enter selects the next one"; end
+	return text;
 end
 
 -- N: the blocker text plus the thing Enter takes you to, when that is cheap to find ("Unit needs orders: Archer, 2 tiles
@@ -83,12 +88,14 @@ end
 function HubAnnounce.BlockerDetail( spoken:string, label:string )
 	local lower:string = string.lower( label );
 	if lower == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" ) ) ) then
-		local unit:table = HubAnnounce.NextReadyUnit();
-		if unit == nil then return nil; end
-		local thing:string = Locale.Lookup( unit:GetName() );
-		local position:string = HubAnnounce.PositionText( Map.GetPlot( unit:GetX(), unit:GetY() ) );
-		if position ~= nil then thing = thing .. ", " .. position; end
-		return HubAnnounce.BlockerWithThing( spoken, thing, "Enter selects it" );
+		local units:table = HubAnnounce.ReadyUnits();
+		local thing:string = nil;
+		if #units == 1 then
+			thing = Locale.Lookup( units[1]:GetName() );
+			local position:string = HubAnnounce.PositionText( Map.GetPlot( units[1]:GetX(), units[1]:GetY() ) );
+			if position ~= nil then thing = thing .. ", " .. position; end
+		end
+		return HubAnnounce.ReadyUnitsText( spoken, #units, thing );
 	elseif lower == string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_PRODUCTION" ) ) ) then
 		local names:table = {};
 		for _, city in Players[ Game.GetLocalPlayer() ]:GetCities():Members() do

@@ -25,6 +25,15 @@ local body2 = src:match("(function HubAnnounce%.BlockerWithThing.-\nend)\n")
 assert(body2, "BlockerWithThing not found")
 assert(loadstring((body2:gsub("(%w+):(%w+)", "%1")), "BlockerWithThing"))()
 local thing = HubAnnounce.BlockerWithThing
+local body4 = src:match("(function HubAnnounce%.ReadyUnitsText.-\nend)\n")
+assert(body4, "ReadyUnitsText not found")
+assert(loadstring((body4:gsub("(%w+):(%w+)", "%1")), "ReadyUnitsText"))()
+
+test("ReadyUnitsText: named only when exactly one", function()
+	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 1, "Archer, in Rome"), "Unit needs orders: Archer, in Rome. Enter selects it", "one")
+	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 3, nil), "3 units need orders. Enter selects the next one", "several")
+	eq(HubAnnounce.ReadyUnitsText("Unit needs orders", 0, nil), "Unit needs orders", "none")
+end)
 
 test("BlockerWithThing: unit, position and hint", function()
 	eq(thing("Unit needs orders", "Archer, 2 tiles east of Rome", "Enter selects it"),
@@ -42,6 +51,7 @@ local body3 = hubsrc:match("(function Hub%.UnitActionsKey.-\nend)\n")
 assert(body3, "UnitActionsKey not found")
 Hub = {}
 HubCore = {}
+OutputMessageToScreenReader = function() end
 local opened, tabbed = 0, 0
 HubMenus = { ToggleUnitMenu = function() opened = opened + 1 end }
 assert(loadstring((body3:gsub("(%w+):(%w+)", "%1")), "UnitActionsKey"))()
