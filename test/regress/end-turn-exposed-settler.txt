@@ -1,17 +1,27 @@
-# Written blind (round 25, G3b/G4): a settler of ours 2 tiles from a barbarian archer, away from every city. The first Enter
-# should say "Settler exposed: ... Enter again ends the turn anyway" and not end the turn; a second Enter within 10 s ends it.
-# The fixtures bug-settler-captured / pt-early-t64 are not in every checkout: the situation is built on early-t60 with the tuner.
+# Round 24: Enter with a builder (or settler) outside a city and a barbarian soldier within 3 tiles warns "Builder exposed: ... Enter again
+# ends the turn anyway" and does not end the turn; any other key in between cancels (the next Enter warns again); a second Enter ends it.
+# Fixture pt-early-t64: builder 3 tiles south-west of Rome, barbarian archer 3 tiles east of it. Our soldiers are removed so the blockers
+# are only production, the builder, the settler (Space skips them) and the city's ranged attack.
 # covers: **/HubEnemies.lua **/HubAnnounce.lua **/InGameAccess.lua
-# no-share-load: spawns units
-load early-t60
+# no-share-load: removes units, ends the turn
+load pt-early-t64
 clear-advisors
-lua GameCore_Tuner local c=Players[0]:GetCities():GetCapitalCity(); for dx=4,6 do local pl=Map.GetPlot(c:GetX()+dx,c:GetY()); if pl and not pl:IsWater() and not pl:IsImpassable() then local b=Map.GetPlot(pl:GetX()+2,pl:GetY()); if b and not b:IsWater() and not b:IsImpassable() then Players[0]:GetUnits():Create(GameInfo.Units["UNIT_SETTLER"].Index, pl:GetX(), pl:GetY()); Players[63]:GetUnits():Create(GameInfo.Units["UNIT_ARCHER"].Index, b:GetX(), b:GetY()) return 1 end end end return 0
-lua InGameAccess local items,sig=HubEnemies.ExposedCivilians(3) return 'EXPOSED '..#items
-expect-lua EXPOSED [1-9]
+lua GameCore_Tuner local p=Players[0] for _,u in p:GetUnits():Members() do local t=GameInfo.Units[u:GetType()].UnitType if t~="UNIT_BUILDER" and t~="UNIT_SETTLER" then p:GetUnits():Destroy(u) end end return 1
 lua InGameAccess return HubEnemies.ExposedText((HubEnemies.ExposedCivilians(3)))
-expect-lua Settler exposed: Barbarian Archer 2 tiles east\. Enter again ends the turn anyway
+expect-lua ^Builder exposed: Barbarian Archer 3 tiles east\. Enter again ends the turn anyway$
 key Enter -Settle 1500
-expect Enter again ends the turn anyway
-key Enter -Settle 3000
-expect Turn ended|Turn \d+
+key Enter -Settle 1500
+key Enter -Settle 1500
+key Space -Settle 1200
+key Space -Settle 1200
+key Space -Settle 1200
+key Enter -Settle 1500
+key Enter -Settle 2000
+key Enter -Settle 2000
+expect ^Builder exposed: Barbarian Archer 3 tiles east\. Enter again ends the turn anyway$
+key Down -Settle 800
+key Enter -Settle 2000
+expect ^Builder exposed: Barbarian Archer 3 tiles east\. Enter again ends the turn anyway$
+key Enter -Settle 4000
+expect Turn ended
 no-lua-errors
