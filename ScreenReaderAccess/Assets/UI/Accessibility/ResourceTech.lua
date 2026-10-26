@@ -34,9 +34,10 @@ local m_byResource:table = nil;			-- resource type -> { improvement row, ... } (
 local m_buildable:table = nil;			-- improvement type -> true when some unit can build it
 local m_techPrereqs:table = nil;		-- tech type -> { prereq tech type, ... }
 local m_civicPrereqs:table = nil;
+local m_traits:table = nil;			-- player id -> { civ, leader, set }, built once per civ and leader
 
 function ResourceTech_ResetCache()
-	m_byResource, m_buildable, m_techPrereqs, m_civicPrereqs = nil, nil, nil, nil;
+	m_byResource, m_buildable, m_techPrereqs, m_civicPrereqs, m_traits = nil, nil, nil, nil, nil;
 end
 
 local function _Index()
@@ -99,23 +100,34 @@ local function _HasCivic( player:table, row:table )
 end
 
 -- True when the player's civ / leader may use this improvement (unique improvements carry a TraitType).
-local function _MayUse( improvement:table, playerId:number )
-	local trait:string = improvement.TraitType;
-	if trait == nil or trait == "" then return true; end
+
+local function _TraitSet( playerId:number )
 	local config:table = PlayerConfigurations[ playerId ];
-	if config == nil or config.GetCivilizationTypeName == nil then return false; end
+	if config == nil or config.GetCivilizationTypeName == nil then return nil; end
 	local civ:string, leader:string = config:GetCivilizationTypeName(), config:GetLeaderTypeName();
+	m_traits = m_traits or {};
+	local cached:table = m_traits[ playerId ];
+	if cached ~= nil and cached.civ == civ and cached.leader == leader then return cached.set; end
+	local set:table = {};
 	if GameInfo.CivilizationTraits ~= nil then
 		for row in GameInfo.CivilizationTraits() do
-			if row.TraitType == trait and row.CivilizationType == civ then return true; end
+			if row.CivilizationType == civ then set[ row.TraitType ] = true; end
 		end
 	end
 	if GameInfo.LeaderTraits ~= nil then
 		for row in GameInfo.LeaderTraits() do
-			if row.TraitType == trait and row.LeaderType == leader then return true; end
+			if row.LeaderType == leader then set[ row.TraitType ] = true; end
 		end
 	end
-	return false;
+	m_traits[ playerId ] = { civ = civ, leader = leader, set = set };
+	return set;
+end
+
+local function _MayUse( improvement:table, playerId:number )
+	local trait:string = improvement.TraitType;
+	if trait == nil or trait == "" then return true; end
+	local set:table = _TraitSet( playerId );
+	return set ~= nil and set[ trait ] == true;
 end
 
 -- The first unmet prerequisite of an improvement: nil (possible now) or { kind, type, name, id }.

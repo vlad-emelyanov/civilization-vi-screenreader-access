@@ -1,5 +1,5 @@
 # Written blind (round 23, G1 "which tech unlocks my resources"). Unverified.
-# The cursor on an unimproved resource tile of the capital: the tile text names what is missing ("Iron, needs Bronze Working")
+# The cursor on an unimproved resource tile of the capital: the tile text names what is missing ("Horses, needs Animal Husbandry")
 # or what is possible now ("Wine, plantation possible"); I adds the full form. The lua step picks the first owned tile whose
 # ResourceTech_Short is not nil and moves the cursor there; it errors when Rome has no such tile (then use another fixture).
 # covers: **/ResourceTech.lua **/PlotDescription.lua **/HubCursor.lua

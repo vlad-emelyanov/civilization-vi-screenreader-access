@@ -246,7 +246,11 @@ local function BuildGo( item:table )
 	local unit:table = UI.GetHeadSelectedUnit();
 	if item.entry.later then
 		-- the cursor is already there (onFocus); the tile cannot be improved yet
-		OutputMessageToScreenReader( "Not yet: needs " .. item.entry.needName );
+		local actionName:string = ( item.entry.needKind == "civic" ) and "ToggleCivicsTree" or "ToggleTechTree";
+		local id = Input.GetActionId( actionName );
+		local key = ( id ~= nil ) and Input.GetGestureDisplayString( id, 0 ) or nil;
+		local hint:string = ( key ~= nil and key ~= "" ) and ( ". " .. key .. " opens the " .. ( item.entry.needKind == "civic" and "civics" or "tech" ) .. " tree" ) or "";
+		OutputMessageToScreenReader( "Not yet: needs " .. item.entry.needName .. hint );
 		return;
 	end
 	HubCore.CloseMode( false, false );

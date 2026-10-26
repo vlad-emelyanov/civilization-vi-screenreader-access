@@ -379,6 +379,7 @@ end
 --	Short description
 -- ===========================================================================
 -- options.excludeUnitId: leave this (own) unit out of the unit list (the selected unit's own plot).
+-- options.resourceTech: add what the resource needs ("Iron, needs Bronze Working"); GetDetailed adds the full form itself.
 -- Order: city, units, terrain/feature, resource, river/coast, improvement/district/wonder, owner, yields, fogged.
 -- Fogged plots: owner, improvement and yields are spoken exactly as the game's own plot tooltip (PlotToolTip.lua)
 -- shows them for revealed plots, so nothing is told that a sighted player would not see; units are only named while
@@ -419,7 +420,8 @@ function PlotDescription_GetShort( plot:table, options:table )
 	for _, t in ipairs(terrain) do table.insert(line, t); end
 	if resource ~= nil then
 		table.insert(line, resource);
-		local tech:string = _ResourceTechText(plot, false);
+		-- only the cursor read asks for it (options.resourceTech): unit lines, places and placement stay short
+		local tech:string = options.resourceTech and _ResourceTechText(plot, false) or nil;
 		if tech ~= nil then table.insert(line, tech); end
 	end
 	if plot:IsRiver() then table.insert(line, _Lower(Locale.Lookup("LOC_TOOLTIP_RIVER"))); end

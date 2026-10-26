@@ -39,7 +39,7 @@ local m_sections:table = {
 		{ action = "KeyNavMoveCellDown",		default = "Shift+Down",	text = "move the map cursor south and read the tile" },
 		{ action = "KeyNavPlotDetails",			default = "I",			text = "detailed description of the cursor tile" },
 		{ action = "KeyNavCursorToSelection",	default = ".",			text = "cursor back to the selected unit or city and read it" },
-		{ keys = "Cursor on a resource",	text = "the tile text adds what the resource needs: \"Iron, needs Bronze Working\" or \"Wine, plantation possible\"; I adds the research turns" },
+		{ keys = "Cursor on a resource",	text = "the tile text adds what the resource needs: \"Horses, needs Animal Husbandry\" or \"Wine, plantation possible\"; I adds the research turns" },
 		{ action = "KeyNavSelectAtCursor",		default = "K",			text = "select your unit or city on the cursor tile, again: the next one there" },
 		{ action = "KeyNavCycleAllUnits",		default = "Control+K",	text = "select the next of all your units, also fortified and automated ones" },
 		{ action = "NextUnit",					default = "]",			text = "next ready unit" },

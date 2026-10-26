@@ -94,6 +94,7 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 	local options:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
+	options.resourceTech = true;
 	local text:string = PlotDescription_GetShort( plot, options );
 	local mode:number = HubTargets.GetTargetMode();
 	local placement:string = HubCore.PlacementPlotText( plot );
