@@ -1,0 +1,7 @@
+turn: 84
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t84: Builder at Antium, X list pick Mine 1 tile east, Enter: 'Builder moving alone, 1 turn. Barbarian Galley 4 tiles from the path. Escort first...' - warning triggered by a ship (galley). Fixture is after the builds.
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1192 KB

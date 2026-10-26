@@ -1,0 +1,7 @@
+turn: 78
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: pt-early-t78: J>Points of interest>Barbarian Outpost Space M Attack party Enter. Heavy Chariot was escorting a Builder; it is now marching to camp, builder dragged to 5 east of Rome, end turn warns Builder exposed to Man-At-Arms
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1169 KB

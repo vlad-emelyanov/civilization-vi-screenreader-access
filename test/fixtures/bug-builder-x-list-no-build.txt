@@ -1,0 +1,7 @@
+turn: 83
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t83: Builder X > pick tile (Farm 3 tiles away / Quarry) > Enter; says Arrived but never builds; next turn reselect needed (X again then Enter on Here, or Tab > Farm). Repro on earlier turn; this save is just after (state fixed)
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1189 KB

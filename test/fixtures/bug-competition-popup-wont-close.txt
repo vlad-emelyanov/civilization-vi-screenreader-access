@@ -1,0 +1,7 @@
+turn: 80
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: pt-early-t78 chain: turn 80 after WC special session; ONGOING COMPETITION popup spoken twice, Enter 'World Congress closed' but WorldCrisisPopup still open per menu
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1174 KB

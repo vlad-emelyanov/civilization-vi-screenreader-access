@@ -1,0 +1,7 @@
+turn: 86
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t86 start: Eureka popup open at turn start (SR spoke Turn 86 + Enemies + Raid), Enter closes it -> Turn 86/Enemies/Raid spoken a second time, no 'Closed'. Fixture is later (notification list open).
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1199 KB

@@ -1,0 +1,7 @@
+turn: 82
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t82 Rome: Control+N > City Ranged Attack > Enter; preview says Builder (captured, escorted) deals 58, 'no defense'; real attack hit the escorting Man-At-Arms for 10. (production chooser of Cumae open on top)
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1184 KB

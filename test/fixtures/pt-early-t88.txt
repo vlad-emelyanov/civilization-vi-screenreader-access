@@ -1,0 +1,7 @@
+turn: 88
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play chain end t88: 4 cities (Rome Cumae Antium Setia), barbarian raid at Rome, 2 builders lost
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1212 KB

@@ -1,0 +1,7 @@
+turn: 87
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t87: Builder at Rome, X > 3rd tile (3 tiles east, barbarians 1 tile away), Enter: it moves at once ('Arrived, 0 of 4 moves') and only then 'Builder moving alone... Man-At-Arms 1 tile from the target'. Warning cannot prevent the move; it is also unsaid for X-list browsing (list does not mark dangerous tiles).
+mod commit: 43bfcf4
+created: 2026-10-26
+size: 1206 KB
