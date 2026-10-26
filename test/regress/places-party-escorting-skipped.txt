@@ -1,0 +1,20 @@
+# Written blind 2026-10-26 (not yet recorded; run civregress --record first). Fixture bug-party-drags-escorted-builder: a Heavy Chariot escorts a Builder, barbarian outpost known.
+# The attack party must skip the escorting Heavy Chariot and say so; the plain list marks it ", escorting Builder". Category order may differ (Threats first): adjust Tabs with --update.
+# covers: **/HubPlaces.lua **/HubEnemies.lua UI/Additions/InGameAccess.lua
+# no-share-load: loads a bug fixture
+load bug-party-drags-escorted-builder
+clear-advisors
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 800
+key Tab -Settle 800
+key Tab -Settle 800
+expect (?i)Points of interest, \d+ of \d+ categories
+expect Barbarian (Camp|Outpost)
+key M -Settle 1500
+expect ^Send a unit to Barbarian (Camp|Outpost)
+expect Attack party.*Skipped: Heavy Chariot, escorting a Builder \(.* on it ends the escort\)|No free unit for an attack party: Heavy Chariot is escorting a Builder
+key Down -Settle 800
+key Down -Settle 800
+key Escape -Settle 1000
+key Escape -Settle 1000
+no-lua-errors

@@ -92,7 +92,10 @@ function Hub.HandleInput( input:table )
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
-	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN and HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
+	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN then
+		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
+		if HubSettle ~= nil and HubSettle.OnOtherKey ~= nil then HubSettle.OnOtherKey( input:GetKey() ); end
+	end
 	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
@@ -123,6 +126,11 @@ function Hub.HandleInput( input:table )
 	-- Just after an attack the end-turn label can flash a governor blocker; Enter would open the Governors screen
 	if key == Keys.VK_RETURN and UI.GetElapsedTime() - HubTargets.attackTime < 5 and Hub.IsGovernorLabel() then
 		if msg == KeyEvents.KeyUp then HubCore.SayResult( "The attack is still resolving, press Enter again in a moment" ); end
+		return true;
+	end
+	-- Enter right after a builder arrived on the tile it was sent to: it builds the improvement chosen in the X list
+	if key == Keys.VK_RETURN and not HubCore.IsGamePopupOpen() and HubSettle.BuildEnterArmed() then
+		if msg == KeyEvents.KeyUp then HubCore.Safe( "ArmedBuild", HubSettle.RunArmedBuild )(); end
 		return true;
 	end
 	-- Enter that would end the turn while a settler or builder stands exposed near a hostile soldier: the first Enter only warns

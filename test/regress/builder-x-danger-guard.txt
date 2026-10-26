@@ -1,0 +1,18 @@
+# Written blind 2026-10-26 (not yet recorded). Fixture bug-builder-danger-warning-after-move: Builder in Rome, X list third tile has a Barbarian Man-At-Arms 1 tile from it.
+# The item says ", danger: ..."; the first Enter only warns and keeps the list open; the second Enter sends the builder.
+# covers: **/HubSettle.lua **/BuildScan.lua UI/Additions/InGameAccess.lua
+# no-share-load: sends a unit
+load bug-builder-danger-warning-after-move
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key X -Settle 2000
+expect ^Tiles to improve near
+key Down -Settle 800
+key Down -Settle 800
+expect danger: .+ \d+ tiles? away
+key Enter -Settle 1200
+expect ^Danger: .+ Enter again sends it anyway
+expect-not moving
+key Enter -Settle 2500
+expect (?i)moving|arrived
+no-lua-errors

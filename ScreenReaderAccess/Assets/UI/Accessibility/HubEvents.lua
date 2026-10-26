@@ -12,6 +12,7 @@ local m_spottedCount		:number = 0;
 --	RESULTS of the player's orders and what happens around the player's units
 -- ===========================================================================
 function HubEvents.OnUnitOperationStarted( ownerID:number, unitID:number, operationID:number )
+	if HubSettle ~= nil and HubSettle.OnUnitOrder ~= nil then HubSettle.OnUnitOrder( ownerID, unitID ); end
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitOperations[ operationID ];
 	if row == nil then return; end
@@ -42,6 +43,7 @@ function HubEvents.OnUnitOperationAdded( ownerID:number, unitID:number, hOperati
 end
 
 function HubEvents.OnUnitCommandStarted( ownerID:number, unitID:number, commandID:number )
+	if HubSettle ~= nil and HubSettle.OnUnitOrder ~= nil then HubSettle.OnUnitOrder( ownerID, unitID ); end
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitCommands[ commandID ];
 	if row == nil then return; end
@@ -121,6 +123,10 @@ function HubEvents.OnUnitMoveComplete( playerID:number, unitID:number, x:number,
 			else
 				text = text .. ", can settle, B to found next turn";
 			end
+		end
+		if record.build ~= nil and HubSettle ~= nil and HubSettle.OnArrived ~= nil then
+			local okBuild:boolean, extra = pcall( HubSettle.OnArrived, unit, plot, record );
+			if okBuild and extra ~= nil then text = text .. ". " .. extra; end
 		end
 		HubCore.SayResult( text );
 		return;
