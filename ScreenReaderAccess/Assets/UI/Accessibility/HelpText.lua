@@ -104,7 +104,7 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "close the browser, the cursor goes back to the unit" },
 	} },
 	{ title = "Places list", entries = {
-		{ action = "KeyNavPlaces",		default = "J",			text = "places list: threats first (a barbarian scout that has seen your city, raiders, enemies next to your settler or builder), cities, units, points of interest (barbarian camps say what guards them; Space says what destroying one gives), blind spots (land near your cities out of sight or unexplored, where barbarian camps can appear), notification places, foreign cities, enemy civilians you can capture" },
+		{ action = "KeyNavPlaces",		default = "J",			text = "places list: threats first (a barbarian scout that has seen your city, raiders, enemies next to your settler or builder), cities, units, points of interest (barbarian camps say what guards them; Space says what destroying one gives), blind spots (land near your cities out of sight or unexplored, where barbarian camps can appear; unexplored areas may include sea and mountains), notification places, foreign cities, enemy civilians you can capture" },
 		{ keys = "Tab and Control+Tab",	text = "next and previous category" },
 		{ keys = "Space",				text = "read the tile and where it is" },
 		{ keys = "Enter",				text = "cursor there, a unit of yours is selected" },

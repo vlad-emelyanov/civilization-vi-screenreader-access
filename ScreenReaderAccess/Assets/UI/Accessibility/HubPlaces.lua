@@ -331,8 +331,12 @@ end
 local m_lastGold		:number = nil;		-- the treasury as the last poll saw it: the baseline of the gold a destroyed camp gives
 local m_goldFrozen		:number = 0;		-- no sampling until this UI time (a camp was just destroyed)
 
+local function ReadGold()
+	return Players[ Game.GetLocalPlayer() ]:GetTreasury():GetGoldBalance();
+end
+
 local function GoldBalance()
-	local ok:boolean, gold = pcall( function() return Players[ Game.GetLocalPlayer() ]:GetTreasury():GetGoldBalance(); end );
+	local ok:boolean, gold = pcall( ReadGold );
 	if ok then return gold; end
 	return nil;
 end
@@ -837,7 +841,17 @@ function HubPlaces.Update( deltaTime:number )
 	if m_campTimer > 0 then return; end
 	m_campTimer = CAMP_POLL_SECONDS;
 	HubPlaces.PushCampState( false );
-	if UI.GetElapsedTime() >= m_goldFrozen then m_lastGold = GoldBalance() or m_lastGold; end
+	-- remembered camps in view: their guards are refreshed, and only then is the treasury sampled (the baseline of a destroyed camp's gold)
+	local campInView:boolean = false;
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	for index, entry in pairs( m_seen ) do
+		if entry.camp == true and vis ~= nil and vis:IsVisible( index ) then
+			campInView = true;
+			local plot:table = Map.GetPlotByIndex( index );
+			if plot ~= nil then RememberPlot( plot, index ); end
+		end
+	end
+	if campInView and UI.GetElapsedTime() >= m_goldFrozen then m_lastGold = GoldBalance() or m_lastGold; end
 end
 
 -- Shutdown / reload of the hub: a stale true must not block the tech tree
@@ -936,13 +950,30 @@ end
 -- "Attack party, send 2 units: Warrior 3 turns, Slinger 4 turns": the two fastest military land units (nil when fewer than two).
 -- Enter orders both; each keeps its own path (members are the single items, with their landing plot).
 local function PartyItem( items:table, place:table )
-	local members:table = {};
+	-- soldiers without queued orders; scouts only when too few others; a city's only defender only when too few others
+	local pool:table = {};
 	for _, item in ipairs( items ) do
-		if item.military and #members < 2 then table.insert( members, item ); end
+		if item.military and not item.busy then table.insert( pool, item ); end
+	end
+	local function Without( list:table, drop:string )
+		local kept:table = {};
+		for _, item in ipairs( list ) do if not item[ drop ] then table.insert( kept, item ); end end
+		return kept;
+	end
+	if #Without( pool, "recon" ) >= 2 then pool = Without( pool, "recon" ); end
+	local free:table = Without( pool, "defends" );
+	local members:table = {};
+	for _, item in ipairs( free ) do if #members < 2 then table.insert( members, item ); end end
+	for _, item in ipairs( pool ) do
+		if item.defends and #members < 2 then table.insert( members, item ); end
 	end
 	if #members < 2 then return nil; end
+	table.sort( members, function( a, b ) return a.turns < b.turns; end );
 	local parts:table = {};
-	for _, member in ipairs( members ) do table.insert( parts, member.name .. " " .. HubCore.Plural( member.turns, "turn", "turns" ) ); end
+	for _, member in ipairs( members ) do
+		local label:string = member.name .. ( member.defends and ( " (leaves " .. member.defends .. " undefended)" ) or "" );
+		table.insert( parts, label .. " " .. HubCore.Plural( member.turns, "turn", "turns" ) );
+	end
 	return {
 		key = "party", name = "Attack party", turns = members[1].turns, members = members,
 		text = "Attack party, send 2 units: " .. table.concat( parts, ", " ),
@@ -980,7 +1011,24 @@ function HubPlaces.BuildSendItems( place:table )
 			local name:string = Locale.Lookup( unit:GetName() );
 			names[ name ] = ( names[ name ] or 0 ) + 1;
 			local item:table = { key = "s:" .. unit:GetID(), unitId = unit:GetID(), name = name, turns = turns, distance = candidates[i].distance, unit = unit };
-			if place.camp then item.military = HubPlaces.IsMilitaryLand( unit ); end
+			if place.camp then
+				item.military = HubPlaces.IsMilitaryLand( unit );
+				if item.military then
+					item.busy = QueuedDestination( unit ) ~= nil;
+					local row:table = GameInfo.Units[ unit:GetUnitType() ];
+					item.recon = ( row ~= nil and row.PromotionClass == "PROMOTION_CLASS_RECON" ) or nil;
+					local here:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+					if here ~= nil and here:IsCity() then
+						local soldiers:number = 0;
+						local okUnits:boolean, inPlot = pcall( Units.GetUnitsInPlot, here );
+						for _, other in ipairs( okUnits and inPlot or {} ) do
+							if other:GetOwner() == unit:GetOwner() and HubPlaces.IsMilitaryLand( other ) then soldiers = soldiers + 1; end
+						end
+						local city:table = Cities.GetCityInPlot( here:GetX(), here:GetY() );
+						if soldiers <= 1 and city ~= nil then item.defends = Locale.Lookup( city:GetName() ); end
+					end
+				end
+			end
 			if near ~= nil then item.nearX, item.nearY, item.ring = near:GetX(), near:GetY(), ring; end
 			table.insert( items, item );
 		end
