@@ -165,3 +165,112 @@ sec("blockers", function()
   for k, v in pairs(EndTurnBlockingTypes) do if v == b then return k end end
   return tostring(b)
 end)
+
+-- Threats and opportunities around our cities (UNVERIFIED like the rest; each section is pcall-wrapped by sec()).
+local function ourCities()
+  local r = {}
+  for _, c in p:GetCities():Members() do r[#r + 1] = c end
+  return r
+end
+local function dist(x1, y1, x2, y2) return Map.GetPlotDistance(x1, y1, x2, y2) end
+
+local function list(r)
+  table.sort(r)
+  return #r == 0 and "none" or ("\n  - " .. table.concat(r, "\n  - "))
+end
+
+sec("hostile units near cities", function()
+  local vis = PlayersVisibility[pid]
+  local cities = ourCities()
+  local r = {}
+  local ids = {}   -- GetAliveMajorIDs / GetAliveMinorIDs return ids, GetAliveBarbarians returns player objects
+  for _, id in ipairs(PlayerManager.GetAliveMajorIDs()) do ids[#ids + 1] = id end
+  pcall(function() for _, id in ipairs(PlayerManager.GetAliveMinorIDs()) do ids[#ids + 1] = id end end)
+  pcall(function() for _, b in ipairs(PlayerManager.GetAliveBarbarians()) do ids[#ids + 1] = b:GetID() end end)
+  for _, id in ipairs(ids) do
+    if id ~= pid then
+      local o = Players[id]
+      local barb = false
+      pcall(function() barb = o:IsBarbarian() end)
+      local war = false
+      pcall(function() war = p:GetDiplomacy():IsAtWarWith(id) end)
+      if barb or war then
+        for _, u in o:GetUnits():Members() do
+          local ux, uy = u:GetX(), u:GetY()
+          if vis:IsVisible(ux, uy) then
+            local best, bc = 99, nil
+            for _, c in ipairs(cities) do
+              local d = dist(ux, uy, c:GetX(), c:GetY())
+              if d < best then best, bc = d, c end
+            end
+            if bc and best <= 6 then
+              r[#r + 1] = string.format("%s (%s) %d tiles from %s at %d,%d", short(GameInfo.Units[u:GetType()].UnitType, "UNIT_"),
+                barb and "barbarian" or civName(id), best, Locale.Lookup(bc:GetName()), ux, uy)
+            end
+          end
+        end
+      end
+    end
+  end
+  return list(r)
+end)
+
+sec("unimproved resources in city plots", function()
+  local vis = PlayersVisibility[pid]
+  local r = {}
+  for _, c in ipairs(ourCities()) do
+    local plots = {}
+    pcall(function() plots = Map.GetCityPlots():GetPurchasedPlots(c) end)
+    for _, idx in ipairs(plots) do
+      local plot = Map.GetPlotByIndex(idx)
+      local rt = plot:GetResourceType()
+      if rt ~= nil and rt >= 0 and plot:GetImprovementType() < 0 and plot:GetOwner() == pid and vis:IsRevealed(plot:GetX(), plot:GetY()) then
+        local row = GameInfo.Resources[rt]
+        local seen = true
+        pcall(function() seen = p:GetResources():IsResourceVisible(row.Hash) end)
+        if seen then
+          local how = {}
+          for v in GameInfo.Improvement_ValidResources() do
+            if v.ResourceType == row.ResourceType then
+              local imp = GameInfo.Improvements[v.ImprovementType]
+              local need = "no prerequisite"
+              if imp.PrereqTech then
+                local t = GameInfo.Technologies[imp.PrereqTech]
+                need = (p:GetTechs():HasTech(t.Index) and "tech known " or "needs tech ") .. short(imp.PrereqTech, "TECH_")
+              elseif imp.PrereqCivic then
+                local cv = GameInfo.Civics[imp.PrereqCivic]
+                need = (p:GetCulture():HasCivic(cv.Index) and "civic known " or "needs civic ") .. short(imp.PrereqCivic, "CIVIC_")
+              end
+              how[#how + 1] = short(v.ImprovementType, "IMPROVEMENT_") .. " (" .. need .. ")"
+            end
+          end
+          r[#r + 1] = string.format("%s at %d,%d in %s: %s", short(row.ResourceType, "RESOURCE_"), plot:GetX(), plot:GetY(),
+            Locale.Lookup(c:GetName()), #how == 0 and "no improvement" or join(how, " / "))
+        end
+      end
+    end
+  end
+  return list(r)
+end)
+
+sec("barbarian camps seen", function()
+  local camp = GameInfo.Improvements["IMPROVEMENT_BARBARIAN_CAMP"]
+  if not camp then return "none (no camp improvement type)" end
+  local vis = PlayersVisibility[pid]
+  local cities = ourCities()
+  local r = {}
+  for i = 0, Map.GetPlotCount() - 1 do
+    local plot = Map.GetPlotByIndex(i)
+    local x, y = plot:GetX(), plot:GetY()
+    if vis:IsRevealed(x, y) and plot:GetImprovementType() == camp.Index then
+      local best, bc = 99, nil
+      for _, c in ipairs(cities) do
+        local d = dist(x, y, c:GetX(), c:GetY())
+        if d < best then best, bc = d, c end
+      end
+      r[#r + 1] = string.format("camp at %d,%d (%s)%s", x, y, vis:IsVisible(x, y) and "visible now" or "remembered",
+        bc and string.format(", %d tiles from %s", best, Locale.Lookup(bc:GetName())) or "")
+    end
+  end
+  return list(r)
+end)

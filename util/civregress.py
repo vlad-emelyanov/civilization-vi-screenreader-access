@@ -580,6 +580,9 @@ class ScriptResult:
         self.aborted = None  # reason string
         self.loaded = None   # fixture the game is in at the end (None after an abort)
         self.seconds = 0.0   # wall time of the script
+        self.flaky = False   # failed first, passed on the end-of-run retry (retry_failed)
+        self.first_verdict = self.retry_verdict = None
+        self.second_attempt_failed = False
         self.retried = False  # failed with a shared load, then passed/failed again with a fresh one
         self.loads = 0       # real loads done by the script
         self.load_skipped = False  # the load was skipped (shared with the previous script) and the script ran on that game
@@ -856,7 +859,51 @@ def order_scripts(scripts):
     return [item for f in order for item in sorted(groups[f], key=rank)]
 
 
-def run_all(scripts, runner, share_load=False, out=print, switch=None):
+def retry_failed(results, scripts, runner, out=print, switch=None):
+    """End-of-run flake retry: every failed (or aborted, not locked) script runs once more with a fresh load. A pass counts
+    (r.flaky = verdict of the first attempt, r.first_verdict, the retry replaces the result); a second failure stays a failure
+    (r.second_attempt_failed). Both attempts' verdict lines are printed."""
+    by_name = dict(scripts)
+    for i, r in enumerate(results):
+        if r.ok or r.aborted == "locked" or r.name not in by_name:
+            continue
+        steps = by_name[r.name]
+        first = verdict_line(r)
+        out("RETRY %s (end of run, fresh load); first attempt: %s" % (r.name, first))
+        opts = getattr(steps, "options", frozenset())
+        steps.advisor_off = switch is not None and "advisor" not in opts
+        t0 = time.time()
+        try:
+            if switch is not None and opts:
+                _switch_options(switch, opts, out)
+            r2 = run_script(r.name, steps, runner, out, skip_load=False)
+        except LockedError as e:
+            out("LOCKED: %s" % e)
+            break
+        finally:
+            if switch is not None and opts:
+                _switch_options(switch, (), out)
+        r2.seconds = r.seconds + (time.time() - t0)
+        r2.first_verdict = first
+        r2.retry_verdict = verdict_line(r2)
+        r2.retried = True
+        if r2.ok:
+            r2.flaky = True
+            out("FLAKY %s: first attempt %s; retry %s" % (r.name, first, r2.retry_verdict))
+        else:
+            r.second_attempt_failed = True
+            r2.second_attempt_failed = True
+            out("STILL FAILING %s: first attempt %s; retry %s" % (r.name, first, r2.retry_verdict))
+        results[i] = r2
+    return results
+
+
+def verdict_line(r):
+    """'3 passed, 1 failed[, ABORTED: x]' for one ScriptResult."""
+    return "%d passed, %d failed%s" % (r.passed, r.failed, ", ABORTED: " + r.aborted if r.aborted else "")
+
+
+def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=False):
     """Returns a list of ScriptResult. scripts: [(name, steps)] (already ordered).
     Load sharing: a script may skip its load when the previous script left the same fixture AND a reset check proved the game is
     back in the state a fresh load gives (reset_check: nothing open, hub in plain map mode, turn/gold/units/cities as right
@@ -934,14 +981,16 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None):
                 _switch_options(switch, (), out)
         r.seconds = time.time() - t0
         results.append(r)
+    if retry:
+        retry_failed(results, scripts, runner, out, switch)
     return results
 
 
-def run_with_test_options(scripts, runner, share, use_test_options=True, out=print, testopts_mod=None):
+def run_with_test_options(scripts, runner, share, use_test_options=True, out=print, testopts_mod=None, retry=False):
     """run_all under the test game options (testopts.py on ... restore in a finally, also after a crashed game: restore then
     edits UserOptions.txt). use_test_options=False (--real-options): plain run_all. Manual recovery: python util/testopts.py restore"""
     if not use_test_options:
-        return run_all(scripts, runner, share, out)
+        return run_all(scripts, runner, share, out, retry=retry)
     try:
         if testopts_mod is None:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -I (civctl regress) has no util/ on sys.path
@@ -951,9 +1000,9 @@ def run_with_test_options(scripts, runner, share, use_test_options=True, out=pri
             raise RuntimeError("testopts on refused")
     except Exception as e:
         out("WARNING: test options not applied (%s); running with the real options" % e)
-        return run_all(scripts, runner, share, out)
+        return run_all(scripts, runner, share, out, retry=retry)
     try:
-        return run_all(scripts, runner, share, out, switch=testopts_mod.switch)
+        return run_all(scripts, runner, share, out, switch=testopts_mod.switch, retry=retry)
     finally:
         try:
             testopts_mod.cmd_restore(out)
@@ -980,7 +1029,9 @@ def timing_table(results):
     lines = []
     for r in results:
         verdict = "ABORTED" if r.aborted else ("PASS" if r.ok else "FAIL")
-        if r.retried:
+        if r.flaky:
+            verdict = "FLAKY %s (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict)
+        elif r.retried:
             verdict += " (after a fresh-load retry)"
         lines.append("  %-*s  %8s  %s  [%s]" % (w, r.name, format_duration(r.seconds), verdict, breakdown(r)))
     return lines
@@ -1060,8 +1111,56 @@ def script_scenarios(steps):
     return {s.arg for s in steps if s.kind == "scenario"}
 
 
-def select_changed(scripts, changed):
+# Lines a core file may gain without selecting every script: wiring only (the registrations of InGameAccess.lua / HubCore.lua).
+_REGISTRATION = re.compile(
+    r"^(?:"
+    r"(?:local\s+\w+\s*=\s*)?include\s*\(\s*[\"'][\w.]+[\"']\s*(?:,\s*true\s*)?\)\s*;?"
+    r"|(?:HubCore\.(?:AddEvent|Listen)|Hub\.RegisterAction)\s*\(.*\)\s*;?"
+    r"|(?:LuaEvents|Events)\.\w+\.Add\s*\(.*\)\s*;?"
+    r")\s*(?:--.*)?$")
+
+
+_NOT_MODULES = {"HubCore", "Hub", "Events", "LuaEvents", "Locale", "Game", "Players", "GameInfo"}
+
+
+def registration_modules(code):
+    """Module names a registration line refers to (include("X") -> X; X.Y tokens other than the registrar / engine tables)."""
+    m = re.match(r"^(?:local\s+\w+\s*=\s*)?include\s*\(\s*[\"']([\w.]+)[\"']", code)
+    if m:
+        return {m.group(1)}
+    return {t for t in re.findall(r"\b([A-Za-z_]\w*)\.\w+", re.sub(r"\"[^\"]*\"", "", code)) if t not in _NOT_MODULES}
+
+
+def registration_only(diff_lines, changed=()):
+    """(True, [ignored lines verbatim]) when a unified diff (-U0) of one core file only adds single-line registrations
+    (include(...), HubCore.AddEvent / Listen, Hub.RegisterAction, LuaEvents.X.Add / Events.X.Add), blank lines or `--` comments
+    (`--[[` is not a comment here), removes only blank / comment lines, AND every registration names a module (include("HubFoo"),
+    HubFoo.OnBar) whose non-core file HubFoo.lua is itself in `changed` (the scripts covering it get selected instead). A
+    registration naming no module, or an unchanged one, is a behaviour change: (False, []). An empty diff is (False, [])."""
+    names = {os.path.basename(c.replace("\\", "/")) for c in changed if not path_matches(c.replace("\\", "/"), CORE_GLOBS)}
+    ignored, seen = [], False
+    for l in diff_lines:
+        if l.startswith(("+++", "---", "@@", "diff ", "index ")) or l[:1] not in ("+", "-"):
+            continue
+        body = l[1:].strip()
+        seen = True
+        if not body or (body.startswith("--") and not body.startswith("--[")):
+            continue
+        code = body.split("--")[0]
+        if (l[0] == "-" or "--[" in body or not _REGISTRATION.match(body) or code.count("(") != code.count(")")
+                or re.search(r"\bfunction\b", code)):
+            return False, []
+        mods = registration_modules(code.strip())
+        if not mods or any(m + ".lua" not in names for m in mods):
+            return False, []
+        ignored.append(body)
+    return seen, ignored
+
+
+def select_changed(scripts, changed, core_diff=None, notes=None):
     """scripts: [(name, steps)]; changed: repo-relative changed paths.
+    core_diff: optional path -> -U0 diff lines of that core file; a registration-only diff (registration_only) is not a core
+    change and adds "core file X: registration-only diff, ignored" to the notes list.
     Returns (selected {name: reason}, uncovered [mod paths no script covers]). Every script is selected when a core file changed;
     scripts without a `# covers:` header are always selected."""
     paths = [c.replace("\\", "/") for c in changed]
@@ -1069,10 +1168,21 @@ def select_changed(scripts, changed):
     for name, steps in scripts:
         if not getattr(steps, "covers", ()):
             selected[name] = "no '# covers:' header"
+    ignored = set()
     for p in paths:
         if p.startswith(MOD_DIR) and path_matches(p, CORE_GLOBS):
+            d = core_diff(p) if core_diff else None
+            ok, lines = registration_only(d, paths) if d is not None else (False, [])
+            if ok:
+                ignored.add(p)
+                if notes is not None:
+                    notes.append("core file %s: registration-only diff, ignored (the files they name are changed too):" % p)
+                    notes.extend("    " + x for x in lines)
+                continue
             return {name: "core file changed: %s" % p for name, _ in scripts}, []
     for p in paths:
+        if p in ignored:
+            continue
         hit = False
         m = re.match(r"^test/regress/([^/]+)\.txt$", p)
         for name, steps in scripts:
@@ -1091,6 +1201,63 @@ def select_changed(scripts, changed):
         if not hit and p.startswith(MOD_DIR) and not p.endswith((".civ6proj", ".modinfo")):
             uncovered.append(p)
     return {n: selected[n] for n, _ in scripts if n in selected}, uncovered
+
+
+# ---------------------------------------------------------------- impact (stale-script search, pure text)
+
+_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'')
+
+
+def find_impact(texts, directory=None):
+    """[(script, line number, line)] for every expect / expect-not line (test/regress/*.txt, no .recorded.txt) whose regex matches
+    one of `texts` or whose text contains one of them as a substring."""
+    directory = directory or REGRESS_DIR
+    found = []
+    for fn in sorted(os.listdir(directory)):
+        if not fn.endswith(".txt") or fn.endswith(".recorded.txt"):
+            continue
+        with open(os.path.join(directory, fn), encoding="utf-8-sig") as f:
+            for no, raw in enumerate(f.read().splitlines(), 1):
+                line = raw.strip()
+                kind, _, arg = line.partition(" ")
+                if line.startswith("#") or kind.lower() not in CHECKS or not arg.strip():
+                    continue
+                arg = arg.strip()
+                try:
+                    rx = re.compile(arg)
+                except re.error:
+                    rx = None
+                if any(t in arg or (rx is not None and rx.search(t)) for t in texts):
+                    found.append((fn[:-4], no, line))
+    return found
+
+
+def removed_literals(diff_lines, min_len=4):
+    """String literals (>= min_len chars) on removed `-` lines of a unified diff that are not on an added `+` line too."""
+    def lits(prefix):
+        out = []
+        for l in diff_lines:
+            if l.startswith(prefix) and not l.startswith(prefix * 3):
+                for m in _LITERAL.finditer(l[1:]):
+                    t = m.group(1) if m.group(1) is not None else m.group(2)
+                    if len(t) >= min_len:
+                        out.append(t)
+        return out
+    added = set(lits("+"))
+    seen, res = set(), []
+    for t in lits("-"):
+        if t not in added and t not in seen:
+            seen.add(t)
+            res.append(t)
+    return res
+
+
+def print_impact(texts, out=print):
+    hits = find_impact(texts)
+    for name, no, line in hits:
+        out("%s:%d: %s" % (name, no, line))
+    out("impact: %d line(s) in %d script(s) for %d text(s)" % (len(hits), len({h[0] for h in hits}), len(texts)))
+    return hits
 
 
 def last_green_path(directory=None):
@@ -1207,8 +1374,11 @@ def select_for_changed(scripts, base=None, out=print):
         out("changed: %s -> running ALL %d scripts" % (
             "no recorded green `regress all` (%s)" % last_green_path() if not base else "base %s is unknown to git" % base, len(scripts)))
         return scripts
-    selected, uncovered = select_changed(scripts, changed)
+    notes = []
+    selected, uncovered = select_changed(scripts, changed, lambda p: git_out(["diff", "-U0", base, "--", p]), notes)
     out("changed: base %s (%s), %d changed file(s) -> %d of %d scripts" % (base[:10], base_src, len(changed), len(selected), len(scripts)))
+    for n in notes:
+        out("  " + n)
     for n, why in selected.items():
         out("  select %-40s %s" % (n, why))
     for p in uncovered:
@@ -1234,8 +1404,22 @@ def main(argv=None):
     ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
     ap.add_argument("--no-batch", action="store_true", help="start powershell.exe for every civctl call (default: one long-lived `civctl batch` process)")
     ap.add_argument("--real-options", action="store_true", help="do not apply the test game options (testopts.py: advisor off, quick combat/movement) for this run")
+    ap.add_argument("--no-retry", action="store_true", help="`all` / `changed` retry each failed script once with a fresh load at the end (a pass = FLAKY, run still green); this disables it")
+    ap.add_argument("--impact", nargs="+", metavar="TEXT", help="offline: list the expect lines of test/regress/*.txt that match (regex) or contain any of these old texts, then exit")
+    ap.add_argument("--impact-diff", metavar="REV", help="offline: like --impact with the string literals (>= 4 chars) removed from ScreenReaderAccess/**/*.lua in the diff against REV")
     ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
+    if a.impact or a.impact_diff:
+        texts = list(a.impact or [])
+        if a.impact_diff:
+            diff = git_out(["diff", "-U0", a.impact_diff, "--", MOD_DIR + "*.lua"])
+            if diff is None:
+                print("ERROR: unknown revision %s" % a.impact_diff, file=sys.stderr)
+                return 2
+            texts += removed_literals(diff)
+            print("old texts: %d" % len(texts))
+        print_impact(texts)
+        return 0
     if a.clear_advisors:
         owner = a.owner or os.environ.get("CIVCTL_OWNER")
         if not owner:
@@ -1286,7 +1470,8 @@ def main(argv=None):
     try:
         runner = CivctlRunner(owner=owner, batch=not a.no_batch)
         try:
-            results = run_with_test_options(scripts, runner, share, not a.real_options)
+            results = run_with_test_options(scripts, runner, share, not a.real_options,
+                                            retry=(run_everything or changed_mode) and not a.no_retry and not record)
         finally:
             runner.close()
     finally:
@@ -1307,6 +1492,11 @@ def main(argv=None):
     print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (
         len(results), p, f, "; aborted: " + ", ".join(r.name for r in results if r.aborted) if any(r.aborted for r in results) else "",
         "; SKIPPED-ALL: " + ", ".join(r.name for r in results if r.skipped_all) if any(r.skipped_all for r in results) else ""))
+    for r in results:
+        if r.flaky:
+            print("FLAKY %s  (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict))
+        elif r.second_attempt_failed:
+            print("STILL FAILING %s  (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict))
     print("TOTAL: %s" % format_duration(time.time() - t0))
     return 0 if all(r.ok for r in results) else 1
 
