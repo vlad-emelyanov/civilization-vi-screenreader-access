@@ -112,7 +112,7 @@ function Hub.HandleInput( input:table )
 			return true;
 		end
 		-- Space in an attack mode: the combat modifiers of both sides for the cursor tile
-		if key == Keys.VK_SPACE and HubTargets.IsAttackMode( HubTargets.GetTargetMode() ) then
+		if key == Keys.VK_SPACE and HubTargets.IsModifierMode( HubTargets.GetTargetMode() ) then
 			if msg == KeyEvents.KeyUp then HubCore.Safe( "CombatModifiers", HubTargets.SpeakCombatModifiers )(); end
 			return true;
 		end

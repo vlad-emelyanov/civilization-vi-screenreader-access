@@ -86,6 +86,6 @@ globals = {
 	"TreatClanText_Opening", "TreatClanText_Target", "TreatClanText_Item", "TreatClanText_Result",
 	"PlotDescription_ResetClanMode", "PlotDescription_GetClan", "PlotDescription_GetClanPhrase", "PlotDescription_CanTreatWithClan",
 	"CombatText_ModifierLine", "CombatText_StrengthPhrase", "CombatText_Total", "CombatText_Modifiers",
-	"ResourceTech_Info","ResourceTech_Short", "ResourceTech_Full", "ResourceTech_NeedText", "ResourceTech_Turns", "ResourceTech_Scan", "ResourceTech_NodePhrase", "ResourceTech_GroupText", "ResourceTech_CityResources", "ResourceTech_PathTurns", "ResourceTech_ResetCache",
+	"ResourceTech_Info", "ResourceTech_Short", "ResourceTech_Full", "ResourceTech_NeedText", "ResourceTech_Turns", "ResourceTech_Scan", "ResourceTech_NodePhrase", "ResourceTech_GroupText", "ResourceTech_CityResources", "ResourceTech_PathTurns", "ResourceTech_ResetCache",
 	"TreeNav_Entries", "TreeNav_PrereqNames", "TreeNav_LeadsTo", "TreeNav_UnlockEntries", "TreeNav_QueuePos", "SRA_TreeInput",
 }

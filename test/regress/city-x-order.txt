@@ -10,7 +10,7 @@ key R -Settle 1500
 expect ^City ranged attack
 # the first X may still be the Musketman the cursor starts on; the next one must be the Crossbowman, never the peaceful Builder
 key X -Settle 1500
-expect (?i)valid target. Barbarian (Musketman|Crossbowman)
+expect (?i)valid target(, .*)?\. Barbarian (Musketman|Crossbowman)
 key X -Settle 1500
-expect (?i)valid target. Barbarian (Musketman|Crossbowman)
+expect (?i)valid target(, .*)?\. Barbarian (Musketman|Crossbowman)
 no-lua-errors

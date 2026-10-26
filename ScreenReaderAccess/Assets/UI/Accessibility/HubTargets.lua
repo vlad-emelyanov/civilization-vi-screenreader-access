@@ -200,22 +200,42 @@ local function AttackCombatType( mode:number, unit:table )
 	return CombatTypes.RANGED;
 end
 
+-- The attacker of the combat simulation: the selected unit, or the city / district of the city attack modes.
+local function CombatAttacker( mode:number )
+	if mode == InterfaceModeTypes.CITY_RANGE_ATTACK then return UI.GetHeadSelectedCity(), CombatTypes.RANGED; end
+	if mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK then
+		local district:table = UI.GetHeadSelectedDistrict();
+		if district == nil then district = UI.GetHeadSelectedCity(); end
+		return district, CombatTypes.RANGED;
+	end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return nil, nil; end
+	return unit, AttackCombatType( mode, unit );
+end
+
+-- Modes in which Space reads the combat modifiers (the others keep their old behaviour).
+function HubTargets.IsModifierMode( mode:number )
+	if mode == nil then return false; end
+	if mode == InterfaceModeTypes.MOVE_TO then return m_attackIntent; end
+	return mode == InterfaceModeTypes.RANGE_ATTACK or mode == InterfaceModeTypes.AIR_ATTACK or IsCityMode( mode );
+end
+
 -- Space in an attack target mode: the modifier lines of both sides for the cursor tile.
 function HubTargets.SpeakCombatModifiers()
 	local mode:number = HubTargets.GetTargetMode();
-	local unit:table = UI.GetHeadSelectedUnit();
-	if mode == nil or not HubTargets.IsAttackMode( mode ) or unit == nil then return; end
+	if not HubTargets.IsModifierMode( mode ) then return; end
 	local x:number, y:number = HubCursor.GetCursor();
 	local plot:table = Map.GetPlot( x, y );
 	if plot == nil or not HubTargets.IsAttackTarget( plot ) then
 		OutputMessageToScreenReader( "No target here to compare" );
 		return;
 	end
-	local results:table = SimulateAttack( unit, plot, AttackCombatType( mode, unit ) );
+	local source:table, combatType = CombatAttacker( mode );
+	local results:table = ( source ~= nil ) and SimulateAttack( source, plot, combatType ) or nil;
 	local attacker:table = results ~= nil and results[CombatResultParameters.ATTACKER] or nil;
 	local defender:table = results ~= nil and results[CombatResultParameters.DEFENDER] or nil;
 	if attacker == nil or defender == nil then
-		OutputMessageToScreenReader( "No combat preview for this tile" );
+		OutputMessageToScreenReader( IsCityMode( mode ) and "No modifier preview for a city attack" or "No combat preview for this tile" );
 		return;
 	end
 	OutputMessageToScreenReader( CombatText_Modifiers( ModifierLines( attacker ), ModifierLines( defender ) ) );
@@ -352,7 +372,11 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 			local city:table = UI.GetHeadSelectedCity();
 			local targets:table = ( city ~= nil ) and GetCityAttackTargets( city ) or nil;
 			if targets == nil then return nil; end
-			if targets[ plot:GetIndex() ] then return "valid target"; end
+			if targets[ plot:GetIndex() ] then
+				local source:table, combatType = CombatAttacker( mode );
+				local preview:string = ( source ~= nil ) and CombatPreviewText( source, plot, combatType ) or nil;
+				return "valid target" .. ( preview ~= nil and ( ", " .. preview ) or "" );
+			end
 			return "no target";
 		end
 		return nil;

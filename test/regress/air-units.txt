@@ -31,7 +31,7 @@ lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units
 key R -Settle 1500
 expect ^Air attack: choose a tile
 key X -Settle 1500
-expect valid target, deals \d+ damage.*Ottomans Modern Armor
+expect valid target, .*deals \d+ damage.*Ottomans Modern Armor
 key Enter -Settle 6000
 expect ^Attacking Ottomans Modern Armor
 wait Modern Armor takes \d+ damage -Timeout 20

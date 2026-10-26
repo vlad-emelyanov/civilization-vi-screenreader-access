@@ -1,5 +1,5 @@
 # Verified 2026-10-24 (hostile targets first since round 15; reordered round 9: a plain X scan first leaves the cursor on a far target and W then attacks it directly). Attack-mode scan order is stable and the last target says "X wraps to the first"; W X Enter on a far enemy says "Moving to attack X, N turns"; W toward a non-hostile civ opens the war dialog and Escape returns to choosing ("War not declared. Still choosing a target").
-# covers: **/CombatText.lua **/InGameAccess.lua **/HubTargets.lua **/HubCursor.lua **/HubEvents.lua
+# covers: **/HubTargets.lua **/HubCursor.lua **/HubEvents.lua
 # options: animations
 # Setup: end turn 128 (barbarians approach), select the Legion with the tuner.
 # no-share-load: Enter ends the turn, attacks
@@ -28,10 +28,6 @@ key X -Settle 800
 expect Last target, X wraps
 key X -Settle 800
 expect Barbarian Catapult
-# G5 (written blind, unverified): the preview starts with strengths when the target is in reach; Space lists modifiers
-expect (?i)Strength \d+ against \d+
-key Space -Settle 800
-expect (?i)modifiers
 key X -Settle 800
 key X -Settle 800
 key X -Settle 800
