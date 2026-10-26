@@ -2720,8 +2720,12 @@ function InitializeKeyBinding()
 			local lost = {};
 			for _, bi in ipairs(m_bindingInfo) do
 				local old = before[bi.actionId];
-				if bi.actionId ~= recordedAction and old ~= nil and (old[1] ~= bi.g1 or old[2] ~= bi.g2) then
-					table.insert(lost, bi.name);
+				if old ~= nil and (old[1] ~= bi.g1 or old[2] ~= bi.g2) then
+					if bi.actionId ~= recordedAction then
+						table.insert(lost, bi.name);
+					elseif (_CurrentActionIndex == 0 and old[2] ~= bi.g2) or (_CurrentActionIndex ~= 0 and old[1] ~= bi.g1) then
+						table.insert(lost, bi.name..((_CurrentActionIndex == 0) and " alternate" or " primary"));
+					end
 				end
 			end
 			m_swallowKeyUp = m_captureKeyDown;
@@ -2766,6 +2770,7 @@ end
 -------------------------------------------------------------------------------
 function OnShow()
 	KeyNavEditBox_Cancel();
+	pcall(LuaEvents.KeyNavBindingCapture, false);
 	RefreshKeyBinding();
 	DumpKeyMap();
 	UserConfiguration.SaveCheckpoint();
@@ -2944,7 +2949,12 @@ function Initialize()
 	LuaEvents.PBCNotifyRemind_ShowOptions.Add(OnPBCNotifyRemind_ShowOptions);
 
 	ContextPtr:SetShowHandler( OnShow );
-	ContextPtr:SetHideHandler( function() KeyNavEditBox_Cancel(); end );
+	ContextPtr:SetHideHandler( function()
+		KeyNavEditBox_Cancel();
+		-- hidden while the engine records a key: end the recording so the parent menu gets its keys back
+		if _CurrentAction ~= nil and StopActiveKeyBinding ~= nil then pcall(StopActiveKeyBinding); end
+		pcall(LuaEvents.KeyNavBindingCapture, false);
+	end );
 	ContextPtr:SetInputHandler(InputHandler, true );
 	ContextPtr:SetUpdate( OnOptionsUpdate );
 

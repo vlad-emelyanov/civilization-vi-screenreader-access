@@ -642,6 +642,7 @@ end
 --	receive input from ForgeUI.
 -- ===========================================================================
 function OnShow()
+	m_isKeyBindingCapture = false;	-- safety net: never start deaf to keys
 
 	if m_isClosing then
 		print("Show was requested on menu that is in the midst of closing.");

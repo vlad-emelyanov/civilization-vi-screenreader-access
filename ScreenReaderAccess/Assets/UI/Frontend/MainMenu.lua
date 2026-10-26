@@ -1850,6 +1850,7 @@ end
 
 -- ===========================================================================
 function OnShutdown()
+	LuaEvents.KeyNavBindingCapture.Remove( OnKeyNavBindingCapture );
 	if Controls.Logo:IsTextureLoaded() then
 		Controls.Logo:UnloadTexture();
 	end	
@@ -1948,7 +1949,15 @@ function KeyHandler( key:number )
 	return false;
 end
 
+-- Options (child context) sets this while the engine records a key binding: let every key through, or
+-- Return/Up/Down are eaten on KeyUp and can never be bound.
+local m_isKeyBindingCapture:boolean = false;
+function OnKeyNavBindingCapture( active )
+	m_isKeyBindingCapture = (active == true);
+end
+
 function OnInputHandler( pInputStruct:table )
+	if m_isKeyBindingCapture then return false; end
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then
 		return KeyHandler( pInputStruct:GetKey() );
@@ -2010,6 +2019,7 @@ function Initialize()
 
 	-- LUA Events
 	LuaEvents.FileListQueryResults.Add( OnFileListQueryResults );
+	LuaEvents.KeyNavBindingCapture.Add( OnKeyNavBindingCapture );
 	LuaEvents.MainMenu_ShowAdditionalContent.Add(OnMods);
 	LuaEvents.CivRoyaleIntro_StartMatchMaking.Add(StartRoyaleMatchMaking);
 	LuaEvents.PiratesIntro_StartMatchMaking.Add(StartPiratesMatchMaking);
