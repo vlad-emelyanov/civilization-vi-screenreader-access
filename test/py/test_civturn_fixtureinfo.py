@@ -75,6 +75,28 @@ class FactsTests(unittest.TestCase):
         self.assertIn("civctl load early-t60", fi.check_loaded("early-t60", 59, 59, "other"))
         self.assertIn("turn 59", fi.check_loaded("early-t60", 61, 59, "early-t60"))
 
+    CANNED = ["turn: 60 (your turn)", "hostile units near cities:", "  - WARRIOR (barbarian) 3 tiles from Rome at 12,8",
+              "  - SCOUT (barbarian) 5 tiles from Rome at 14,9", "unimproved resources in city plots: none",
+              "barbarian camps seen: (n/a: attempt to index nil)", "blockers: none"]
+
+    def test_section_counts_from_canned_output(self):
+        counts = fi.section_counts(self.CANNED)
+        self.assertEqual(counts, {"hostile units near cities": 2, "unimproved resources in city plots": 0, "barbarian camps seen": None})
+        self.assertEqual(fi.format_counts(counts),
+                         "hostile units near cities 2, unimproved resources in city plots 0, barbarian camps seen n/a")
+
+    def test_list_sections_land_in_the_sidecar(self):
+        out = fi.merge_facts(self.SIDECAR, self.CANNED[:4], "(x)")
+        self.assertIn("  hostile units near cities:\n    - WARRIOR (barbarian) 3 tiles from Rome at 12,8\n", out)
+
+    def test_lua_has_the_new_sections(self):
+        with open(fi.FACTS_LUA, encoding="utf-8") as f:
+            code = f.read()
+        for key in fi.LIST_SECTIONS:
+            self.assertIn('sec("%s"' % key, code)
+        for call in ("Improvement_ValidResources", "PrereqTech", "PrereqCivic", "IMPROVEMENT_BARBARIAN_CAMP"):
+            self.assertIn(call, code)
+
     def test_lua_file_exists_and_is_guarded(self):
         with open(fi.FACTS_LUA, encoding="utf-8") as f:
             code = f.read()

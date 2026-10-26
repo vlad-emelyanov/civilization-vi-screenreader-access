@@ -53,6 +53,28 @@ def merge_facts(text, facts_lines, header):
     return "\n".join(out) + "\n"
 
 
+LIST_SECTIONS = ("hostile units near cities", "unimproved resources in city plots", "barbarian camps seen")
+
+
+def section_counts(lines):
+    """Item counts of the list sections of the facts (`name:` then `  - item` lines; `name: none` = 0; n/a = None)."""
+    counts, cur = {}, None
+    for l in lines:
+        m = re.match(r"^([^:\s][^:]*):\s*(.*)$", l)
+        if m:
+            cur = m.group(1) if m.group(1) in LIST_SECTIONS else None
+            if cur:
+                counts[cur] = None if "(n/a:" in m.group(2) else 0
+        elif cur and l.lstrip().startswith("- ") and counts.get(cur) is not None:
+            counts[cur] += 1
+    return counts
+
+
+def format_counts(counts):
+    """'hostile units near cities 2, unimproved resources in city plots 0, ...' for the console line after the facts."""
+    return ", ".join("%s %s" % (k, "n/a" if counts[k] is None else counts[k]) for k in LIST_SECTIONS if k in counts)
+
+
 def check_loaded(name, turn_now, side_turn, loaded_name):
     """None when the loaded game is the fixture, else the reason it is not."""
     if loaded_name != name:
@@ -120,6 +142,7 @@ def main(argv=None):
     na = sum(1 for l in flat if "(n/a:" in l)
     print("facts written to %s (%d lines%s)" % (side, len(flat), ", %d n/a: fix those calls in util/fixture_facts.lua" % na if na else ""))
     print("\n".join(flat))
+    print("counts: " + format_counts(section_counts(flat)))
     return 0
 
 
