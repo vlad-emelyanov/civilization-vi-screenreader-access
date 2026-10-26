@@ -27,8 +27,8 @@ function ShowBoost(queueEntry:table)
 	m_isOnQueue = true;
 
 	-- ScreenReaderAccess mod change: speak the boost (Enter or Escape continues); the hub holds its own announcements meanwhile
-	LuaEvents.SRA_SpeechHold( "BoostUnlocked", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );		-- (the popup may still be hidden for a moment: DelayShow; OnShow takes the hold again)
-	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". Enter to continue");
+	LuaEvents.SRA_SpeechHold( "BoostUnlocked", true, "/InGame/WorldPopups/" .. ContextPtr:GetID(), true );		-- silent: turn-start lines spoken just before are not repeated; (the popup may still be hidden for a moment: DelayShow; OnShow takes the hold again)
+	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". Enter to continue", true);		-- nointerrupt
 
 	PlayAnimations();
 end
@@ -321,7 +321,10 @@ function OnClose()
 	m_isOnQueue = false;
 
 	ShowNextQueuedPopup();
-	if not m_isOnQueue then LuaEvents.SRA_SpeechHold( "BoostUnlocked", false ); end		-- ScreenReaderAccess mod change: no further boost queued
+	if not m_isOnQueue then
+		OutputMessageToScreenReader( "Closed" );		-- ScreenReaderAccess mod change: no further boost queued; the held hub lines follow
+		LuaEvents.SRA_SpeechHold( "BoostUnlocked", false );
+	end
 end
 
 -- ===========================================================================
