@@ -370,7 +370,9 @@ function HubEvents.OnUnitVisibilityChanged( playerID:number, unitID:number, visi
 	local localPlayer:number = Game.GetLocalPlayer();
 	if not HubCore.m_ready or playerID == localPlayer or visibility ~= RevealedState.VISIBLE or not HubCore.IsHostile( playerID ) then return; end
 	local unit:table = Players[ playerID ]:GetUnits():FindID( unitID );
-	if unit == nil or ( unit:GetCombat() <= 0 and unit:GetRangedCombat() <= 0 ) then return; end
+	if unit == nil then return; end
+	if HubEnemies ~= nil and PlotDescription_IsUnitVisible( unit ) then HubEnemies.OnHostileVisible( unit ); end		-- scout alarm, raid, civilian danger
+	if unit:GetCombat() <= 0 and unit:GetRangedCombat() <= 0 then return; end
 	if not PlotDescription_IsUnitVisible( unit ) then return; end
 	HubCore.RememberUnit( unit );
 	local turn:number = Game.GetCurrentGameTurn();

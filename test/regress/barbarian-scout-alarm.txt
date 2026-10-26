@@ -1,0 +1,14 @@
+# Written blind (round 24, G3a): a barbarian scout 3 tiles from Rome sounds the alarm when it comes into view; J lists it under Threats.
+# Scenario barbarian-scout-near-city on early-t60. The alarm needs the scout inside our borders or inside its sight range (heuristic).
+# covers: **/HubEnemies.lua **/HubEvents.lua **/HubPlaces.lua **/HubAnnounce.lua
+# no-share-load: scenario barbarian-scout-near-city
+load early-t60
+scenario barbarian-scout-near-city
+clear-advisors
+wait Alarm: Barbarian Scout has seen -Timeout 10
+expect Alarm: Barbarian Scout has seen \w+, \d+ tiles? [a-z-]+\. If it gets back to its camp, a raid follows\. Kill it: \S+ targets it
+key J -Settle 1500
+expect ^Threats, 1 of \d+ categories, \d+ items?
+expect Barbarian Scout, has seen your city
+key Escape -Settle 800
+no-lua-errors

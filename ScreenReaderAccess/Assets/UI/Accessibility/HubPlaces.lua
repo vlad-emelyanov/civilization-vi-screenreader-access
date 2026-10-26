@@ -340,6 +340,18 @@ function HubPlaces.IsCampRemembered( index:number )
 	return entry ~= nil and entry.camp == true;
 end
 
+-- The plots of the barbarian camps we have seen and not seen gone (from the memory, never a live look at the fog).
+function HubPlaces.RememberedCampPlots()
+	local plots:table = {};
+	for index, entry in pairs( m_seen ) do
+		if entry.camp == true then
+			local plot:table = Map.GetPlotByIndex( index );
+			if plot ~= nil then table.insert( plots, plot ); end
+		end
+	end
+	return plots;
+end
+
 -- Looks at every revealed plot: what is on a VISIBLE plot is remembered (tribal villages, barbarian camps, foreign cities)
 -- and forgotten once seen gone; fogged plots keep the memory. Returns the natural wonders (read live, once per wonder).
 local function ScanSeen( ctx:table )
@@ -499,6 +511,20 @@ local function CaptureItems( ctx:table )
 	return SortItems( items );
 end
 
+-- Alarmed scouts, raiders and the enemies next to a civilian of ours (HubEnemies): the first category while any is active.
+local function ThreatItems( ctx:table )
+	local items:table = {};
+	if HubEnemies == nil then return items; end
+	for _, threat in ipairs( HubEnemies.ThreatItems() ) do
+		local plot:table = Map.GetPlot( threat.x, threat.y );
+		if plot ~= nil then
+			local item:table = MakeItem( threat.key, "threat", threat.name, threat.text .. ", " .. Where( plot, ctx ), plot, ctx );
+			table.insert( items, item );
+		end
+	end
+	return SortItems( items );
+end
+
 -- The categories that have something in them, in this order.
 function HubPlaces.BuildCategories( ctx:table )
 	local cats:table = {};
@@ -506,6 +532,7 @@ function HubPlaces.BuildCategories( ctx:table )
 	if not okScan then print( "HubPlaces scan error: " .. tostring( wonders ) ); end
 	ctx.wonders = okScan and wonders or {};
 	local sources:table = {
+		{ name = "Threats", build = ThreatItems },
 		{ name = "Your cities", build = CityItems }, { name = "Your units", build = UnitItems },
 		{ name = "Points of interest", build = PointItems }, { name = "Notifications", build = NotificationItems },
 		{ name = "Foreign cities", build = ForeignItems }, { name = "Civilians to capture", build = CaptureItems },
@@ -656,7 +683,7 @@ local function SendKey()
 		OutputMessageToScreenReader( "That is a unit of yours. Enter selects it" );
 		return;
 	end
-	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key, capture = ( item.kind == "capture" ) } );
+	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key, capture = ( item.kind == "capture" ), soldiers = ( item.kind == "threat" ) } );
 end
 
 -- T on a clan camp: the banner's own call opens the DLC's Treat With Clan popup (our keyboard copy of it speaks)
@@ -800,7 +827,8 @@ function HubPlaces.BuildSendItems( place:table )
 	if plot == nil then return items; end
 	local candidates:table = {};
 	for _, unit in LocalPlayer():GetUnits():Members() do
-		if unit:GetMaxMoves() > 0 and not ( unit:GetX() == place.x and unit:GetY() == place.y ) and ( not place.capture or HubPlaces.CanCapture( unit ) ) then
+		if unit:GetMaxMoves() > 0 and not ( unit:GetX() == place.x and unit:GetY() == place.y ) and ( not place.capture or HubPlaces.CanCapture( unit ) )
+				and ( not place.soldiers or unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 ) then
 			table.insert( candidates, { unit = unit, distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), place.x, place.y ) } );
 		end
 	end

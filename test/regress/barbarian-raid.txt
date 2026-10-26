@@ -1,0 +1,16 @@
+# Written blind (round 24, G3b): three barbarian soldiers near Rome and a builder of ours next to the horseman. The raid and the
+# civilian-danger lines are spoken when the units come into view (mid-turn) or at the next turn start; J lists them under Threats.
+# Scenario barbarian-raid on early-t60.
+# covers: **/HubEnemies.lua **/HubEvents.lua **/HubPlaces.lua **/HubAnnounce.lua
+# no-share-load: scenario barbarian-raid
+load early-t60
+scenario barbarian-raid
+clear-advisors
+wait Raid: 3 barbarians near -Timeout 10
+expect Raid: 3 barbarians near \w+: Horseman \d+ tiles? [a-z-]+, 2 Warriors \d+ tiles? [a-z-]+\.
+expect Your nearest soldiers:|You have no soldiers near
+expect \w+ near \w+ in danger: Barbarian Horseman 1 tile [a-z-]+\. Move it
+key J -Settle 1500
+expect ^Threats, 1 of \d+ categories, 4 items
+key Escape -Settle 800
+no-lua-errors
