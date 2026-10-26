@@ -108,6 +108,40 @@ function CleanTextForSpeech(text: string)
 	return text;
 end
 
+-- True when the plot has a resource the local player has not discovered yet (the engine still names it in placement conditions).
+function SRPlotResourceHidden( plot:table )
+	if plot == nil then return false; end
+	local resource:number = plot:GetResourceType();
+	if resource == nil or resource < 0 then return false; end
+	local row:table = GameInfo.Resources[ resource ];
+	local localPlayer:number = Game.GetLocalPlayer();
+	if row == nil or localPlayer == nil or localPlayer == -1 then return false; end
+	local resources:table = Players[ localPlayer ]:GetResources();
+	return resources ~= nil and not resources:IsResourceVisible( row.Hash );
+end
+
+-- The game's "Will harvest the X on this tile" sentence for the plot's resource when the player cannot see that resource, else nil.
+function SRHiddenHarvestSentence( plot:table )
+	if not SRPlotResourceHidden( plot ) then return nil; end
+	return Locale.Lookup( "LOC_DISTRICT_ZONE_WILL_HARVEST_RESOURCE", Locale.Lookup( GameInfo.Resources[ plot:GetResourceType() ].Name ) );
+end
+
+-- Placement confirmation text ([NEWLINE]-separated lines) without the sentence that names an undiscovered resource.
+function SRStripHiddenHarvest( plot:table, text:string )
+	local sentence:string = SRHiddenHarvestSentence( plot );
+	if sentence == nil or text == nil then return text; end
+	local out:table = {};
+	local start:number = 1;
+	while true do
+		local a:number, b:number = string.find( text, "[NEWLINE]", start, true );
+		local line:string = string.sub( text, start, a and a - 1 or nil );
+		if line ~= sentence then table.insert( out, line ); end
+		if a == nil then break; end
+		start = b + 1;
+	end
+	return table.concat( out, "[NEWLINE]" );
+end
+
 -- A game tooltip (name line, stats, description, reasons) turned into "Name: description. rest": the description first,
 -- the name line dropped from the tooltip (it is said once) and the description not repeated where the tooltip has it.
 -- name, description (a loc key or text, may be nil) and tooltip are the raw game strings; Locale.Lookup is applied here.

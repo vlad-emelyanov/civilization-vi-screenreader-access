@@ -58,7 +58,7 @@ local function _Contents( plot:table )
 		if row ~= nil and row.Removable then table.insert( list, Locale.Lookup( row.Name ) ); end
 	end
 	local resource:number = plot:GetResourceType();
-	if resource ~= nil and resource >= 0 then
+	if resource ~= nil and resource >= 0 and not SRPlotResourceHidden( plot ) then
 		local row:table = GameInfo.Resources[ resource ];
 		if row ~= nil then table.insert( list, Locale.Lookup( row.Name ) ); end
 	end
@@ -78,7 +78,7 @@ local function _RemovalName( plot:table, text:string )
 		if Locale.Lookup( "LOC_DISTRICT_ZONE_WILL_REMOVE_FEATURE", name ) == text then return name; end
 	end
 	local resource:number = plot:GetResourceType();
-	if resource ~= nil and resource >= 0 and GameInfo.Resources[ resource ] ~= nil then
+	if resource ~= nil and resource >= 0 and GameInfo.Resources[ resource ] ~= nil and not SRPlotResourceHidden( plot ) then
 		local name:string = Locale.Lookup( GameInfo.Resources[ resource ].Name );
 		if Locale.Lookup( "LOC_DISTRICT_ZONE_WILL_HARVEST_RESOURCE", name ) == text then return name; end
 	end
@@ -107,9 +107,12 @@ local function _Conditions( city:table, kind:string, hash:number, plot:table )
 	local removes:table, notes:table = {}, {};
 	local ok:boolean, _, results = pcall( function() return CityManager.CanStartOperation( city, CityOperationTypes.BUILD, params, true ); end );
 	if not ok or results == nil then return removes, notes; end
+	local hidden:string = SRHiddenHarvestSentence( plot );	-- an undiscovered resource is not mentioned at all
 	for _, text in ipairs( _Items( results, CityOperationResults.SUCCESS_CONDITIONS ) ) do
 		local name:string = _RemovalName( plot, text );
-		if name ~= nil then
+		if text == hidden then
+			text = "";
+		elseif name ~= nil then
 			table.insert( removes, name );
 		else
 			text = string.gsub( CleanTextForSpeech( text ), "[%.%s]+$", "" );

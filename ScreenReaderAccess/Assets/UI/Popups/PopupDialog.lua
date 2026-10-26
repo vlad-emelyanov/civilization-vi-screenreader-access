@@ -596,6 +596,13 @@ end
 
 -- ===========================================================================
 function PopupDialogInGame:AddText( message:string )
+	-- Placement confirmation (StrategicView_MapPlacement): do not name a resource the player has not discovered.
+	local px, py = string.match( tostring(self.ID), "^Place%a+At_X(%-?%d+)_Y(%-?%d+)$" );
+	if px ~= nil and Map ~= nil then
+		local ok, stripped = pcall( SRStripHiddenHarvest, Map.GetPlot( tonumber(px), tonumber(py) ), message );
+		if ok and stripped ~= nil then message = stripped; end
+	end
+
 	table.insert(self.m_options, { Type = "Text", Content = message });
 end
 
