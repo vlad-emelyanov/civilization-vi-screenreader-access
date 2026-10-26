@@ -644,6 +644,49 @@ test("M on a camp offers an attack party of the two fastest military land units 
 	for i = #units, 1, -1 do if units[i].id >= 200 then table.remove(units, i) end end
 end)
 
+test("an attack party never takes a soldier that escorts a civilian; it is listed as skipped", function()
+	for i = #units, 1, -1 do if units[i].id >= 70 then table.remove(units, i) end end
+	local types = { [301] = 11, [302] = 11, [303] = 10, [304] = 11 }
+	addUnit(301, "Heavy Chariot", 4, 12)
+	addUnit(303, "Builder", 4, 12)
+	addUnit(302, "Warrior", 8, 12)
+	addUnit(304, "Slinger", 3, 12)
+	local formation = { [301] = 2, [303] = 2 }
+	local function withType(u)
+		local o = unitObject(u)
+		o.GetUnitType = function() return types[u.id] or 0 end
+		o.GetCombat = function() return (u.id ~= 303) and 20 or 0 end
+		o.GetRangedCombat = function() return 0 end
+		o.GetFormationUnitCount = function() return formation[u.id] or 1 end
+		return o
+	end
+	local oldGetUnits, oldInPlot, oldEnemies = player.GetUnits, Units.GetUnitsInPlot, HubEnemies
+	HubEnemies = { IsCivilian = function(unit) return unit:GetID() == 303 end }
+	player.GetUnits = function() return {
+		Members = function() local l = {}; for _, u in ipairs(units) do l[#l + 1] = withType(u) end; return ipairs(l) end,
+		FindID = function(_, id) for _, u in ipairs(units) do if u.id == id then return withType(u) end end end,
+	} end
+	Units.GetUnitsInPlot = function(plot)
+		local l = {}
+		for _, u in ipairs(units) do if u.x == plot:GetX() and u.y == plot:GetY() then l[#l + 1] = withType(u) end end
+		return l
+	end
+	local items = HubPlaces.BuildSendItems({ name = "Barbarian Camp", x = 2, y = 12, camp = true })
+	eq(items[1].key, "party")
+	assert(items[1].text:find("^Attack party, send 2 units: %a+ %d+ turns?, %a+ %d+ turns?%. Skipped: Heavy Chariot, escorting a Builder %(Shift%+E on it ends the escort%)$"), items[1].text)
+	for _, m in ipairs(items[1].members) do assert(m.unitId ~= 301) end
+	local chariot
+	for _, item in ipairs(items) do if item.unitId == 301 then chariot = item end end
+	assert(chariot.text:find(", escorting Builder", 1, true), chariot.text)
+	-- no free unit left: a notice stands in for the party
+	for i = #units, 1, -1 do if units[i].id == 302 or units[i].id == 304 then table.remove(units, i) end end
+	items = HubPlaces.BuildSendItems({ name = "Barbarian Camp", x = 2, y = 12, camp = true })
+	eq(items[1].text, "No free unit for an attack party: Heavy Chariot is escorting a Builder")
+	assert(items[1].notice)
+	player.GetUnits, Units.GetUnitsInPlot, HubEnemies = oldGetUnits, oldInPlot, oldEnemies
+	for i = #units, 1, -1 do if units[i].id >= 200 then table.remove(units, i) end end
+end)
+
 local function campGone(unitAt, goldNow)
 	HubCore.m_ready = true
 	local gold = 100

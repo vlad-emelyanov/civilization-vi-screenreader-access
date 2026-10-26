@@ -122,6 +122,10 @@ function HubEvents.OnUnitMoveComplete( playerID:number, unitID:number, x:number,
 				text = text .. ", can settle, B to found next turn";
 			end
 		end
+		if record.build ~= nil and HubSettle ~= nil and HubSettle.OnArrived ~= nil then
+			local okBuild:boolean, extra = pcall( HubSettle.OnArrived, unit, plot, record );
+			if okBuild and extra ~= nil then text = text .. ". " .. extra; end
+		end
 		HubCore.SayResult( text );
 		return;
 	end

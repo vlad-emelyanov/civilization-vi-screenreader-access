@@ -997,13 +997,48 @@ function HubPlaces.IsMilitaryLand( unit:table )
 	return row ~= nil and row.Domain == "DOMAIN_LAND" and ( unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 );
 end
 
+-- The name of the civilian of ours that the unit escorts (both in a formation on one tile), else nil. Sending the soldier drags it along.
+local function EscortedCivilian( unit:table )
+	local ok:boolean, count = pcall( function() return unit:GetFormationUnitCount(); end );
+	if not ok or count == nil or count <= 1 then return nil; end
+	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+	if plot == nil then return nil; end
+	local okUnits:boolean, inPlot = pcall( Units.GetUnitsInPlot, plot );
+	if not okUnits or inPlot == nil then return nil; end
+	for _, other in ipairs( inPlot ) do
+		if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and HubEnemies ~= nil and HubEnemies.IsCivilian( other ) then
+			local okOther:boolean, otherCount = pcall( function() return other:GetFormationUnitCount(); end );
+			if okOther and otherCount ~= nil and otherCount > 1 then return Locale.Lookup( other:GetName() ); end
+		end
+	end
+	return nil;
+end
+
+-- Pure: "Heavy Chariot, escorting a Builder (Shift+E on it ends the escort)" for the skipped members of an attack party
+function HubPlaces.PartySkippedText( skipped:table, formationKey:string )
+	local parts:table = {};
+	for _, s in ipairs( skipped ) do table.insert( parts, s.name .. ", escorting a " .. s.escorting ); end
+	return table.concat( parts, "; " ) .. " (" .. formationKey .. " on it ends the escort)";
+end
+
+-- Pure: "No free unit for an attack party: Heavy Chariot is escorting a Builder"
+function HubPlaces.PartyNoneText( skipped:table )
+	local parts:table = {};
+	for _, s in ipairs( skipped ) do table.insert( parts, s.name .. " is escorting a " .. s.escorting ); end
+	return "No free unit for an attack party: " .. table.concat( parts, "; " );
+end
+
 -- "Attack party, send 2 units: Warrior 3 turns, Slinger 4 turns": the two fastest military land units (nil when fewer than two).
--- Enter orders both; each keeps its own path (members are the single items, with their landing plot).
+-- Enter orders both; each keeps its own path (members are the single items, with their landing plot). A unit escorting a
+-- civilian never joins (the civilian would be dragged along): it is named as skipped; with no free unit left a notice item stands in.
 local function PartyItem( items:table, place:table )
 	-- soldiers without queued orders; scouts only when too few others; a city's only defender only when too few others
 	local pool:table = {};
+	local skipped:table = {};
 	for _, item in ipairs( items ) do
-		if item.military and not item.busy then table.insert( pool, item ); end
+		if item.military and not item.busy then
+			if item.escorting ~= nil then table.insert( skipped, item ); else table.insert( pool, item ); end
+		end
 	end
 	local function Without( list:table, drop:string )
 		local kept:table = {};
@@ -1017,7 +1052,12 @@ local function PartyItem( items:table, place:table )
 	for _, item in ipairs( pool ) do
 		if item.defends and #members < 2 then table.insert( members, item ); end
 	end
-	if #members < 2 then return nil; end
+	if #members < 2 then
+		if #members == 0 and #skipped > 0 then
+			return { key = "party-none", name = "Attack party", notice = true, turns = 0, text = HubPlaces.PartyNoneText( skipped ) };
+		end
+		return nil;
+	end
 	table.sort( members, function( a, b ) return a.turns < b.turns; end );
 	local parts:table = {};
 	for _, member in ipairs( members ) do
@@ -1026,7 +1066,8 @@ local function PartyItem( items:table, place:table )
 	end
 	return {
 		key = "party", name = "Attack party", turns = members[1].turns, members = members,
-		text = "Attack party, send 2 units: " .. table.concat( parts, ", " ),
+		text = "Attack party, send 2 units: " .. table.concat( parts, ", " ) .. ( #skipped > 0 and (
+			". Skipped: " .. HubPlaces.PartySkippedText( skipped, ( HubEnemies ~= nil and HubEnemies.KeyText ~= nil ) and HubEnemies.KeyText( "ExtraHotkeysEnterFormation", "Shift+E" ) or "Shift+E" ) ) or "" ),
 		detail = function() return members[1].name .. " and " .. members[2].name .. " both go to " .. place.name .. ", each by its own path. Attack with more than one unit"; end,
 	};
 end
@@ -1081,6 +1122,7 @@ function HubPlaces.BuildSendItems( place:table )
 			local name:string = Locale.Lookup( unit:GetName() );
 			names[ name ] = ( names[ name ] or 0 ) + 1;
 			local item:table = { key = "s:" .. unit:GetID(), unitId = unit:GetID(), name = name, turns = turns, distance = candidates[i].distance, unit = unit };
+			item.escorting = EscortedCivilian( unit );
 			if place.camp then
 				item.military = HubPlaces.IsMilitaryLand( unit );
 				if item.military then
@@ -1113,6 +1155,7 @@ function HubPlaces.BuildSendItems( place:table )
 		if item.ring ~= nil then item.text = item.text .. ", " .. ( item.ring == 1 and "next to " or "near " ) .. place.name; end
 		local activity:string = HubPlaces.UnitActivity( item.unit, false );
 		if activity ~= nil then item.text = item.text .. ", " .. activity; end
+		if item.escorting ~= nil then item.text = item.text .. ", escorting " .. item.escorting; end
 		if names[ item.name ] > 1 then
 			local position:string = HubAnnounce.PositionText( Map.GetPlot( item.unit:GetX(), item.unit:GetY() ) );
 			if position ~= nil then item.text = item.text .. ", " .. position; end
@@ -1190,6 +1233,10 @@ end
 -- Enter: select the unit (the first one of an attack party) and give the move order(s).
 local function SendActivate( item:table )
 	local place:table = m_send;
+	if item.notice then
+		OutputMessageToScreenReader( item.text );
+		return;
+	end
 	local firstId:number = ( item.members ~= nil ) and item.members[1].unitId or item.unitId;
 	local unit:table = LocalPlayer():GetUnits():FindID( firstId );
 	if unit == nil or place == nil then

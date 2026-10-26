@@ -95,7 +95,7 @@ local m_sections:table = {
 	} },
 	{ title = "Settler and builder", entries = {
 		{ keys = "X",					text = "with a settler: browse the best places to found a city, each with its distance to your nearest city and to a rival city within 10 tiles; Space adds Between you and a rival or Behind your city, hills and mountain or water sides. Selecting the settler says Here is good when no spot nearby is clearly better, or Best spot is clearly better when that spot is within 4 turns; a farther one is said as Best: ..., far away, with barbarians near it when hostile soldiers are close to it" },
-		{ keys = "X",					text = "with a builder: browse the tiles it can improve; after them a Later group lists resource tiles that need a tech or civic first, Enter says what is missing" },
+		{ keys = "X",					text = "with a builder: browse the tiles it can improve; after them a Later group lists resource tiles that need a tech or civic first, Enter says what is missing; a tile with a hostile soldier within 2 tiles says \"danger: <unit> <distance> away\" and the first Enter on it only warns (Enter again sends the builder); Enter on another tile sends the builder and remembers the improvement named first: on arrival it says \"Enter builds <improvement>\" and Enter builds it (with no moves left: select the builder next turn and press Enter); any other key or order cancels it" },
 		{ keys = "Up and Down",			text = "in the browser: next and previous place or tile" },
 		{ keys = "Left and Right",		text = "builder browser: next and previous city" },
 		{ keys = "Space",				text = "in the browser: all reasons for the place" },
@@ -108,7 +108,7 @@ local m_sections:table = {
 		{ keys = "Tab and Control+Tab",	text = "next and previous category" },
 		{ keys = "Space",				text = "read the tile and where it is" },
 		{ keys = "Enter",				text = "cursor there, a unit of yours is selected" },
-		{ keys = "M",					text = "send one of your units there, fastest first (on a threat: soldiers only; on a barbarian camp the first entry sends an attack party, the two fastest military units); for a civilian to capture only military land units are offered, moving onto it captures it. On a Settler or Builder in Your units it sends an escort instead: soldiers that can reach it, fastest first; Enter moves one onto its tile, then Shift+E forms the escort" },
+		{ keys = "M",					text = "send one of your units there, fastest first (on a threat: soldiers only; on a barbarian camp the first entry sends an attack party, the two fastest military units; a unit that escorts a Builder or Settler never joins the party and is named as skipped, in the plain list it says \"escorting <civilian>\" because sending it drags the civilian along); for a civilian to capture only military land units are offered, moving onto it captures it. On a Settler or Builder in Your units it sends an escort instead: soldiers that can reach it, fastest first; Enter moves one onto its tile, then Shift+E forms the escort" },
 		{ keys = "Control+N then M",	text = "send a unit to the place of a notification" },
 		{ keys = "T",					text = "on a barbarian clan camp in view (Barbarian Clans mode): treat with the clan, opens hire, incite, bribe or ransom; also on the map with the cursor on the camp, instead of the tech tree" },
 		{ keys = "Escape",				text = "close the list" },

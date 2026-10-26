@@ -4689,6 +4689,7 @@ local function SRBuildActions()
 						disabled = ( action.Disabled == true ), reason = reason,
 						detail = detail, category = category,
 					tag = action.userTag, typeName = SRTypeName( action.userTag ), build = ( action.SRName ~= nil ),
+						improvement = ( action.SRName ~= nil and GameInfo.Improvements[ action.CallbackVoid1 ] ~= nil ) and GameInfo.Improvements[ action.CallbackVoid1 ].ImprovementType or nil,
 						destructive = ( action.Disabled ~= true and SRIsDestructiveBuild( SRTypeName( action.userTag ) ) ) } );
 				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
 				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil

@@ -1,0 +1,12 @@
+# Written blind 2026-10-26 (not yet recorded). Fixture bug-builder-x-list-no-build: Builder X > Wheat/Farm tile > Enter moves it; on arrival "Enter builds Farm", Enter builds (same path as Tab).
+# Which tile is first depends on the fixture: the script takes the first item and accepts any improvement name.
+# covers: **/HubSettle.lua **/HubEvents.lua **/BuildScan.lua **/UnitPanel.lua UI/Additions/InGameAccess.lua
+# no-share-load: sends a unit and builds
+load bug-builder-x-list-no-build
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key X -Settle 2000
+expect ^Tiles to improve near
+key Enter -Settle 4000
+expect (?i)Arrived.*(Enter builds \w+|can be built next turn: select it and press Enter)
+no-lua-errors

@@ -94,6 +94,9 @@ m_settleList = KeyNavList_Create{
 --	Left/Right switch to the next/previous own city (nearest to the builder first).
 -- ===========================================================================
 local m_buildList:table;
+local DANGER_RADIUS:number = 2;			-- a visible hostile soldier this close to a target tile marks it dangerous
+local m_dangerGuard:table = { turn = -1, warnSig = nil, warnTime = 0, confirmSig = nil };		-- two-step Enter on a dangerous tile
+HubSettle.m_pending = nil;		-- { unitId, plotIndex, type, name, keepOnKeys }: the improvement chosen with the order, built by Enter on arrival
 local m_build:table = { cities = {}, index = 1, items = {}, unitId = nil, nowCount = 0, laterCount = 0 };
 
 -- Browsing moved the cursor over the tiles: back to the builder (not when the mode went stale).
@@ -123,6 +126,55 @@ local function BuildImprovementsText( entry:table )
 	return table.concat( parts, ", " );
 end
 
+-- Pure: "danger: Barbarian Man-At-Arms 1 tile away" / "... on the tile"
+function HubSettle.DangerItemText( enemyName:string, distance:number )
+	if distance <= 0 then return "danger: " .. enemyName .. " on the tile"; end
+	return "danger: " .. enemyName .. " " .. HubCore.Plural( distance, "tile", "tiles" ) .. " away";
+end
+
+-- Pure: "Danger: Barbarian Man-At-Arms 1 tile from Wheat. Enter again sends it anyway"
+function HubSettle.DangerGuardText( enemyName:string, distance:number, tileName:string )
+	local where:string = ( distance <= 0 ) and ( "on " .. tileName ) or ( HubCore.Plural( distance, "tile", "tiles" ) .. " from " .. tileName );
+	return "Danger: " .. enemyName .. " " .. where .. ". Enter again sends it anyway";
+end
+
+-- Pure: said on arrival of a builder that was sent to build. hasMoves false: the build waits for the next turn.
+-- selected false: the builder is not the selected unit.
+function HubSettle.ArrivalBuildText( improvement:string, hasMoves:boolean, selected:boolean )
+	if not selected then return "Select it and press Enter to build " .. improvement; end
+	if not hasMoves then return improvement .. " can be built next turn: select it and press Enter"; end
+	return "Enter builds " .. improvement;
+end
+
+-- Visible hostile land soldiers (no scouts, no ships): { name, x, y, key }.
+function HubSettle.VisibleHostileSoldiers()
+	local list:table = {};
+	local localID:number = Game.GetLocalPlayer();
+	if localID == nil or localID == -1 then return list; end
+	for id = 0, 63 do
+		if id ~= localID and Players[ id ] ~= nil and HubCore.IsHostile( id ) then
+			for _, unit in Players[ id ]:GetUnits():Members() do
+				if ( unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 ) and PlotDescription_IsUnitVisible( unit )
+						and not HubEnemies.IsBarbarianScout( unit ) and not HubEnemies.IsNaval( unit ) then
+					table.insert( list, { name = PlotDescription_GetUnitName( unit ), x = unit:GetX(), y = unit:GetY(), key = id .. ":" .. unit:GetID() } );
+				end
+			end
+		end
+	end
+	return list;
+end
+
+-- The nearest hostile soldier within radius tiles of the plot, as { name, distance, key } or nil (hostiles: optional, from the above).
+function HubSettle.DangerAt( plot:table, radius:number, hostiles:table )
+	if plot == nil or HubEnemies == nil then return nil; end
+	local best:table = nil;
+	for _, h in ipairs( hostiles or HubSettle.VisibleHostileSoldiers() ) do
+		local d:number = Map.GetPlotDistance( plot:GetX(), plot:GetY(), h.x, h.y );
+		if d <= radius and ( best == nil or d < best.distance ) then best = { name = h.name, distance = d, key = h.key }; end
+	end
+	return best;
+end
+
 -- "Wheat, Farm plus 1 food, 2 tiles north-east, 1 turn, worked" / "Here, Wheat, Farm plus 1 food"
 local function BuildItemText( entry:table )
 	local text:string = ( entry.here and "Here, " or "" ) .. entry.name .. ", " .. BuildImprovementsText( entry );
@@ -130,6 +182,7 @@ local function BuildItemText( entry:table )
 		text = text .. ", " .. entry.relative .. ", " .. HubCore.Plural( entry.turns or 0, "turn", "turns" );
 	end
 	if entry.worked then text = text .. ", worked"; end
+	if entry.danger ~= nil then text = text .. ", " .. HubSettle.DangerItemText( entry.danger.name, entry.danger.distance ); end
 	return text;
 end
 
@@ -158,7 +211,14 @@ local function LoadBuildItems( unit:table, force:boolean )
 	local entry:table = m_build.cities[ m_build.index ];
 	if entry == nil then return; end
 	local scan:table = BuildScan_Scan( unit, entry.city, force );
+	local okHostiles:boolean, hostiles = pcall( HubSettle.VisibleHostileSoldiers );
+	if not okHostiles then hostiles = {}; end
 	for _, tile in ipairs( scan.list ) do
+		tile.danger = nil;
+		if not tile.here and #hostiles > 0 then
+			local okDanger:boolean, danger = pcall( HubSettle.DangerAt, tile.plot, DANGER_RADIUS, hostiles );
+			if okDanger then tile.danger = danger; end
+		end
 		table.insert( m_build.items, { key = tile.key, text = BuildItemText( tile ), detail = BuildItemDetail( tile ), entry = tile } );
 	end
 	m_build.nowCount = #m_build.items;
@@ -254,12 +314,24 @@ local function BuildGo( item:table )
 		OutputMessageToScreenReader( "Not yet: needs " .. item.entry.needName .. hint );
 		return;
 	end
+	local tile:table = item.entry;
+	if unit ~= nil and unit:GetID() == m_build.unitId and BuildScan_Improvements( unit ) ~= nil
+			and not ( tile.here or ( unit:GetX() == tile.x and unit:GetY() == tile.y ) ) then
+		-- a visible hostile soldier near the target: the first Enter only warns (the list stays open), the second sends the builder
+		local okDanger:boolean, danger = pcall( HubSettle.DangerAt, Map.GetPlotByIndex( tile.plotIndex ), DANGER_RADIUS );
+		if okDanger and danger ~= nil then
+			local sig:string = unit:GetID() .. ":" .. tile.plotIndex .. ":" .. danger.key;
+			if HubEnemies.GuardDecision( m_dangerGuard, Game.GetCurrentGameTurn(), sig, UI.GetElapsedTime() ) == "warn" then
+				HubCore.SayResult( HubSettle.DangerGuardText( danger.name, danger.distance, tile.name ) );
+				return;
+			end
+		end
+	end
 	HubCore.CloseMode( false, false );
 	if unit == nil or unit:GetID() ~= m_build.unitId or BuildScan_Improvements( unit ) == nil then
 		HubCore.SayResult( "Builder no longer selected" );
 		return;
 	end
-	local tile:table = item.entry;
 	if tile.here or ( unit:GetX() == tile.x and unit:GetY() == tile.y ) then
 		HubMenus.ToggleUnitMenu();
 		return;
@@ -273,6 +345,66 @@ local function BuildGo( item:table )
 		return;
 	end
 	HubTargets.IssueMoveOrder( unit, plot, war, false );
+	-- remember what to build on arrival (HubEvents.OnUnitMoveComplete says "Enter builds ...")
+	local record:table = HubCore.m_movers[ unit:GetID() ];
+	local first:table = tile.improvements ~= nil and tile.improvements[1] or nil;
+	HubSettle.m_pending = nil;
+	if record ~= nil and war == nil and first ~= nil and not first.repair then
+		record.build = { type = first.type, name = first.name, hash = first.hash };
+	end
+end
+
+-- Called by HubEvents when a unit with a move order arrives: the sentence to append ("Enter builds Farm") or nil. Arms Enter.
+function HubSettle.OnArrived( unit:table, plot:table, record:table )
+	HubSettle.m_pending = nil;
+	local b:table = record ~= nil and record.build or nil;
+	if b == nil or unit == nil or plot == nil then return nil; end
+	local head:table = UI.GetHeadSelectedUnit();
+	local selected:boolean = head ~= nil and head:GetID() == unit:GetID();
+	local hasMoves:boolean = unit:GetMovesRemaining() > 0;
+	if hasMoves and b.hash ~= nil and not BuildScan_CanBuild( unit, plot, b ) then return nil; end
+	HubSettle.m_pending = { unitId = unit:GetID(), plotIndex = plot:GetIndex(), type = b.type, name = b.name,
+		keepOnKeys = not ( hasMoves and selected ) };
+	return HubSettle.ArrivalBuildText( b.name, hasMoves, selected );
+end
+
+-- Any other key (not Enter, not a modifier) cancels the arming made on arrival; one armed for later (no moves, not selected) stays.
+function HubSettle.OnOtherKey( key:number )
+	local pending:table = HubSettle.m_pending;
+	if pending ~= nil and not pending.keepOnKeys and key ~= Keys.VK_SHIFT and key ~= Keys.VK_CONTROL and key ~= Keys.VK_ALT then
+		HubSettle.m_pending = nil;
+	end
+	m_dangerGuard.warnSig = nil;
+end
+
+-- Is Enter going to build? The pending builder is selected, stands on the tile and has moves.
+function HubSettle.BuildEnterArmed()
+	local p:table = HubSettle.m_pending;
+	if p == nil then return false; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil or unit:GetID() ~= p.unitId then return false; end
+	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+	if plot == nil or plot:GetIndex() ~= p.plotIndex then HubSettle.m_pending = nil; return false; end
+	return unit:GetMovesRemaining() > 0;
+end
+
+-- Enter (armed): the same code path as the Tab menu item of that improvement (UnitPanel's own button callback).
+function HubSettle.RunArmedBuild()
+	local p:table = HubSettle.m_pending;
+	HubSettle.m_pending = nil;
+	local unit:table = UI.GetHeadSelectedUnit();
+	if p == nil or unit == nil then return; end
+	local found:table = nil;
+	for _, menuItem in ipairs( HubMenus.FetchMenuItems( true ) ) do
+		if menuItem.action.improvement == p.type then found = menuItem; end
+	end
+	if found == nil then
+		HubCore.SayResult( "Cannot build " .. p.name .. " here" );
+	elseif found.choosable == false then
+		HubCore.SayResult( "Cannot build " .. p.name .. ": " .. found.reason );
+	else
+		LuaEvents.SRA_RunUnitAction( found.action.id, unit:GetID() );		-- the build announces itself (UnitOperationStarted)
+	end
 end
 
 m_buildList = KeyNavList_Create{
