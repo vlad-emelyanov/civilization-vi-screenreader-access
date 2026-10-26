@@ -111,6 +111,11 @@ function Hub.HandleInput( input:table )
 			end
 			return true;
 		end
+		-- Space in an attack mode: the combat modifiers of both sides for the cursor tile
+		if key == Keys.VK_SPACE and HubTargets.IsAttackMode( HubTargets.GetTargetMode() ) then
+			if msg == KeyEvents.KeyUp then HubCore.Safe( "CombatModifiers", HubTargets.SpeakCombatModifiers )(); end
+			return true;
+		end
 		return false;
 	end
 	-- Just after an attack the end-turn label can flash a governor blocker; Enter would open the Governors screen
