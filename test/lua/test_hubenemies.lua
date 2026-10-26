@@ -203,3 +203,16 @@ test("end-turn key: stale KeyDown state is dropped", function()
 	HubEnemies.ExposedCivilians = function() return {}, "" end
 	eq(HubEnemies.EndTurnKey(false, 5), false)
 end)
+
+test("threat item for a soldier near a city has no position of its own (the places list adds it once)", function()
+	local archer = { key = "63:9", x = 7, y = 7, unit = {} }
+	local realScan, realName = HubEnemies.ScanThreats, PlotDescription_GetUnitName
+	HubEnemies.ScanThreats = function() return { raids = {}, civilians = {}, nearCity = {
+		{ enemy = archer, city = { GetName = function() return "Rome" end }, d = 2, relative = "2 tiles south-east" } } } end
+	PlotDescription_GetUnitName = function() return "Barbarian Archer" end
+	local ok, items = pcall(HubEnemies.ThreatItems)
+	HubEnemies.ScanThreats, PlotDescription_GetUnitName = realScan, realName
+	assert(ok, tostring(items))
+	eq(#items, 1)
+	eq(items[1].text, "Barbarian Archer, near your city")
+end)

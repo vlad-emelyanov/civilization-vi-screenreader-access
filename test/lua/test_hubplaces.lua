@@ -708,3 +708,14 @@ test("blind spots: a category after the points of interest, with the game's dist
 	local detail = spot.items[1].detail()
 	assert(detail:find("at least 4 tiles from any city and 7 from another camp", 1, true), detail)
 end)
+
+test("threats item says the position exactly once", function()
+	HubEnemies = { ThreatItems = function() return { { key = "t:63:9", name = "Barbarian Archer", x = 7, y = 7, text = "Barbarian Archer, near your city" } } end }
+	local cats = HubPlaces.BuildCategories({ plot = Map.GetPlot(5, 5) })
+	HubEnemies = nil
+	eq(cats[1].name, "Threats")
+	local text = cats[1].items[1].text
+	assert(text:find("^Barbarian Archer, near your city, "), text)
+	local _, n = text:gsub("of Rome", "")
+	eq(n, 1)
+end)
