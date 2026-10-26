@@ -214,3 +214,22 @@ BREAKDOWN: load 20 m 31 s (39 loads, 10 saved by sharing; reset checks: 13, 12 s
 | 3 options | 5 m 02 s | 3 m 11 s (6) | 1 m 08 s | 0 s |
 
 Full `regress all`: 26 m 11 s (49 scripts, 360 checks passed, 1 script failed and fixed) against about 62 min before (34 scripts at the time; now 49). Per key call: ~2.9 s before, ~0.8 s after (World Rankings, Down).
+
+## Game settings experiment (2026-10-26)
+
+Goal: do game config settings (`AppOptions.txt`, `GraphicsOptions.txt`, read at game start) make `civctl load` faster? Each configuration: `stop` + `start`, then 5 timed `civctl load` calls alternating medieval-t100 / early-t60 / medieval-t100 / early-t60 / medieval-t100 (wall time of the whole command, incl. advisor clearing; the regress BREAKDOWN "load" figure is ~15 s lower and is the comparable number to the earlier sections). The user's files were backed up first and restored byte-identical at the end.
+
+| Config | Start to main menu | Loads, wall (M, E, M, E, M) | Notes |
+|---|---|---|---|
+| 0 Baseline | 42 s (cold; ~29 s warm) | 54, 46, 47, 45, 49 s (avg 48) | |
+| 1 `LoadGameTickIntervalInMS` 16 -> 1 | 29 s | 50, 50, 51, 50, 54 s (avg 51) | no gain (within noise, not better); 0 not tried |
+| 2 `EnableAsserts` 0 | 29 s | 43, 44, 47, 44, 48 s (avg 45) | about -3 s, small |
+| 3 Low graphics preset (all keys of the task; TerrainSynthesisDetailLevel 2 = low-res, not 0, per the file comment) | 28 s | 38, 38, 42, 38, 42 s (avg 40) | about -8 s (-17%), the one real win |
+| 4 `UIOnlyRendering` 1 (alone) | 28 s | 43, 44, 46, 44, 46 s (avg 45) | game runs, `key` gives SR> lines, `regress t100-chooser-flow` (mouse + click) PASS; only ~-3 s, no gain on top of 3 |
+| 5 `AddMinimapSnapshotToSaves` 0 | n/a | `save` 3.6 s vs 3.6-3.7 s | no time difference; save file 60 KB smaller (908 vs 969 KB) |
+| 6a 3 + 2 (low graphics + asserts off) | 27 s | 38, 39, 42, 39, 42 s (avg 40) | best; in `regress` BREAKDOWN a load is 28 s vs 31-32 s before |
+| 6b 3 + 2 + 4 | 28 s | 38, 38, 42, 38, 42 s (avg 40) | UIOnlyRendering adds nothing |
+
+Config 6a verification: `regress early-t60-places-list t100-chooser-flow t128-city-attack` 3 scripts, 29 checks passed, 0 failed (mouse/click flows fine), TOTAL 2 m 12 s. `advance 3` on medieval-t100: 77 s with 6a and 77 s with baseline, so AI turn speed is unchanged (CPU bound). Start-to-menu: 42 s on the first (cold) start, then 27-29 s for every config, so the restart time is not affected by the settings either.
+
+Conclusion: only the low graphics preset helps (about 3-4 s of the ~31 s in-script load, -17% of wall time of a bare `load`); asserts off adds nothing measurable on top. A `regress all` with ~39 loads would save about 2-3 min of ~26. The cost is that the user's graphics settings change, so apply it to a test-only profile (swap the files in `civctl start`/`stop`) rather than the user's real files. Not worth: tick interval, UIOnlyRendering, minimap snapshot.
