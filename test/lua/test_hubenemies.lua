@@ -63,3 +63,51 @@ test("cap at four, unchanged ones dropped when crowded", function()
 	assert(text:find("; and 2 more%.$"), text)
 	assert(not text:find("Warrior"), text)
 end)
+
+-- ===========================================================================
+-- G3a / G3b / G4 wording
+-- ===========================================================================
+test("scout alarm, escaped, killed, raid expected", function()
+	eq(HubEnemies.AlarmText("Barbarian Scout", "Rome", "3 tiles east", "W"),
+		"Alarm: Barbarian Scout has seen Rome, 3 tiles east. If it gets back to its camp, a raid follows. Kill it: W targets it")
+	eq(HubEnemies.EscapedText("Barbarian Scout", "north-east"), "Barbarian Scout escaped. Expect a raid from the north-east in a few turns")
+	eq(HubEnemies.EscapedText("Barbarian Scout", nil), "Barbarian Scout escaped. Expect a raid in a few turns")
+	eq(HubEnemies.KilledText("Barbarian Scout"), "Barbarian Scout killed, no raid from it")
+	eq(HubEnemies.RaidExpectedText("north-east"), "Raid expected from the north-east")
+end)
+
+test("scout heading away names a known camp, the plain case does not", function()
+	local old = { ["63:1"] = e("Barbarian Scout", 12, 10, { scout = true, alarmed = true }) }
+	local new = { ["63:1"] = e("Barbarian Scout", 14, 10, { scout = true, alarmed = true, where = "4 tiles east of Sivas", campText = "4 tiles north-east" }) }
+	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, toward a known camp 4 tiles north-east, now 4 tiles east of Sivas.")
+	new["63:1"].campText = nil
+	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, now 4 tiles east of Sivas.")
+end)
+
+test("an alarmed scout that vanished is not 'out of sight' (its own line says escaped); the alarm turn skips 'new'", function()
+	local old = { ["63:1"] = e("Barbarian Scout", 15, 10, { alarmed = true }) }
+	eq(HubEnemies.Describe(old, {}, {}, dist), nil)
+	eq(HubEnemies.Describe({}, { ["63:1"] = e("Barbarian Scout", 12, 10, { alarmNow = true }) }, {}, dist), nil)
+end)
+
+test("raid wording: groups, defense, own soldiers", function()
+	eq(HubEnemies.PluralName("Spearman", 2), "Spearmen")
+	eq(HubEnemies.PluralName("Warrior", 2), "Warriors")
+	eq(HubEnemies.PluralName("Horseman", 1), "Horseman")
+	eq(HubEnemies.RaidText(nil, "Rome", 3, { { name = "Horseman", count = 1, relative = "3 tiles north" }, { name = "Spearman", count = 2, relative = "4 tiles north" } },
+		15, { "Warrior in Rome", "Slinger 2 tiles west" }),
+		"Raid: 3 barbarians near Rome: Horseman 3 tiles north, 2 Spearmen 4 tiles north. Rome defense 15. Your nearest soldiers: Warrior in Rome, Slinger 2 tiles west")
+	eq(HubEnemies.RaidText("Japan", "Antium", 4, { { name = "Samurai", count = 4, relative = nil } }, nil, {}),
+		"Japan: 4 units near Antium: 4 Samurais in Antium. You have no soldiers near")
+end)
+
+test("civilian danger and the lone mover", function()
+	eq(HubEnemies.DangerText("Builder", "Rome", "Barbarian Horseman", "2 tiles east", "Move it into Rome"),
+		"Builder near Rome in danger: Barbarian Horseman 2 tiles east. Move it into Rome")
+	eq(HubEnemies.DangerText("Settler", nil, "Barbarian Warrior", nil, nil), "Settler in danger: Barbarian Warrior")
+	eq(HubEnemies.AloneText("Settler", 3, "Barbarian Warrior " .. HubEnemies.FromPathText(2, false), "Shift+E"),
+		"Settler moving alone, 3 turns. Barbarian Warrior 2 tiles from the path. Escort first: Shift+E with a soldier on the same tile")
+	eq(HubEnemies.FromPathText(0, false), "on the path")
+	eq(HubEnemies.FromPathText(1, true), "1 tile from the target")
+	eq(HubEnemies.EscortHintText("Warrior", "Shift+E"), "Warrior here too: Shift+E forms an escort")
+end)

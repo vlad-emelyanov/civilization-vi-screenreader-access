@@ -48,6 +48,8 @@ function HubAnnounce.SpeakWhatsNext()
 	local spoken:string = HubCore.Capitalize( text );
 	local okDetail:boolean, detailed = pcall( HubAnnounce.BlockerDetail, spoken, text );
 	if okDetail and detailed ~= nil then spoken = detailed; end
+	local okRaid:boolean, raid = pcall( function() return HubEnemies ~= nil and HubEnemies.RaidExpectedLine() or nil; end );
+	if okRaid and raid ~= nil then spoken = spoken .. ". " .. raid; end
 	OutputMessageToScreenReader( spoken );
 end
 
@@ -229,6 +231,10 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 	if promotion ~= nil then text = text .. ". " .. promotion; end
 	local builderHint:string = HubSettle.BuilderHint( unit );
 	if builderHint ~= nil then text = text .. ". " .. builderHint; end
+	if HubEnemies ~= nil then
+		local okEscort:boolean, escort = pcall( HubEnemies.EscortText, unit );		-- "escorted by Warrior" / "Warrior here too: Shift+E ..."
+		if okEscort and escort ~= nil then text = text .. ". " .. escort; end
+	end
 	if not HubCore.m_ready then
 		-- the game is still loading: it would be spoken before "CONTINUE GAME. Press Enter to start."; said once ready, see OnLoadScreenClose
 		m_pendingUnit = unitID;

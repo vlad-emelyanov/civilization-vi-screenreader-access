@@ -586,12 +586,28 @@ end
 -- order only goes out after the answer) is not a move order.
 function HubTargets.IssueMoveOrder( unit:table, plot:table, war:table, enemy:boolean )
 	local unitID:number = unit:GetID();
+	-- a settler or builder that goes alone near enemies or a camp is told (after the move's own result line)
+	local alone:string = nil;
+	if war == nil and not enemy and HubEnemies ~= nil then
+		local okAlone:boolean, text = pcall( HubEnemies.AloneWarning, unit, plot );
+		if okAlone then alone = text; end
+	end
 	local record:table = nil;
 	if war == nil and not enemy then
 		record = { dest = plot:GetIndex(), issued = UI.GetElapsedTime(), from = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex() };
 		HubCore.m_movers[ unitID ] = record;
 	end
 	MoveUnitToPlot( unit, plot:GetX(), plot:GetY() );
+	if alone ~= nil then
+		local fromIndex:number = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex();
+		HubCore.After( 0.9, function()
+			-- only when the unit really got the order (it moved or has a destination)
+			local mover:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( unitID );
+			if mover == nil then return; end
+			local moved:boolean = Map.GetPlot( mover:GetX(), mover:GetY() ):GetIndex() ~= fromIndex or UnitManager.GetQueuedDestination( mover ) ~= nil;
+			if moved then HubCore.Announce( alone, true, "escort" ); end
+		end );
+	end
 	if record ~= nil then
 		HubCore.After( 1.0, function()
 			-- the order never started: blocked at once
