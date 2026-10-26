@@ -90,6 +90,7 @@ local m_sections:table = {
 		{ keys = "X",					text = "in a target mode: target the nearest foreign unit" },
 		{ keys = "J",					text = "in a target mode: places list, Enter only moves the target there" },
 		{ keys = "Enter",				text = "in a target mode: confirm the move or attack" },
+		{ keys = "Space",				text = "in an attack target mode: modifiers of both sides for the target tile (flanking, terrain, wounds ...)" },
 		{ keys = "Escape",				text = "in a target mode: cancel" },
 	} },
 	{ title = "Settler and builder", entries = {

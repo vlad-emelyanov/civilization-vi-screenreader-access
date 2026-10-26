@@ -4,6 +4,7 @@
 --	UI/Additions/InGameAccess.lua. State and functions other hub modules use are fields of HubTargets.
 -- ===========================================================================
 HubTargets = {};
+include( "CombatText" );
 
 local m_attackIntent		:boolean = false;	-- the MOVE_TO mode was entered with the Attack key: only enemies are valid targets
 
@@ -104,9 +105,47 @@ local function IsCityOrDistrictPlot( plot:table )
 	return false;
 end
 
-local function CombatPreviewText( unit:table, plot:table, combatType )
+local function SimulateAttack( unit:table, plot:table, combatType )
 	local ok:boolean, results = pcall( CombatManager.SimulateAttackInto, unit:GetComponentID(), combatType, plot:GetX(), plot:GetY() );
 	if not ok or results == nil then return nil; end
+	return results;
+end
+
+-- "Strength 20 against 17" / "Ranged strength 25 against 17": base plus modifier total of each side, as the game's preview shows.
+local function StrengthPhrase( results:table, combatType )
+	local attacker:table = results[CombatResultParameters.ATTACKER];
+	local defender:table = results[CombatResultParameters.DEFENDER];
+	if attacker == nil or defender == nil then return nil; end
+	local prefix:string = "Strength";
+	if combatType ~= nil and combatType == CombatTypes.RANGED then prefix = "Ranged strength";
+	elseif combatType ~= nil and CombatTypes.BOMBARD ~= nil and combatType == CombatTypes.BOMBARD then prefix = "Bombard strength"; end
+	local mine:number = CombatText_Total( attacker[CombatResultParameters.COMBAT_STRENGTH], attacker[CombatResultParameters.STRENGTH_MODIFIER] );
+	local theirs:number = CombatText_Total( defender[CombatResultParameters.COMBAT_STRENGTH], defender[CombatResultParameters.STRENGTH_MODIFIER] );
+	return CombatText_StrengthPhrase( prefix, mine, theirs );
+end
+
+-- The modifier lines of one side, in the order of UnitPanel GetCombatModifierList (base strength line left out), cleaned for speech.
+local m_modifierFields:table = { "PREVIEW_TEXT_INTERCEPTOR", "PREVIEW_TEXT_ANTI_AIR", "PREVIEW_TEXT_HEALTH", "PREVIEW_TEXT_TERRAIN",
+	"PREVIEW_TEXT_OPPONENT", "PREVIEW_TEXT_MODIFIER", "PREVIEW_TEXT_ASSIST", "PREVIEW_TEXT_PROMOTION", "PREVIEW_TEXT_DEFENSES", "PREVIEW_TEXT_RESOURCES" };
+local function ModifierLines( side:table )
+	local lines:table = {};
+	if side == nil then return lines; end
+	for _, field in ipairs( m_modifierFields ) do
+		local key = CombatResultParameters[ field ];
+		local list = ( key ~= nil ) and side[ key ] or nil;
+		if type( list ) == "table" then
+			for _, item in ipairs( list ) do
+				local text:string = CleanTextForSpeech( Locale.Lookup( item ) );
+				if text ~= "" then table.insert( lines, text ); end
+			end
+		end
+	end
+	return lines;
+end
+
+local function CombatPreviewText( unit:table, plot:table, combatType )
+	local results:table = SimulateAttack( unit, plot, combatType );
+	if results == nil then return nil; end
 	local attacker:table = results[CombatResultParameters.ATTACKER];
 	local defender:table = results[CombatResultParameters.DEFENDER];
 	if attacker == nil or defender == nil then return nil; end
@@ -148,7 +187,58 @@ local function CombatPreviewText( unit:table, plot:table, combatType )
 	else
 		table.insert( parts, "no damage to you" );
 	end
-	return table.concat( parts, ", " );
+	local text:string = table.concat( parts, ", " );
+	local strength:string = StrengthPhrase( results, combatType );
+	if strength ~= nil then text = strength .. ": " .. text; end
+	return text;
+end
+
+-- The combat type TargetInfo uses for a unit's attack in this mode (nil: melee / air).
+local function AttackCombatType( mode:number, unit:table )
+	if mode ~= InterfaceModeTypes.RANGE_ATTACK then return nil; end
+	if unit:GetBombardCombat() > unit:GetRangedCombat() then return CombatTypes.BOMBARD; end
+	return CombatTypes.RANGED;
+end
+
+-- The attacker of the combat simulation: the selected unit, or the city / district of the city attack modes.
+local function CombatAttacker( mode:number )
+	if mode == InterfaceModeTypes.CITY_RANGE_ATTACK then return UI.GetHeadSelectedCity(), CombatTypes.RANGED; end
+	if mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK then
+		local district:table = UI.GetHeadSelectedDistrict();
+		if district == nil then district = UI.GetHeadSelectedCity(); end
+		return district, CombatTypes.RANGED;
+	end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return nil, nil; end
+	return unit, AttackCombatType( mode, unit );
+end
+
+-- Modes in which Space reads the combat modifiers (the others keep their old behaviour).
+function HubTargets.IsModifierMode( mode:number )
+	if mode == nil then return false; end
+	if mode == InterfaceModeTypes.MOVE_TO then return m_attackIntent; end
+	return mode == InterfaceModeTypes.RANGE_ATTACK or mode == InterfaceModeTypes.AIR_ATTACK or IsCityMode( mode );
+end
+
+-- Space in an attack target mode: the modifier lines of both sides for the cursor tile.
+function HubTargets.SpeakCombatModifiers()
+	local mode:number = HubTargets.GetTargetMode();
+	if not HubTargets.IsModifierMode( mode ) then return; end
+	local x:number, y:number = HubCursor.GetCursor();
+	local plot:table = Map.GetPlot( x, y );
+	if plot == nil or not HubTargets.IsAttackTarget( plot ) then
+		OutputMessageToScreenReader( "No target here to compare" );
+		return;
+	end
+	local source:table, combatType = CombatAttacker( mode );
+	local results:table = ( source ~= nil ) and SimulateAttack( source, plot, combatType ) or nil;
+	local attacker:table = results ~= nil and results[CombatResultParameters.ATTACKER] or nil;
+	local defender:table = results ~= nil and results[CombatResultParameters.DEFENDER] or nil;
+	if attacker == nil or defender == nil then
+		OutputMessageToScreenReader( IsCityMode( mode ) and "No modifier preview for a city attack" or "No combat preview for this tile" );
+		return;
+	end
+	OutputMessageToScreenReader( CombatText_Modifiers( ModifierLines( attacker ), ModifierLines( defender ) ) );
 end
 
 -- "Attacking Barbarian Horseman": the name of what stands on the plot (a visible foreign unit, else the city).
@@ -282,7 +372,11 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 			local city:table = UI.GetHeadSelectedCity();
 			local targets:table = ( city ~= nil ) and GetCityAttackTargets( city ) or nil;
 			if targets == nil then return nil; end
-			if targets[ plot:GetIndex() ] then return "valid target"; end
+			if targets[ plot:GetIndex() ] then
+				local source:table, combatType = CombatAttacker( mode );
+				local preview:string = ( source ~= nil ) and CombatPreviewText( source, plot, combatType ) or nil;
+				return "valid target" .. ( preview ~= nil and ( ", " .. preview ) or "" );
+			end
 			return "no target";
 		end
 		return nil;

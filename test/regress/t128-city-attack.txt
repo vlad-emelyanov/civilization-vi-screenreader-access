@@ -1,5 +1,5 @@
 # Verified 2026-10-23. City ranged attack: Enter on the "City Ranged Attack" notification announces "Attacking X", and a kill by the city is told ("X killed by Ostia").
-# covers: **/HubTargets.lua **/HubEvents.lua
+# covers: **/CombatText.lua **/InGameAccess.lua **/HubTargets.lua **/HubEvents.lua
 # options: animations
 # Setup: end turn 128 (barbarians approach Ostia), weaken the barbarian crossbowman with the tuner so Ostia's shot kills it.
 # no-share-load: Enter ends the turn, attacks
@@ -12,7 +12,10 @@ clear-advisors
 lua GameCore_Tuner local n=0; for i=0,63 do local p=Players[i]; if p and p:IsBarbarian() then for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then u:SetDamage(70); n=n+1 end end end end return n
 key Enter -Settle 1500
 expect ^City ranged attack: choose a tile
-expect valid target\. Barbarian Crossbowman
+expect valid target, Ranged strength \d+ against \d+.*\. Barbarian Crossbowman
+# G5 (written blind, unverified): the city line carries strengths; Space lists the modifiers
+key Space -Settle 800
+expect (?i)modifiers
 key Enter -Settle 8000 -NoQuiet
 expect ^Attacking Barbarian Crossbowman
 expect (?i)crossbowman killed by Ostia
