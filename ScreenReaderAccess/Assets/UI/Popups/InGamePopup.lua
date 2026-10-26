@@ -43,10 +43,14 @@ function OnPopupOpen( uniqueStringName:string, options:table )
 	
 	UIManager:PushModal(ContextPtr);
 	m_PopupDialog:Open();
+	-- ScreenReaderAccess mod change: an advisor that is up keeps the tutorial input mode on, which swallows every key
+	-- (this popup never sees them and they act on the map); AdvisorPopup lets go of it while this popup is open
+	LuaEvents.SRA_InGamePopupShown( true );
 end
 
 function OnClosePopup()
 	UIManager:PopModal(ContextPtr);
+	LuaEvents.SRA_InGamePopupShown( false );		-- ScreenReaderAccess mod change
 	if m_PopupDialog:IsOpen() then
 		m_PopupDialog:Close();
 	end
@@ -63,6 +67,14 @@ end
 -- ===========================================================================
 -- ScreenReaderAccess mod change: the key handling is a function so another popup that sits above (WorldCongressIntro) can pass Enter/Escape on
 function SRA_HandleKeyUp( wParam:number )
+	local single:boolean = #m_PopupDialog.KeyNavElements == 1;		-- a notice with one OK button: say that it closed
+	SRA_HandleKeyUpInner( wParam );
+	if single and (wParam == Keys.VK_ESCAPE or wParam == Keys.VK_RETURN) and not m_PopupDialog:IsOpen() then
+		OutputMessageToScreenReader( "Closed" );
+	end
+end
+
+function SRA_HandleKeyUpInner( wParam:number )
 	if wParam == Keys.VK_ESCAPE then -- Try CANCEL. Then DEFAULT. Then give up and close window.
 		if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_CANCEL ) ) then
 			if ( not m_PopupDialog:ActivateCommand( PopupDialog.COMMAND_DEFAULT ) ) then

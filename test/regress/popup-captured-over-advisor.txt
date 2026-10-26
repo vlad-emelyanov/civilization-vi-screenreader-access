@@ -1,0 +1,22 @@
+# Round 24: a generic in-game popup (Unit Captured) opened above an advisor popup: keys reached the map, nothing spoke, Enter was silent. Fixture bug-popup-unitcaptured-stuck (advisor open after the load).
+# covers: **/InGamePopup.lua **/AdvisorPopup.lua **/PopupDialog.lua
+# no-share-load: raises an advisor popup
+load bug-popup-unitcaptured-stuck
+# an advisor popup first (the runner closes the ones of the load)
+lua AdvisorPopup OnAdvisorRaise(hmake AdvisorItem{Message="LOC_ADVISOR_CITY_STATES_TEXT_1",MessageAudio="",Image="",OptionsNum=1,Button1Text="LOC_UNIT_CAPTURE_OK",Button1Func=function() Close() end,CalloutHeader="",CalloutBody="",ShowPortrait=false,UITriggers={}})
+wait (?i)ADVISOR: -Timeout 8
+# the capture event cannot be fired from Lua: run the context's own handler (we captured a unit of Russia / Russia captured ours)
+lua UnitCaptured OnUnitCaptured(0, nil, 0, 1)
+wait (?i)Popup: UNIT CAPTURED -Timeout 8
+expect (?i)Your unit has been captured by Russia
+expect OK, Enter closes
+# keys must not reach the map: Space is ignored, nothing about a city or an attack mode is spoken
+key Space -Settle 800
+expect-not (?i)Population|ranged attack
+key Enter -Settle 1500
+expect ^Closed$
+key Enter -Settle 1500
+expect ^Closed$
+lua InGameAccess return #HubCore.TestOpenScreens()
+expect-lua ^0$
+no-lua-errors

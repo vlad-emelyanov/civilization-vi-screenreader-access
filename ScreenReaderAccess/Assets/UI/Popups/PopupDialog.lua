@@ -428,7 +428,7 @@ function PopupDialog:Open( optionalID:string )
 		if first.Label ~= nil then
 			m_suppressControl = first.Control;
 			m_srOpenedAt = UI.GetElapsedTime();
-			OutputMessageToScreenReader(first.Label .. (srExtra ~= nil and (", selected. Up or Down for " .. srExtra) or ""), true);
+			OutputMessageToScreenReader(first.Label .. (srExtra ~= nil and (", selected. Up or Down for " .. srExtra) or (#keyNavElements == 1 and ", Enter closes" or "")), true);
 		end
 		KeyNavMoveMouse(first.Control, checkStable);
 	end

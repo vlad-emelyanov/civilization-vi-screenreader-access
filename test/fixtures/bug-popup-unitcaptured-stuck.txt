@@ -1,0 +1,7 @@
+turn: 67
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Unit Captured InGamePopup + Advisor popup stay open, keys (Enter, Escape, Space, J) act on the map underneath, popup never closes via keyboard; menu lists FakePopups/InGamePopup, ADVISOR:AdvisorPopup
+mod commit: ed35484
+created: 2026-10-26
+size: 1121 KB

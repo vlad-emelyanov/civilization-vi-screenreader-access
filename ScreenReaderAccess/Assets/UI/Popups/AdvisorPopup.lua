@@ -54,6 +54,7 @@ local m_hotkeyCallback		: ifunction = nil;
 local m_kQueuedPopups		: table	 = {};
 local m_kKeyNavButtons		: table	 = {};	-- Screen reader: { Label, Callback } for each button of the current advisor item
 local m_keyNavFocus			: number = 1;
+local m_isModalPopupUp		: boolean = false;	-- an InGamePopup is open above us (see OnInGamePopupShown)
 local m_keyNavHotkeyFired	: boolean = false;	-- The continue hotkey already activated a button for the key press being released
 local m_keyNavAnnouncement	: string = "";	-- Title and full text of the current item (Space reads it)
 local m_keyNavSummary		: string = "";	-- Condensed announcement spoken when the item is shown
@@ -417,7 +418,7 @@ function OnDiploSceneClosed()
 	m_isDiplomacyUp = false;
 	local isAdvisorVisible	:boolean = (not Controls.AdvisorBase:IsHidden());
 	if isAdvisorVisible then
-		UITutorialManager:SetActiveAlways( true );
+		UITutorialManager:SetActiveAlways( not m_isModalPopupUp );
 	elseif #m_kQueuedPopups > 0 and UI.CanShowPopup(PopupPriority.Tutorial) then
 		ShowNextQueuedPopup();	-- ScreenReaderAccess mod change: an advisor held during diplomacy (if the UI is not ready, OnUIIdle shows it)
 	end
@@ -441,6 +442,17 @@ end
 -- ===========================================================================
 --	LUA Event
 -- ===========================================================================
+-- ScreenReaderAccess mod change: a generic in-game popup (Unit Captured, ...) opened above the advisor. While the advisor keeps
+-- the tutorial input mode on, no key reaches that popup (they act on the map): let go of it like the diplomacy scene does, and
+-- take it back, and say the advisor again, when the popup is gone.
+function OnInGamePopupShown( isOpen:boolean )
+	m_isModalPopupUp = isOpen;
+	if (not Controls.AdvisorBase:IsHidden()) and (not m_isDiplomacyUp) then
+		UITutorialManager:SetActiveAlways( not isOpen );
+		if not isOpen and #m_kKeyNavButtons > 0 then KeyNavAnnouncePopup( true ); end
+	end
+end
+
 function OnAdvisorRaise( item:AdvisorItem )
 	ShowOrQueuePopup( item );
 end
@@ -515,6 +527,7 @@ end
 
 -- ===========================================================================
 function KeyHandler( key:number )
+	if m_isModalPopupUp then return false; end		-- ScreenReaderAccess mod change: the popup above takes the keys
 	-- Screen reader: keyboard navigation of the advisor's buttons while it is showing.
 	if IsBlockingInput() and (not m_isDiplomacyUp) then
 		if key == Keys.VK_UP then
@@ -665,6 +678,7 @@ function Initialize()
 	SRListen( Events.UIIdle, OnUIIdle );
 
 	-- Lua Events
+	SRListen( LuaEvents.SRA_InGamePopupShown, OnInGamePopupShown );
 	SRListen( LuaEvents.DiploScene_SceneClosed, OnDiploSceneClosed );
 	SRListen( LuaEvents.DiploScene_SceneOpened, OnDiploSceneOpened );
 	SRListen( LuaEvents.GameDebug_Return, OnGameDebugReturn );
