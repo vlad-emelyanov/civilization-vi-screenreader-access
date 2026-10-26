@@ -25,6 +25,7 @@ Each of these has crashed or wedged the game, or wasted a play session:
 - While an `EditBox` has focus the context's input handler gets no key events; Enter fires the commit callback; Escape reverts the text, fires the commit callback and its KeyUp still reaches the context. `SetNumberInput(true)` rejects characters without a callback. See `Accessibility/KeyNavEditBox.lua`.
 - A mouse resting on a slider eats arrow keys (the context stops receiving them).
 - The Lua sandbox has no `debug` table (`xpcall` handlers must not call `debug.traceback`) and no `%f` frontier patterns.
+- `rawset` does not exist in the UI Lua sandbox (calling it errors; the G7 city report item broke on it). The game's own UI Lua never uses `rawset`/`rawget`/`rawequal`, so `.luacheckrc` lists them in `not_globals` and lint reports their use. Check `setmetatable`, `getmetatable`, `debug`, `os`, `io`, `load*` and `dofile` availability before using them.
 
 ## Trade choosers (unverified, read from the game files)
 
@@ -166,6 +167,7 @@ The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goe
 - `Events.BarbarianSpottedCity(playerID, unitID, cityOwner, cityID)` fires when a barbarian first sees a city; HubEnemies.OnBarbarianSpottedCity runs the scout check promptly for our cities (during the AI turn the turn start does it).
 - `unit:GetBarbarianTribeIndex()` + `Game.GetBarbarianManager():GetTribeCampLocation(tribe)` give the scout's camp (x,y) (e.g. tribe 13 -> 55,21). We name it ("toward its camp 4 tiles north-east") only when `PlayersVisibility[local]:IsRevealed(plot)`; otherwise just "heading away from <city>".
 - `UnitManager.GetActivityType` returns hashes (HOLD 75236491, AWAKE 1797587246, OPERATION 1225574625); `GetQueuedDestination` is nil for barbarian scouts; `HasPendingOperations` is true on a trip.
+- `UnitManager.PlaceUnit` fires no visibility event (nothing to listen to for a unit placed that way). A barbarian scout created through the tuner has tribe -1 and is never flagged: `GetBarbarianTargetPlayer` stays -1, so CheckScouts cannot be tested with it.
 - `GetFormationUnitCount` returns 2 for both members of an escort, with the same `GetFormationID`.
 - The "Raid: N barbarians near X" line counts land units only (`GameInfo.Units[type].Domain ~= "DOMAIN_SEA"`); ships stay in the Enemies line.
 - Barbarian camps (offline findings, round 26, not yet verified in game): `Improvements.xml` gives `IMPROVEMENT_BARBARIAN_CAMP` `DispersalGold="50"` and `RemoveOnEntry="true"`; the gold is scaled by `BARBARIAN_CAMP_GOLD_SCALING` (difficulty, `MODIFIER_PLAYER_ADJUST_GOLD_DISPERSAL`), so J says "about 50 gold" from the DB row and the destroyed line ("Barbarian camp destroyed, N gold", `HubPlaces.OnImprovementRemovedFromMap`) uses the treasury growth. No GoodyHutReward is expected for camps (the reward is a dispersal, not a goody hut). `BARBARIAN_CAMP_MINIMUM_DISTANCE_CITY` 4 / `_ANOTHER_CAMP` 7 are read from `GameInfo.GlobalParameters` for the Blind spots Space text. The NEW_BARBARIAN_CAMP notification has a location (`pNotification:GetLocation()`), `HubRegions.OnNotificationAdded` adds the position from the nearest city.

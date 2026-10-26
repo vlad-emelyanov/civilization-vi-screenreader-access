@@ -4,6 +4,8 @@ max_line_length = false
 -- globals defined at the top of a file may be used within that file (Civ screens define OnInput etc.)
 allow_defined_top = true
 unused_args = false
+-- absent from the Civ VI UI Lua sandbox (rawset errors in game); the game's own UI Lua never uses them either
+not_globals = { "rawset", "rawget", "rawequal" }
 self = false
 -- noise for this code base: unused locals/values/globals, shadowing, whitespace
 ignore = { "21[1-5]", "231", "232", "233", "311", "312", "313", "314", "43[1-3]", "131", "61[1-4]" }
