@@ -201,3 +201,72 @@ test("a hold whose popup context is hidden is released after the grace time", fu
 	tick(0.5)
 	eq(table.concat(Spoken(), "|"), "x")
 end)
+
+-- turn-start line repeated after the World Congress results popup
+local repeats, popupOpen, gameTurn = 0, false, 10
+Game.GetCurrentGameTurn = function() return gameTurn end
+HubCore.IsGamePopupOpen = function() return popupOpen end
+HubAnnounce.RepeatTurnStartLine = function() repeats = repeats + 1 end
+local function resetRepeat()
+	reset(); repeats = 0; popupOpen = false; gameTurn = 10
+	HubCore.m_turnBegin = { time = -1000, turn = -1 }
+end
+local function showResults() HubCore.SetSpeechHold("WorldCongressResults", true) end
+
+test("congress results at the turn start: one repeat after 0.5 s quiet", function()
+	resetRepeat()
+	HubCore.MarkTurnBegin()
+	tick(2); showResults(); tick(5)
+	HubCore.SetSpeechHold("WorldCongressResults", false)
+	tick(0.3); eq(repeats, 0)
+	tick(0.3); eq(repeats, 1)
+	tick(2); eq(repeats, 1, "once")
+end)
+
+test("congress results reopened mid-turn: no repeat", function()
+	resetRepeat()
+	HubCore.MarkTurnBegin()
+	tick(60); showResults(); tick(5)
+	HubCore.SetSpeechHold("WorldCongressResults", false)
+	tick(3); eq(repeats, 0)
+end)
+
+test("a popup in the gap delays the repeat until it closes", function()
+	resetRepeat()
+	HubCore.MarkTurnBegin()
+	showResults(); tick(1)
+	HubCore.SetSpeechHold("WorldCongressResults", false)
+	tick(0.3); popupOpen = true; tick(0.3)
+	tick(5); eq(repeats, 0, "popup open")
+	popupOpen = false
+	tick(0.3); eq(repeats, 0)
+	tick(0.3); eq(repeats, 1)
+	tick(2); eq(repeats, 1)
+end)
+
+test("a pending repeat is dropped after 30 s", function()
+	resetRepeat()
+	HubCore.MarkTurnBegin()
+	showResults(); tick(1)
+	HubCore.SetSpeechHold("WorldCongressResults", false)
+	popupOpen = true; tick(31)
+	popupOpen = false; tick(2)
+	eq(repeats, 0)
+end)
+
+test("a pending repeat is cleared on load", function()
+	resetRepeat()
+	HubCore.MarkTurnBegin()
+	showResults(); tick(1)
+	HubCore.SetSpeechHold("WorldCongressResults", false)
+	HubCore.ClearSpeechHold()
+	tick(3); eq(repeats, 0)
+end)
+
+test("turn changes before the repeat: dropped", function()
+	resetRepeat()
+	HubCore.MarkTurnBegin()
+	showResults(); tick(1)
+	HubCore.SetSpeechHold("WorldCongressResults", false)
+	gameTurn = 11; tick(3); eq(repeats, 0)
+end)

@@ -326,6 +326,7 @@ end
 local m_endedTurn:number = -1;			-- game turn for which a turn end was seen and is not yet confirmed or refuted (see TurnNotEnded)
 
 function HubAnnounce.AnnounceTurn()
+	if HubCore.IsLocalPlayerActive() then HubCore.MarkTurnBegin(); end
 	if not HubCore.IsLocalPlayerActive() then return; end
 	local turn:number = Game.GetCurrentGameTurn();
 	local key:string = Game.GetLocalPlayer() .. ":" .. turn;
@@ -453,6 +454,7 @@ function HubAnnounce.RepeatTurnStartLine()
 end
 
 function HubAnnounce.OnPlayerTurnActivated( playerID:number, isFirstTime:boolean )
+	if playerID == Game.GetLocalPlayer() then HubCore.MarkTurnBegin(); end
 	if playerID ~= Game.GetLocalPlayer() or isFirstTime or m_endedTurn ~= Game.GetCurrentGameTurn() then return; end
 	TurnNotEnded( m_endedTurn );
 end
