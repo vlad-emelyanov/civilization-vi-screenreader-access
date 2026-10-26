@@ -1,0 +1,14 @@
+# bug-escort-lost-in-city (t73): the engine KEEPS a formation inside a city (Spearman + Settler in Rome, both GetFormationUnitCount 2).
+# Selecting the Spearman must say "escorting Settler" there, and Shift+E on an escorted unit (it leaves the formation) must speak ("Escort ended").
+# covers: **/HubEnemies.lua **/UnitPanel.lua **/HubAnnounce.lua
+# no-share-load: changes the formation
+load bug-escort-lost-in-city
+clear-advisors
+lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(2293769)) return 1
+lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(1638401)) return 1
+key K -Settle 1200
+expect in Rome\. escorting Settler
+lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(1638401)) return 1
+key Shift+E -Settle 2500
+expect Escort ended: Spearman
+no-lua-errors

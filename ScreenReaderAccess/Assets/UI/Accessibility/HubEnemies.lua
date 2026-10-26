@@ -848,7 +848,8 @@ function HubEnemies.EscortText( unit:table )
 			end
 		end
 	end
-	if #partners == 0 or plot:IsCity() then return nil; end
+	-- the engine keeps a formation inside a city (verified: both report GetFormationUnitCount() == 2): say it; the hint to form one is not given there
+	if #partners == 0 or ( plot:IsCity() and not together ) then return nil; end
 	local name:string = Locale.Lookup( partners[1]:GetName() );
 	if together then
 		return ( civilian and "escorted by " or "escorting " ) .. name;

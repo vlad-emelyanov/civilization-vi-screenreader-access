@@ -2533,6 +2533,11 @@ function OnUnitActionClicked( actionType:number, actionHash:number, currentMode:
 					end
 				else
 					-- No mode needed, just do the operation
+					-- ScreenReaderAccess mod change: leaving a formation (Shift+E on an escorted unit) was silent; read it back in SRUnitPanelUpdate
+					if actionHash == UnitCommandTypes.EXIT_FORMATION then
+						SRFormationPending = { unitId = pSelectedUnit:GetID(), before = pSelectedUnit:GetFormationUnitCount(), exiting = true,
+							mine = Locale.Lookup( pSelectedUnit:GetName() ), due = UI.GetElapsedTime() + 0.3 };
+					end
 					UnitManager.RequestCommand( pSelectedUnit, actionHash );
 				end
 			else
@@ -4985,7 +4990,15 @@ function SRUnitPanelUpdate()
 		local text:string = nil;
 		pcall( function()
 			local u = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( f.unitId );
-			if u ~= nil and u:GetFormationUnitCount() > f.before then
+			if f.exiting == true then
+				if u ~= nil and u:GetFormationUnitCount() < f.before then
+					text = "Escort ended: " .. f.mine .. " is on its own again";
+				elseif now < f.due + 2.0 then
+					return;
+				else
+					text = "The escort could not be ended";
+				end
+			elseif u ~= nil and u:GetFormationUnitCount() > f.before then
 				text = "Escort formed: " .. f.mine .. " with " .. f.partner;
 			elseif now < f.due + 2.0 then
 				return;		-- keep polling for up to 2 s
