@@ -321,7 +321,10 @@ function OnClose()
 	m_isOnQueue = false;
 
 	ShowNextQueuedPopup();
-	if not m_isOnQueue then LuaEvents.SRA_SpeechHold( "BoostUnlocked", false ); end		-- ScreenReaderAccess mod change: no further boost queued
+	if not m_isOnQueue then
+		OutputMessageToScreenReader( "Closed" );		-- ScreenReaderAccess mod change: no further boost queued; the held hub lines follow
+		LuaEvents.SRA_SpeechHold( "BoostUnlocked", false );
+	end
 end
 
 -- ===========================================================================

@@ -247,9 +247,11 @@ function SRA_Clean( text:string )
 	return CleanTextForSpeech( tostring(text) );
 end
 
-function SRA_AddLines( lines:table, details:table )
+function SRA_AddLines( lines:table, details:table, over:boolean )
 	for _, line in ipairs(details or {}) do
 		local text:string = SRA_Clean(line.string);
+		-- a finished competition: the game still shows "When time runs out, Members will be rewarded ...": say it in the past
+		if over and ( line.string == Locale.Lookup("LOC_EMERGENCY_REWARD_NON_HOSTILE_DESCRIPTION") or line.string == Locale.Lookup("LOC_EMERGENCY_MEMBER_REWARDS_HOSTILE_EXPLANATION") ) then text = "Rewards"; end
 		if text ~= "" then table.insert(lines, text); end
 	end
 end
@@ -295,7 +297,7 @@ function SRA_BuildText( kData:table )
 	if #members > 0 then
 		table.insert(lines, (string.gsub(SRA_Clean(Controls.MemberLabel:GetText()), "%s*:%s*$", "")) .. ": " .. table.concat(members, "; "));
 	end
-	SRA_AddLines(lines, kData.rewardsDetails);
+	SRA_AddLines(lines, kData.rewardsDetails, kData.timeRemaining <= 0);
 
 	m_srLines = lines;
 	m_srIndex = 0;
@@ -356,7 +358,7 @@ function OnShow()
 	UI.PlaySound("ScoredCompetition_open");
 	if m_srOpening ~= "" then OutputMessageToScreenReader(m_srOpening); end		-- ScreenReaderAccess mod change
 	m_srUnread = true;
-	if UI.GetElapsedTime() - m_srClosedAt < 8 then m_srRespeak = 1.2; end		-- shown right after the congress: its closing line may have cut the opening off
+	-- (no re-speak for a popup shown right after the congress: the opening interrupts, nothing cuts it off but a later closing line, see SRA_OnCongressClosed; a second reading doubled the text)
 end
 
 -- ===========================================================================
