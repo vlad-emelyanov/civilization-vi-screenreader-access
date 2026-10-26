@@ -1,0 +1,7 @@
+turn: 124
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t124 end: Suleiman proposes peace deal (AI proposal path)
+mod commit: be4f05e
+created: 2026-10-23
+size: 1043 KB

@@ -1,0 +1,7 @@
+turn: 115
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t114 end: Special Session World Congress; Enter on intro -> 'World Congress votes submitted. Everyone is ready.' + 'Turn ended', no voting offered
+mod commit: be4f05e
+created: 2026-10-23
+size: 1012 KB

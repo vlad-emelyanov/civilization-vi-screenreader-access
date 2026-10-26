@@ -1,0 +1,7 @@
+turn: 225
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Great Engineer Robert Goddard just patronized (0 of 4 moves) in Lugdunum, selected, U says 'Upgrade Available! is not available for Robert Goddard' instead of activate reason; Tab menu shows only Delete Unit (no Activate entry)
+mod commit: 5844159
+created: 2026-10-24
+size: 1466 KB

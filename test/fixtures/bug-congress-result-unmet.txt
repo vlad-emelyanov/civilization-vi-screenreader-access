@@ -1,0 +1,7 @@
+turn: 151
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t151 World Congress results popup open (just after turn start): 'target Unmet Player' although we targeted Trajan (self)
+mod commit: e5e35e1
+created: 2026-10-24
+size: 1102 KB

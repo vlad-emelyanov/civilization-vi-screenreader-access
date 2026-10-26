@@ -1,0 +1,7 @@
+turn: 221
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: playtest chain; Aerodrome built in Lugdunum, Fighter queued (needs Aluminum, have 1), no Oil anywhere
+mod commit: c399030
+created: 2026-10-24
+size: 1450 KB

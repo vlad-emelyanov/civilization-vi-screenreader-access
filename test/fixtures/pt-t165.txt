@@ -1,0 +1,7 @@
+turn: 165
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: playtest end t165
+mod commit: 25ec773
+created: 2026-10-24
+size: 1159 KB

@@ -1,0 +1,7 @@
+turn: 158
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: J Tab Enter (field cannon in Rome 51,32), Shift+F, Shift+Up (cursor on 2nd Field Cannon NE), Enter: silent, click lands on Rome (says Rome info), no corps formed
+mod commit: 25ec773
+created: 2026-10-24
+size: 524 KB

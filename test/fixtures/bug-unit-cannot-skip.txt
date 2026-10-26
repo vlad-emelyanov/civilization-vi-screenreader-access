@@ -1,0 +1,7 @@
+turn: 118
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t118 Rome, 2nd Crossbowman (Control+K) needs orders: Tab menu lacks Fortify/Sleep, Skip unavailable, Ranged unavailable no reason; blocks Enter
+mod commit: be4f05e
+created: 2026-10-23
+size: 1023 KB

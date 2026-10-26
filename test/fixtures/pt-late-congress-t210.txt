@@ -1,0 +1,7 @@
+turn: 210
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: World Congress intro open at turn 210 (Enter to vote)
+mod commit: c399030
+created: 2026-10-24
+size: 1414 KB

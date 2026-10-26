@@ -1,0 +1,7 @@
+turn: 165
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t165 bankrupt: Treasury Bankrupt + Unit Disbanded notifications; check what is spoken (Control+N, Space on items)
+mod commit: 25ec773
+created: 2026-10-24
+size: 888 KB

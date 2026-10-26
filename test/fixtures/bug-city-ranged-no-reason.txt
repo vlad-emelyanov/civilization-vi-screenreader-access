@@ -1,0 +1,7 @@
+turn: 144
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t144: barbarian Musketman adjacent (62,33) to Aquileia (62,34, no walls); J>Aquileia, K, R -> 'Aquileia can't attack: no enemy in range' although enemy adjacent (game CanStartCommand RANGE_ATTACK false). Also X picks a Barbarian Crossbowman 2 tiles east first although musketman is 1 tile away
+mod commit: e5e35e1
+created: 2026-10-23
+size: 1093 KB

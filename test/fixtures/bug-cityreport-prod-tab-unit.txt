@@ -1,0 +1,7 @@
+turn: 222
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Lugdunum city report (Control+I), Down x5 to 'Production: Fighter, 52 turns, Tab opens production', Tab opens Fighter unit actions instead (a Fighter is selected in the city)
+mod commit: 5844159
+created: 2026-10-24
+size: 1461 KB

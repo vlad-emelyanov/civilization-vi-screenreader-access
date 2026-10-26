@@ -1,0 +1,7 @@
+turn: 221
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Bomber Tab actions list: Down from 'WMD Strike, unavailable' (4 of 9) never advances, items 5-9 unreachable; air-ready fixture, Bomber in Lugdunum, Tab then Down x4+
+mod commit: 5844159
+created: 2026-10-24
+size: 1452 KB

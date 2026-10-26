@@ -1,0 +1,7 @@
+turn: 132
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: WorldCrisisPopup (Scored Competition) open after congress results close, nothing spoken, N silent
+mod commit: 43e0076
+created: 2026-10-23
+size: 1062 KB

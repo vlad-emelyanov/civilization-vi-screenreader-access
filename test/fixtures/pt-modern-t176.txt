@@ -1,0 +1,7 @@
+turn: 176
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t176: Flight researched, Aerodrome building, Biplane needs Oil, 3 cities
+mod commit: 25ec773
+created: 2026-10-24
+size: 969 KB

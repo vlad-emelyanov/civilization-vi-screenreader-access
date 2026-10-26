@@ -1,0 +1,7 @@
+turn: 229
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain end: Lugdunum only city, Mediolanum went Free City, Ottoman tanks nearby
+mod commit: 5844159
+created: 2026-10-24
+size: 1491 KB

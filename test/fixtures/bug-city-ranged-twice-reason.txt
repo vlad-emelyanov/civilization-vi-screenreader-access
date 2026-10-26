@@ -1,0 +1,7 @@
+turn: 208
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Ostia R at Ottoman Tank (Enter confirms), then R again says 'can't attack: no enemy in range' instead of already attacked; after cursor at Ostia (Shift+0)
+mod commit: c399030
+created: 2026-10-24
+size: 1397 KB

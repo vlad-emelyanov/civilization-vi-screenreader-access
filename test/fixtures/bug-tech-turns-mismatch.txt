@@ -1,0 +1,7 @@
+turn: 61
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Square Rigging node says 68 turns, after Enter target says about 182 turns; Enter replaced current Engineering research with Writing
+mod commit: ed35484
+created: 2026-10-26
+size: 1095 KB
