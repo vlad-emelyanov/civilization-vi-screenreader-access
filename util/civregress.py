@@ -1120,22 +1120,41 @@ _REGISTRATION = re.compile(
     r")\s*(?:--.*)?$")
 
 
-def registration_only(diff_lines):
-    """True when a unified diff (-U0) of one file only adds registration lines (include(...), HubCore.AddEvent / Listen,
-    Hub.RegisterAction, LuaEvents.X.Add / Events.X.Add, one line each), blank lines or comments, and removes only blank /
-    comment lines. An empty diff is not registration-only (unknown change)."""
-    seen = False
+_NOT_MODULES = {"HubCore", "Hub", "Events", "LuaEvents", "Locale", "Game", "Players", "GameInfo"}
+
+
+def registration_modules(code):
+    """Module names a registration line refers to (include("X") -> X; X.Y tokens other than the registrar / engine tables)."""
+    m = re.match(r"^(?:local\s+\w+\s*=\s*)?include\s*\(\s*[\"']([\w.]+)[\"']", code)
+    if m:
+        return {m.group(1)}
+    return {t for t in re.findall(r"\b([A-Za-z_]\w*)\.\w+", re.sub(r"\"[^\"]*\"", "", code)) if t not in _NOT_MODULES}
+
+
+def registration_only(diff_lines, changed=()):
+    """(True, [ignored lines verbatim]) when a unified diff (-U0) of one core file only adds single-line registrations
+    (include(...), HubCore.AddEvent / Listen, Hub.RegisterAction, LuaEvents.X.Add / Events.X.Add), blank lines or `--` comments
+    (`--[[` is not a comment here), removes only blank / comment lines, AND every registration names a module (include("HubFoo"),
+    HubFoo.OnBar) whose non-core file HubFoo.lua is itself in `changed` (the scripts covering it get selected instead). A
+    registration naming no module, or an unchanged one, is a behaviour change: (False, []). An empty diff is (False, [])."""
+    names = {os.path.basename(c.replace("\\", "/")) for c in changed if not path_matches(c.replace("\\", "/"), CORE_GLOBS)}
+    ignored, seen = [], False
     for l in diff_lines:
         if l.startswith(("+++", "---", "@@", "diff ", "index ")) or l[:1] not in ("+", "-"):
             continue
         body = l[1:].strip()
         seen = True
-        if not body or body.startswith("--"):
+        if not body or (body.startswith("--") and not body.startswith("--[")):
             continue
         code = body.split("--")[0]
-        if l[0] == "-" or not _REGISTRATION.match(body) or code.count("(") != code.count(")") or re.search(r"\bfunction\b", code):
-            return False
-    return seen
+        if (l[0] == "-" or "--[" in body or not _REGISTRATION.match(body) or code.count("(") != code.count(")")
+                or re.search(r"\bfunction\b", code)):
+            return False, []
+        mods = registration_modules(code.strip())
+        if not mods or any(m + ".lua" not in names for m in mods):
+            return False, []
+        ignored.append(body)
+    return seen, ignored
 
 
 def select_changed(scripts, changed, core_diff=None, notes=None):
@@ -1153,10 +1172,12 @@ def select_changed(scripts, changed, core_diff=None, notes=None):
     for p in paths:
         if p.startswith(MOD_DIR) and path_matches(p, CORE_GLOBS):
             d = core_diff(p) if core_diff else None
-            if d is not None and registration_only(d):
+            ok, lines = registration_only(d, paths) if d is not None else (False, [])
+            if ok:
                 ignored.add(p)
                 if notes is not None:
-                    notes.append("core file %s: registration-only diff, ignored" % p)
+                    notes.append("core file %s: registration-only diff, ignored (the files they name are changed too):" % p)
+                    notes.extend("    " + x for x in lines)
                 continue
             return {name: "core file changed: %s" % p for name, _ in scripts}, []
     for p in paths:
@@ -1474,6 +1495,8 @@ def main(argv=None):
     for r in results:
         if r.flaky:
             print("FLAKY %s  (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict))
+        elif r.second_attempt_failed:
+            print("STILL FAILING %s  (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict))
     print("TOTAL: %s" % format_duration(time.time() - t0))
     return 0 if all(r.ok for r in results) else 1
 

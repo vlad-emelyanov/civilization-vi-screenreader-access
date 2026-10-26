@@ -36,24 +36,40 @@ class CoreRegistrationTests(unittest.TestCase):
     def scripts(self):
         return [("a", cr.parse_script("# covers: **/HubPlaces.lua\nload x\nkey A")), ("b", cr.parse_script("# covers: **/HubEvents.lua\nload x\nkey B"))]
 
+    DIR = "ScreenReaderAccess/Assets/UI/Accessibility/"
+    CH = [DIR + "HubFoo.lua", DIR + "HubEvents.lua"]
+
     def test_registration_only(self):
-        d = ["--- a/x", "+++ b/x", "@@ -1 +1,4 @@", '+include( "HubFoo" );', '+\tHubCore.AddEvent( "UnitMoveComplete",\t\tHubFoo.OnMove );\t-- why',
-             '+\tHubCore.Listen( LuaEvents.SRA_X, HubCore.Safe( "X", HubFoo.X ) );', "+\tLuaEvents.Foo.Add( Bar );", "+", "+-- comment"]
-        self.assertTrue(cr.registration_only(d))
+        d = ["--- a/x", "+++ b/x", "@@ -1 +1,4 @@", '+include( "HubFoo" );', '+	HubCore.AddEvent( "UnitMoveComplete",		HubFoo.OnMove );	-- why',
+             '+	HubCore.Listen( LuaEvents.SRA_X, HubCore.Safe( "X", HubEvents.X ) );', "+", "+-- comment"]
+        ok, lines = cr.registration_only(d, self.CH)
+        self.assertTrue(ok)
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(lines[0], 'include( "HubFoo" );')
+
+    def test_registration_of_unchanged_or_unnamed_module_is_core(self):
+        self.assertEqual(cr.registration_only(['+include( "HubBar" );'], self.CH), (False, []))
+        self.assertEqual(cr.registration_only(['+	HubCore.AddEvent( "A", HubBar.OnA );'], self.CH), (False, []))
+        self.assertEqual(cr.registration_only(["+	LuaEvents.Foo.Add( Bar );"], self.CH), (False, []))
+        self.assertEqual(cr.registration_only(['+include( "HubFoo" );'], [CORE]), (False, []))
 
     def test_other_changes_are_core(self):
-        self.assertFalse(cr.registration_only(['+include( "HubFoo" );', "+local x = 1;"]))
-        self.assertFalse(cr.registration_only(['+include( "HubFoo" );', "-local x = 1;"]))
-        self.assertFalse(cr.registration_only(['+\tHubCore.AddEvent( "A",\t\tfunction()']))   # multi-line body
-        self.assertFalse(cr.registration_only([]))
+        for extra in ("+local x = 1;", "-local x = 1;", "+--[[ block", '+	HubCore.AddEvent( "A",		function()'):
+            self.assertFalse(cr.registration_only(['+include( "HubFoo" );', extra], self.CH)[0], extra)
+        self.assertFalse(cr.registration_only([], self.CH)[0])
 
     def test_select_ignores_registration_only_core(self):
         notes = []
-        sel, unc = cr.select_changed(self.scripts(), [CORE, "ScreenReaderAccess/Assets/UI/Accessibility/HubEvents.lua"],
+        sel, unc = cr.select_changed(self.scripts(), [CORE, self.DIR + "HubEvents.lua"],
                                      lambda p: ['+include( "HubEvents" );'], notes)
         self.assertEqual(list(sel), ["b"])
         self.assertEqual(unc, [])
-        self.assertEqual(notes, ["core file %s: registration-only diff, ignored" % CORE])
+        self.assertIn("core file %s: registration-only diff, ignored" % CORE, notes[0])
+        self.assertEqual(notes[1].strip(), 'include( "HubEvents" );')
+
+    def test_select_all_when_registered_file_unchanged(self):
+        sel, _ = cr.select_changed(self.scripts(), [CORE], lambda p: ['+include( "HubEvents" );'], [])
+        self.assertEqual(list(sel), ["a", "b"])
 
     def test_select_all_for_real_core_change(self):
         sel, _ = cr.select_changed(self.scripts(), [CORE], lambda p: ["+local x = 1;"], [])

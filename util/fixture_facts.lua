@@ -183,7 +183,11 @@ sec("hostile units near cities", function()
   local vis = PlayersVisibility[pid]
   local cities = ourCities()
   local r = {}
-  for _, id in ipairs(PlayerManager.GetWasEverAliveIDs()) do
+  local ids = {}   -- GetAliveMajorIDs / GetAliveMinorIDs return ids, GetAliveBarbarians returns player objects
+  for _, id in ipairs(PlayerManager.GetAliveMajorIDs()) do ids[#ids + 1] = id end
+  pcall(function() for _, id in ipairs(PlayerManager.GetAliveMinorIDs()) do ids[#ids + 1] = id end end)
+  pcall(function() for _, b in ipairs(PlayerManager.GetAliveBarbarians()) do ids[#ids + 1] = b:GetID() end end)
+  for _, id in ipairs(ids) do
     if id ~= pid then
       local o = Players[id]
       local barb = false
