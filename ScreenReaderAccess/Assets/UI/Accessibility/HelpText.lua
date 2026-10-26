@@ -62,6 +62,7 @@ local m_sections:table = {
 		{ action = "LensEmpire", default = "9", text = "Empire lens, the cursor then also reads the usual tile text, only the colours change" },
 		{ action = "LensPower", default = "0", text = "Power lens, the cursor then also reads the usual tile text, only the colours change" },
 		{ keys = "Escape",				text = "with nothing open: the in-game menu" },
+		{ keys = "Turn start",			text = "after the turn line: what visible enemies near your cities and units did, moved toward or away, new, wounded, out of sight" },
 	} },
 	{ title = "Units", entries = {
 		{ action = "KeyNavUnitActions",			default = "Tab",		text = "menu of everything the selected unit can do: Enter runs, Space reads the tooltip" },

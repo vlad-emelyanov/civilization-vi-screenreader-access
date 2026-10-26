@@ -208,6 +208,7 @@ include( "HubRegions" );
 include( "HubPlaces" );
 include( "HubCityReport" );
 include( "HubEvents" );
+include( "HubEnemies" );
 include( "HubHelp" );
 
 -- ===========================================================================
