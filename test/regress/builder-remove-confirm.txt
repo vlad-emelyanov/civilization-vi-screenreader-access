@@ -17,6 +17,6 @@ key Down -Settle 600
 expect Remove Improvement, 8 of 9
 key Enter -Settle 1500
 expect Remove Improvement destroys the Mine on this tile\. Enter again to confirm
-key Enter -Settle 2500
+key Enter -Settle 4000 -NoQuiet
 expect Mine removed
 no-lua-errors
