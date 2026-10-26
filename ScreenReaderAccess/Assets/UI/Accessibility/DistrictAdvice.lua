@@ -149,4 +149,3 @@ function DistrictAdvice_Spots( city:table )
 	return slot.spots;
 end
 
-function DistrictAdvice_Reset() m_cache = {}; end
