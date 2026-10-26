@@ -50,3 +50,27 @@ The bottleneck is the single game slot. Offline work scales with agents; game ti
 
 - A second game instance (Steam allows one) or faster loads (engine-bound).
 - Replacing the real-keyboard harness with direct Lua calls: it hides exactly the bugs a blind player hits (input routing, swallowed keys, hover-only speech).
+
+# Session audit (2026-10-26, rounds 23-24): open work for the next round
+
+Game time ~9.5 h, of which ~4.5 h were four `regress all` runs (61 -> 81 min, 116 -> 136 scripts); almost every failure in them was a stale script broken on purpose by a new feature, or one of two flakes. The loop rules that came out of this are in `.claude/skills/team-lead/SKILL.md` (engine probe before offline work, regress-impact grep in briefs, frozen verifier branch lists, one full run per session, commit bug fixtures before briefing, play segment right after the first merge). The items below need harness or in-game work; give them to the next round's game owner / an offline tooling agent.
+
+## Harness (offline tooling; test with `python -m unittest discover test/py`, then one real run)
+
+| Item | Why | Notes |
+|---|---|---|
+| `regress all`: retry each failed script once, fresh load, at the end of the run; the run counts green if the retry passes, and the report lists it as `FLAKY <name>` | prophet-u-founds failed in 3 of 3 full runs, envoys-flow `load exited 1 (batch UNREACHABLE)` in 2; each needed a manual rerun and the lead set the green marker by hand three times | `util/civregress.py`; keep the retry visible in TIMING / SUMMARY so real regressions are not hidden |
+| `civregress.py --impact <old text>...` (or `--impact-diff <rev>`: old string literals removed from mod Lua in the diff) lists the scripts whose `expect` lines match | lets offline agents find stale scripts without the game | pure text search over `test/regress/*.txt` |
+| `regress changed`: do not select all scripts when a core file's diff only adds `include(...)` / `HubCore.AddEvent(...)` / `LuaEvents.*.Add` lines or new functions nothing else calls | every batch touched `InGameAccess.lua` for one registration line, so `changed` always selected everything and was never used | alternative: move the hub's include / event registration lists out of `InGameAccess.lua` into a non-core file |
+| `fixture-info` facts: visible hostile units within 6 tiles of our cities (type, owner, distance), unimproved resources in our cities' plots with the tech/civic that unlocks their improvement, visible / remembered barbarian camps | early-t60 has two real barbarians 3 tiles from Rome (broke 7 places scripts once Threats existed) and no resource needing a tech (G1 scripts had to give Rome a Deer tile by tuner) | rerun `fixture-info` on the main fixtures afterwards (game needed) |
+| `.recorded.txt` sidecars: decide which are tracked; add the rest to `.gitignore` | a verifier committed 51 sidecars by accident and had to revert | check `git ls-files test/regress/*.recorded.txt` first |
+
+## Game work (game owner)
+
+| Item | Why | Notes |
+|---|---|---|
+| Fix the prophet-u-founds flake | fails in every full run (wait for "Religion founded" times out), passes alone | likely notification timing; wait on the notification event / poll the notification list instead of a fixed 25 s |
+| Congress: verify the unit line is repeated after the results popup closes (user item 7) | the script opens the popup by hand, so the real turn-start ordering (Turn N, unit line, results) never happens; still unconfirmed | needs a fixture saved right before a congress session ends (play or `advance` to a session, save, end turn) |
+| Threats item for a lone soldier near a city says its position twice ("Barbarian Archer, 2 tiles south-east of Rome, near your city, 2 tiles south-east of Rome, ...") | found by the round-24 verifier, not fixed | `HubPlaces` Threats item text vs `Where()` |
+| Fixtures / scenarios for features the round-23 play-through never reached: camp guards + attack party, builder "Later" group, "needs Animal Husbandry" cursor phrase, "Here is good ... B to found here." verdict, auto-explore "Too close to Tribal Village" | the play segment cannot test what its save does not contain | a scenario per item, or pick a fixture whose facts contain them (after the `fixture-info` extension) |
+| Barbarian scout alarm "escaped" / "killed" lines and "Raid near Rome continues" over real turns | only reached with tuner-aged state | scenario-made scouts have tribe -1 and are never flagged (engine-notes); use the fixture's own flagged scout |
