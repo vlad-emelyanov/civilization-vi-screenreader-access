@@ -1,0 +1,53 @@
+# Written blind 2026-10-23 (round 8, not yet recorded; run with civregress --record first). Places list (J): opening, categories with Tab / Control+Tab, Space, Escape, Enter on a city jumps the cursor.
+# covers: **/HubPlaces.lua **/HubCursor.lua **/HubRegions.lua UI/Additions/InGameAccess.lua
+load early-t60
+clear-advisors
+action KeyNavPlaces -Settle 1500
+expect ^Places\. Your cities, 1 of \d+ categories, 1 item\. Rome
+#   -> PASS; window had 17 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, 1 tile north-east, 1 of 1
+key Tab -Settle 1200
+expect ^Your units, 2 of \d+ categories, \d+ items?\.
+#   -> PASS; window had 1 SR> line(s):
+#      | Your units, 2 of 4 categories, 7 items. Warrior, needs orders, 1 tile south-west of Rome, 1 of 7
+key Down -Settle 1200
+expect , 2 of \d+
+#   -> PASS; window had 1 SR> line(s):
+#      | Hannibal Barca, needs orders, 1 tile south-west of Rome, 2 of 7
+key Space -Settle 1200
+expect (?i)rome
+#   -> PASS; window had 1 SR> line(s):
+#      | Hannibal Barca, Warrior 35 of 100 health, Plains, Plains Floodplains, river, yours, 3 Food 2 Production. 1 tile south-west of Rome, at Warrior
+key Control+Tab -Settle 1200
+expect ^Your cities, 1 of \d+ categories
+#   -> PASS; window had 1 SR> line(s):
+#      | Your cities, 1 of 4 categories, 1 item. Rome, capital, 1 tile north-east, 1 of 1
+key Enter -Settle 1500
+expect (?i)rome
+#   -> PASS; window had 1 SR> line(s):
+#      | Rome, capital, Boudica, Scout 63 of 100 health, Plains, Plains Floodplains, river, yours, 3 Food 3 Production. 1 tile north-east
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+#   -> PASS; window had 1 SR> line(s):
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, 1 tile north-east, 1 of 1
+key Escape -Settle 1200
+expect ^Closed
+#   -> PASS; window had 1 SR> line(s):
+#      | Closed
+no-lua-errors

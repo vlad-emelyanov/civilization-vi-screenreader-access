@@ -1,0 +1,78 @@
+# Verified 2026-10-23. City ranged attack: Enter on the "City Ranged Attack" notification announces "Attacking X", and a kill by the city is told ("X killed by Ostia").
+# covers: **/CombatText.lua **/InGameAccess.lua **/HubTargets.lua **/HubEvents.lua
+# options: animations
+# Setup: end turn 128 (barbarians approach Ostia), weaken the barbarian crossbowman with the tuner so Ostia's shot kills it.
+# no-share-load: Enter ends the turn, attacks
+load pt-t128
+clear-advisors
+key Enter -Settle 1500
+expect (?i)turn ended
+#   -> PASS; window had 17 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | You have built great cities of stone and seen early empires rise and fall. Soon you will stand under the towering pinnacles of castles alongside your gallant knights. That is where the story of your people will be written. Just as the young apprentice learns to carry a sword, so shall you grow to understand your place in this world.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 128, 1720 AD
+#      | Raid: 2 barbarians near Aquileia: Musketman 1 tile east, Crossbowman 2 tiles east. Aquileia defense 37. Your nearest soldiers: Archer 4 tiles south, Crossbowman 4 tiles south-west
+#      | Legion near Rome in danger: Barbarian Catapult 2 tiles west. Move it into Rome
+#      | All done. Enter ends the turn
+#      | Turn ended
+wait Turn 129 -Timeout 90
+clear-advisors
+lua GameCore_Tuner local n=0; for i=0,63 do local p=Players[i]; if p and p:IsBarbarian() then for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then u:SetDamage(70); n=n+1 end end end end return n
+key Enter -Settle 1500
+expect ^City ranged attack: choose a tile
+#   -> PASS; window had 12 SR> line(s):
+#      | Barbarian Musketman spotted, 3 tiles east of Ostia
+#      | Hong Kong attacks Barbarian Musketman, 3 tiles east of Ostia: Musketman takes 12 damage, 13 of 100 left
+#      | Notification: Barbarians Approach
+#      | Turn 129, 1730 AD
+#      | Enemies: Barbarian Battering Ram moved 1 tile toward Rome, now 1 tile north-east of Rome, in your territory.
+#      | Raid: 2 barbarians near Ostia: Crossbowman 2 tiles north-east, Musketman 3 tiles east. Ostia defense 45. Your nearest soldiers: Archer in Ostia, Crossbowman 4 tiles west
+#      | Settler near Rome in danger: Barbarian Catapult 2 tiles north-west. Move it into Rome
+#      | Barbarian Crossbowman takes 26 damage, 30 of 100 left
+#      | Notification: City Ranged Attack
+#      | Ostia, Population 4, Medieval Walls, 5 turns, grows in 1 turn, full loyalty
+#      | City ranged attack: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+#      | valid target. Barbarian Crossbowman 30 of 100 health, Plains, your territory, 1 Food 1 Production. 2 tiles north-east
+expect valid target, Ranged strength \d+ against \d+.*\. Barbarian Crossbowman
+#   -> FAIL; window had 12 SR> line(s):
+#      | Barbarian Musketman spotted, 3 tiles east of Ostia
+#      | Hong Kong attacks Barbarian Musketman, 3 tiles east of Ostia: Musketman takes 12 damage, 13 of 100 left
+#      | Notification: Barbarians Approach
+#      | Turn 129, 1730 AD
+#      | Enemies: Barbarian Battering Ram moved 1 tile toward Rome, now 1 tile north-east of Rome, in your territory.
+#      | Raid: 2 barbarians near Ostia: Crossbowman 2 tiles north-east, Musketman 3 tiles east. Ostia defense 45. Your nearest soldiers: Archer in Ostia, Crossbowman 4 tiles west
+#      | Settler near Rome in danger: Barbarian Catapult 2 tiles north-west. Move it into Rome
+#      | Barbarian Crossbowman takes 26 damage, 30 of 100 left
+#      | Notification: City Ranged Attack
+#      | Ostia, Population 4, Medieval Walls, 5 turns, grows in 1 turn, full loyalty
+#      | City ranged attack: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+#      | valid target. Barbarian Crossbowman 30 of 100 health, Plains, your territory, 1 Food 1 Production. 2 tiles north-east
+# G5 (written blind, unverified): the city line carries strengths; Space lists the modifiers
+key Space -Settle 800
+expect (?i)modifiers
+#   -> FAIL; window had 1 SR> line(s):
+#      | No modifier preview for a city attack
+key Enter -Settle 8000 -NoQuiet
+expect ^Attacking Barbarian Crossbowman
+#   -> PASS; window had 4 SR> line(s):
+#      | Attacking Barbarian Crossbowman
+#      | Barbarian Crossbowman spotted, 2 tiles north-east of Ostia
+#      | Barbarian Crossbowman killed by Ostia
+#      | All done. Enter ends the turn
+expect (?i)crossbowman killed by Ostia
+#   -> PASS; window had 4 SR> line(s):
+#      | Attacking Barbarian Crossbowman
+#      | Barbarian Crossbowman spotted, 2 tiles north-east of Ostia
+#      | Barbarian Crossbowman killed by Ostia
+#      | All done. Enter ends the turn
+no-lua-errors

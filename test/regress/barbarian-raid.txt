@@ -1,3 +1,4 @@
+# Galley check: the fixture already has an Archer and a Swordsman near Rome, the scenario adds 3 soldiers, the script adds a Galley: the raid counts 5 (land units only).
 # Written blind (round 24, G3b): three barbarian soldiers near Rome and a builder of ours next to the horseman. The raid and the
 # civilian-danger lines are spoken when the units come into view (mid-turn) or at the next turn start; J lists them under Threats.
 # Scenario barbarian-raid on early-t60.
@@ -6,10 +7,15 @@
 load early-t60
 scenario barbarian-raid
 clear-advisors
+lua GameCore_Tuner local c=Players[0]:GetCities():GetCapitalCity(); for dy=-3,3 do for dx=-3,3 do local pl=Map.GetPlot(c:GetX()+dx,c:GetY()+dy); if pl and pl:IsWater() and pl:GetUnitCount()==0 then Players[63]:GetUnits():Create(GameInfo.Units["UNIT_GALLEY"].Index, pl:GetX(), pl:GetY()) return 1 end end end return 0
 wait Raid: [0-9]+ barbarians near .*Horseman -Timeout 10
 expect Raid: \d+ barbarians near \w+: .*Horseman
 expect Your nearest soldiers:|You have no soldiers near
 expect \w+ near \w+ in danger: Barbarian Horseman 1 tile [a-z-]+\. Move it
+lua InGameAccess local t='' for _,x in ipairs(HubEnemies.ScanThreats().raids) do t=t..x.text..' ' end return 'RAIDTEXT '..t
+expect-lua RAIDTEXT Raid: 5 barbarians near
+lua InGameAccess local t='' for _,x in ipairs(HubEnemies.ScanThreats().raids) do t=t..x.text..' ' end return string.find(t,'Galley')==nil
+expect-lua true
 key J -Settle 1500
 expect Threats, 1 of \d+ categories, \d+ items?
 key Escape -Settle 800

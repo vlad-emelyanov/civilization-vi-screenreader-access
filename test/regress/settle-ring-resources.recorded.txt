@@ -1,0 +1,33 @@
+# Written blind 2026-10-23 (round 8), run with --record first. early-start (turn 1, settler selected): the X browser items name the resources per ring.
+# covers: **/SettleScan.lua **/HubSettle.lua **/HubCursor.lua
+# no-share-load: Enter/Escape change the selection and cursor
+load early-start
+clear-advisors
+key X -Settle 1500
+expect ^Settle spots, \d+ options
+#   -> PASS; window had 19 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From the first stirrings of life beneath water… to the great beasts of the Stone Age… to man taking his first upright steps, you have come far.� Now begins your greatest quest: from this early cradle of civilization on towards the stars.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Expansion: Gathering Storm. Page 1 of 12. Escape skips the introduction. Welcome to Civilization VI: Gathering Storm! This guide will introduce you to new features in this expansion. Additional information can be found in the Civilopedia and Advisor tips.
+#      | Next, 1 of 3
+#      | Turn 1, 4000 BC
+#      | Settler, 2 of 2 moves. Plains (Hills), Woods, river, 1 Food 3 Production
+#      | Can settle here, but poor food. Best: 2 tiles south-east, 2 turns, fresh water, good production, coast, but poor food, recommended. X to browse.
+#      | Settle spots, 4 options
+#      | 2 tiles south-east, 2 turns, fresh water, good production, coast, but poor food, recommended, 1 of 4
+key Space -Settle 800
+expect (?i)ring 1
+#   -> PASS; window had 1 SR> line(s):
+#      | 2 tiles south-east, 2 turns. recommended by the advisor. advisor plus: NEAREST CITY, Close to a friendly site. advisor minus: NEW RESOURCES, Few new resources here. advisor minus: INNER RING YIELD, Poor yields adjacent to this site. advisor plus: FRESH WATER, This site has fresh water. advisor minus: RESOURCES, Few luxuries or strategics nearby. fresh water. minus: poor food around. good production around. coast. hills: production and defense. 1 mountain next to it. Ring 1, the city's first tiles: no resources. Ring 2: Wheat (bonus). ring 1: 2 food, 4 production on 3 tiles. ring 2: 6 food, 10 production on 7 tiles
+key Escape -Settle 800
+no-lua-errors

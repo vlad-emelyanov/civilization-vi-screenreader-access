@@ -1,0 +1,76 @@
+# Places list, Your units: picking a unit that has orders says how to cancel them. Verified 2026-10-23.
+# Exploring: "Any order stops exploring, Tab for actions"; fortified: "Shift+C cancels it" (the game offers Cancel, not Wake, for a fortified unit; sleeping ones say "Shift+W wakes it").
+# covers: **/HubPlaces.lua
+# no-share-load: gives orders
+load early-t60
+clear-advisors
+lua GameCore_Tuner for _, u in Players[63]:GetUnits():Members() do local x, y = u:GetX(), u:GetY(); if x == 63 and (y == 33 or y == 34) then Players[63]:GetUnits():Destroy(u) end end return 1
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_SPEARMAN" then UI.SelectUnit(u) break end end
+wait Spearman -Timeout 8
+action Fortify -Settle 1500
+expect ^Fortified
+#   -> PASS; window had 21 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Raid: 2 barbarians near Rome: Archer 3 tiles east, Swordsman 3 tiles east. Rome defense 25. Your nearest soldiers: Scout in Rome, Warrior 1 tile south-west
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Spearman, 2 of 2 moves, 84 of 100 health. Plains, Plains Floodplains, river, Farm (Pillaged), yours, 3 Food 1 Production, 1 tile east of Rome
+#      | Fortified
+#      | Scout, 3 of 3 moves, 71 of 100 health. Plains, Plains Floodplains, Wheat (bonus), river, coastal, yours, 3 Food 2 Production, 1 tile north-east of Rome
+#      | Notification: Command Units
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_SCOUT" and u:GetMovesRemaining()>0 then UI.SelectUnit(u) break end end
+wait Scout -Timeout 8
+action AutoExplore -Settle 2000
+expect ^Exploring automatically
+#   -> PASS; window had 2 SR> line(s):
+#      | Scout, 3 of 3 moves, 63 of 100 health. Rome, capital, Boudica, Plains, Plains Floodplains, river, yours, 3 Food 3 Production, in Rome
+#      | Exploring automatically
+lua InGameAccess UI.DeselectAll()
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 600
+expect ^Your units
+#   -> PASS; window had 4 SR> line(s):
+#      | Boudica, 4 of 4 moves. Rome, capital, Plains, Plains Floodplains, river, yours, 3 Food 3 Production, in Rome
+#      | Notification: Command Units
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, here, 1 of 1
+#      | Your units, 2 of 4 categories, 7 items. Boudica, needs orders, in Rome, 1 of 7
+key Down -Settle 400 -Count 4
+expect ^Spearman, fortified
+#   -> PASS; window had 4 SR> line(s):
+#      | Warrior, needs orders, 1 tile south-west of Rome, 2 of 7
+#      | Scout, needs orders, 1 tile north-east of Rome, 3 of 7
+#      | Hannibal Barca, needs orders, 1 tile south-west of Rome, 4 of 7
+#      | Spearman, fortified, 1 tile east of Rome, 5 of 7
+key Enter -Settle 1500
+expect fortified\. Shift\+C cancels it
+#   -> PASS; window had 1 SR> line(s):
+#      | Spearman, 2 of 2 moves, 84 of 100 health, fortified. Shift+C cancels it. Plains, Plains Floodplains, river, Farm (Pillaged), yours, 3 Food 1 Production, 1 tile east of Rome
+lua InGameAccess UI.DeselectAll()
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 600
+key Down -Settle 400 -Count 3
+expect Scout, exploring
+#   -> FAIL; window had 5 SR> line(s):
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, 1 tile west, 1 of 1
+#      | Your units, 2 of 4 categories, 7 items. Spearman, fortified, 1 tile east of Rome, 1 of 7
+#      | Scout, needs orders, 1 tile north-east of Rome, 2 of 7
+#      | Boudica, needs orders, in Rome, 3 of 7
+#      | Warrior, needs orders, 1 tile south-west of Rome, 4 of 7
+key Enter -Settle 1500
+expect exploring\. Any order stops exploring, Tab for actions
+#   -> FAIL; window had 1 SR> line(s):
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+no-lua-errors

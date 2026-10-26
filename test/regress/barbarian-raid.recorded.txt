@@ -1,0 +1,90 @@
+# Written blind (round 24, G3b): three barbarian soldiers near Rome and a builder of ours next to the horseman. The raid and the
+# civilian-danger lines are spoken when the units come into view (mid-turn) or at the next turn start; J lists them under Threats.
+# Scenario barbarian-raid on early-t60.
+# covers: **/HubEnemies.lua **/HubEvents.lua **/HubPlaces.lua **/HubAnnounce.lua
+# no-share-load: scenario barbarian-raid
+load early-t60
+scenario barbarian-raid
+clear-advisors
+wait Raid: [0-9]+ barbarians near .*Horseman -Timeout 10
+expect Raid: \d+ barbarians near \w+: .*Horseman
+#   -> PASS; window had 23 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Raid: 2 barbarians near Rome: Archer 3 tiles east, Swordsman 3 tiles east. Rome defense 25. Your nearest soldiers: Scout in Rome, Warrior 1 tile south-west
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Barbarian Horseman spotted, 1 tile south-west of your Builder
+#      | Barbarian Warrior spotted, 2 tiles south-west of your Builder
+#      | Barbarian Warrior spotted, 2 tiles south-east of your Builder
+#      | Raid: 5 barbarians near Rome: Archer 3 tiles east, Swordsman 3 tiles east, Horseman 3 tiles south-west and more. Rome defense 25. Your nearest soldiers: Scout in Rome, Warrior 1 tile south-west
+#      | Builder near Rome in danger: Barbarian Warrior 1 tile south-east. Move it next to your Warrior, 2 tiles north
+#      | Builder near Rome in danger: Barbarian Horseman 1 tile south-west. Move it next to your Warrior, 1 tile north-east
+expect Your nearest soldiers:|You have no soldiers near
+#   -> PASS; window had 23 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Raid: 2 barbarians near Rome: Archer 3 tiles east, Swordsman 3 tiles east. Rome defense 25. Your nearest soldiers: Scout in Rome, Warrior 1 tile south-west
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Barbarian Horseman spotted, 1 tile south-west of your Builder
+#      | Barbarian Warrior spotted, 2 tiles south-west of your Builder
+#      | Barbarian Warrior spotted, 2 tiles south-east of your Builder
+#      | Raid: 5 barbarians near Rome: Archer 3 tiles east, Swordsman 3 tiles east, Horseman 3 tiles south-west and more. Rome defense 25. Your nearest soldiers: Scout in Rome, Warrior 1 tile south-west
+#      | Builder near Rome in danger: Barbarian Warrior 1 tile south-east. Move it next to your Warrior, 2 tiles north
+#      | Builder near Rome in danger: Barbarian Horseman 1 tile south-west. Move it next to your Warrior, 1 tile north-east
+expect \w+ near \w+ in danger: Barbarian Horseman 1 tile [a-z-]+\. Move it
+#   -> PASS; window had 23 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Raid: 2 barbarians near Rome: Archer 3 tiles east, Swordsman 3 tiles east. Rome defense 25. Your nearest soldiers: Scout in Rome, Warrior 1 tile south-west
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Barbarian Horseman spotted, 1 tile south-west of your Builder
+#      | Barbarian Warrior spotted, 2 tiles south-west of your Builder
+#      | Barbarian Warrior spotted, 2 tiles south-east of your Builder
+#      | Raid: 5 barbarians near Rome: Archer 3 tiles east, Swordsman 3 tiles east, Horseman 3 tiles south-west and more. Rome defense 25. Your nearest soldiers: Scout in Rome, Warrior 1 tile south-west
+#      | Builder near Rome in danger: Barbarian Warrior 1 tile south-east. Move it next to your Warrior, 2 tiles north
+#      | Builder near Rome in danger: Barbarian Horseman 1 tile south-west. Move it next to your Warrior, 1 tile north-east
+key J -Settle 1500
+expect Threats, 1 of \d+ categories, \d+ items?
+#   -> PASS; window had 1 SR> line(s):
+#      | Places. Threats, 1 of 5 categories, 5 items. Barbarian Horseman, raiding, 3 tiles south-west of Rome, 2 tiles south-west of Warrior, 1 of 5
+key Escape -Settle 800
+no-lua-errors

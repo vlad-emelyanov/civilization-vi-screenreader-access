@@ -1,10 +1,14 @@
-# Written blind (round 24, G3a): a barbarian scout 3 tiles from Rome sounds the alarm when it comes into view; J lists it under Threats.
-# Scenario barbarian-scout-near-city on early-t60. The alarm needs the game flag unit:GetBarbarianTargetPlayer() == us (round 25; the scenario may need to wait for the AI turn to set it, or fire Events.BarbarianSpottedCity).
+# G3a (round 25): the alarm fires only for a scout the game flags as spying on us (GetBarbarianTargetPlayer == us). A scenario-created scout has no tribe and is never flagged,
+# so the script uses the fixture's own flagged scout (player 63, unit 2424866, tribe 13, flag = us on early-t60, 11 tiles from Rome), places it 3 tiles from Rome and runs the hub's scout check (what Events.BarbarianSpottedCity / the visibility event do mid-turn).
+# At turn start the same check fires after the "Turn N" line (seen by hand: "Alarm: Barbarian Scout has seen Rome, 2 tiles south-west ..." one turn after the placement).
 # covers: **/HubEnemies.lua **/HubEvents.lua **/HubPlaces.lua **/HubAnnounce.lua
-# no-share-load: scenario barbarian-scout-near-city
+# no-share-load: moves a barbarian scout next to Rome
 load early-t60
-scenario barbarian-scout-near-city
 clear-advisors
+lua InGame return Players[63]:GetUnits():FindID(2424866):GetBarbarianTargetPlayer() == 0
+expect-lua true
+lua GameCore_Tuner UnitManager.PlaceUnit(Players[63]:GetUnits():FindID(2424866), 59, 30) return 1
+lua InGameAccess HubEnemies.OnHostileVisible(nil) return 1
 wait Alarm: Barbarian Scout has seen -Timeout 10
 expect Alarm: Barbarian Scout has seen \w+, \d+ tiles? [a-z-]+\. If it gets back to its camp, a raid follows\. Kill it: \S+ targets it
 key J -Settle 1500

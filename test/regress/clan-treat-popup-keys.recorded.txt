@@ -1,0 +1,62 @@
+# Recorded 2026-10-24. Treat With Clan popup keys in the Barbarian Clans mode (fixture pt-modes-t75).
+# The popup is opened with the camp banner's own event from a tuner call (the plot index is looked up from the camp improvement); Enter must not reach end turn.
+# Nothing is bought or incited: Right/Left only choose a target (no gold is spent), Enter is only pressed on Close.
+# covers: **/TreatWithTribePopup_SRA.lua **/TreatClanText.lua **/HelpText.lua
+load pt-modes-t75
+clear-advisors
+lua InGame local camp = GameInfo.Improvements["IMPROVEMENT_BARBARIAN_CAMP"].Index; for i = 0, Map.GetPlotCount() - 1 do local p = Map.GetPlotByIndex(i); if p:GetImprovementType() == camp then LuaEvents.CityBannerManager_OpenTreatWithTribePopup(i); return i end end
+wait Treat With .* Clan -Timeout 8
+expect (?i)^Treat With .* Clan.*\d options?
+#   -> PASS; window had 16 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 75, 660 AD
+#      | Spearman, 2 of 2 moves, 55 of 100 health. Rome, capital, Builder, Grassland, Grassland Floodplains, river, yours, 2 Food 1 Production
+#      | Treat With Sand Snake Clan. Flatland Clan. City-State Conversion: 50+ Turns. 4 options
+#      | Hire: Spend 107 Gold to hire a Swordsman unit from this clan. The unit will appear near the city of Rome this turn. The clan will gain 5 points towards City-State conversion. Clans can be hired once every 7 turns., 1 of 4
+key End -Settle 800
+expect ^Close, \d of \d
+#   -> PASS; window had 1 SR> line(s):
+#      | Close, 4 of 4
+key Home -Settle 800
+expect , 1 of \d
+#   -> PASS; window had 1 SR> line(s):
+#      | Hire: Spend 107 Gold to hire a Swordsman unit from this clan. The unit will appear near the city of Rome this turn. The clan will gain 5 points towards City-State conversion. Clans can be hired once every 7 turns., 1 of 4
+key Space -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Up -Settle 800
+key Right -Settle 1000
+expect (?i)^Target: |^No civilization|^Unavailable|Left and Right
+#   -> PASS; window had 5 SR> line(s):
+#      | Hire: Spend 107 Gold to hire a Swordsman unit from this clan. The unit will appear near the city of Rome this turn. The clan will gain 5 points towards City-State conversion. Clans can be hired once every 7 turns.
+#      | Incite, unavailable: We have not met any other civilizations known to this clan., 2 of 4
+#      | Bribe: Spend 50 Gold to prevent this clan from attacking your cities for 10 turns. The clan will gain 8 points towards City-State conversion., 3 of 4
+#      | Incite, unavailable: We have not met any other civilizations known to this clan., 2 of 4
+#      | Unavailable: We have not met any other civilizations known to this clan.
+key Left -Settle 1000
+key End -Settle 800
+expect ^Close, \d of \d
+#   -> PASS; window had 2 SR> line(s):
+#      | Unavailable: We have not met any other civilizations known to this clan.
+#      | Close, 4 of 4
+key Enter -Settle 1000
+expect ^Closed
+#   -> PASS; window had 1 SR> line(s):
+#      | Closed
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+#   -> PASS; window had 1 SR> line(s):
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, here, 1 of 1
+key Escape -Settle 800
+no-lua-errors

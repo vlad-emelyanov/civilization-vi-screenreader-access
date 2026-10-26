@@ -1,0 +1,22 @@
+# Written blind 2026-10-23 (not yet verified). Selecting a city says its loyalty (Rise and Fall and later): "full loyalty" or "loyalty 72 of 100, minus 3 per turn".
+# covers: **/HubAnnounce.lua
+load medieval-t100
+clear-advisors
+action CapitalCity -Settle 1500
+expect ^\S.*, Population \d+.*(full loyalty|loyalty [\d.]+ of [\d.]+)
+#   -> PASS; window had 14 SR> line(s):
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | You have built great cities of stone and seen early empires rise and fall. Soon you will stand under the towering pinnacles of castles alongside your gallant knights. That is where the story of your people will be written. Just as the young apprentice learns to carry a sword, so shall you grow to understand your place in this world.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 100, 1380 AD
+#      | Builder, 2 of 2 moves, 2 charges. Plains (Hills), river, yours, 1 Food 2 Production, 2 tiles east of Rome. X lists tiles to improve
+#      | 2 new notifications: Choose Production, Command Units
+#      | Rome, Population 6, No production, grows in 6 turns, full loyalty
+no-lua-errors

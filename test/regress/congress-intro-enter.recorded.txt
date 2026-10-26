@@ -1,0 +1,29 @@
+# Written blind (2026-10-23, round 9): UNIT CAPTURED popup on top of the World Congress intro: the first Enter closes the popup and the intro is spoken again. Fixture bug-congress-intro-enter (turn 130).
+# covers: **/WorldCongressIntro_SRA.lua **/InGamePopup.lua
+# no-share-load: opens the congress
+load bug-congress-intro-enter
+key Enter -Settle 1500
+expect (?i)enter to begin voting
+#   -> PASS; window had 15 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | New powers call forth, from the barrel of muskets to flowers of fire in the sky. Even the quiet words on newly printed pages hold great changes within. The world, once so vast and mysterious, has grown smaller and more familiar. Yet, there are always questions to be answered, faiths to be tested, and national identities to be formed.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | WELCOME TO THE WORLD CONGRESS. The World Congress is now in Session! Each World Leader must vote on the Proposals currently on the floor. Once everyone's votes are submitted, winning Proposals are enacted until the next meeting of the World Congress. Enter to begin voting.
+#      | Turn 130, 1740 AD
+#      | World Congress. Resolutions: 2 to vote on. You have 56 diplomatic favor, 1 free vote each. Urban Development Treaty, option A: +100 percent Production towards buildings in this district, no votes yet, 1 of 3. H for keys
+key Enter -Settle 2500
+expect (?i)d+ votes? for A
+#   -> FAIL; window had 3 SR> line(s):
+#      | 1 vote for A, free, 56 favor left, target needed, T to choose
+#      | Target for Urban Development Treaty, 10 options
+#      | Campus, 1 of 10
+no-lua-errors

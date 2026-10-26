@@ -1,0 +1,39 @@
+# UNVERIFIED (blind-written). Control+Tab in the production panel goes to the previous tab (it used to be silent). Tab moves off Choose production, Control+Tab comes back to it.
+# covers: **/ProductionPanel.lua
+# no-share-load: opens the production panel
+load bug-prod-ctrltab-silent
+clear-advisors
+key Enter -Count 2 -Fast -Settle 100
+expect (?i)choose production
+#   -> PASS; window had 14 SR> line(s):
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | New powers call forth, from the barrel of muskets to flowers of fire in the sky. Even the quiet words on newly printed pages hold great changes within. The world, once so vast and mysterious, has grown smaller and more familiar. Yet, there are always questions to be answered, faiths to be tested, and national identities to be formed.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 143, 1828 AD
+#      | Aquileia, choose production, Space for description, 45 options
+#      | Districts and Buildings: Ancient Walls, in City Center, 2 turns, 35 production, recommended, 3 of 45
+#      | Aquileia, Population 5, No production, grows in 11 turns, full loyalty
+key Tab -Settle 1200
+expect (?i)queue|purchase with
+#   -> PASS; window had 2 SR> line(s):
+#      | Aquileia, choose production, queue, 45 options
+#      | Districts and Buildings: Ancient Walls, in City Center, 2 turns, 35 production, recommended, 3 of 45
+key Control+Tab -Settle 1200
+expect (?i)choose production
+#   -> PASS; window had 2 SR> line(s):
+#      | Aquileia, choose production, 45 options
+#      | Districts and Buildings: Ancient Walls, in City Center, 2 turns, 35 production, recommended, 3 of 45
+key Control+Tab -Settle 1200
+expect (?i)purchase with (gold|faith)
+#   -> PASS; window had 1 SR> line(s):
+#      | Aquileia, purchase with faith, 172 faith, nothing available
+key Escape -Settle 1200
+key Escape -Settle 1200
+no-lua-errors

@@ -1,0 +1,58 @@
+# Written blind 2026-10-24 (not yet recorded). Fixture bug-form-corps-silent: Rome holds a Field Cannon (and a Pike and Shot, Builder); a 2nd Field Cannon stands 1 tile north-east.
+# Shift+F, X lands on the partner unit, Enter forms the corps with the game's own FORM_CORPS command (it used to click with the mouse and say nothing).
+# covers: **/HubTargets.lua **/HubCursor.lua **/UnitPanel.lua
+# no-share-load: forms a corps
+load bug-form-corps-silent
+clear-advisors
+# Pike and Shot shares Rome with the Field Cannon and the Builder: skip is refused because it is stacked
+lua InGameAccess local u=Players[0]:GetUnits():FindID(589832); UI.SelectUnit(u)
+action SkipTurn -Settle 1200
+expect (?i)cannot skip.*stacked with
+#   -> PASS; window had 18 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | The steady hum of machinery, the acrid smell of smoke, vision clouded by ash and soot – these are the signs of changing times. The lure of scientific and cultural advancement is the engine driving your realm forward.� Now your challenge is to maintain the delicate balance between earth and man, between peace and war.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Expansion: Gathering Storm. Page 1 of 12. Escape skips the introduction. Welcome to Civilization VI: Gathering Storm! This guide will introduce you to new features in this expansion. Additional information can be found in the Civilopedia and Advisor tips.
+#      | Next, 1 of 3
+#      | Turn 158, 1888 AD
+#      | Ranger, 3 of 3 moves. Plains, Woods, Silk (luxury), coastal, yours, 1 Food 2 Production 1 Culture
+#      | Pike and Shot, 2 of 2 moves. Rome, capital, Field Cannon, Builder, Grassland (Hills), coastal, yours, 2 Food 1 Production, in Rome
+#      | Cannot skip turn: stacked with Field Cannon: only one unit of this class can stay on a tile. Move one of them away
+lua InGameAccess local u=Players[0]:GetUnits():FindID(458758); UI.SelectUnit(u)
+key Shift+F -Settle 1200
+expect ^Form corps: choose a tile
+#   -> PASS; window had 2 SR> line(s):
+#      | Field Cannon, 2 of 2 moves. Rome, capital, Pike and Shot, Builder, Grassland (Hills), coastal, yours, 2 Food 1 Production, in Rome
+#      | Form corps: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+# the cursor starts on Rome: nobody there to join
+key Enter -Settle 1200
+expect ^No unit here can join a corps
+#   -> PASS; window had 1 SR> line(s):
+#      | No unit here can join a corps
+key X -Settle 1200
+expect ^valid target, unit to join. Field Cannon
+#   -> PASS; window had 1 SR> line(s):
+#      | valid target, unit to join. Field Cannon, Grassland, Cattle (bonus), coastal, yours, 3 Food. 1 tile north-east
+key Enter -Settle 2500
+expect ^Forming a corps with Field Cannon
+#   -> PASS; window had 1 SR> line(s):
+#      | Forming a corps with Field Cannon
+wait Field Cannon Corps formed -Timeout 8
+expect Field Cannon Corps formed
+#   -> PASS; window had 2 SR> line(s):
+#      | Notification: Command Units
+#      | Field Cannon Corps formed
+lua InGame local o=Players[0]:GetUnits():FindID(458758); return 'mf='..tostring(o:GetMilitaryFormation())..' partner='..tostring(Players[0]:GetUnits():FindID(524295))
+expect-lua ^mf=1 partner=nil$
+#   -> PASS; window had 1 SR> line(s):
+#      | mf=1 partner=nil
+no-lua-errors

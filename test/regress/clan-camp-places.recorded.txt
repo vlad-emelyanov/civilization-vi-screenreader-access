@@ -1,0 +1,64 @@
+# Recorded 2026-10-24. A camp is only listed while VISIBLE (remembered then), so a Scout is spawned next to the known camp at 64,33 (6 tiles west of Rome).
+# Barbarian Clans mode (fixture pt-modes-t75): the places list names the clan of a camp,
+# T opens the Treat With Clan popup (our keyboard copy speaks and closes with Escape). The camp must be in view for T.
+# Category 3 holds the Tribal Village first, then the camp (second, Down once); categories are Your cities, Your units, Points of interest (Tab twice from the start); items are sorted by distance and the camp (7 tiles from Rome) is
+# assumed to be the first point of interest: if the recording shows another item first, insert Down steps before T.
+# covers: **/HubPlaces.lua **/PlotDescription.lua **/TreatClanText.lua **/TreatWithTribePopup_SRA.lua **/HelpText.lua
+# no-share-load: spawns a unit
+load pt-modes-t75
+clear-advisors
+lua GameCore_Tuner return Players[0]:GetUnits():Create(GameInfo.Units["UNIT_SCOUT"].Index, 65, 33) ~= nil
+clear-advisors
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 1000
+key Tab -Settle 1200
+expect ^Points of interest.*Tribal Village
+#   -> PASS; window had 18 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 75, 660 AD
+#      | Spearman, 2 of 2 moves, 55 of 100 health. Rome, capital, Builder, Grassland, Grassland Floodplains, river, yours, 2 Food 1 Production
+#      | Barbarian Spearman spotted, 1 tile west of your Scout
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, here, 1 of 1
+#      | Your units, 2 of 4 categories, 8 items. Trader, sleeping, in Rome, 1 of 8
+#      | Points of interest, 3 of 4 categories, 2 items. Tribal Village, 5 tiles east of Rome, 5 tiles east of Spearman, 1 of 2
+key Down -Settle 1000
+expect (?i)\w+ clan, .*Barbarian Outpost.*T to treat with the clan, 2 of 2
+#   -> PASS; window had 1 SR> line(s):
+#      | Badger Claw clan, Flatland Clan, Barbarian Outpost, 7 tiles north-west of Rome, 7 tiles north-west of Spearman, T to treat with the clan, 2 of 2
+key T -Settle 2500 -Quiet 800
+expect (?i)^Treat With .* Clan
+#   -> PASS; window had 2 SR> line(s):
+#      | Treat With Badger Claw Clan. Flatland Clan. City-State Conversion: 50+ Turns. 4 options
+#      | Hire, unavailable: Not enough Gold., 1 of 4
+expect (?i)\d options?
+#   -> PASS; window had 2 SR> line(s):
+#      | Treat With Badger Claw Clan. Flatland Clan. City-State Conversion: 50+ Turns. 4 options
+#      | Hire, unavailable: Not enough Gold., 1 of 4
+expect (?i)^(Hire|Incite|Bribe|Ransom)\b.*, 1 of \d
+#   -> PASS; window had 2 SR> line(s):
+#      | Treat With Badger Claw Clan. Flatland Clan. City-State Conversion: 50+ Turns. 4 options
+#      | Hire, unavailable: Not enough Gold., 1 of 4
+key Down -Settle 800
+expect , 2 of \d
+#   -> PASS; window had 1 SR> line(s):
+#      | Incite, unavailable: We have not met any other civilizations known to this clan., 2 of 4
+key Up -Settle 800
+expect , 1 of \d
+#   -> PASS; window had 1 SR> line(s):
+#      | Hire, unavailable: Not enough Gold., 1 of 4
+key Escape -Settle 1000
+expect ^Closed
+#   -> PASS; window had 1 SR> line(s):
+#      | Closed
+no-lua-errors

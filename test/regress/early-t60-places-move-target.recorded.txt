@@ -1,0 +1,55 @@
+# Written blind 2026-10-23 (round 8, not yet recorded). The places list opens inside the Move To target mode: Enter on a city only moves the target cursor (with the turns), Escape in the list closes the list and keeps the mode.
+# covers: **/HubPlaces.lua **/HubTargets.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
+# no-share-load: enters a target mode
+load early-t60
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_SCOUT" then UI.SelectUnit(u) break end end
+wait Scout -Timeout 8
+action MoveTo -Settle 1500
+expect (?i)move to
+#   -> PASS; window had 18 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Scout, 3 of 3 moves, 63 of 100 health. Rome, capital, Boudica, Plains, Plains Floodplains, river, yours, 3 Food 3 Production, in Rome
+#      | Move to: choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel
+action KeyNavPlaces -Settle 1500
+expect ^Places\. Your cities, 1 of \d+ categories
+#   -> PASS; window had 2 SR> line(s):
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, here, 1 of 1
+#      | Enter moves the target there
+expect Enter moves the target there
+#   -> PASS; window had 2 SR> line(s):
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, here, 1 of 1
+#      | Enter moves the target there
+key Escape -Settle 1200
+expect ^Closed
+#   -> PASS; window had 1 SR> line(s):
+#      | Closed
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+#   -> PASS; window had 2 SR> line(s):
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, here, 1 of 1
+#      | Enter moves the target there
+key Enter -Settle 1500
+expect (?i)(next to Rome|here|turns?)
+#   -> PASS; window had 1 SR> line(s):
+#      | here. Rome, capital, Boudica, Plains, Plains Floodplains, river, yours, 3 Food 3 Production
+key Escape -Settle 1500
+expect ^Cancelled
+#   -> PASS; window had 1 SR> line(s):
+#      | Cancelled
+no-lua-errors
