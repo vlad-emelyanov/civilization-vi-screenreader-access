@@ -17,7 +17,7 @@ key Enter -Settle 2500
 expect ^(Moving|Arrived)
 lua InGameAccess UI.DeselectAll()
 action KeyNavPlaces -Settle 1500
-key Tab -Settle 600 -Count 3
+key Tab -Settle 600 -Count 4
 expect ^Foreign cities
 key M -Settle 2000
 expect next to Zanzibar

@@ -1,5 +1,10 @@
 # Beginner guide gap analysis (2026-10-26)
 
+## Status (2026-10-26)
+
+Done (verified in game): G1, G2, G3a, G3b, G3c (camp guards, attack party, camp destroyed line), G4 (escort via J M), G5, G6/G8 (settle distance and verdict lines; the verdict wording is only unit-tested, the fixtures did not reach it), G7 (District spots; positive wording unit-tested only, purchasable tiles not checked), G9 (far tech and civic target), G10 (Blind spots).
+Still open: G3d, the G5 better-tile stretch, G7 purchasable-tile check, in-game check of the G6/G8 verdicts.
+
 Source: the YouTube video "10 tips for Civilization noobs" (`cciyCn3QKG0`, base game, aimed at first-time 4X players).
 Question for each tip: can a blind player using only the mod **learn what the tip asks them to look at, and act on it**,
 without trial and error and without reading tiles one by one? Reaching a tile is not enough: a sighted player gets
