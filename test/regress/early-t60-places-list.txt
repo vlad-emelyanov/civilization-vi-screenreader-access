@@ -1,7 +1,9 @@
 # Written blind 2026-10-23 (round 8, not yet recorded; run with civregress --record first). Places list (J): opening, categories with Tab / Control+Tab, Space, Escape, Enter on a city jumps the cursor.
+# no-share-load: the tuner removes the two barbarians that the fixture has next to Rome (they add a Threats category to J)
 # covers: **/HubPlaces.lua **/HubCursor.lua **/HubRegions.lua UI/Additions/InGameAccess.lua
 load early-t60
 clear-advisors
+lua GameCore_Tuner for _, u in Players[63]:GetUnits():Members() do local x, y = u:GetX(), u:GetY(); if x == 63 and (y == 33 or y == 34) then Players[63]:GetUnits():Destroy(u) end end return 1
 action KeyNavPlaces -Settle 1500
 expect ^Places\. Your cities, 1 of \d+ categories, 1 item\. Rome
 key Tab -Settle 1200

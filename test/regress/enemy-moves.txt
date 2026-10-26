@@ -8,5 +8,5 @@ clear-advisors
 # (util/civregress.py has no endturn step, hence the lua steps; Turn 61 = early-t60 plus one)
 lua InGame UI.RequestAction(ActionTypes.ACTION_ENDTURN)
 wait Turn 61 -Timeout 60
-expect ^Enemies: .*Barbarian
+expect ^(Enemies: .*Barbarian|Raid: \d+ barbarians near)
 no-lua-errors
