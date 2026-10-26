@@ -12,6 +12,7 @@ function TreeText_QueueTotal( each:table )
 	for i = 2, n do
 		if each[i] < each[i - 1] then cumulative = false; end
 	end
+	print( "TreeText_QueueTotal: " .. table.concat( each, "," ) .. " -> " .. ( cumulative and "cumulative, last entry" or "independent, summed" ) );
 	if cumulative then return each[n]; end
 	local sum:number = 0;
 	for i = 1, n do sum = sum + each[i]; end

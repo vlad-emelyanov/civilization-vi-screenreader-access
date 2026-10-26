@@ -4683,7 +4683,8 @@ local function SRBuildActions()
 						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey,
 						disabled = ( action.Disabled == true ), reason = reason,
 						detail = detail, category = category,
-					tag = action.userTag, typeName = SRTypeName( action.userTag ), build = ( action.SRName ~= nil ) } );
+					tag = action.userTag, typeName = SRTypeName( action.userTag ), build = ( action.SRName ~= nil ),
+						destructive = ( action.Disabled ~= true and SRIsDestructiveBuild( SRTypeName( action.userTag ) ) ) } );
 				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
 				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil
 						and GameInfo.Units[unit:GetUnitType()].NumRandomChoices > 0 then
@@ -4944,13 +4945,8 @@ function OnSRRequestUnitActions( refresh:boolean )
 	LuaEvents.SRA_UnitActions( unit ~= nil and unit:GetID() or -1, plain );
 end
 
--- Destructive builder action: the first Enter only asks, a second Enter on the same item within 5 s does it.
--- Returns true when the action must NOT run now. Sets SRDestructiveDone so the result is spoken after the run.
-local m_srConfirm:table = nil;
-local SR_CONFIRM_SECONDS:number = 5;
-
-function SRDestructiveGate( index:number, unit:table, typeName:string, action:table )
-	local now:number = UI.GetElapsedTime();
+-- Destructive builder action confirmed by the hub menu (HubMenus.RunMenuItem asks first): remember the plot to read the result back.
+local function SRDestructiveStart( unit:table, typeName:string )
 	local plot = Map.GetPlot( unit:GetX(), unit:GetY() );
 	local impName:string = "improvement";
 	local resName:string = "resource";
@@ -4960,24 +4956,8 @@ function SRDestructiveGate( index:number, unit:table, typeName:string, action:ta
 		local res = ( plot ~= nil ) and GameInfo.Resources[ plot:GetResourceType() ] or nil;
 		if res ~= nil then resName = Locale.Lookup( res.Name ); end
 	end );
-	local c:table = m_srConfirm;
-	if c ~= nil and c.index == index and c.unitId == unit:GetID() and now - c.time <= SR_CONFIRM_SECONDS then
-		m_srConfirm = nil;
-		SRDestructiveResult = { typeName = typeName, plot = plot, impType = plot ~= nil and plot:GetImprovementType() or -1,
-			resType = plot ~= nil and plot:GetResourceType() or -1, impName = impName, resName = resName, due = now + 0.4 };
-		return false;
-	end
-	local text:string;
-	if string.find( typeName, "HARVEST", 1, true ) ~= nil then
-		text = "Harvest destroys the " .. resName .. " on this tile for a one-time yield";
-	elseif string.find( typeName, "PILLAGE", 1, true ) ~= nil then
-		text = "Pillage damages the " .. impName .. " on this tile";
-	else
-		text = "Remove Improvement destroys the " .. impName .. " on this tile";
-	end
-	m_srConfirm = { index = index, unitId = unit:GetID(), time = now };
-	OutputMessageToScreenReader( text .. ". Enter again to confirm" );
-	return true;
+	SRDestructiveResult = { typeName = typeName, plot = plot, impType = plot ~= nil and plot:GetImprovementType() or -1,
+		resType = plot ~= nil and plot:GetResourceType() or -1, impName = impName, resName = resName, due = UI.GetElapsedTime() + 0.4 };
 end
 
 -- Speaks what a confirmed destructive action did, and what a formation command did (called from the context update).
@@ -5002,12 +4982,13 @@ function SRUnitPanelUpdate()
 	end
 	local f:table = SRFormationPending;
 	if f ~= nil and now >= f.due then
-		SRFormationPending = nil;
 		local text:string = nil;
 		pcall( function()
 			local u = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( f.unitId );
 			if u ~= nil and u:GetFormationUnitCount() > f.before then
 				text = "Escort formed: " .. f.mine .. " with " .. f.partner;
+			elseif now < f.due + 2.0 then
+				return;		-- keep polling for up to 2 s
 			else
 				local _, results = UnitManager.CanStartCommand( u, UnitCommandTypes.ENTER_FORMATION, false, true );
 				local why:string = "";
@@ -5019,7 +5000,10 @@ function SRUnitPanelUpdate()
 				text = "Could not form an escort: " .. ( why ~= "" and why or "the game refused" );
 			end
 		end );
-		if text ~= nil then OutputMessageToScreenReader( text ); end
+		if text ~= nil then
+			SRFormationPending = nil;
+			OutputMessageToScreenReader( text );
+		end
 	end
 end
 
@@ -5030,7 +5014,7 @@ function OnSRRunUnitAction( index:number, unitId:number )
 	local ok:boolean, err = pcall( function()
 		if entry.callback == nil and entry.action ~= nil and entry.action.Disabled ~= true and entry.action.userTag ~= nil then
 			local okT:boolean, typeName = pcall( SRTypeName, entry.action.userTag );
-			if okT and SRIsDestructiveBuild( typeName ) and SRDestructiveGate( index, unit, typeName, entry.action ) then return; end
+			if okT and SRIsDestructiveBuild( typeName ) then SRDestructiveStart( unit, typeName ); end
 		end
 		if entry.callback ~= nil then
 			entry.callback();
