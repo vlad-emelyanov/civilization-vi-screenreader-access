@@ -720,7 +720,13 @@ function OnInputActionTriggered( actionId )
 	SRA_SayUnavailable( actionId );		-- ScreenReaderAccess
 	if ( m_isTechTreeAvailable ) then
 		if ( actionId == Input.GetActionId("ToggleTechTree") ) then
-			OnOpenResearch();
+			-- Begin ScreenReaderAccess mod change: with the map cursor on a clan camp T treats with the clan instead (the hub sets request.handled)
+			local request = {};
+			LuaEvents.SRA_TechTreeKey( request );
+			if not request.handled then
+				OnOpenResearch();
+			end
+			-- End ScreenReaderAccess mod change
 		end
 	end
 

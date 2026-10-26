@@ -100,13 +100,13 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "close the browser, the cursor goes back to the unit" },
 	} },
 	{ title = "Places list", entries = {
-		{ action = "KeyNavPlaces",		default = "J",			text = "places list: cities, units, points of interest, notification places, foreign cities" },
+		{ action = "KeyNavPlaces",		default = "J",			text = "places list: cities, units, points of interest, notification places, foreign cities, enemy civilians you can capture" },
 		{ keys = "Tab and Control+Tab",	text = "next and previous category" },
 		{ keys = "Space",				text = "read the tile and where it is" },
 		{ keys = "Enter",				text = "cursor there, a unit of yours is selected" },
-		{ keys = "M",					text = "send one of your units there, fastest first" },
+		{ keys = "M",					text = "send one of your units there, fastest first; for a civilian to capture only military land units are offered, moving onto it captures it" },
 		{ keys = "Control+N then M",	text = "send a unit to the place of a notification" },
-		{ keys = "T",					text = "on a barbarian clan camp in view (Barbarian Clans mode): treat with the clan, opens hire, incite, bribe or ransom" },
+		{ keys = "T",					text = "on a barbarian clan camp in view (Barbarian Clans mode): treat with the clan, opens hire, incite, bribe or ransom; also on the map with the cursor on the camp, instead of the tech tree" },
 		{ keys = "Escape",				text = "close the list" },
 	} },
 	{ title = "Cities", entries = {

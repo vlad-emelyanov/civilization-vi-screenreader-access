@@ -1,0 +1,26 @@
+# Written blind 2026-10-26 (not yet recorded; run with civregress --record first). Barbarian Clans mode (fixture pt-modes-t75): after Enter in the places
+# list the cursor stands on the clan camp, and T (ToggleTechTree) on the map treats with the clan instead of opening the tech tree.
+# Away from the camp T opens the tech tree as usual. Same setup as clan-camp-places (a Scout next to the camp keeps it in view; the camp is assumed
+# to be the second point of interest after the Tribal Village: adjust the Down count if the recording shows otherwise).
+# covers: **/HubPlaces.lua **/PlotDescription.lua **/LaunchBar.lua **/HelpText.lua
+# no-share-load: spawns a unit
+load pt-modes-t75
+clear-advisors
+lua GameCore_Tuner return Players[0]:GetUnits():Create(GameInfo.Units["UNIT_SCOUT"].Index, 65, 33) ~= nil
+clear-advisors
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 1000
+key Tab -Settle 1200
+expect ^Points of interest.*Tribal Village
+key Down -Settle 1000
+expect (?i)\w+ clan, .*Barbarian Outpost
+key Enter -Settle 1500
+expect (?i)clan
+action ToggleTechTree -Settle 2500 -Quiet 800
+expect (?i)^Treat With .* Clan
+key Escape -Settle 1200
+action KeyNavMoveCellLeft -Settle 800
+action ToggleTechTree -Settle 2500
+expect ^Tech tree\.
+key Escape -Settle 1200
+no-lua-errors

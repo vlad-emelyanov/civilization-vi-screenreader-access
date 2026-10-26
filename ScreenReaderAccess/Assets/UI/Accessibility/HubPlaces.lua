@@ -9,10 +9,13 @@
 --	Tab / Control+Tab change the category, Up/Down/Home/End move, Space reads the plot, Enter acts, M sends a unit there,
 --	Escape closes. Inside a target mode (move to, attack ...) Enter only moves the target cursor and the list closes.
 --
---	Huts, camps and foreign cities are remembered from what was VISIBLE when the list was last built (m_seen): the live
---	state of a fogged plot must not leak (a camp that spawned in the fog). The memory is lost on a hot reload or a load
---	and rebuilt from the plots in view; remembered ones in the fog say "last seen". Natural wonders are read live (revealed
---	is enough, they never change).
+--	Huts, camps and foreign cities are remembered from what was VISIBLE (m_seen): when the list is built, and as they are
+--	seen (ImprovementVisibilityChanged, ImprovementAddedToMap / RemovedFromMap, UnitMoveComplete, turn begin): a scout that
+--	passes a village and moves on is remembered. The live state of a fogged plot must not leak (a camp that spawned in the
+--	fog). The memory is lost on a hot reload or a load; the first scan afterwards accepts the tribal villages on revealed
+--	plots (they only appear at map creation and vanish when entered; no "last seen" accessor exists), camps are not.
+--	Remembered ones in the fog say "last seen". Natural wonders are read live (revealed is enough, they never change).
+--	"Civilians to capture": visible Builders / Settlers (GameInfo.UnitCaptures) of barbarians and of civs at war with us.
 -- ===========================================================================
 HubPlaces = {};
 
@@ -25,6 +28,7 @@ local MAX_PATH_CALLS		:number = 120;		-- path finding calls for one chooser (the
 local POINT_IMPROVEMENTS	:table = { IMPROVEMENT_GOODY_HUT = true, IMPROVEMENT_BARBARIAN_CAMP = true };
 
 local m_seen				:table = {};		-- plot index -> { kind = "point" | "foreign", name, owner, id }: what was last seen there
+local m_primed				:boolean = false;	-- the first scan since the memory was empty has run (see Prime)
 local m_explorers			:table = {};		-- unit id -> true: the game added the explore operation to it (see OnOperationAdded)
 local m_data				:table = nil;		-- the open list: { cats = { { name, items } }, ctx = { plot, unit }, focusKey }
 local m_cat					:number = 1;		-- the category shown
@@ -221,10 +225,11 @@ local function UnitItems( ctx:table )
 end
 
 -- What is on a VISIBLE plot is remembered (see ScanSeen); nil forgets it.
-local function RememberPlot( plot:table, index:number )
+local function RememberPlot( plot:table, index:number, improvementOverride:number )
 	local localID:number = Game.GetLocalPlayer();
 	local entry:table = nil;
-	local improvement:number = plot:GetImprovementType();
+	local improvement:number = improvementOverride;
+	if improvement == nil then improvement = plot:GetImprovementType(); end
 	if improvement ~= nil and improvement >= 0 then
 		local row:table = GameInfo.Improvements[ improvement ];
 		if row ~= nil and POINT_IMPROVEMENTS[ row.ImprovementType ] then
@@ -246,11 +251,71 @@ end
 function HubPlaces.RefreshSeen()
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
 	if vis == nil then return; end
+	HubPlaces.Prime();
 	local width:number, height:number = Map.GetGridSize();
 	for y = 0, height - 1 do
 		for x = 0, width - 1 do
 			local plot:table = Map.GetPlot( x, y );
 			if plot ~= nil and vis:IsVisible( plot:GetIndex() ) then RememberPlot( plot, plot:GetIndex() ); end
+		end
+	end
+end
+
+-- After a load or a hot reload the memory is empty: the tribal villages on revealed plots in the fog are accepted once (they
+-- only exist from the map creation and vanish when entered, so the live state is almost always what was seen). Camps are not
+-- (they spawn in the fog). Runs once; the plots in view are remembered by the caller's scan anyway.
+function HubPlaces.Prime()
+	if m_primed then return; end
+	m_primed = true;
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	if vis == nil then return; end
+	local width:number, height:number = Map.GetGridSize();
+	for y = 0, height - 1 do
+		for x = 0, width - 1 do
+			local plot:table = Map.GetPlot( x, y );
+			local index:number = ( plot ~= nil ) and plot:GetIndex() or -1;
+			if plot ~= nil and m_seen[ index ] == nil and vis:IsRevealed( index ) then
+				local improvement:number = plot:GetImprovementType();
+				local row:table = ( improvement ~= nil and improvement >= 0 ) and GameInfo.Improvements[ improvement ] or nil;
+				if row ~= nil and row.ImprovementType == "IMPROVEMENT_GOODY_HUT" then
+					m_seen[ index ] = { kind = "point", name = Locale.Lookup( row.Name ), camp = false };
+				end
+			end
+		end
+	end
+end
+
+-- Remembers one plot if it is in view now (event handlers; improvement: the type the event reports, else the live one).
+local function RememberIfVisible( x:number, y:number, improvement:number )
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	local plot:table = Map.GetPlot( x, y );
+	if vis == nil or plot == nil or not vis:IsVisible( plot:GetIndex() ) then return; end
+	HubPlaces.Prime();
+	RememberPlot( plot, plot:GetIndex(), improvement );
+end
+
+-- Events.ImprovementVisibilityChanged( x, y, improvementType, visibility ): a village or camp comes into view
+function HubPlaces.OnImprovementVisibilityChanged( x:number, y:number, improvementType:number, visibility:number )
+	if RevealedState ~= nil and visibility ~= RevealedState.VISIBLE then return; end
+	RememberIfVisible( x, y, improvementType );
+end
+
+-- Events.ImprovementAddedToMap( x, y, improvementType, owner ... ): a camp spawned in view
+function HubPlaces.OnImprovementAddedToMap( x:number, y:number, improvementType:number )
+	RememberIfVisible( x, y, improvementType );
+end
+
+-- Events.ImprovementRemovedFromMap( x, y ... ): a village entered or a camp destroyed in view (the plot is updated a moment later)
+function HubPlaces.OnImprovementRemovedFromMap( x:number, y:number )
+	HubCore.After( 0.3, function() RememberIfVisible( x, y, nil ); end );
+end
+
+-- Events.UnitMoveComplete( player, unit, x, y ): the plots around our own unit are in view; remember them
+function HubPlaces.OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:number )
+	if playerID ~= Game.GetLocalPlayer() then return; end
+	for dy = -3, 3 do
+		for dx = -3, 3 do
+			RememberIfVisible( x + dx, y + dy, nil );
 		end
 	end
 end
@@ -266,6 +331,7 @@ local function ScanSeen( ctx:table )
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
 	local wonders:table = {};
 	if vis == nil then return wonders; end
+	HubPlaces.Prime();
 	local localID:number = Game.GetLocalPlayer();
 	local width:number, height:number = Map.GetGridSize();
 	local found:table = {};
@@ -316,7 +382,11 @@ local function PointItems( ctx:table )
 			if clan ~= nil then
 				item.text = clan .. ", " .. item.text;
 				item.clan = true;
-				if PlotDescription_CanTreatWithClan( plot ) then item.text = item.text .. ", T to treat with the clan"; end
+				if PlotDescription_CanTreatWithClan( plot ) then
+					item.text = item.text .. ", T to treat with the clan";
+				else
+					item.text = item.text .. ", out of sight";
+				end
 			end
 			table.insert( items, item );
 		end
@@ -361,6 +431,59 @@ local function ForeignItems( ctx:table )
 	return SortItems( items );
 end
 
+-- Types a unit can be captured as (GameInfo.UnitCaptures: Settler and Builder), as a set of UnitType names.
+local function CapturableTypes()
+	local set:table = {};
+	local ok:boolean = pcall( function()
+		for row in GameInfo.UnitCaptures() do set[ row.CapturedUnitType ] = true; end
+	end );
+	if not ok then set = {}; end
+	return set;
+end
+
+-- The visible military units of others on the plot (what stands between the capturers and a civilian).
+local function Escorts( plot:table, civilian:table )
+	local names:table = {};
+	local ok:boolean, units = pcall( Units.GetUnitsInPlot, plot );
+	if not ok or units == nil then return names; end
+	for _, other in ipairs( units ) do
+		if other:GetOwner() ~= Game.GetLocalPlayer() and not ( other:GetOwner() == civilian:GetOwner() and other:GetID() == civilian:GetID() )
+			and ( other:GetCombat() > 0 or other:GetRangedCombat() > 0 ) and PlotDescription_IsUnitVisible( other ) then
+			table.insert( names, Locale.Lookup( other:GetName() ) );
+		end
+	end
+	return names;
+end
+
+-- Visible Builders / Settlers of barbarians and of civs at war with us: a military land unit that moves onto one captures it,
+-- unless a military unit stands on the same plot ("escorted by ...": it must be killed first).
+local function CaptureItems( ctx:table )
+	local items:table = {};
+	local types:table = CapturableTypes();
+	local localID:number = Game.GetLocalPlayer();
+	for playerID = 0, 63 do
+		local player:table = Players[ playerID ];
+		if player ~= nil and playerID ~= localID and player:IsAlive() and HubCore.IsHostile( playerID ) then
+			for _, unit in player:GetUnits():Members() do
+				local row:table = GameInfo.Units[ unit:GetUnitType() ];
+				if row ~= nil and types[ row.UnitType ] and PlotDescription_IsUnitVisible( unit ) then
+					local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+					if plot ~= nil then
+						local name:string = PlotDescription_GetUnitName( unit );
+						local text:string = name .. ", " .. Where( plot, ctx );
+						local escorts:table = Escorts( plot, unit );
+						if #escorts > 0 then text = text .. ", escorted by " .. table.concat( escorts, " and " ); end
+						local item:table = MakeItem( "k:" .. playerID .. ":" .. unit:GetID(), "capture", name, text, plot, ctx );
+						item.escorted = #escorts > 0;
+						table.insert( items, item );
+					end
+				end
+			end
+		end
+	end
+	return SortItems( items );
+end
+
 -- The categories that have something in them, in this order.
 function HubPlaces.BuildCategories( ctx:table )
 	local cats:table = {};
@@ -370,7 +493,7 @@ function HubPlaces.BuildCategories( ctx:table )
 	local sources:table = {
 		{ name = "Your cities", build = CityItems }, { name = "Your units", build = UnitItems },
 		{ name = "Points of interest", build = PointItems }, { name = "Notifications", build = NotificationItems },
-		{ name = "Foreign cities", build = ForeignItems },
+		{ name = "Foreign cities", build = ForeignItems }, { name = "Civilians to capture", build = CaptureItems },
 	};
 	for _, source in ipairs( sources ) do
 		local ok:boolean, items = xpcall( function() return source.build( ctx ); end, KeyNavErrorHandler );
@@ -518,7 +641,7 @@ local function SendKey()
 		OutputMessageToScreenReader( "That is a unit of yours. Enter selects it" );
 		return;
 	end
-	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key } );
+	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key, capture = ( item.kind == "capture" ) } );
 end
 
 -- T on a clan camp: the banner's own call opens the DLC's Treat With Clan popup (our keyboard copy of it speaks)
@@ -535,6 +658,22 @@ local function TreatKey()
 		return;
 	end
 	HubCore.CloseMode( false, false );
+	LuaEvents.CityBannerManager_OpenTreatWithTribePopup( plot:GetIndex() );
+end
+
+-- T on the map (the game's ToggleTechTree): LaunchBar asks first (LuaEvents.SRA_TechTreeKey( request )). With the map cursor on a
+-- barbarian clan camp T treats with the clan (the same call as T in the places list) and request.handled keeps the tech tree
+-- closed; out of sight it only says so. Any other plot, a list, a mode or an open screen: nothing here, the tech tree toggles.
+function HubPlaces.OnTechTreeKey( request:table )
+	if request == nil or HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return; end
+	local x:number, y:number = HubCursor.GetCursor();
+	local plot:table = Map.GetPlot( x, y );
+	if plot == nil or PlotDescription_GetClan( plot ) == nil then return; end
+	request.handled = true;
+	if not PlotDescription_CanTreatWithClan( plot ) then
+		OutputMessageToScreenReader( "The clan camp is out of sight. Move a unit near it first" );
+		return;
+	end
 	LuaEvents.CityBannerManager_OpenTreatWithTribePopup( plot:GetIndex() );
 end
 
@@ -603,13 +742,19 @@ end
 -- place: { name, x, y, back = "places" | "notifications", key }. Your units that can get there, fastest first.
 -- A place a unit cannot enter (a city that is occupied or foreign, water) is approached: the item says "next to Rome" and
 -- carries the landing plot (nearX, nearY).
+-- A military land unit captures a civilian by moving onto it (GameInfo.Units.CanCapture is false for civilians).
+function HubPlaces.CanCapture( unit:table )
+	local row:table = GameInfo.Units[ unit:GetUnitType() ];
+	return row ~= nil and row.Domain == "DOMAIN_LAND" and row.CanCapture ~= false and unit:GetCombat() > 0;
+end
+
 function HubPlaces.BuildSendItems( place:table )
 	local plot:table = Map.GetPlot( place.x, place.y );
 	local items:table = {};
 	if plot == nil then return items; end
 	local candidates:table = {};
 	for _, unit in LocalPlayer():GetUnits():Members() do
-		if unit:GetMaxMoves() > 0 and not ( unit:GetX() == place.x and unit:GetY() == place.y ) then
+		if unit:GetMaxMoves() > 0 and not ( unit:GetX() == place.x and unit:GetY() == place.y ) and ( not place.capture or HubPlaces.CanCapture( unit ) ) then
 			table.insert( candidates, { unit = unit, distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), place.x, place.y ) } );
 		end
 	end
@@ -661,7 +806,7 @@ function HubPlaces.OpenSend( place:table )
 	if not HubTargets.CanOpenMode() then return; end
 	local items:table = HubPlaces.BuildSendItems( place );
 	if #items == 0 then
-		OutputMessageToScreenReader( "No unit can reach it" );
+		OutputMessageToScreenReader( place.capture and "No military unit can reach it" or "No unit can reach it" );
 		return;
 	end
 	m_return = nil;

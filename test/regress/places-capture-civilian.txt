@@ -1,0 +1,17 @@
+# Written blind 2026-10-26 (not yet recorded; run with civregress --record first). Places list: the last category "Civilians to capture"
+# lists a visible barbarian Builder (scenario barbarian-builder); M offers military land units only (the Builder, Scout ... are left out).
+# covers: **/HubPlaces.lua **/PlotDescription.lua **/HelpText.lua
+# no-share-load: scenario spawns a barbarian unit
+load early-t60
+clear-advisors
+scenario barbarian-builder
+action KeyNavPlaces -Settle 1500
+key Control+Tab -Settle 1200
+expect ^Civilians to capture, \d+ of \d+ categories, 1 item\. Barbarian Builder, .+, 1 of 1
+key Space -Settle 1000
+expect (?i)builder
+key M -Settle 2000
+expect (?i)^(Send a unit to Barbarian Builder|No military unit can reach it)
+key Escape -Settle 1200
+key Escape -Settle 1200
+no-lua-errors

@@ -491,7 +491,7 @@ function PlotDescription_GetDetailed( plot:table, options:table )
 	end
 
 	table.insert(parts, table.concat(facts, ", "));
-	if PlotDescription_CanTreatWithClan(plot) then table.insert(parts, "Open it from the places list with T"); end
+	if PlotDescription_CanTreatWithClan(plot) then table.insert(parts, "T treats with the clan"); end
 	return table.concat(parts, ". ");
 end
 
