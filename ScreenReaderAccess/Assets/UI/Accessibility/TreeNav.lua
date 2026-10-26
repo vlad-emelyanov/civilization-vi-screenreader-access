@@ -258,6 +258,7 @@ function TreeNav_Create( a:table )
 		if p == nil then return; end
 		local ok:boolean, q = xpcall( a.queue, KeyNavErrorHandler );
 		if not ok or q == nil then print( "TreeNav queue error: " .. tostring( q ) ); q = { keys = {}, names = {}, turns = 0 }; end
+		local queueRead:boolean = ok and #q.keys > 0;		-- the queue the game built beats the path computed from the tree
 		local found:boolean = false;
 		for _, k in ipairs( q.keys ) do
 			if k == p.key then found = true; end
@@ -274,7 +275,7 @@ function TreeNav_Create( a:table )
 				Say( TreeText_FarQueued( name, a.itemWord, p.far.count, p.far.turns ) );
 			elseif p.far ~= nil then
 				-- "Next" is read back: whatever the game now has first in the queue
-				Say( TreeText_FarTarget( name, a.itemWord, p.far.count, p.far.turns, q.names[1], q.each ~= nil and q.each[1] or nil ) );
+				Say( TreeText_FarTarget( name, a.itemWord, queueRead and #q.keys or p.far.count, queueRead and q.turns or p.far.turns, q.names[1], q.each ~= nil and q.each[1] or nil ) );
 			else
 				Say( TreeText_Queue( p.append and "Added to queue" or "Target", name, q.names, q.turns ) );
 			end
