@@ -3788,7 +3788,7 @@ local function SRA_OpenFocusText()
 	end
 	if item == nil then return "Focus: " .. name .. ", nothing available."; end
 	if item.empty then return "Focus: " .. name .. ", empty."; end
-	return "Focus: " .. name .. ", " .. item.text .. ".";
+	return "Focus: " .. name .. ", " .. item.text .. ".", item;
 end
 
 local function SRA_Announce()
@@ -3818,7 +3818,11 @@ local function SRA_Announce()
 		if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
 	end
 	table.insert( parts, "Tab switches sections: Deal, Your items, Their items, Actions. S reads the summary. Control+Tab goes back a section." );
-	table.insert( parts, SRA_OpenFocusText() );
+	local focusText:string, focusItem:table = SRA_OpenFocusText();
+	table.insert( parts, focusText );
+	-- the list's focus must equal the spoken one: without it Down jumped to the first item (Accept Deal, "1 of 2") and Enter said
+	-- "Item no longer available" (bug-deal-unavailable-t70)
+	if focusItem ~= nil and focusItem.key ~= nil then m_srLists[ m_srSection ].Open( SRA_SECTIONS[ m_srSection ], focusItem.key, true ); end
 	m_srSpokenLeader = m_srLeaderText;
 	m_srSpokenSig = summary;
 	m_srActionSig = SRA_ActionNames();
@@ -4072,7 +4076,7 @@ function SRA_CreateLists()
 		extraKeys = { [ Keys.VK_DELETE ] = SRA_KeyDelete } };
 	m_srLists[2] = KeyNavList_Create{ build = function() return SRA_AvailableItems( LOCAL_PLAYER ); end, isActive = Active( 2 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
 	m_srLists[3] = KeyNavList_Create{ build = function() return SRA_AvailableItems( OTHER_PLAYER ); end, isActive = Active( 3 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
-	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, focusLostSafe = true, focusLostText = function() return DealSpeech_InvalidItemsText( SRA_InvalidItems() ); end, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };
+	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, focusLostSafe = true, focusLostText = function() return DealSpeech_InvalidItemsText( SRA_InvalidItems() ) or "Nothing was focused yet"; end, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };
 	m_srOptList = KeyNavList_Create{ build = SRA_OptionItems, isActive = function() return not ContextPtr:IsHidden() and SRA_OptionsOpen() and not m_kPopupDialog:IsOpen(); end,
 		onActivate = SRA_OnOptionActivate, onClose = SRA_OnOptionsClose };
 end

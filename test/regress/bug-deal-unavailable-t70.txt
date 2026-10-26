@@ -1,0 +1,17 @@
+# bug-deal-unavailable-t70 / bug-deal-focus: an AI-initiated deal popup announced "Focus: Actions, <first action>" but the list had no focus:
+# Down jumped to the first item ("Accept Deal, 1 of 2") and Enter said "Item no longer available. Now on: ...". The announced focus is now the list focus.
+# The AI proposal is simulated in the DiplomacyDealView state (an incoming working deal from Dido, 2, shown by hand; no session exists).
+# covers: **/SRA_DealView.lua **/DealSpeech.lua **/KeyNavList.lua
+# no-share-load: fakes a deal screen
+load bug-deal-focus
+clear-advisors
+key Enter -Settle 800
+lua DiplomacyDealView ms_OtherPlayerID=2; ms_InitiatedByPlayerID=2; DealManager.ClearWorkingDeal(DealDirection.INCOMING,0,2); local d=DealManager.GetWorkingDeal(DealDirection.INCOMING,0,2); local it=d:AddItemOfType(DealItemTypes.AGREEMENTS, 2); it:SetSubType(DealAgreementTypes.OPEN_BORDERS); it:SetDuration(30); local g=d:AddItemOfType(DealItemTypes.GOLD,2); g:SetValueType(0); g:SetAmount(10); ContextPtr:SetHide(false); return "shown"
+wait Focus: Actions, What would it take -Timeout 8
+key S -Settle 800
+key Down -Settle 600
+expect ^Refuse Deal, 2 of 2
+key Up -Settle 600
+expect ^What would it take\?, 1 of 2
+lua DiplomacyDealView ContextPtr:SetHide(true) return "hidden"
+no-lua-errors
