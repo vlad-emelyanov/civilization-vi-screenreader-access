@@ -42,7 +42,6 @@ local m_srChoice		:number = 1;		-- answer required: 1 = Join, 2 = Reject
 local m_srHold			:boolean = false;
 local m_srUnread		:boolean = false;	-- the opening may not have been heard: nothing was read or answered since it was spoken
 local m_srRespeak		:number = -1;		-- seconds until the opening is spoken again
-local m_srClosedAt		:number = -100;		-- when the World Congress last said it closed (that line interrupts the opening)
 -- End ScreenReaderAccess mod change
 
 
@@ -345,7 +344,6 @@ end
 
 -- The congress closes with a line that interrupts speech: a crisis popup shown at the same time says its opening again.
 function SRA_OnCongressClosed()
-	m_srClosedAt = UI.GetElapsedTime();
 	if not ContextPtr:IsHidden() and m_srUnread then m_srRespeak = 0.6; end
 end
 
