@@ -47,7 +47,7 @@ function HubEnemies.Describe( old:table, new:table, dead:table, dist, seen:table
 					if e.scout and e.alarmed and now > was then
 						-- a scout that has seen a city and walks off: it is going home
 						text = e.name .. " heading away from " .. e.anchorName;
-						if e.campText ~= nil then text = text .. ", toward a known camp " .. e.campText; end
+						if e.campText ~= nil then text = text .. ", toward its camp " .. e.campText; end
 					elseif now < was then text = text .. " toward " .. e.anchorName;
 					elseif now > was then text = text .. " away from " .. e.anchorName; end
 				end
@@ -140,7 +140,7 @@ function HubEnemies.Gather()
 						local alarmed:boolean = scout and HubEnemies.m_alarmed[ key ] == true;
 						result[ key ] = {
 							scout = scout, alarmed = alarmed, alarmNow = HubEnemies.m_alarmedNow[ key ] == true,
-							campText = alarmed and HubEnemies.CampTextFor( x, y, best.x, best.y ) or nil,
+							campText = alarmed and HubEnemies.CampTextFor( unit, best.x, best.y ) or nil,
 							name = PlotDescription_GetUnitName( unit ), x = x, y = y, owner = id, id = unit:GetID(),
 							damage = unit:GetDamage(), maxhp = unit:GetMaxDamage(), where = where,
 							anchorName = best.name, anchorX = best.x, anchorY = best.y, near = bestDistance,
@@ -339,6 +339,12 @@ function HubEnemies.IsBarbarianScout( unit:table )
 	return row ~= nil and ( row.UnitType == "UNIT_BARBARIAN_SCOUT" or row.UnitType == "UNIT_SCOUT" );
 end
 
+-- Ships do not raid: they stay out of the raid count (the Enemies line still lists them).
+function HubEnemies.IsNaval( unit:table )
+	local row:table = UnitRow( unit );
+	return row ~= nil and row.Domain == "DOMAIN_SEA";
+end
+
 -- Settler or Builder of ours (what a barbarian can capture).
 function HubEnemies.IsCivilian( unit:table )
 	local row:table = UnitRow( unit );
@@ -386,29 +392,41 @@ end
 -- ---------------------------------------------------------------------------
 -- G3a: scouts
 -- ---------------------------------------------------------------------------
-local function ScoutSight( unit:table )
-	local row:table = UnitRow( unit );
-	local sight:number = ( row ~= nil and row.BaseSightRange ~= nil ) and row.BaseSightRange or 2;
-	return math.max( sight, 2 );
+-- The player the barbarian scout is spying on (the game draws its "!" flag for it), or -1.
+function HubEnemies.ScoutTarget( unit:table )
+	local ok:boolean, target = pcall( function() return unit:GetBarbarianTargetPlayer(); end );
+	if ok and target ~= nil then return target; end
+	return -1;
 end
 
--- A remembered camp that lies away from the city, seen from the scout: "4 tiles north-east", else nil.
-function HubEnemies.CampTextFor( x:number, y:number, cityX:number, cityY:number )
-	if HubPlaces == nil or HubPlaces.RememberedCampPlots == nil then return nil; end
-	local here:table = Map.GetPlot( x, y );
-	local best:table, bestDistance:number = nil, 99;
-	for _, plot in ipairs( HubPlaces.RememberedCampPlots() ) do
-		local d:number = Dist( x, y, plot:GetX(), plot:GetY() );
-		if d <= 12 and d < bestDistance and Dist( plot:GetX(), plot:GetY(), cityX, cityY ) > Dist( x, y, cityX, cityY ) then
-			best, bestDistance = plot, d;
-		end
-	end
-	if best == nil then return nil; end
-	return PlotDescription_GetRelative( here, best );
+-- The scout's own camp (tribe -> Game.GetBarbarianManager():GetTribeCampLocation), only when we have revealed that plot.
+function HubEnemies.ScoutCampPlot( unit:table )
+	local ok:boolean, plot = pcall( function()
+		local tribe = unit:GetBarbarianTribeIndex();
+		if tribe == nil or tribe < 0 then return nil; end
+		local x, y = Game.GetBarbarianManager():GetTribeCampLocation( tribe );
+		if type( x ) == "table" then x, y = x.x, x.y; end
+		if x == nil or y == nil or x < 0 or y < 0 then return nil; end
+		local camp = Map.GetPlot( x, y );
+		local vis = PlayersVisibility[ Game.GetLocalPlayer() ];
+		if camp == nil or vis == nil or not vis:IsRevealed( camp:GetIndex() ) then return nil; end
+		return camp;
+	end );
+	if ok then return plot; end
+	return nil;
 end
 
--- Looks at the barbarian scouts in view: the alarm for one that sees a city of ours (or stands in our borders), once per
--- scout. atTurnStart: scouts with an alarm that are not in view any more have escaped (a raid is expected). Returns the
+-- The scout's camp as seen from the scout ("4 tiles north-east"), when revealed and farther from the city than the scout, else nil.
+function HubEnemies.CampTextFor( unit:table, cityX:number, cityY:number )
+	local camp:table = HubEnemies.ScoutCampPlot( unit );
+	if camp == nil then return nil; end
+	local x:number, y:number = unit:GetX(), unit:GetY();
+	if Dist( camp:GetX(), camp:GetY(), cityX, cityY ) <= Dist( x, y, cityX, cityY ) then return nil; end
+	return PlotDescription_GetRelative( Map.GetPlot( x, y ), camp );
+end
+
+-- Looks at the barbarian scouts in view: the alarm for one the game flags as spying on us (GetBarbarianTargetPlayer ==
+-- local player), once per scout. atTurnStart: scouts with an alarm that are not in view any more have escaped (a raid is expected). Returns the
 -- lines to speak.
 function HubEnemies.CheckScouts( atTurnStart:boolean )
 	local lines:table = {};
@@ -422,15 +440,13 @@ function HubEnemies.CheckScouts( atTurnStart:boolean )
 			if known ~= nil then
 				known.x, known.y, known.turn = h.x, h.y, Game.GetCurrentGameTurn();
 			elseif not HubEnemies.m_alarmed[ h.key ] then
-				local sight:number = ScoutSight( h.unit );
 				local best:table, bestDistance:number = nil, 99;
 				for _, city in ipairs( cities ) do
 					local d:number = Dist( h.x, h.y, city:GetX(), city:GetY() );
 					if d < bestDistance then best, bestDistance = city, d; end
 				end
 				local plot:table = Map.GetPlot( h.x, h.y );
-				local inBorders:boolean = plot ~= nil and plot:GetOwner() == localID;
-				if best ~= nil and ( bestDistance <= sight or inBorders ) then
+				if best ~= nil and HubEnemies.ScoutTarget( h.unit ) == localID then
 					HubEnemies.m_alarmed[ h.key ] = true;
 					HubEnemies.m_alarmedNow[ h.key ] = true;
 					HubEnemies.m_scouts[ h.key ] = { name = PlotDescription_GetUnitName( h.unit ), x = h.x, y = h.y,
@@ -515,11 +531,17 @@ function HubEnemies.ScanThreats()
 	local result:table = { raids = {}, civilians = {} };
 	local cities:table = OwnCities();
 	local soldiers:table = {};
-	for _, h in ipairs( VisibleHostiles() ) do if h.soldier then table.insert( soldiers, h ); end end
+	local landSoldiers:table = {};
+	for _, h in ipairs( VisibleHostiles() ) do
+		if h.soldier then
+			table.insert( soldiers, h );
+			if not HubEnemies.IsNaval( h.unit ) then table.insert( landSoldiers, h ); end
+		end
+	end
 	if #soldiers == 0 then return result; end
 	-- raids: per city and owner, the soldiers whose nearest city is that one
 	local byCity:table = {};
-	for _, s in ipairs( soldiers ) do
+	for _, s in ipairs( landSoldiers ) do
 		local best:table, bestDistance:number = nil, 99;
 		for _, city in ipairs( cities ) do
 			local d:number = Dist( s.x, s.y, city:GetX(), city:GetY() );
@@ -634,6 +656,13 @@ function HubEnemies.SpeakThreats( nointerrupt:boolean )
 	end
 	for key in pairs( HubEnemies.m_raidSig ) do if not liveRaids[ key ] then HubEnemies.m_raidSig[ key ] = nil; end end
 	for key in pairs( HubEnemies.m_dangerSig ) do if not liveCivilians[ key ] then HubEnemies.m_dangerSig[ key ] = nil; end end
+end
+
+-- Events.BarbarianSpottedCity: a barbarian first saw a city. For one of ours the scout check runs promptly (the flag
+-- GetBarbarianTargetPlayer is set by then); during the AI turn the turn start does it.
+function HubEnemies.OnBarbarianSpottedCity( playerID:number, unitID:number, cityOwner:number, cityID:number )
+	if cityOwner ~= Game.GetLocalPlayer() then return; end
+	HubEnemies.OnHostileVisible( nil );
 end
 
 -- A hostile unit came into view (HubEvents.OnUnitVisibilityChanged): check scouts and threats a moment later, once.

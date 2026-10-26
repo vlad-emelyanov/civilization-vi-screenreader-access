@@ -79,7 +79,7 @@ end)
 test("scout heading away names a known camp, the plain case does not", function()
 	local old = { ["63:1"] = e("Barbarian Scout", 12, 10, { scout = true, alarmed = true }) }
 	local new = { ["63:1"] = e("Barbarian Scout", 14, 10, { scout = true, alarmed = true, where = "4 tiles east of Sivas", campText = "4 tiles north-east" }) }
-	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, toward a known camp 4 tiles north-east, now 4 tiles east of Sivas.")
+	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, toward its camp 4 tiles north-east, now 4 tiles east of Sivas.")
 	new["63:1"].campText = nil
 	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, now 4 tiles east of Sivas.")
 end)
@@ -110,4 +110,35 @@ test("civilian danger and the lone mover", function()
 	eq(HubEnemies.FromPathText(0, false), "on the path")
 	eq(HubEnemies.FromPathText(1, true), "1 tile from the target")
 	eq(HubEnemies.EscortHintText("Warrior", "Shift+E"), "Warrior here too: Shift+E forms an escort")
+end)
+
+test("scout flag: target player, -1 when missing", function()
+	eq(HubEnemies.ScoutTarget({ GetBarbarianTargetPlayer = function() return 0 end }), 0)
+	eq(HubEnemies.ScoutTarget({ GetBarbarianTargetPlayer = function() return -1 end }), -1)
+	eq(HubEnemies.ScoutTarget({}), -1)
+end)
+
+test("scout camp: only a revealed camp plot is named", function()
+	Game = Game or {}
+	local old = Game.GetBarbarianManager
+	Game.GetBarbarianManager = function() return { GetTribeCampLocation = function() return 20, 12 end } end
+	local unit = { GetBarbarianTribeIndex = function() return 13 end, GetX = function() return 14 end, GetY = function() return 10 end }
+	world.revealed_all = false
+	eq(HubEnemies.ScoutCampPlot(unit), nil)
+	eq(HubEnemies.CampTextFor(unit, 10, 10), nil)
+	world.revealed_all = true
+	local plot = HubEnemies.ScoutCampPlot(unit)
+	eq(plot ~= nil and plot:GetX() or nil, 20)
+	-- a camp nearer the city than the scout is not "toward its camp"
+	Game.GetBarbarianManager = function() return { GetTribeCampLocation = function() return 11, 10 end } end
+	eq(HubEnemies.CampTextFor(unit, 10, 10), nil)
+	Game.GetBarbarianManager = old
+end)
+
+test("ships stay out of the raid count", function()
+	local old = GameInfo.Units
+	GameInfo.Units = { [1] = { Domain = "DOMAIN_SEA" }, [2] = { Domain = "DOMAIN_LAND" } }
+	eq(HubEnemies.IsNaval({ GetUnitType = function() return 1 end }), true)
+	eq(HubEnemies.IsNaval({ GetUnitType = function() return 2 end }), false)
+	GameInfo.Units = old
 end)

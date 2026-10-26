@@ -1,5 +1,5 @@
 # Written blind (round 24, G3a): a barbarian scout 3 tiles from Rome sounds the alarm when it comes into view; J lists it under Threats.
-# Scenario barbarian-scout-near-city on early-t60. The alarm needs the scout inside our borders or inside its sight range (heuristic).
+# Scenario barbarian-scout-near-city on early-t60. The alarm needs the game flag unit:GetBarbarianTargetPlayer() == us (round 25; the scenario may need to wait for the AI turn to set it, or fire Events.BarbarianSpottedCity).
 # covers: **/HubEnemies.lua **/HubEvents.lua **/HubPlaces.lua **/HubAnnounce.lua
 # no-share-load: scenario barbarian-scout-near-city
 load early-t60
