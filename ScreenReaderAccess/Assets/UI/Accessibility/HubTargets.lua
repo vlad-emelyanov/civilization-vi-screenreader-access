@@ -394,6 +394,39 @@ function HubTargets.ModeTargetPlots( mode:number, unit:table )
 	return set;
 end
 
+-- Why a move order finds no path to a plot of ours: the engine allows one unit of each formation class per tile, and an
+-- escort formation counts as both its classes (verified: a Spearman + Settler formation, and a lone Builder, find no path
+-- to a city holding a Great General: civilian class; a Heavy Chariot does). "" when the cause is not this (stays "Unreachable").
+function HubTargets.UnreachableReason( unit:table, plot:table )
+	if unit == nil or plot == nil then return ""; end
+	local text:string = "";
+	pcall( function()
+		local classes:table, own:table = {}, { [ unit:GetID() ] = true };
+		local function ClassOf( u:table )
+			local row:table = GameInfo.Units[ u:GetUnitType() ];
+			return ( row ~= nil ) and row.FormationClass or nil;
+		end
+		classes[ ClassOf( unit ) or "" ] = true;
+		if unit:GetFormationUnitCount() > 1 then
+			for _, other in ipairs( Units.GetUnitsInPlot( Map.GetPlot( unit:GetX(), unit:GetY() ) ) ) do
+				if other:GetOwner() == unit:GetOwner() and other:GetFormationUnitCount() > 1 then
+					own[ other:GetID() ] = true;
+					classes[ ClassOf( other ) or "" ] = true;
+				end
+			end
+		end
+		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+			local class:string = ClassOf( other );
+			if other:GetOwner() == unit:GetOwner() and not own[ other:GetID() ] and class ~= nil and classes[ class ] and other:GetFormationUnitCount() <= 1 then
+				local kind:string = ( class == "FORMATION_CLASS_CIVILIAN" ) and "civilian" or ( class == "FORMATION_CLASS_LAND_COMBAT" and "land military unit" or "unit of that kind" );
+				text = Locale.Lookup( other:GetName() ) .. " is already there, only one " .. kind .. " fits on a tile";
+				return;
+			end
+		end
+	end );
+	return text;
+end
+
 -- Mode specific words for the cursor plot: path length for a move, valid target and odds for an attack.
 function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 	if unit == nil then
@@ -426,7 +459,8 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 		local enemy:boolean = EnemyVisibleAt( plot );
 		if not reachable and war == nil then
 			if m_attackIntent and enemy then return "enemy, cannot reach"; end
-			return "unreachable";
+			local why:string = HubTargets.UnreachableReason( unit, plot );
+			return "unreachable" .. ( why ~= "" and ( ", " .. why ) or "" );
 		end
 		local text:string = "";
 		local turns:number = 1;
@@ -874,7 +908,8 @@ function HubTargets.ConfirmTarget()
 				return;
 			end
 			if not reachable then
-				HubCore.SayResult( "Unreachable" );
+				local why:string = HubTargets.UnreachableReason( unit, plot );
+				HubCore.SayResult( "Unreachable" .. ( why ~= "" and ( ": " .. why ) or "" ) );
 				return;
 			end
 		end

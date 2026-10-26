@@ -74,7 +74,8 @@ local function SettleGo( item:table )
 	local war:table = HubTargets.WarTargets( unit, plot );
 	local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
 	if war == nil and ( path == nil or path.plots == nil or #path.plots < 2 ) then
-		HubCore.SayResult( "Unreachable" );
+		local why:string = HubTargets.UnreachableReason( unit, plot );
+		HubCore.SayResult( "Unreachable" .. ( why ~= "" and ( ": " .. why ) or "" ) );
 		return;
 	end
 	HubTargets.IssueMoveOrder( unit, plot, war, false );
@@ -267,7 +268,8 @@ local function BuildGo( item:table )
 	local war:table = HubTargets.WarTargets( unit, plot );
 	local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
 	if war == nil and ( path == nil or path.plots == nil or #path.plots < 2 ) then
-		HubCore.SayResult( "Unreachable" );
+		local why:string = HubTargets.UnreachableReason( unit, plot );
+		HubCore.SayResult( "Unreachable" .. ( why ~= "" and ( ": " .. why ) or "" ) );
 		return;
 	end
 	HubTargets.IssueMoveOrder( unit, plot, war, false );

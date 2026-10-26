@@ -1,0 +1,14 @@
+# bug-escort-rome-unreachable (t76): a Spearman + Settler formation 3 tiles east of Rome cannot enter Rome because a Great General (civilian
+# class) stands there (one unit per formation class per tile; the formation counts as both). The cursor text and Enter used to say only "Unreachable".
+# covers: **/HubTargets.lua **/HubSettle.lua
+# no-share-load: leaves a target mode open until Escape
+load bug-escort-rome-unreachable
+clear-advisors
+lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(1638401)) return 1
+key M -Settle 1200
+key Backslash -Settle 1500
+expect unreachable, Boudica is already there, only one civilian fits on a tile
+key Enter -Settle 1200
+expect ^Unreachable: Boudica is already there
+key Escape -Settle 800
+no-lua-errors
