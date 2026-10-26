@@ -16,7 +16,13 @@
 --	plots (they only appear at map creation and vanish when entered; no "last seen" accessor exists), camps are not.
 --	Remembered ones in the fog say "last seen". Natural wonders are read live (revealed is enough, they never change).
 --	"Civilians to capture": visible Builders / Settlers (GameInfo.UnitCaptures) of barbarians and of civs at war with us.
+--	"Blind spots" (after Points of interest): clusters of land 4 to 8 tiles from our cities that are revealed but out of view, and of
+--	unexplored plots within 6 tiles (BlindSpots.lua): barbarian camps only appear where no one sees.
+--	A camp remembers what stood on it when it was last in view (guards, turn): "guarded by Spearman (last seen 2 turns ago)". M on a camp
+--	offers an "Attack party" first: the two fastest military land units. A camp destroyed in view is announced with the gold gained.
 -- ===========================================================================
+include( "BlindSpots" );
+
 HubPlaces = {};
 
 HubPlaces.m_hintUnit = -1;		-- unit id picked from the list: its selection announcement says how to cancel its orders
@@ -224,6 +230,20 @@ local function UnitItems( ctx:table )
 	return SortItems( items );
 end
 
+-- The names of the visible barbarian soldiers on a (visible) plot: the guards of a camp.
+local function CampGuards( plot:table )
+	local names:table = {};
+	local ok:boolean, units = pcall( Units.GetUnitsInPlot, plot );
+	if not ok or units == nil then return names; end
+	for _, unit in ipairs( units ) do
+		local owner:table = Players[ unit:GetOwner() ];
+		if owner ~= nil and owner:IsBarbarian() and ( unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 ) and PlotDescription_IsUnitVisible( unit ) then
+			table.insert( names, Locale.Lookup( unit:GetName() ) );
+		end
+	end
+	return names;
+end
+
 -- What is on a VISIBLE plot is remembered (see ScanSeen); nil forgets it.
 local function RememberPlot( plot:table, index:number, improvementOverride:number )
 	local localID:number = Game.GetLocalPlayer();
@@ -234,6 +254,8 @@ local function RememberPlot( plot:table, index:number, improvementOverride:numbe
 		local row:table = GameInfo.Improvements[ improvement ];
 		if row ~= nil and POINT_IMPROVEMENTS[ row.ImprovementType ] then
 			entry = { kind = "point", name = Locale.Lookup( row.Name ), camp = ( row.ImprovementType == "IMPROVEMENT_BARBARIAN_CAMP" ) };
+			-- the plot is in view (the callers check): who stands on a camp is remembered with the turn
+			if entry.camp then entry.guards, entry.turn = CampGuards( plot ), Game.GetCurrentGameTurn(); end
 		end
 	end
 	if entry == nil and plot:IsCity() then
@@ -306,7 +328,31 @@ function HubPlaces.OnImprovementAddedToMap( x:number, y:number, improvementType:
 end
 
 -- Events.ImprovementRemovedFromMap( x, y ... ): a village entered or a camp destroyed in view (the plot is updated a moment later)
+local m_lastGold		:number = nil;		-- the treasury as the last poll saw it: the baseline of the gold a destroyed camp gives
+local m_goldFrozen		:number = 0;		-- no sampling until this UI time (a camp was just destroyed)
+
+local function GoldBalance()
+	local ok:boolean, gold = pcall( function() return Players[ Game.GetLocalPlayer() ]:GetTreasury():GetGoldBalance(); end );
+	if ok then return gold; end
+	return nil;
+end
+
+-- A remembered camp that was in view and is now gone was destroyed (by us or another unit in view): "Barbarian camp destroyed, 50 gold".
+-- The event carries no reward; the gold is the treasury growth since the last poll (the dispersal gold arrives with the removal).
 function HubPlaces.OnImprovementRemovedFromMap( x:number, y:number )
+	local plot:table = Map.GetPlot( x, y );
+	local entry:table = ( plot ~= nil ) and m_seen[ plot:GetIndex() ] or nil;
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	if entry ~= nil and entry.camp == true and HubCore.m_ready and vis ~= nil and vis:IsVisible( plot:GetIndex() ) then
+		local before:number = m_lastGold or GoldBalance();
+		local turn:number = Game.GetCurrentGameTurn();
+		m_goldFrozen = UI.GetElapsedTime() + 1.5;
+		HubCore.After( 1.0, function()
+			if Game.GetCurrentGameTurn() ~= turn then return; end
+			local now:number = GoldBalance();
+			HubCore.Announce( BlindSpots.DestroyedText( ( now ~= nil and before ~= nil ) and ( now - before ) or nil ), true );
+		end );
+	end
 	HubCore.After( 0.3, function() RememberIfVisible( x, y, nil ); end );
 end
 
@@ -396,6 +442,13 @@ local function IsFogged( index:number )
 	return vis ~= nil and not vis:IsVisible( index );
 end
 
+-- The gold a destroyed camp gives at the base difficulty: the Improvements row's DispersalGold (nil: unknown, no amount is stated).
+local function CampGold()
+	local ok:boolean, gold = pcall( function() return GameInfo.Improvements[ "IMPROVEMENT_BARBARIAN_CAMP" ].DispersalGold; end );
+	if ok and gold ~= nil and gold > 0 then return gold; end
+	return nil;
+end
+
 -- Remembered tribal villages and barbarian camps, and the natural wonders ScanSeen found.
 local function PointItems( ctx:table )
 	local items:table = {};
@@ -403,7 +456,17 @@ local function PointItems( ctx:table )
 		local plot:table = Map.GetPlotByIndex( index );
 		if entry.kind == "point" and plot ~= nil then
 			local item:table = MakeItem( "p:" .. index, "point", entry.name, "", plot, ctx );
-			item.text = entry.name .. ( IsFogged( index ) and ", last seen, " or ", " ) .. Where( plot, ctx );
+			local fogged:boolean = IsFogged( index );
+			if entry.camp and entry.guards ~= nil then
+				item.text = BlindSpots.CampText( entry.name, Where( plot, ctx ), entry.guards, fogged, Game.GetCurrentGameTurn() - ( entry.turn or Game.GetCurrentGameTurn() ) );
+			else
+				item.text = entry.name .. ( fogged and ", last seen, " or ", " ) .. Where( plot, ctx );
+			end
+			if entry.camp then
+				local base = item.detail;
+				item.detail = function() return base() .. ". " .. BlindSpots.CampAdvice( CampGold() ); end
+				item.camp = true;
+			end
 			-- Barbarian Clans mode: the camp's clan leads the line, T opens the treat-with-clan popup while the camp is in view
 			local clan:string = PlotDescription_GetClanPhrase( plot );
 			if clan ~= nil then
@@ -421,6 +484,47 @@ local function PointItems( ctx:table )
 	for _, item in ipairs( ctx.wonders or {} ) do
 		item.text = item.name .. ", " .. Where( Map.GetPlot( item.x, item.y ), ctx );
 		table.insert( items, item );
+	end
+	return SortItems( items );
+end
+
+-- A value of the game's GlobalParameters (nil when the row is missing).
+local function GlobalParam( name:string )
+	local ok:boolean, value = pcall( function() return tonumber( GameInfo.GlobalParameters[ name ].Value ); end );
+	if ok then return value; end
+	return nil;
+end
+
+-- Clusters of land that is out of sight or unexplored near our cities (BlindSpots): where a barbarian camp could appear unseen.
+local function BlindSpotItems( ctx:table )
+	local items:table = {};
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	local cities:table = {};
+	for _, city in LocalPlayer():GetCities():Members() do
+		table.insert( cities, { x = city:GetX(), y = city:GetY(), id = city:GetID() } );
+	end
+	if vis == nil or #cities == 0 then return items; end
+	local blind:table, unexplored:table = BlindSpots.Candidates( cities, vis );
+	local clusters:table = {};
+	for _, c in ipairs( BlindSpots.Clusters( blind, BlindSpots.MIN_SIZE, BlindSpots.MAX_CLUSTERS ) ) do c.unexplored = false; table.insert( clusters, c ); end
+	for _, c in ipairs( BlindSpots.Clusters( unexplored, BlindSpots.MIN_SIZE, BlindSpots.MAX_CLUSTERS ) ) do c.unexplored = true; table.insert( clusters, c ); end
+	table.sort( clusters, function( a, b )
+		if a.size ~= b.size then return a.size > b.size; end
+		if a.unexplored ~= b.unexplored then return not a.unexplored; end
+		return a.index < b.index;
+	end );
+	local advice:string = BlindSpots.Advice( GlobalParam( "BARBARIAN_CAMP_MINIMUM_DISTANCE_CITY" ), GlobalParam( "BARBARIAN_CAMP_MINIMUM_DISTANCE_ANOTHER_CAMP" ) );
+	for i = 1, math.min( #clusters, BlindSpots.MAX_CLUSTERS ) do
+		local c:table = clusters[i];
+		local plot:table = Map.GetPlot( c.x, c.y );
+		if plot ~= nil then
+			local position:string = HubAnnounce.PositionText( plot ) or Where( plot, ctx );
+			local text:string = c.unexplored and BlindSpots.UnexploredText( c.size, position ) or BlindSpots.SpotText( c.size, position );
+			local item:table = MakeItem( "b:" .. ( c.unexplored and "u" or "v" ) .. ":" .. c.index, "blind", c.unexplored and "Unexplored area" or "Blind spot", text, plot, ctx );
+			item.text = text;
+			item.detail = function() return text .. ". " .. advice; end
+			table.insert( items, item );
+		end
 	end
 	return SortItems( items );
 end
@@ -534,7 +638,8 @@ function HubPlaces.BuildCategories( ctx:table )
 	local sources:table = {
 		{ name = "Threats", build = ThreatItems },
 		{ name = "Your cities", build = CityItems }, { name = "Your units", build = UnitItems },
-		{ name = "Points of interest", build = PointItems }, { name = "Notifications", build = NotificationItems },
+		{ name = "Points of interest", build = PointItems }, { name = "Blind spots", build = BlindSpotItems },
+			{ name = "Notifications", build = NotificationItems },
 		{ name = "Foreign cities", build = ForeignItems }, { name = "Civilians to capture", build = CaptureItems },
 	};
 	for _, source in ipairs( sources ) do
@@ -683,7 +788,7 @@ local function SendKey()
 		OutputMessageToScreenReader( "That is a unit of yours. Enter selects it" );
 		return;
 	end
-	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key, capture = ( item.kind == "capture" ), soldiers = ( item.kind == "threat" ) } );
+	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key, capture = ( item.kind == "capture" ), soldiers = ( item.kind == "threat" ), camp = ( item.camp == true ) } );
 end
 
 -- T on a clan camp: the banner's own call opens the DLC's Treat With Clan popup (our keyboard copy of it speaks)
@@ -732,6 +837,7 @@ function HubPlaces.Update( deltaTime:number )
 	if m_campTimer > 0 then return; end
 	m_campTimer = CAMP_POLL_SECONDS;
 	HubPlaces.PushCampState( false );
+	if UI.GetElapsedTime() >= m_goldFrozen then m_lastGold = GoldBalance() or m_lastGold; end
 end
 
 -- Shutdown / reload of the hub: a stale true must not block the tech tree
@@ -821,6 +927,29 @@ function HubPlaces.CanCapture( unit:table )
 	return row ~= nil and row.Domain == "DOMAIN_LAND" and row.CanCapture ~= false and unit:GetCombat() > 0;
 end
 
+-- A land unit that fights (an attack party is made of these).
+function HubPlaces.IsMilitaryLand( unit:table )
+	local row:table = GameInfo.Units[ unit:GetUnitType() ];
+	return row ~= nil and row.Domain == "DOMAIN_LAND" and ( unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 );
+end
+
+-- "Attack party, send 2 units: Warrior 3 turns, Slinger 4 turns": the two fastest military land units (nil when fewer than two).
+-- Enter orders both; each keeps its own path (members are the single items, with their landing plot).
+local function PartyItem( items:table, place:table )
+	local members:table = {};
+	for _, item in ipairs( items ) do
+		if item.military and #members < 2 then table.insert( members, item ); end
+	end
+	if #members < 2 then return nil; end
+	local parts:table = {};
+	for _, member in ipairs( members ) do table.insert( parts, member.name .. " " .. HubCore.Plural( member.turns, "turn", "turns" ) ); end
+	return {
+		key = "party", name = "Attack party", turns = members[1].turns, members = members,
+		text = "Attack party, send 2 units: " .. table.concat( parts, ", " ),
+		detail = function() return members[1].name .. " and " .. members[2].name .. " both go to " .. place.name .. ", each by its own path. Attack with more than one unit"; end,
+	};
+end
+
 function HubPlaces.BuildSendItems( place:table )
 	local plot:table = Map.GetPlot( place.x, place.y );
 	local items:table = {};
@@ -851,6 +980,7 @@ function HubPlaces.BuildSendItems( place:table )
 			local name:string = Locale.Lookup( unit:GetName() );
 			names[ name ] = ( names[ name ] or 0 ) + 1;
 			local item:table = { key = "s:" .. unit:GetID(), unitId = unit:GetID(), name = name, turns = turns, distance = candidates[i].distance, unit = unit };
+			if place.camp then item.military = HubPlaces.IsMilitaryLand( unit ); end
 			if near ~= nil then item.nearX, item.nearY, item.ring = near:GetX(), near:GetY(), ring; end
 			table.insert( items, item );
 		end
@@ -872,6 +1002,10 @@ function HubPlaces.BuildSendItems( place:table )
 		local unitPlot:table = Map.GetPlot( item.unit:GetX(), item.unit:GetY() );
 		item.detail = function() return PlotDescription_GetShort( unitPlot, {} ); end
 		item.unit = nil;
+	end
+	if place.camp then
+		local party:table = PartyItem( items, place );
+		if party ~= nil then table.insert( items, 1, party ); end
 	end
 	return items;
 end
@@ -904,17 +1038,44 @@ local function CloseSend()
 	end
 end
 
--- Enter: select the unit and give it the move order through the game's own path (the war check included).
+-- Gives one unit the move order toward the place through the game's own path (the war check included); the sentence to say.
+local function OrderUnit( unitID:number, place:table, item:table )
+	local mover:table = LocalPlayer():GetUnits():FindID( unitID );
+	local plot:table = Map.GetPlot( place.x, place.y );
+	if mover == nil then return "Order not given, the unit is gone"; end
+	if plot == nil then return "Order not given, the place is not on the map"; end
+	local name:string = Locale.Lookup( mover:GetName() );
+	local nearby:boolean = item.nearX ~= nil;
+	if nearby then
+		plot = Map.GetPlot( item.nearX, item.nearY );
+		if plot == nil then return "Order not given, the place is not on the map"; end
+	end
+	local war:table = HubTargets.WarTargets( mover, plot );
+	local enemy:boolean = HubTargets.EnemyVisibleAt( plot );
+	local path:table = UnitManager.GetMoveToPathEx( mover, plot:GetIndex() );
+	local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
+	if war == nil and not reachable then
+		return name .. " cannot reach " .. ( nearby and "the area of " or "" ) .. place.name;
+	end
+	HubTargets.IssueMoveOrder( mover, plot, war, enemy );
+	local turns:string = reachable and ( ", " .. HubCore.Plural( path.turns[ #path.turns ] or 1, "turn", "turns" ) ) or "";
+	if war ~= nil then
+		return name .. " to " .. place.name .. ": the game asks to declare war first";
+	end
+	return name .. ( enemy and " moving to attack " or ( nearby and " moving next to " or " moving to " ) ) .. place.name .. turns;
+end
+
+-- Enter: select the unit (the first one of an attack party) and give the move order(s).
 local function SendActivate( item:table )
 	local place:table = m_send;
-	local unit:table = LocalPlayer():GetUnits():FindID( item.unitId );
+	local firstId:number = ( item.members ~= nil ) and item.members[1].unitId or item.unitId;
+	local unit:table = LocalPlayer():GetUnits():FindID( firstId );
 	if unit == nil or place == nil then
 		OutputMessageToScreenReader( "Unit no longer available" );
 		return;
 	end
 	HubCore.CloseMode( false, false );
 	SelectUnit( unit );
-	local unitID:number = unit:GetID();
 	local turn:number = Game.GetCurrentGameTurn();
 	HubCore.After( 0.3, function()
 		-- the selection announcement is out; the world may have moved on in the meantime
@@ -922,31 +1083,11 @@ local function SendActivate( item:table )
 		if not HubCore.IsLocalPlayerActive() then return; end
 		if Game.GetCurrentGameTurn() ~= turn then Refuse( "the turn changed" ); return; end
 		if HubTargets.GetTargetMode() ~= nil then Refuse( "a target mode is open" ); return; end
-		local mover:table = LocalPlayer():GetUnits():FindID( unitID );
-		local plot:table = Map.GetPlot( place.x, place.y );
-		if mover == nil then Refuse( "the unit is gone" ); return; end
-		if plot == nil then Refuse( "the place is not on the map" ); return; end
-		local name:string = Locale.Lookup( mover:GetName() );
-		local nearby:boolean = item.nearX ~= nil;
-		if nearby then
-			plot = Map.GetPlot( item.nearX, item.nearY );
-			if plot == nil then Refuse( "the place is not on the map" ); return; end
+		local sentences:table = {};
+		for _, member in ipairs( item.members or { item } ) do
+			table.insert( sentences, OrderUnit( member.unitId, place, member ) );
 		end
-		local war:table = HubTargets.WarTargets( mover, plot );
-		local enemy:boolean = HubTargets.EnemyVisibleAt( plot );
-		local path:table = UnitManager.GetMoveToPathEx( mover, plot:GetIndex() );
-		local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
-		if war == nil and not reachable then
-			HubCore.SayResult( name .. " cannot reach " .. ( nearby and "the area of " or "" ) .. place.name );
-			return;
-		end
-		HubTargets.IssueMoveOrder( mover, plot, war, enemy );
-		local turns:string = reachable and ( ", " .. HubCore.Plural( path.turns[ #path.turns ] or 1, "turn", "turns" ) ) or "";
-		if war ~= nil then
-			HubCore.SayResult( name .. " to " .. place.name .. ": the game asks to declare war first" );
-		else
-			HubCore.SayResult( name .. ( enemy and " moving to attack " or ( nearby and " moving next to " or " moving to " ) ) .. place.name .. turns );
-		end
+		HubCore.SayResult( table.concat( sentences, ". " ) );
 	end );
 end
 

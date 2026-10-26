@@ -1,0 +1,23 @@
+# Written blind 2026-10-26 (G3c, not yet recorded; run with civregress --record first). A barbarian camp with a guard 2 tiles from the capital (scenario
+# barbarian-camp-near-city): J lists it under Points of interest with its guard, Space says what destroying it gives, M offers the attack party first.
+# Assumes the order Your cities, Your units, Points of interest (3 Tabs from Your cities). If the guard raises a Threats category first, record with --update and use 4 Tabs.
+# covers: **/HubPlaces.lua **/BlindSpots.lua **/HubTargets.lua **/HubEnemies.lua UI/Additions/InGameAccess.lua
+# no-share-load: scenario barbarian-camp-near-city
+load early-t60
+clear-advisors
+scenario barbarian-camp-near-city
+clear-advisors
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 800
+key Tab -Settle 800
+key Tab -Settle 800
+expect (?i)Points of interest, \d+ of \d+ categories
+expect Barbarian Camp, \d+ tiles? [a-z-]+ of \w+, guarded by Warrior, 1 of \d+
+key Space -Settle 1200
+expect Destroying it gives (about \d+ )?gold and stops raids from it\. Fighting near it gives your units experience
+key M -Settle 1500
+expect ^Send a unit to Barbarian Camp
+expect Attack party, send 2 units: \w+ \d+ turns?, \w+ \d+ turns?
+key Escape -Settle 1000
+key Escape -Settle 1000
+no-lua-errors
