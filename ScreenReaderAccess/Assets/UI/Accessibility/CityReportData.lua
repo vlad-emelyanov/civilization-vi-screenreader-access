@@ -356,6 +356,28 @@ local function GreatWorksItem( d:table )
 	return { key = "greatworks", text = text, detail = detail };
 end
 
+-- Resources on the city's tiles (G1): d.resources = { improved = { {name, count, improvement} }, needs = { {name, count, need, improvement} },
+-- possible = { {name, count, improvement} } } (ResourceTech_CityResources), nil or all empty: no item.
+local function ResourcesItem( d:table )
+	local r:table = d.resources;
+	if r == nil then return nil; end
+	local improved:table, notImproved:table = {}, {};
+	for _, e in ipairs( r.improved or {} ) do
+		table.insert( improved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. " (" .. e.improvement .. ")" );
+	end
+	for _, e in ipairs( r.needs or {} ) do
+		table.insert( notImproved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. ", needs " .. e.need );
+	end
+	for _, e in ipairs( r.possible or {} ) do
+		table.insert( notImproved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. ", a builder can make a " .. string.lower( e.improvement ) .. " now" );
+	end
+	if #improved == 0 and #notImproved == 0 then return nil; end
+	local text:string = "Resources. Improved: " .. ( #improved > 0 and Join( improved ) or "none" );
+	if #notImproved > 0 then text = text .. ". Not improved: " .. Join( notImproved, "; " ); end
+	return { key = "resources", text = text,
+		detail = "Resource tiles inside the city's borders. A tile that needs a tech or civic can be improved once you have researched it" };
+end
+
 local function TradingPostsItem( d:table )
 	local t:table = d.tradingPosts;
 	if t == nil or #t == 0 then return nil; end
@@ -493,6 +515,7 @@ function CityReport_BuildItems( d:table )
 	Guard( function() Add( FocusItem( d ) ); end );
 	Guard( function() Add( TilesItem( d ) ); end );
 	Guard( function() Add( SpecialistsItem( d ) ); end );
+	Guard( function() Add( ResourcesItem( d ) ); end );
 	Guard( function() Add( ReligionItem( d ) ); end );
 	Guard( function() Add( GreatWorksItem( d ) ); end );
 	Guard( function() Add( TradingPostsItem( d ) ); end );

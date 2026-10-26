@@ -1959,6 +1959,7 @@ local function SRA_InitTree()
 		beginSearch = SRA_TechBeginSearch,
 		close = Close,
 		scroll = function( key ) ScrollToNode( key ); end,
+		resourceKind = "tech",
 	};
 	SRListen( LuaEvents.TechTree_OpenTechTree, SRA_OnTreeOpen );
 	SRListen( LuaEvents.TechTree_CloseTechTree, SRA_OnTreeClosed );

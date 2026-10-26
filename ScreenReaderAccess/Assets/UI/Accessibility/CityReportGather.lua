@@ -9,6 +9,7 @@
 
 include( "ScreenReader" );
 include( "PlotDescription" );
+include( "ResourceTech" );
 include( "SupportFunctions" );		-- Round(), Clamp() used by GetCityData
 include( "Civ6Common" );			-- GetYieldString(), GetUnitStats() used by GetCityData
 -- GetCityData reads these two as globals; CityPanel.lua / CityPanelOverview.lua define them as file locals
@@ -348,6 +349,7 @@ function CityReport_Gather( pCity:table )
 	end );
 
 	d.manage = Guard( "city management", function() return CityManage_Gather( pCity ); end );
+	d.resources = Guard( "resources", function() return ResourceTech_CityResources( pCity ); end );
 	d.greatWorks = Guard( "great works", function() return GatherGreatWorks( pCity ); end );
 	d.tradingPosts = {};
 	Guard( "trading posts", function()

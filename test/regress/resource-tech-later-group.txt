@@ -1,0 +1,20 @@
+# Written blind (round 23, G1). Unverified.
+# Builder browser (X): after the tiles the builder can improve now, a "Later" group lists resource tiles that still need a tech or
+# civic. The header counts them ("2 tiles, 1 later"); End goes to the last item, which is a Later item; Enter says what is missing
+# and the cursor stays on the tile. The first lua step errors when the capital has no such tile.
+# covers: **/BuildScan.lua **/HubSettle.lua **/ResourceTech.lua
+# no-share-load: scenario builder-by-forest
+load early-t60
+scenario builder-by-forest
+clear-advisors
+lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); for _, i in ipairs(Map.GetCityPlots():GetPurchasedPlots(c)) do local p = Map.GetPlotByIndex(i); local info = ResourceTech_Info(p); if info and info.status == "needs" then return info.resource end end; error("no resource tile that needs a tech in the capital")
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key X -Settle 2000
+expect ^Tiles to improve near \w+, \d+ tiles?, \d+ later
+key End -Settle 800
+expect ^Later: .+ near \w+, .+ needs .+
+key Enter -Settle 800
+expect ^Not yet: needs .+
+key Escape -Settle 800
+expect ^Closed
+no-lua-errors

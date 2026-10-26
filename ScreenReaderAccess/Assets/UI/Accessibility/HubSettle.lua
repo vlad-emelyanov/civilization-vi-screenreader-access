@@ -93,7 +93,7 @@ m_settleList = KeyNavList_Create{
 --	Left/Right switch to the next/previous own city (nearest to the builder first).
 -- ===========================================================================
 local m_buildList:table;
-local m_build:table = { cities = {}, index = 1, items = {}, unitId = nil };
+local m_build:table = { cities = {}, index = 1, items = {}, unitId = nil, nowCount = 0, laterCount = 0 };
 
 -- Browsing moved the cursor over the tiles: back to the builder (not when the mode went stale).
 local function BuildClosed( quiet:boolean )
@@ -138,14 +138,40 @@ local function BuildItemDetail( entry:table )
 	return PlotDescription_GetShort( entry.plot ) .. ". Can build: " .. table.concat( all, "; " );
 end
 
--- Scans the city at m_build.index and fills m_build.items.
+-- "Later: Iron near Rome, Mine needs Bronze Working" (G1)
+local function LaterItemText( tile:table, cityName:string )
+	return "Later: " .. tile.name .. " near " .. cityName .. ", " .. tile.improvement .. " needs " .. tile.needName;
+end
+
+local function LaterItemDetail( tile:table )
+	local text:string = PlotDescription_GetShort( tile.plot ) .. ". Later: " .. tile.improvement .. " needs " .. tile.needName;
+	if tile.turns ~= nil then text = text .. ", " .. HubCore.Plural( tile.turns, "turn", "turns" ) .. " of research"; end
+	return text;
+end
+
+-- Scans the city at m_build.index and fills m_build.items: the tiles to improve now, then the "Later" tiles
+-- (m_build.nowCount / m_build.laterCount say how many of each).
 local function LoadBuildItems( unit:table, force:boolean )
 	m_build.items = {};
+	m_build.nowCount, m_build.laterCount = 0, 0;
 	local entry:table = m_build.cities[ m_build.index ];
 	if entry == nil then return; end
-	for _, tile in ipairs( BuildScan_Scan( unit, entry.city, force ).list ) do
+	local scan:table = BuildScan_Scan( unit, entry.city, force );
+	for _, tile in ipairs( scan.list ) do
 		table.insert( m_build.items, { key = tile.key, text = BuildItemText( tile ), detail = BuildItemDetail( tile ), entry = tile } );
 	end
+	m_build.nowCount = #m_build.items;
+	for _, tile in ipairs( scan.later or {} ) do
+		table.insert( m_build.items, { key = tile.key, text = LaterItemText( tile, entry.name ), detail = LaterItemDetail( tile ), entry = tile } );
+	end
+	m_build.laterCount = #m_build.items - m_build.nowCount;
+end
+
+-- "3 tiles" / "2 tiles, 1 later"
+local function BuildCountText()
+	local text:string = HubCore.Plural( m_build.nowCount, "tile", "tiles" );
+	if m_build.laterCount > 0 then text = text .. ", " .. m_build.laterCount .. " later"; end
+	return text;
 end
 
 local function OpenBuildBrowser( unit:table )
@@ -186,7 +212,7 @@ local function OpenBuildBrowser( unit:table )
 	HubCore.m_mode = { name = "build", list = m_buildList, onClose = BuildClosed };
 	m_buildList.Reset();
 	m_buildList.Open( "", nil, true );		-- silent: only puts the focus on the first tile
-	m_buildList.Focus( m_build.items[1].key, "Tiles to improve near " .. city.name .. ", " .. HubCore.Plural( #m_build.items, "tile", "tiles" ) );
+	m_buildList.Focus( m_build.items[1].key, "Tiles to improve near " .. city.name .. ", " .. BuildCountText() );
 end
 
 -- Left/Right: the next / previous city.
@@ -211,13 +237,18 @@ local function SwitchBuildCity( delta:number )
 		OutputMessageToScreenReader( city.name .. ", nothing to improve" );
 		return;
 	end
-	m_buildList.Focus( m_build.items[1].key, city.name .. ", " .. HubCore.Plural( #m_build.items, "tile", "tiles" ) .. " to improve" );
+	m_buildList.Focus( m_build.items[1].key, city.name .. ", " .. BuildCountText() .. " to improve" );
 end
 
 -- Enter: on the builder's own tile the unit actions menu (it lists the build actions), elsewhere the builder walks there
 -- (the same path as the move-to mode).
 local function BuildGo( item:table )
 	local unit:table = UI.GetHeadSelectedUnit();
+	if item.entry.later then
+		-- the cursor is already there (onFocus); the tile cannot be improved yet
+		OutputMessageToScreenReader( "Not yet: needs " .. item.entry.needName );
+		return;
+	end
 	HubCore.CloseMode( false, false );
 	if unit == nil or unit:GetID() ~= m_build.unitId or BuildScan_Improvements( unit ) == nil then
 		HubCore.SayResult( "Builder no longer selected" );

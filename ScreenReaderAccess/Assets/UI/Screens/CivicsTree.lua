@@ -2334,6 +2334,7 @@ local function SRA_InitTree()
 		beginSearch = SRA_CivicBeginSearch,
 		close = Close,
 		scroll = function( key ) ScrollToNode( key ); end,
+		resourceKind = "civic",
 	};
 	SRListen( LuaEvents.CivicsTree_OpenCivicsTree, SRA_OnTreeOpen );
 	SRListen( LuaEvents.CivicsTree_CloseCivicsTree, SRA_OnTreeClosed );

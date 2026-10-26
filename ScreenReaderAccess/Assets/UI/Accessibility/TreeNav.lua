@@ -21,6 +21,9 @@
 --		beginSearch = function(onCommit) end,           -- puts the screen's search box in edit mode; onCommit(text)
 --		close       = function() end,                   -- the screen's own Close()
 --		scroll      = function(key) end,                -- optional: scroll the sighted view to the node
+--		resourceKind = "tech" | "civic",                -- optional: node text says which resources near my cities the node improves
+--		                                                   (ResourceTech.lua) and R lists those nodes, cheapest first (Up/Down, Enter sets the
+--		                                                   target like Enter on a node, Shift+Enter queues, Escape leaves the list)
 --	};
 --	nav.Open()                  -- announces (call when the screen was opened)
 --	nav.Closed()                -- the screen is gone (any reason): drops pending work
@@ -33,6 +36,7 @@ include( "ScreenReader" );
 include( "KeyboardNavigation" );
 include( "KeyNavEditBox" );
 include( "TreeText" );
+include( "ResourceTech" );
 
 local REQUEST_TIMEOUT:number = 1.5;		-- seconds to wait for the queue-changed event before reading the queue anyway
 local REQUEST_SETTLE:number = 0.25;		-- seconds of quiet after the last queue-changed event
@@ -43,6 +47,8 @@ function TreeNav_Create( a:table )
 	local m_focusKey = nil;
 	local m_pending = nil;		-- { key, append, wait, settle }
 	local m_search = nil;		-- { text, wait }
+	local m_resGroups = nil;	-- ResourceTech_Scan result, read once per opening of the screen (the map does not change meanwhile)
+	local m_resList = nil;		-- { groups, index } while the R list is open
 
 	local function Say( text:string )
 		OutputMessageToScreenReader( text, false );
@@ -68,10 +74,24 @@ function TreeNav_Create( a:table )
 		return nil, nil;
 	end
 
+	local function ResourceGroups( fresh:boolean )
+		if a.resourceKind == nil then return {}; end
+		if m_resGroups == nil or fresh then
+			local ok:boolean, result = pcall( ResourceTech_Scan, a.resourceKind );
+			if not ok then print( "TreeNav resources error: " .. tostring( result ) ); result = {}; end
+			m_resGroups = result;
+		end
+		return m_resGroups;
+	end
+
 	local function ItemLine( key, index:number, count:number )
 		local ok:boolean, info = xpcall( function() return a.item( key ); end, KeyNavErrorHandler );
 		local text:string = "?";
 		if ok and info ~= nil then text = TreeText_Item( info ); else print( "TreeNav item error: " .. tostring( info ) ); end
+		if ok and info ~= nil and info.status ~= "researched" and info.status ~= "unrevealed" then
+			local phrase = ResourceTech_NodePhrase( ResourceGroups( false ), key );
+			if phrase ~= nil then text = text .. ", " .. phrase; end
+		end
 		return text .. ", " .. index .. " of " .. count;
 	end
 
@@ -101,6 +121,8 @@ function TreeNav_Create( a:table )
 		local groups:table = Groups();
 		m_pending = nil;
 		m_search = nil;
+		m_resList = nil;
+		m_resGroups = nil;
 		if #groups == 0 then
 			Say( a.name .. ", nothing available" );
 			return;
@@ -124,6 +146,8 @@ function TreeNav_Create( a:table )
 	function nav.Closed()
 		m_pending = nil;
 		m_search = nil;
+		m_resList = nil;
+		m_resGroups = nil;
 		m_focusKey = nil;
 		KeyNavEditBox_Cancel();
 	end
@@ -177,7 +201,8 @@ function TreeNav_Create( a:table )
 		Say( text );
 	end
 
-	local function Target( append:boolean )
+	local function Target( append:boolean, forKey )
+		if forKey ~= nil then m_focusKey = forKey; end
 		if m_focusKey == nil then Say( "Nothing selected" ); return; end
 		local key = m_focusKey;
 		local ok:boolean, done, reason = xpcall( function() return a.request( key, append ); end, KeyNavErrorHandler );
@@ -256,6 +281,48 @@ function TreeNav_Create( a:table )
 		end
 	end
 
+	-- R: the nodes that improve resources near my cities, cheapest first
+	local function ResSay()
+		local g:table = m_resList.groups[ m_resList.index ];
+		m_focusKey = g.type;
+		if a.scroll ~= nil then pcall( a.scroll, g.type ); end
+		Say( ResourceTech_GroupText( g ) .. ", " .. m_resList.index .. " of " .. #m_resList.groups );
+	end
+
+	local function OpenResources()
+		if a.resourceKind == nil then return; end
+		local groups:table = ResourceGroups( true );
+		if #groups == 0 then
+			Say( "No unimproved resources near your cities wait for a " .. ( a.resourceKind == "tech" and "tech" or "civic" ) );
+			return;
+		end
+		m_resList = { groups = groups, index = 1 };
+		Say( "Resources to unlock, " .. #groups .. ". Up and Down, Enter sets the target, Escape leaves" );
+		ResSay();
+	end
+
+	local function ResKey( key:number, isDown:boolean, shift:boolean )
+		if key == Keys.VK_UP or key == Keys.VK_DOWN then
+			if not isDown then return; end
+			local n:number = #m_resList.groups;
+			m_resList.index = ( m_resList.index - 1 + ( key == Keys.VK_UP and -1 or 1 ) ) % n + 1;
+			ResSay();
+		elseif key == Keys.VK_HOME or key == Keys.VK_END then
+			if not isDown then return; end
+			m_resList.index = ( key == Keys.VK_HOME ) and 1 or #m_resList.groups;
+			ResSay();
+		elseif key == Keys.VK_RETURN then
+			if isDown then return; end
+			local g:table = m_resList.groups[ m_resList.index ];
+			m_resList = nil;
+			Target( shift, g.type );
+		elseif key == Keys.VK_ESCAPE or key == Keys.R then
+			if isDown then return; end
+			m_resList = nil;
+			Say( "Back in the tree" );
+		end
+	end
+
 	local function Close()
 		nav.Closed();
 		a.close();
@@ -306,6 +373,10 @@ function TreeNav_Create( a:table )
 		local shift:boolean = input:IsShiftDown();
 
 		local action = nil;
+		if m_resList ~= nil then
+			Guarded( function() ResKey( key, isDown, shift ); end, "resources" );
+			return true;
+		end
 		if key == Keys.VK_UP then			if isDown then action = function() MoveItem( -1 ); end end
 		elseif key == Keys.VK_DOWN then		if isDown then action = function() MoveItem( 1 ); end end
 		elseif key == Keys.VK_LEFT then		if isDown then action = function() MoveEra( -1 ); end end
@@ -318,6 +389,7 @@ function TreeNav_Create( a:table )
 		elseif key == Keys.J then			if not isDown then action = JumpToCurrent; end
 		elseif key == Keys.F then			if not isDown then action = BeginSearch; end
 		elseif key == Keys.Q then			if not isDown then action = ReadQueue; end
+		elseif key == Keys.R and a.resourceKind ~= nil then	if not isDown then action = OpenResources; end
 		elseif key == Keys.VK_ESCAPE or ( a.toggleKey ~= nil and key == a.toggleKey ) then
 			if not isDown then action = Close; end
 		end

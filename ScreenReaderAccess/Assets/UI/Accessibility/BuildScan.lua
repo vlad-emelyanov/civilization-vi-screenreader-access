@@ -17,12 +17,17 @@
 --	    group by turns, then distance. Unreachable tiles are dropped. The repair test (UnitOperationTypes.REPAIR) is
 --	    unverified in game. With no moves left the engine refuses everything: the list is empty and result.noMoves is true.
 --
+--	result.later: the city's unimproved resource tiles that a tech or civic still blocks (ResourceTech_Info status "needs"),
+--	nearest first: { key ("later:<plot>"), later = true, plot, plotIndex, x, y, distance, name, resource, improvement, needName,
+--	needKind, turns (research turns, or nil), relative }. Tiles already in the list are not repeated.
+--
 --	Yield changes are the base values of Improvement_YieldChanges (not adjacency, techs, policies or the resource's own
 --	bonus), so "plus 1 food" for a Farm is what the improvement adds by itself.
 --	The result is cached per unit + plot + turn + moves + city.
 -- ===========================================================================
 
 include( "PlotDescription" );
+include( "ResourceTech" );
 
 -- ===========================================================================
 --	The unit's improvements
@@ -162,6 +167,38 @@ function BuildScan_DefaultCity( unit:table )
 end
 
 -- ===========================================================================
+--	Later: resource tiles of the city that need a tech or civic first
+-- ===========================================================================
+local function _ScanLater( unit:table, unitPlot:table, city:table, listed:table )
+	local later:table = {};
+	local inList:table = {};
+	for _, entry in ipairs( listed ) do inList[ entry.plotIndex ] = true; end
+	local ok:boolean, err = pcall( function()
+		for _, plotID in ipairs( Map.GetCityPlots():GetPurchasedPlots( city ) ) do
+			local plot:table = Map.GetPlotByIndex( plotID );
+			if not inList[ plot:GetIndex() ] then
+				local info:table = ResourceTech_Info( plot );
+				if info ~= nil and info.status == "needs" then
+					table.insert( later, {
+						key = "later:" .. plot:GetIndex(), later = true, plot = plot, plotIndex = plot:GetIndex(), x = plot:GetX(), y = plot:GetY(),
+						distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), plot:GetX(), plot:GetY() ),
+						name = info.resource, resource = info.resource, improvement = info.improvement, needName = info.need.name,
+						needKind = info.need.kind, turns = ResourceTech_Turns( info.need ),
+						relative = PlotDescription_GetRelative( unitPlot, plot ),
+					} );
+				end
+			end
+		end
+	end );
+	if not ok then print( "BuildScan later error: " .. tostring( err ) ); end
+	table.sort( later, function( a, b )
+		if a.distance ~= b.distance then return a.distance < b.distance; end
+		return a.plotIndex < b.plotIndex;
+	end );
+	return later;
+end
+
+-- ===========================================================================
 --	Scan
 -- ===========================================================================
 local m_scanKey:string = nil;
@@ -252,6 +289,7 @@ function BuildScan_Scan( unit:table, city:table, force:boolean )
 		return a.plotIndex < b.plotIndex;
 	end );
 	for _, entry in ipairs( result.list ) do entry.relative = PlotDescription_GetRelative( unitPlot, entry.plot ); end
+	result.later = _ScanLater( unit, unitPlot, city, result.list );
 	m_scanKey, m_scan = key, result;
 	return result;
 end

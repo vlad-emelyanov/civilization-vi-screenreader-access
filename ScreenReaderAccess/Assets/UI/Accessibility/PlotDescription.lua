@@ -3,6 +3,8 @@
 -- Names come from the game's own text (GameInfo + Locale.Lookup) wherever the game has it.
 --------------------------------------------------------------
 
+include( "ResourceTech" );
+
 local ROOT3_2:number = 0.8660254;	-- row height of the hex grid in units of the plot width
 
 -- ===========================================================================
@@ -231,6 +233,14 @@ local function _ResourceText( plot:table )
 	return text;
 end
 
+-- ResourceTech phrase for the plot's resource ("needs Bronze Working", "pasture possible"), or nil. Never fails the description.
+local function _ResourceTechText( plot:table, full:boolean )
+	if ResourceTech_Short == nil then return nil; end
+	local ok:boolean, text = pcall( full and ResourceTech_Full or ResourceTech_Short, plot );
+	if ok then return text; end
+	return nil;
+end
+
 local function _YieldsText( plot:table )
 	local parts:table = {};
 	for row in GameInfo.Yields() do
@@ -407,7 +417,11 @@ function PlotDescription_GetShort( plot:table, options:table )
 	local resource:string = _ResourceText(plot);
 	local line:table = {};
 	for _, t in ipairs(terrain) do table.insert(line, t); end
-	if resource ~= nil then table.insert(line, resource); end
+	if resource ~= nil then
+		table.insert(line, resource);
+		local tech:string = _ResourceTechText(plot, false);
+		if tech ~= nil then table.insert(line, tech); end
+	end
 	if plot:IsRiver() then table.insert(line, _Lower(Locale.Lookup("LOC_TOOLTIP_RIVER"))); end
 	if plot:IsCoastalLand() then table.insert(line, "coastal"); end
 	if plot:IsImpassable() then table.insert(line, _Lower(Locale.Lookup("LOC_TOOLTIP_PLOT_IMPASSABLE_TEXT"))); end
@@ -491,6 +505,8 @@ function PlotDescription_GetDetailed( plot:table, options:table )
 	end
 
 	table.insert(parts, table.concat(facts, ", "));
+	local resourceTech:string = _ResourceTechText(plot, true);
+	if resourceTech ~= nil then table.insert(parts, resourceTech); end
 	if PlotDescription_CanTreatWithClan(plot) then table.insert(parts, "T treats with the clan"); end
 	return table.concat(parts, ". ");
 end
