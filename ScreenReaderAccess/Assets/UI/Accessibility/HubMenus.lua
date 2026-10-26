@@ -256,6 +256,7 @@ local function BuildCivItems()
 	local items:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
 	local diplomacy:table = Players[ localPlayer ] ~= nil and Players[ localPlayer ]:GetDiplomacy() or nil;
+	local you:table = nil;
 	for _, entry in ipairs( BuildStandingEntries() ) do
 		local head:string;
 		if entry.isYou then
@@ -265,8 +266,11 @@ local function BuildCivItems()
 			local state:string = diplomacy:IsAtWarWith( entry.id ) and "at war" or "at peace";
 			head = Locale.Lookup( config:GetLeaderName() ) .. ", " .. entry.name .. ", " .. state;
 		end
-		table.insert( items, { key = "civ:" .. entry.id, civ = entry.id, isYou = entry.isYou, text = StandingText_ListItem( entry, head ) } );
+		local item:table = { key = "civ:" .. entry.id, civ = entry.id, isYou = entry.isYou, text = StandingText_ListItem( entry, head ) };
+		if entry.isYou then you = item; else table.insert( items, item ); end
 	end
+	-- you come last (Up from the first civ wraps to it), so the first item stays the first civ met
+	if you ~= nil then table.insert( items, you ); end
 	return items;
 end
 

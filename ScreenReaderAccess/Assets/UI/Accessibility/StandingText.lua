@@ -33,7 +33,7 @@ end
 function StandingText_Numbers( vals:table )
 	local parts:table = {};
 	for _, cat in ipairs( STANDING_CATEGORIES ) do
-		if vals[ cat.key ] ~= nil then table.insert( parts, cat.label .. " " .. Round( vals[ cat.key ] ) ); end
+		if vals[ cat.key ] ~= nil then table.insert( parts, cat.label .. " " .. Round( vals[ cat.key ] ) .. ( cat.perTurn and " per turn" or "" ) ); end
 	end
 	return table.concat( parts, ", " );
 end

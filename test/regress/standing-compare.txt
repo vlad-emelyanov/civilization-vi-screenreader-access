@@ -1,12 +1,12 @@
-# Written blind (not yet verified in the game). V list starts with "You," and carries numbers; Enter on it says "That is you"; Control+R speaks the standing line.
+# Written blind (not yet verified in the game). V list: first item is a civ with numbers, Up wraps to "You," (last item); Enter on it says "That is you"; Control+R speaks the standing line.
 # covers: **/HubMenus.lua **/StandingText.lua **/HelpText.lua
 load medieval-t100
 action KeyNavDiplomacy -Settle 1500
+expect \. Score \d+, military \d+, science \d+ per turn
+key Up -Settle 800
 expect ^You, .*: score \d+
 key Enter -Settle 1000
 expect ^That is you
-key Down -Settle 800
-expect \. Score \d+, military \d+
 key Escape -Settle 1000
 action KeyNavStanding -Settle 1500
 expect ^Among \d+ known civilizations: score

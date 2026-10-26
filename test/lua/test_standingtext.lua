@@ -13,14 +13,15 @@ end)
 
 test("numbers round and skip hidden categories", function()
 	eq(StandingText_Numbers({ score = 189.6, military = 150.2, gold = 10 }), "score 190, military 150, gold 10")
+	eq(StandingText_Numbers({ science = 14.2, culture = 9 }), "science 14 per turn, culture 9 per turn")
 	eq(StandingText_Numbers({}), "")
 end)
 
 test("list item wording", function()
 	local you = E("Rome", true, 190, 150, 12, 8, 10, 3)
-	eq(StandingText_ListItem(you, "You, Rome"), "You, Rome: score 190, military 150, science 12, culture 8, gold 10, faith 3")
+	eq(StandingText_ListItem(you, "You, Rome"), "You, Rome: score 190, military 150, science 12 per turn, culture 8 per turn, gold 10, faith 3")
 	local jp = E("Japan", false, 212, 180, 14, 9, 6, 3)
-	eq(StandingText_ListItem(jp, "Hojo, Japan, at peace"), "Hojo, Japan, at peace. Score 212, military 180, science 14, culture 9, gold 6, faith 3")
+	eq(StandingText_ListItem(jp, "Hojo, Japan, at peace"), "Hojo, Japan, at peace. Score 212, military 180, science 14 per turn, culture 9 per turn, gold 6, faith 3")
 	eq(StandingText_ListItem({ vals = {} }, "Hojo, Japan, at peace"), "Hojo, Japan, at peace")
 end)
 
