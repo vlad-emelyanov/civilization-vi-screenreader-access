@@ -263,7 +263,15 @@ local function BuildCivItems()
 			head = "You, " .. entry.name;
 		else
 			local config:table = PlayerConfigurations[ entry.id ];
-			local state:string = diplomacy:IsAtWarWith( entry.id ) and "at war" or "at peace";
+			local state:string = "at peace";
+			if diplomacy:IsAtWarWith( entry.id ) then
+				state = "at war";
+			else
+				-- the diplomacy screen's own relationship name (Neutral, Declared Friend, Allied, Denounced ...)
+				local ai:table = Players[ entry.id ] ~= nil and Players[ entry.id ]:GetDiplomaticAI() or nil;
+				local row:table = ( ai ~= nil ) and GameInfo.DiplomaticStates[ ai:GetDiplomaticStateIndex( localPlayer ) ] or nil;
+				if row ~= nil and row.Name ~= nil then state = Locale.Lookup( row.Name ); end
+			end
 			head = Locale.Lookup( config:GetLeaderName() ) .. ", " .. entry.name .. ", " .. state;
 		end
 		local item:table = { key = "civ:" .. entry.id, civ = entry.id, isYou = entry.isYou, text = StandingText_ListItem( entry, head ) };
