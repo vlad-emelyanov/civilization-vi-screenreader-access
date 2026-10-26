@@ -6,6 +6,9 @@
 load pt-t128
 clear-advisors
 key Enter -Settle 1500
+# the Legion and Settler outside Rome are exposed to the catapults: the end-turn guard (round 24) warns first, the second Enter ends the turn
+expect Enter again ends the turn anyway
+key Enter -Settle 1500
 expect (?i)turn ended
 wait Turn 129 -Timeout 90
 clear-advisors
