@@ -52,7 +52,7 @@ function CombatText_PickDefender( units:table, accept )
 	local best:table, bestScore:number = nil, -1;
 	for _, other in ipairs( units ) do
 		if accept == nil or accept( other ) then
-			local score:number = math.max( other:GetCombat() or 0, other:GetRangedCombat() or 0, other:GetBombardCombat() or 0 );
+			local score:number = ( other:GetCombat() or 0 ) * 1000 + math.max( other:GetRangedCombat() or 0, other:GetBombardCombat() or 0 );		-- melee defense first, ranged only as tie-break
 			if score > bestScore then best, bestScore = other, score; end
 		end
 	end
