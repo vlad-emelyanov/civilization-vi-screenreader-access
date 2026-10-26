@@ -1,0 +1,13 @@
+# Round 24: in the attack mode an enemy that needs more than one turn to reach says its strengths: "attack, 2 turns, Strength 33 against 15 when you reach it".
+# Fixture pt-early-t64: Heavy Chariot in Rome, barbarians (archer 2 tiles south-east, scout 4 tiles south) around.
+# covers: **/HubTargets.lua
+# no-share-load: selects a unit and enters a target mode
+load pt-early-t64
+clear-advisors
+lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_HEAVY_CHARIOT" and u:GetX()==60 then UI.DeselectAllUnits() UI.SelectUnit(u) UI.LookAtPlot(u:GetX(),u:GetY()) return 1 end end
+key W -Settle 1500
+expect ^Attack: choose a target
+key X -Settle 1000
+expect attack, \d+ turns, Strength \d+ against \d+ when you reach it\. Barbarian
+key Escape -Settle 800
+no-lua-errors
