@@ -137,9 +137,10 @@ test("Far target, queued and target suffix wording", function()
 	eq(TreeText_TargetSuffix("Political Philosophy", 26), "Target: Political Philosophy, about 26 turns")
 end)
 
-test("Queue total: cumulative turns give the last entry, independent ones are summed", function()
+test("Queue total: the per-entry turns are independent and summed", function()
 	eq(TreeText_QueueTotal({}), 0)
-	eq(TreeText_QueueTotal({ 5, 12, 20, 91 }), 91)
+	eq(TreeText_QueueTotal({ 5, 12, 20, 91 }), 128)	-- per-tech turns are independent: summed even when they increase
+	eq(TreeText_QueueTotal({ 2, 4, 13, 13, 24 }), 56)
 	eq(TreeText_QueueTotal({ 7 }), 7)
 	eq(TreeText_QueueTotal({ 9, 4, 6 }), 19)
 end)

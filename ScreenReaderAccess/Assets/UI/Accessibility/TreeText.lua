@@ -2,20 +2,15 @@
 -- No engine calls, tested in test/lua/test_treetext.lua. Names arrive already localized and cleaned for speech.
 --------------------------------------------------------------
 
--- Total turns of a queue from the per-entry turns the game reports. Those are cumulative (turns until that entry is done),
--- so they never decrease along the queue and the total is the last one; summing them double counts. Values that do
--- decrease somewhere are independent estimates and are summed.
+-- Total turns of a queue from the per-entry turns the game reports. Verified in game (round 24, bug-tech-turns-mismatch): Player:GetTechs():
+-- GetTurnsToResearch(id) is the time for THAT tech alone at the current science (Mathematics and Shipbuilding, both cost 80 and
+-- in the queue one after the other, both said 13; an unqueued tech of cost 20 said 2). The entries are therefore independent and
+-- the total is their sum, whether or not they happen to increase along the queue. (Earlier code treated a non-decreasing list as
+-- cumulative and took the last entry: 2,4,13,13,24 would have said 24 instead of 56.)
 function TreeText_QueueTotal( each:table )
-	local n:number = #each;
-	if n == 0 then return 0; end
-	local cumulative:boolean = true;
-	for i = 2, n do
-		if each[i] < each[i - 1] then cumulative = false; end
-	end
-	print( "TreeText_QueueTotal: " .. table.concat( each, "," ) .. " -> " .. ( cumulative and "cumulative, last entry" or "independent, summed" ) );
-	if cumulative then return each[n]; end
 	local sum:number = 0;
-	for i = 1, n do sum = sum + each[i]; end
+	for i = 1, #each do sum = sum + each[i]; end
+	print( "TreeText_QueueTotal: " .. table.concat( each, "," ) .. " -> independent, summed " .. sum );
 	return sum;
 end
 
