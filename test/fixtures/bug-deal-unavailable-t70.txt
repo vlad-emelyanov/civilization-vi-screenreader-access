@@ -1,0 +1,7 @@
+turn: 70
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t70 end turn: Montezuma deal popup; press S (summary) then Enter -> 'Item no longer available. Now on: Accept Deal' and the popup stays open
+mod commit: 97d75e1
+created: 2026-10-26
+size: 1135 KB

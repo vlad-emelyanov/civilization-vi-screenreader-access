@@ -1,0 +1,7 @@
+turn: 73
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t73: Settler+Spearman in Rome. Last turn Shift+E said 'Escort formed: Spearman with Settler' (in Rome); now selecting Spearman (K) or Settler (J>units) shows no 'escorting/escorted by'. Shift+E again to see what it says
+mod commit: 97d75e1
+created: 2026-10-26
+size: 1150 KB

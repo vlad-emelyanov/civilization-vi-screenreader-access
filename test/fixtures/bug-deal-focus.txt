@@ -1,0 +1,7 @@
+turn: 77
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t77 end turn: AI deal popup (Dido, iron 10 for open borders). Intro says 'Focus: Actions, Accept Deal'; Down said 'Accept Deal, 1 of 2' (expected Refuse Deal) so Enter accepted. Same popup at t70 where S then Enter said 'Item no longer available'. (saved after, game now at the next turn start)
+mod commit: 97d75e1
+created: 2026-10-26
+size: 1168 KB

@@ -1,0 +1,7 @@
+turn: 76
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t76: Spearman escorting Settler 3 tiles east of Rome. M, Backslash (capital), Enter: tile says 'unreachable. Rome ... 3 tiles west' then 'Unreachable', no reason (Boudica great general sleeps in Rome; formation maybe blocked by civilian stacking?)
+mod commit: 97d75e1
+created: 2026-10-26
+size: 1161 KB
