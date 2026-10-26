@@ -307,10 +307,12 @@ local function DistrictSpotsItem( d:table )
 		if ok and entries ~= nil then return entries; end
 		return {};
 	end
+	local cache:table = {};
 	setmetatable( item, { __index = function( t, k )
+		if cache[k] ~= nil then return cache[k]; end
 		if k == "text" then
 			local text:string = DistrictAdvice_Line( Entries(), false );
-			rawset( t, "text", text );
+			cache[k] = text;
 			return text;
 		elseif k == "detail" then
 			local entries:table = Entries();
@@ -321,7 +323,7 @@ local function DistrictSpotsItem( d:table )
 			end
 			if #best > 0 then text = text .. ". " .. Join( best, ". " ); end
 			text = text .. ". Tab opens production";
-			rawset( t, "detail", text );
+			cache[k] = text;
 			return text;
 		end
 	end } );

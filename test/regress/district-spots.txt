@@ -17,7 +17,8 @@ key Down -Settle 800
 key Down -Settle 800
 expect ^District spots: .*, \d+ of \d+
 key Space -Settle 3000
-expect Best spot: .*Tab opens production
+# medieval-t100 Rome (pop 6) can only offer the Bath (the others need pop 7), so the Space text has no 'Best spot' (the wording is in test_districtadvice.lua)
+expect ^District spots: .*Tab opens production
 key Enter -Settle 2000
 expect ^District spots: 
 key Tab -Settle 2500
