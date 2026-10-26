@@ -62,9 +62,10 @@ function BlindSpots.CampAdvice( gold:number )
 end
 
 -- "Barbarian camp destroyed" with the gold when the treasury grew by it.
-function BlindSpots.DestroyedText( gold:number )
-	if gold ~= nil and gold > 0 then return "Barbarian camp destroyed, " .. gold .. " gold"; end
-	return "Barbarian camp destroyed";
+function BlindSpots.DestroyedText( gold:number, count:number )
+	local what:string = ( count ~= nil and count > 1 ) and ( count .. " barbarian camps destroyed" ) or "Barbarian camp destroyed";
+	if gold ~= nil and gold > 0 then return what .. ", " .. gold .. " gold"; end
+	return what;
 end
 
 -- "Blind spot: 12 tiles out of sight, 5 tiles north of Antium"

@@ -31,6 +31,7 @@ test("camp advice and destroyed lines state only a known amount", function()
 	eq(BlindSpots.DestroyedText(50), "Barbarian camp destroyed, 50 gold")
 	eq(BlindSpots.DestroyedText(0), "Barbarian camp destroyed")
 	eq(BlindSpots.DestroyedText(nil), "Barbarian camp destroyed")
+	eq(BlindSpots.DestroyedText(50, 2), "2 barbarian camps destroyed, 50 gold")
 end)
 
 test("spot, unexplored and advice wording", function()

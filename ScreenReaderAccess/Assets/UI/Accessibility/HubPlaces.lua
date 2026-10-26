@@ -329,6 +329,7 @@ end
 
 -- Events.ImprovementRemovedFromMap( x, y ... ): a village entered or a camp destroyed in view (the plot is updated a moment later)
 local m_lastGold		:number = nil;		-- the treasury as the last poll saw it: the baseline of the gold a destroyed camp gives
+local m_campsGone		:number = 0;		-- camps removed since the pending announcement was armed
 local m_goldFrozen		:number = 0;		-- no sampling until this UI time (a camp was just destroyed)
 
 local function ReadGold()
@@ -348,14 +349,22 @@ function HubPlaces.OnImprovementRemovedFromMap( x:number, y:number )
 	local entry:table = ( plot ~= nil ) and m_seen[ plot:GetIndex() ] or nil;
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
 	if entry ~= nil and entry.camp == true and HubCore.m_ready and vis ~= nil and vis:IsVisible( plot:GetIndex() ) then
-		local before:number = m_lastGold or GoldBalance();
-		local turn:number = Game.GetCurrentGameTurn();
-		m_goldFrozen = UI.GetElapsedTime() + 1.5;
-		HubCore.After( 1.0, function()
-			if Game.GetCurrentGameTurn() ~= turn then return; end
-			local now:number = GoldBalance();
-			HubCore.Announce( BlindSpots.DestroyedText( ( now ~= nil and before ~= nil ) and ( now - before ) or nil ), true );
-		end );
+		-- Several camps can go at once (a new city's borders disperse every camp inside them): one announcement for all of them,
+		-- with the total gold (each camp's removal event would otherwise repeat the same total).
+		m_campsGone = m_campsGone + 1;
+		m_seen[ plot:GetIndex() ] = nil;
+		if m_campsGone == 1 then
+			local before:number = m_lastGold or GoldBalance();
+			local turn:number = Game.GetCurrentGameTurn();
+			m_goldFrozen = UI.GetElapsedTime() + 1.5;
+			HubCore.After( 1.0, function()
+				local count:number = m_campsGone;
+				m_campsGone = 0;
+				if Game.GetCurrentGameTurn() ~= turn then return; end
+				local now:number = GoldBalance();
+				HubCore.Announce( BlindSpots.DestroyedText( ( now ~= nil and before ~= nil ) and ( now - before ) or nil, count ), true );
+			end );
+		end
 	end
 	HubCore.After( 0.3, function() RememberIfVisible( x, y, nil ); end );
 end

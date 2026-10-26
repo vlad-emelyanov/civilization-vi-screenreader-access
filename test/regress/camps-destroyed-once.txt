@@ -1,0 +1,12 @@
+# Round 24: two barbarian camps went at once (a new city's borders disperse them): "Barbarian camp destroyed, 50 gold" was spoken twice. One announcement with the count. Fixture bug-camp-destroyed-twice (turn 70, Cumae founded).
+# covers: **/HubPlaces.lua **/BlindSpots.lua
+# no-share-load: camps and gold changed by the tuner
+load bug-camp-destroyed-twice
+clear-advisors
+lua GameCore_Tuner for _,xy in ipairs({{63,32},{64,31}}) do ImprovementBuilder.SetImprovementType(Map.GetPlot(xy[1],xy[2]), GameInfo.Improvements["IMPROVEMENT_BARBARIAN_CAMP"].Index, -1) end
+lua InGameAccess return tostring(HubPlaces.IsCampRemembered(Map.GetPlot(63,32):GetIndex())) .. tostring(HubPlaces.IsCampRemembered(Map.GetPlot(64,31):GetIndex()))
+expect-lua ^truetrue$
+lua GameCore_Tuner for _,xy in ipairs({{63,32},{64,31}}) do ImprovementBuilder.SetImprovementType(Map.GetPlot(xy[1],xy[2]), -1, -1) end Players[0]:GetTreasury():ChangeGoldBalance(50)
+wait 2 barbarian camps destroyed, 50 gold -Timeout 8
+expect ^2 barbarian camps destroyed, 50 gold$
+no-lua-errors

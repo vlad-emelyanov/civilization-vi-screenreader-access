@@ -1,0 +1,7 @@
+turn: 70
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Founded Cumae with escorted settler (B); afterwards 'Barbarian camp destroyed, 50 gold' spoken twice, nobody attacked a camp
+mod commit: ed35484
+created: 2026-10-26
+size: 1139 KB
