@@ -122,10 +122,7 @@ local function SimulateAttack( unit:table, plot:table, combatType )
 		-- a city: use its district, versus the unit on the plot when there is one
 		local district:table = CityDistrict( unit );
 		if district == nil then return nil; end
-		local defender:table = nil;
-		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
-			if other:GetOwner() ~= Game.GetLocalPlayer() then defender = other; break; end
-		end
+		local defender:table = CombatText_PickDefender( Units.GetUnitsInPlot( plot ), function( other ) return other:GetOwner() ~= Game.GetLocalPlayer(); end );
 		if defender ~= nil then
 			ok, results = pcall( CombatManager.SimulateAttackVersus, district:GetComponentID(), defender:GetComponentID() );
 		else
@@ -273,9 +270,9 @@ end
 -- "Attacking Barbarian Horseman": the name of what stands on the plot (a visible foreign unit, else the city).
 local function TargetName( plot:table )
 	if not HubCore.IsPlotVisibleToLocal( plot ) then return nil; end
-	for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
-		if other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ) then return PlotDescription_GetUnitName( other ); end
-	end
+	local target:table = CombatText_PickDefender( Units.GetUnitsInPlot( plot ), function( other )
+		return other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ); end );
+	if target ~= nil then return PlotDescription_GetUnitName( target ); end
 	if plot:IsCity() then
 		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
 		if city ~= nil then return Locale.Lookup( city:GetName() ); end
