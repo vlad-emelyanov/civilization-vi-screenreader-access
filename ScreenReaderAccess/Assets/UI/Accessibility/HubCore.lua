@@ -13,7 +13,8 @@ HubCore.m_delayed = {};		-- { time = seconds left, fn = function }
 HubCore.m_enterWatch = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
 HubCore.m_placeCommitTime = -100;		-- UI.GetElapsedTime() of the last placement commit (its result must outlive the selection that follows)
 HubCore.m_lastResultTime = -100;		-- UI.GetElapsedTime() of the last announced result of a player's action
-HubCore.m_repeatTurnLine = false;		-- set when the congress results popup closed: say the turn-start line again (HubAnnounce.RepeatTurnStartLine)
+HubCore.m_repeatTurnLine = nil;		-- { turn, since, quiet } once the turn-start congress results popup closed: say the turn-start line again (HubAnnounce.RepeatTurnStartLine) after 0.5 s without popup
+HubCore.m_turnBegin = { time = -1000, turn = -1 };		-- UI.GetElapsedTime() and game turn when the local player's turn became active
 HubCore.m_movers = {};		-- unit id -> { dest = plot index, issued = time }: units on a move order given in this session
 HubCore.m_lastKeyTime = -100;		-- UI.GetElapsedTime() of the last key press seen by the input handler
 HubCore.m_unitNames = {};		-- "player:unit" -> spoken name, remembered while the unit is alive (it is gone when its death is reported)
@@ -257,6 +258,9 @@ local HOLD_WATCH_INTERVAL:number = 0.5;
 local HOLD_SHOW_GRACE:number = 3;		-- a popup queued with DelayShow is hidden for a moment
 local HOLD_QUEUE_MAX:number = 6;
 local HOLD_RELEASE_DELAY:number = 0.4;
+local REPEAT_FRESH_SECONDS:number = 20;		-- a congress results popup this soon after the turn began is the turn-start one
+local REPEAT_QUIET_SECONDS:number = 0.5;		-- no popup/hold for this long before the turn-start line is repeated
+local REPEAT_EXPIRE_SECONDS:number = 30;		-- a pending repeat that did not fire by then is dropped
 local HOLD_RECENT_WINDOW:number = 1.5;		-- announcements this recent are cut by a popup that begins now
 
 function HubCore.IsSpeechHeld()
@@ -303,7 +307,11 @@ function HubCore.SetSpeechHold( name:string, on:boolean, contextPath:string, sil
 	local speech:table = HubCore.m_speech;
 	if not on then
 		-- the congress results are spoken before the unit line at a turn start: say that line again once they are closed
-		if name == "WorldCongressResults" and speech.holds[ name ] ~= nil then HubCore.m_repeatTurnLine = true; end
+		-- (only for the results shown at the turn start, not for a reopen from a notification later in the turn)
+		local old:table = speech.holds[ name ];
+		if name == "WorldCongressResults" and old ~= nil and old.fresh and old.turn == Game.GetCurrentGameTurn() then
+			HubCore.m_repeatTurnLine = { turn = old.turn, since = UI.GetElapsedTime(), quiet = 0 };
+		end
 		speech.holds[ name ] = nil;
 		return;
 	end
@@ -319,19 +327,32 @@ function HubCore.SetSpeechHold( name:string, on:boolean, contextPath:string, sil
 	end
 	if not silent then speech.recent = {}; end
 	local now:number = UI.GetElapsedTime();
-	speech.holds[ name ] = { expires = now + HOLD_SECONDS, path = contextPath, since = now };
+	local old:table = speech.holds[ name ];
+	local turn:number = Game.GetCurrentGameTurn();
+	local fresh:boolean = ( old ~= nil and old.fresh == true ) or ( now - HubCore.m_turnBegin.time < REPEAT_FRESH_SECONDS and HubCore.m_turnBegin.turn == turn );
+	speech.holds[ name ] = { expires = now + HOLD_SECONDS, path = contextPath, since = now, fresh = fresh, turn = turn };
 	speech.releaseTimer = -1;
 end
 
 -- Forgets holds and everything queued (load; a hot reload of the hub starts empty as well).
+-- The local player's turn became active (PlayerTurnActivated / turn announcement): a congress results popup shown
+-- within REPEAT_FRESH_SECONDS of this is the turn-start one.
+function HubCore.MarkTurnBegin()
+	local turn:number = Game.GetCurrentGameTurn();
+	local now:number = UI.GetElapsedTime();
+	if HubCore.m_turnBegin.turn == turn and now - HubCore.m_turnBegin.time < REPEAT_FRESH_SECONDS then return; end
+	HubCore.m_turnBegin = { time = now, turn = turn };
+end
+
 function HubCore.ClearSpeechHold()
+	HubCore.m_repeatTurnLine = nil;
 	HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1, watch = 0 };
 end
 
 -- Turn end: the holds go, queued selection/settle/ready lines are stale, the rest (fights the status panel already
 -- dropped its copy of) is spoken now.
 function HubCore.ReleaseSpeechAtTurnEnd()
-	HubCore.m_repeatTurnLine = false;
+	HubCore.m_repeatTurnLine = nil;
 	local queue:table = HubCore.m_speech.queue;
 	HubCore.ClearSpeechHold();
 	for _, entry in ipairs( queue ) do
@@ -375,9 +396,20 @@ function HubCore.UpdateSpeech( deltaTime:number )
 			end
 		end
 	end
-	if HubCore.m_repeatTurnLine and not HubCore.IsSpeechHeld() and #speech.queue == 0 and speech.releaseTimer < 0 and not HubCore.IsGamePopupOpen() then
-		HubCore.m_repeatTurnLine = false;
-		if HubAnnounce ~= nil and HubAnnounce.RepeatTurnStartLine ~= nil then HubAnnounce.RepeatTurnStartLine(); end
+	local repeatLine:table = HubCore.m_repeatTurnLine;
+	if repeatLine ~= nil then
+		local now:number = UI.GetElapsedTime();
+		if now - repeatLine.since > REPEAT_EXPIRE_SECONDS or repeatLine.turn ~= Game.GetCurrentGameTurn() then
+			HubCore.m_repeatTurnLine = nil;
+		elseif HubCore.IsSpeechHeld() or #speech.queue > 0 or speech.releaseTimer >= 0 or HubCore.IsGamePopupOpen() then
+			repeatLine.quiet = 0;
+		else
+			repeatLine.quiet = repeatLine.quiet + deltaTime;
+			if repeatLine.quiet >= REPEAT_QUIET_SECONDS then
+				HubCore.m_repeatTurnLine = nil;
+				if HubAnnounce ~= nil and HubAnnounce.RepeatTurnStartLine ~= nil then HubAnnounce.RepeatTurnStartLine(); end
+			end
+		end
 	end
 	if HubAnnounce ~= nil and HubAnnounce.UpdateReadyWatch ~= nil then HubAnnounce.UpdateReadyWatch( deltaTime ); end
 end

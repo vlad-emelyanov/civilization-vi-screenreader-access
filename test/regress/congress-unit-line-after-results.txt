@@ -29,9 +29,9 @@ key Enter -Settle 45000
 expect (?i)votes submitted
 wait World Congress results\. -Timeout 300
 expect World Congress results\.
-# close every popup the new turn opened (results, then the competition notice) with Enter; the line comes after the last one
+# close every popup the new turn opened (results, then the competition notice) with Enter; the line comes 0.5 s after the last one is gone
 key Enter -Settle 2500
-key Enter -Settle 2500 -NoQuiet
+key Enter -Settle 3500 -NoQuiet
 expect ^World Congress closed
 expect (?i)city ranged attack\. Enter handles it
 no-lua-errors
