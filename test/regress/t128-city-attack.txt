@@ -12,10 +12,11 @@ clear-advisors
 lua GameCore_Tuner local n=0; for i=0,63 do local p=Players[i]; if p and p:IsBarbarian() then for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then u:SetDamage(70); n=n+1 end end end end return n
 key Enter -Settle 1500
 expect ^City ranged attack: choose a tile
-expect valid target, Ranged strength \d+ against \d+.*\. Barbarian Crossbowman
-# G5 (written blind, unverified): the city line carries strengths; Space lists the modifiers
+expect valid target\. Barbarian Crossbowman
+# G5: CombatManager.SimulateAttackInto returns nil for a city as attacker (checked in game 2026-10-26), so the city line has no
+# strengths and Space says that there is no modifier preview. If a way to preview city shots is found, expect strengths again.
 key Space -Settle 800
-expect (?i)modifiers
+expect No modifier preview for a city attack
 key Enter -Settle 8000 -NoQuiet
 expect ^Attacking Barbarian Crossbowman
 expect (?i)crossbowman killed by Ostia
