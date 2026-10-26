@@ -598,7 +598,16 @@ function HubTargets.IssueMoveOrder( unit:table, plot:table, war:table, enemy:boo
 		HubCore.m_movers[ unitID ] = record;
 	end
 	MoveUnitToPlot( unit, plot:GetX(), plot:GetY() );
-	if alone ~= nil then HubCore.After( 0.9, function() HubCore.Announce( alone, true, "escort" ); end ); end
+	if alone ~= nil then
+		local fromIndex:number = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex();
+		HubCore.After( 0.9, function()
+			-- only when the unit really got the order (it moved or has a destination)
+			local mover:table = Players[ Game.GetLocalPlayer() ]:GetUnits():FindID( unitID );
+			if mover == nil then return; end
+			local moved:boolean = Map.GetPlot( mover:GetX(), mover:GetY() ):GetIndex() ~= fromIndex or UnitManager.GetQueuedDestination( mover ) ~= nil;
+			if moved then HubCore.Announce( alone, true, "escort" ); end
+		end );
+	end
 	if record ~= nil then
 		HubCore.After( 1.0, function()
 			-- the order never started: blocked at once

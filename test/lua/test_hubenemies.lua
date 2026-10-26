@@ -79,7 +79,7 @@ end)
 test("scout heading away names a known camp, the plain case does not", function()
 	local old = { ["63:1"] = e("Barbarian Scout", 12, 10, { scout = true, alarmed = true }) }
 	local new = { ["63:1"] = e("Barbarian Scout", 14, 10, { scout = true, alarmed = true, where = "4 tiles east of Sivas", campText = "4 tiles north-east" }) }
-	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, toward its camp 4 tiles north-east, now 4 tiles east of Sivas.")
+	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, toward a known camp 4 tiles north-east, now 4 tiles east of Sivas.")
 	new["63:1"].campText = nil
 	eq(HubEnemies.Describe(old, new, {}, dist), "Enemies: Barbarian Scout heading away from Sivas, now 4 tiles east of Sivas.")
 end)

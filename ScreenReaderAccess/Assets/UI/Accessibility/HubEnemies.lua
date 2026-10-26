@@ -47,7 +47,7 @@ function HubEnemies.Describe( old:table, new:table, dead:table, dist, seen:table
 					if e.scout and e.alarmed and now > was then
 						-- a scout that has seen a city and walks off: it is going home
 						text = e.name .. " heading away from " .. e.anchorName;
-						if e.campText ~= nil then text = text .. ", toward its camp " .. e.campText; end
+						if e.campText ~= nil then text = text .. ", toward a known camp " .. e.campText; end
 					elseif now < was then text = text .. " toward " .. e.anchorName;
 					elseif now > was then text = text .. " away from " .. e.anchorName; end
 				end
@@ -184,7 +184,6 @@ end
 function HubEnemies.SpeakAtTurnStart()
 	local snap:table = HubEnemies.m_snapshot;
 	HubEnemies.m_snapshot = nil;
-	HubEnemies.m_alarmedNow = {};
 	-- the scout alarm comes first (after the "Turn N" line, which it must not cut off)
 	local okScouts:boolean, alarms = pcall( HubEnemies.CheckScouts, true );
 	if okScouts then
@@ -194,9 +193,17 @@ function HubEnemies.SpeakAtTurnStart()
 	end
 	if snap ~= nil and snap.turn == Game.GetCurrentGameTurn() - 1 then
 		local new:table, seen:table = HubEnemies.Gather();
+		-- raiders have their own raid line below: not repeated here
+		local okRaid:boolean, threats = pcall( HubEnemies.ScanThreats );
+		if okRaid then
+			for _, raid in ipairs( threats.raids ) do
+				for _, m in ipairs( raid.members ) do new[ m.key ] = nil; snap.units[ m.key ] = nil; end
+			end
+		end
 		local text:string = HubEnemies.Describe( snap.units, new, HubEnemies.m_killed, Dist, seen );
 		if text ~= nil then HubCore.Announce( text, true, "enemies" ); end
 	end
+	HubEnemies.m_alarmedNow = {};
 	local okThreats:boolean, err = pcall( HubEnemies.SpeakThreats, true );
 	if not okThreats then print( "HubEnemies threat error: " .. tostring( err ) ); end
 end
@@ -550,7 +557,8 @@ function HubEnemies.ScanThreats()
 				NearestOwnSoldiers( city ) );
 			-- the signature changes with the soldiers and their positions, not with the wording of our own units
 			local sigParts:table = {};
-			for _, m in ipairs( raid.members ) do table.insert( sigParts, m.key .. "@" .. m.x .. "," .. m.y ); end
+			-- who is in it and how close (a band), so a raid that walks on is not spoken again every turn
+			for _, m in ipairs( raid.members ) do table.insert( sigParts, m.key .. ( m.near <= 2 and "a" or "b" ) ); end
 			table.insert( result.raids, { key = key, sig = table.concat( sigParts, ";" ), text = text, barbarian = barbarian, members = raid.members } );
 		end
 	end
@@ -629,12 +637,18 @@ function HubEnemies.SpeakThreats( nointerrupt:boolean )
 end
 
 -- A hostile unit came into view (HubEvents.OnUnitVisibilityChanged): check scouts and threats a moment later, once.
+function HubEnemies.IsOurTurn()
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	return player ~= nil and player:IsTurnActive();
+end
+
+-- During the AI turns nothing is said (the turn start does it, without interrupting).
 function HubEnemies.OnHostileVisible( unit:table )
-	if HubEnemies.m_checkArmed then return; end
+	if HubEnemies.m_checkArmed or not HubEnemies.IsOurTurn() then return; end
 	HubEnemies.m_checkArmed = true;
 	HubCore.After( 0.4, function()
 		HubEnemies.m_checkArmed = false;
-		if not HubCore.m_ready or not HubCore.IsLocalPlayerActive() then return; end
+		if not HubCore.m_ready or not HubEnemies.IsOurTurn() then return; end
 		local ok:boolean, err = pcall( function()
 			for _, line in ipairs( HubEnemies.CheckScouts( false ) ) do HubCore.Announce( line, false, "alarm" ); end
 			HubEnemies.SpeakThreats( true );
@@ -719,7 +733,7 @@ function HubEnemies.EscortText( unit:table )
 			end
 		end
 	end
-	if #partners == 0 then return nil; end
+	if #partners == 0 or plot:IsCity() then return nil; end
 	local name:string = Locale.Lookup( partners[1]:GetName() );
 	if together then
 		return ( civilian and "escorted by " or "escorting " ) .. name;
