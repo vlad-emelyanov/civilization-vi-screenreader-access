@@ -5,9 +5,9 @@
 load bug-prophet-u-cannot-activate
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do local r=GameInfo.Units[u:GetUnitType()]; if r and r.UnitType=="UNIT_GREAT_PROPHET" then UI.SelectUnit(u) break end end
-action ExtraHotkeysUpgrade -Settle 3000
+# fixed 4 s wait (-NoQuiet): the notification line comes ~1 s after the action; a `wait` step would start a fresh window and miss a line already printed during the action
+action ExtraHotkeysUpgrade -Settle 4000 -NoQuiet
 expect-not (?i)cannot (found|activate)
-wait Religion founded: choose a name and beliefs -Timeout 25
 expect Religion founded: choose a name and beliefs. Control\+N
 action KeyNavNotifications -Settle 1500
 key Enter -Settle 2500
