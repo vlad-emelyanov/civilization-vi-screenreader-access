@@ -1,0 +1,30 @@
+# Written blind (G9). Unverified.
+# no-share-load: Enter changes the research queue
+# covers: **/TreeNav.lua **/TreeText.lua **/TechTree.lua **/CivicsTree.lua
+# Tech tree: Enter on a tech that is not researchable yet says how many techs and turns lie on the way and what the game
+# started on ("Steam Power set as the target: 4 techs on the way, about 40 turns. Next: X, 5 turns."); J then adds
+# "Target: Steam Power, about 40 turns"; Shift+Enter on another far tech says "Queued X: N techs, about M turns.".
+load medieval-t100
+clear-advisors
+action ToggleTechTree -Settle 2500
+expect ^Tech tree\.
+key F -Settle 600
+expect ^editing Search
+key S -Settle 250
+key T -Settle 250
+key E -Settle 250
+key A -Settle 250
+key M -Settle 250
+key Space -Settle 250
+key P -Settle 250
+key O -Settle 250
+key W -Settle 250
+key Enter -Settle 1200 -NoQuiet
+expect ^Found: .*Steam Power
+key Enter -Settle 3000 -NoQuiet
+expect ^Steam Power set as the target: \d+ techs? on the way(, about \d+ turns?)?\. Next: .+
+key J -Settle 800
+expect ^Current: .+\. Target: Steam Power(, about \d+ turns?)?$
+key Escape -Settle 1500
+expect ^Tech tree closed
+no-lua-errors

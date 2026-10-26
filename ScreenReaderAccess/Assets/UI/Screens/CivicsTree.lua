@@ -2261,16 +2261,19 @@ local function SRA_CivicQueue()
 	local current:number = culture:GetProgressingCivic();
 	local keys:table, names:table = {}, {};
 	local turns:number = 0;
+	local each:table = {};
 	for _, id in ipairs( queue ) do
 		local row = GameInfo.Civics[ id ];
 		if row ~= nil then
 			table.insert( keys, row.CivicType );
 			local item:table = g_kItemDefaults[ row.CivicType ];
 			table.insert( names, item ~= nil and TreeNav_ItemName( item ) or CleanTextForSpeech( Locale.Lookup( row.Name ) ) );
-			if id == current then turns = turns + culture:GetTurnsLeft(); else turns = turns + culture:GetTurnsToProgressCivic( id ); end
+			local t:number = ( id == current ) and culture:GetTurnsLeft() or culture:GetTurnsToProgressCivic( id );
+			table.insert( each, t );
+			turns = turns + t;
 		end
 	end
-	return { keys = keys, names = names, turns = turns };
+	return { keys = keys, names = names, turns = turns, each = each };
 end
 
 local function SRA_CivicSearch( text:string )
@@ -2334,6 +2337,7 @@ local function SRA_InitTree()
 		beginSearch = SRA_CivicBeginSearch,
 		close = Close,
 		scroll = function( key ) ScrollToNode( key ); end,
+		prereqs = TreeNav_PrereqKeys, itemWord = "civic",
 		resourceKind = "civic",
 	};
 	SRListen( LuaEvents.CivicsTree_OpenCivicsTree, SRA_OnTreeOpen );

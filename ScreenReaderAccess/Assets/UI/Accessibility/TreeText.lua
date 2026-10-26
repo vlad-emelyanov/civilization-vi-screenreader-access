@@ -146,6 +146,54 @@ function TreeText_Queue( prefix:string, target:string, path:table, turns:number 
 	return text;
 end
 
+-- Missing nodes on the way to key: every not yet researched prerequisite (transitively) and key itself, each once,
+-- prerequisites first. prereqsOf(key) -> keys, done(key) -> boolean (researched).
+function TreeText_Path( key, prereqsOf, done )
+	local seen:table = {};
+	local path:table = {};
+	local function Visit( k )
+		if seen[ k ] or done( k ) then return; end
+		seen[ k ] = true;
+		for _, p in ipairs( prereqsOf( k ) or {} ) do Visit( p ); end
+		table.insert( path, k );
+	end
+	Visit( key );
+	return path;
+end
+
+local function PathCount( count:number, word:string )
+	return count .. " " .. word .. ( count == 1 and "" or "s" );
+end
+
+local function PathTurns( turns:number )
+	if turns == nil or turns <= 0 then return ""; end
+	return ", about " .. TreeText_Turns( turns );
+end
+
+-- Enter on a node that is not researchable yet:
+-- "Political Philosophy set as the target: 3 civics on the way, about 26 turns. Next: Code of Laws, 4 turns."
+-- word "tech" / "civic"; nextName / nextTurns = what the game started on (optional)
+function TreeText_FarTarget( name:string, word:string, count:number, turns:number, nextName, nextTurns )
+	local text:string = name .. " set as the target: " .. PathCount( count, word ) .. " on the way" .. PathTurns( turns ) .. ".";
+	if nextName ~= nil and nextName ~= "" then
+		text = text .. " Next: " .. nextName;
+		if nextTurns ~= nil and nextTurns > 0 then text = text .. ", " .. TreeText_Turns( nextTurns ); end
+		text = text .. ".";
+	end
+	return text;
+end
+
+-- Shift+Enter on a node that is not researchable yet: "Queued Political Philosophy: 3 civics, about 26 turns."
+function TreeText_FarQueued( name:string, word:string, count:number, turns:number )
+	return "Queued " .. name .. ": " .. PathCount( count, word ) .. PathTurns( turns ) .. ".";
+end
+
+-- Appended to the current research line when the queue ends in a further target:
+-- "Target: Political Philosophy, about 26 turns"
+function TreeText_TargetSuffix( name:string, turns:number )
+	return "Target: " .. name .. PathTurns( turns );
+end
+
 -- entries: { { key, name, era (number), eraName, column, row }, ... } -> eras in order, each with its items in tree order
 -- (column, then row, then name): { { era = 0, name = "Ancient Era", items = { entry, ... } }, ... }
 function TreeText_Group( entries:table )

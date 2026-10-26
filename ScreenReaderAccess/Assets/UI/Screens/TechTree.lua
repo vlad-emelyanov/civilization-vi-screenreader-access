@@ -1887,16 +1887,19 @@ local function SRA_TechQueue()
 	local current:number = techs:GetResearchingTech();
 	local keys:table, names:table = {}, {};
 	local turns:number = 0;
+	local each:table = {};
 	for _, id in ipairs( queue ) do
 		local row = GameInfo.Technologies[ id ];
 		if row ~= nil then
 			table.insert( keys, row.TechnologyType );
 			local item:table = g_kItemDefaults[ row.TechnologyType ];
 			table.insert( names, item ~= nil and TreeNav_ItemName( item ) or CleanTextForSpeech( Locale.Lookup( row.Name ) ) );
-			if id == current then turns = turns + techs:GetTurnsLeft(); else turns = turns + techs:GetTurnsToResearch( id ); end
+			local t:number = ( id == current ) and techs:GetTurnsLeft() or techs:GetTurnsToResearch( id );
+			table.insert( each, t );
+			turns = turns + t;
 		end
 	end
-	return { keys = keys, names = names, turns = turns };
+	return { keys = keys, names = names, turns = turns, each = each };
 end
 
 local function SRA_TechSearch( text:string )
@@ -1959,6 +1962,7 @@ local function SRA_InitTree()
 		beginSearch = SRA_TechBeginSearch,
 		close = Close,
 		scroll = function( key ) ScrollToNode( key ); end,
+		prereqs = TreeNav_PrereqKeys, itemWord = "tech",
 		resourceKind = "tech",
 	};
 	SRListen( LuaEvents.TechTree_OpenTechTree, SRA_OnTreeOpen );
