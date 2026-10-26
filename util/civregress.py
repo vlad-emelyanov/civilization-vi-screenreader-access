@@ -580,6 +580,9 @@ class ScriptResult:
         self.aborted = None  # reason string
         self.loaded = None   # fixture the game is in at the end (None after an abort)
         self.seconds = 0.0   # wall time of the script
+        self.flaky = False   # failed first, passed on the end-of-run retry (retry_failed)
+        self.first_verdict = self.retry_verdict = None
+        self.second_attempt_failed = False
         self.retried = False  # failed with a shared load, then passed/failed again with a fresh one
         self.loads = 0       # real loads done by the script
         self.load_skipped = False  # the load was skipped (shared with the previous script) and the script ran on that game
@@ -856,7 +859,51 @@ def order_scripts(scripts):
     return [item for f in order for item in sorted(groups[f], key=rank)]
 
 
-def run_all(scripts, runner, share_load=False, out=print, switch=None):
+def retry_failed(results, scripts, runner, out=print, switch=None):
+    """End-of-run flake retry: every failed (or aborted, not locked) script runs once more with a fresh load. A pass counts
+    (r.flaky = verdict of the first attempt, r.first_verdict, the retry replaces the result); a second failure stays a failure
+    (r.second_attempt_failed). Both attempts' verdict lines are printed."""
+    by_name = dict(scripts)
+    for i, r in enumerate(results):
+        if r.ok or r.aborted == "locked" or r.name not in by_name:
+            continue
+        steps = by_name[r.name]
+        first = verdict_line(r)
+        out("RETRY %s (end of run, fresh load); first attempt: %s" % (r.name, first))
+        opts = getattr(steps, "options", frozenset())
+        steps.advisor_off = switch is not None and "advisor" not in opts
+        t0 = time.time()
+        try:
+            if switch is not None and opts:
+                _switch_options(switch, opts, out)
+            r2 = run_script(r.name, steps, runner, out, skip_load=False)
+        except LockedError as e:
+            out("LOCKED: %s" % e)
+            break
+        finally:
+            if switch is not None and opts:
+                _switch_options(switch, (), out)
+        r2.seconds = r.seconds + (time.time() - t0)
+        r2.first_verdict = first
+        r2.retry_verdict = verdict_line(r2)
+        r2.retried = True
+        if r2.ok:
+            r2.flaky = True
+            out("FLAKY %s: first attempt %s; retry %s" % (r.name, first, r2.retry_verdict))
+        else:
+            r.second_attempt_failed = True
+            r2.second_attempt_failed = True
+            out("STILL FAILING %s: first attempt %s; retry %s" % (r.name, first, r2.retry_verdict))
+        results[i] = r2
+    return results
+
+
+def verdict_line(r):
+    """'3 passed, 1 failed[, ABORTED: x]' for one ScriptResult."""
+    return "%d passed, %d failed%s" % (r.passed, r.failed, ", ABORTED: " + r.aborted if r.aborted else "")
+
+
+def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=False):
     """Returns a list of ScriptResult. scripts: [(name, steps)] (already ordered).
     Load sharing: a script may skip its load when the previous script left the same fixture AND a reset check proved the game is
     back in the state a fresh load gives (reset_check: nothing open, hub in plain map mode, turn/gold/units/cities as right
@@ -934,14 +981,16 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None):
                 _switch_options(switch, (), out)
         r.seconds = time.time() - t0
         results.append(r)
+    if retry:
+        retry_failed(results, scripts, runner, out, switch)
     return results
 
 
-def run_with_test_options(scripts, runner, share, use_test_options=True, out=print, testopts_mod=None):
+def run_with_test_options(scripts, runner, share, use_test_options=True, out=print, testopts_mod=None, retry=False):
     """run_all under the test game options (testopts.py on ... restore in a finally, also after a crashed game: restore then
     edits UserOptions.txt). use_test_options=False (--real-options): plain run_all. Manual recovery: python util/testopts.py restore"""
     if not use_test_options:
-        return run_all(scripts, runner, share, out)
+        return run_all(scripts, runner, share, out, retry=retry)
     try:
         if testopts_mod is None:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -I (civctl regress) has no util/ on sys.path
@@ -951,9 +1000,9 @@ def run_with_test_options(scripts, runner, share, use_test_options=True, out=pri
             raise RuntimeError("testopts on refused")
     except Exception as e:
         out("WARNING: test options not applied (%s); running with the real options" % e)
-        return run_all(scripts, runner, share, out)
+        return run_all(scripts, runner, share, out, retry=retry)
     try:
-        return run_all(scripts, runner, share, out, switch=testopts_mod.switch)
+        return run_all(scripts, runner, share, out, switch=testopts_mod.switch, retry=retry)
     finally:
         try:
             testopts_mod.cmd_restore(out)
@@ -980,7 +1029,9 @@ def timing_table(results):
     lines = []
     for r in results:
         verdict = "ABORTED" if r.aborted else ("PASS" if r.ok else "FAIL")
-        if r.retried:
+        if r.flaky:
+            verdict = "FLAKY %s (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict)
+        elif r.retried:
             verdict += " (after a fresh-load retry)"
         lines.append("  %-*s  %8s  %s  [%s]" % (w, r.name, format_duration(r.seconds), verdict, breakdown(r)))
     return lines
@@ -1234,6 +1285,7 @@ def main(argv=None):
     ap.add_argument("--owner", help="civctl lock owner (required unless $CIVCTL_OWNER is set; civctl regress passes its own owner)")
     ap.add_argument("--no-batch", action="store_true", help="start powershell.exe for every civctl call (default: one long-lived `civctl batch` process)")
     ap.add_argument("--real-options", action="store_true", help="do not apply the test game options (testopts.py: advisor off, quick combat/movement) for this run")
+    ap.add_argument("--no-retry", action="store_true", help="`all` / `changed` retry each failed script once with a fresh load at the end (a pass = FLAKY, run still green); this disables it")
     ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
     if a.clear_advisors:
@@ -1286,7 +1338,8 @@ def main(argv=None):
     try:
         runner = CivctlRunner(owner=owner, batch=not a.no_batch)
         try:
-            results = run_with_test_options(scripts, runner, share, not a.real_options)
+            results = run_with_test_options(scripts, runner, share, not a.real_options,
+                                            retry=(run_everything or changed_mode) and not a.no_retry and not record)
         finally:
             runner.close()
     finally:
@@ -1307,6 +1360,9 @@ def main(argv=None):
     print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (
         len(results), p, f, "; aborted: " + ", ".join(r.name for r in results if r.aborted) if any(r.aborted for r in results) else "",
         "; SKIPPED-ALL: " + ", ".join(r.name for r in results if r.skipped_all) if any(r.skipped_all for r in results) else ""))
+    for r in results:
+        if r.flaky:
+            print("FLAKY %s  (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict))
     print("TOTAL: %s" % format_duration(time.time() - t0))
     return 0 if all(r.ok for r in results) else 1
 
