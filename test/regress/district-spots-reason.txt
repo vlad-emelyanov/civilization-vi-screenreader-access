@@ -1,0 +1,18 @@
+# Round 24: "District spots" in the city report, when no district can be built now, names the next unmet requirement:
+# "District spots: none can be built now. Next: Holy Site needs population 7". Fixture pt-early-t64: Rome has population 6.
+# covers: **/DistrictAdvice.lua **/CityReportData.lua **/HubCityReport.lua
+load pt-early-t64
+clear-advisors
+action CapitalCity -Settle 1500
+key Control+I -Settle 2500
+expect ^.+ report, \d+ options
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+expect ^District spots: none can be built now\. Next: .+ needs population 7, 8 of 16$
+key Escape -Settle 1500
+no-lua-errors

@@ -683,7 +683,7 @@ function SettleScan_Sentence( scan:table, foundKey:string, hasMoves:boolean )
 	end
 	text = text .. ". Best: " .. best.relative .. ", " .. turns .. ( far and ", far away" or "" ) .. Reasons( best, 3, 2 );
 	if best.recommended then text = text .. ", recommended"; end
-	if best.hostileNear then text = text .. ( best.barbariansNear and ", barbarians near it" or ", enemies near it" ); end
+	if best.hostileNear and not string.find( text, " nearby", 1, true ) then text = text .. ( best.barbariansNear and ", barbarians near it" or ", enemies near it" ); end
 	return text .. SettleScan_DistanceText( best ) .. ". X to browse.";
 end
 
