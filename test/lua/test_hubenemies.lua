@@ -37,6 +37,11 @@ test("out of sight, but not when it died", function()
 	eq(HubEnemies.Describe(old, {}, { ["63:2"] = true }, dist), "Enemies: Barbarian Scout out of sight.")
 end)
 
+test("still visible but outside the radius: no longer near", function()
+	local old = { ["63:1"] = e("Barbarian Scout", 15, 10) }
+	eq(HubEnemies.Describe(old, {}, {}, dist, { ["63:1"] = true }), "Enemies: Barbarian Scout no longer near.")
+end)
+
 test("health change and still", function()
 	local old = { ["63:1"] = e("Barbarian Warrior", 13, 10) }
 	eq(HubEnemies.Describe(old, { ["63:1"] = e("Barbarian Warrior", 13, 10) }, {}, dist), "Enemies: Barbarian Warrior still 3 tiles east of Sivas.")

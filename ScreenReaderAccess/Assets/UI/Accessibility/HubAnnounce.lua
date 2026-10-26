@@ -327,7 +327,10 @@ function HubAnnounce.AnnounceTurn()
 	HubCore.m_lastAnnouncedTurn = key;
 	if HubCore.m_cursorPlayer ~= Game.GetLocalPlayer() then HubCursor.ResetCursor(); end
 	HubCore.Announce( "Turn " .. turn .. ", " .. Calendar.MakeYearStr( turn ), true, "turn" );
-	if HubEnemies ~= nil then pcall( HubEnemies.SpeakAtTurnStart ); end		-- what the enemies near us did
+	if HubEnemies ~= nil then
+		local ok:boolean, err = pcall( HubEnemies.SpeakAtTurnStart );
+		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end
+	end		-- what the enemies near us did
 end
 
 -- The selection that happened while the game was loading, said again now that it is ready.
@@ -434,7 +437,10 @@ function HubAnnounce.OnPlayerTurnActivated( playerID:number, isFirstTime:boolean
 end
 
 function HubAnnounce.OnLocalPlayerTurnEnd()
-	if HubEnemies ~= nil then pcall( HubEnemies.TakeSnapshot ); end		-- the enemies we see now, compared at the next turn start
+	if HubEnemies ~= nil then
+		local ok:boolean, err = pcall( HubEnemies.TakeSnapshot );
+		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end
+	end		-- the enemies we see now, compared at the next turn start
 	HubCore.ReleaseSpeechAtTurnEnd();
 	HubAnnounce.ResetReadyWatch();
 	HubCore.CloseMode( false, true );

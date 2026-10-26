@@ -11,6 +11,7 @@ local CITY_RADIUS:number = 6;
 local UNIT_RADIUS:number = 3;
 local MAX_LISTED:number = 4;
 
+HubEnemies.m_killed = {};		-- "owner:id" of units killed in combat since the snapshot
 HubEnemies.m_snapshot = nil;		-- { turn = n, units = { ["owner:id"] = entry } } of the last turn end
 
 local function Plural( n:number ) return n == 1 and "tile" or "tiles"; end
@@ -22,10 +23,11 @@ end
 -- ===========================================================================
 -- Pure wording. An entry: { name, x, y, damage, maxhp, where (spoken position), anchorName, anchorX, anchorY,
 -- near (distance to the anchor, for sorting), mine (stands in our territory) }.
--- old/new: key -> entry; dead: key -> true for units that no longer exist. dist(x1, y1, x2, y2) = tiles.
+-- old/new: key -> entry; dead: key -> true for units killed in combat; seen: key -> true for hostile units visible now
+-- but not near (they get "no longer near", the others "out of sight"). dist(x1, y1, x2, y2) = tiles.
 -- Returns "Enemies: ..." or nil when there is nothing to say.
 -- ===========================================================================
-function HubEnemies.Describe( old:table, new:table, dead:table, dist )
+function HubEnemies.Describe( old:table, new:table, dead:table, dist, seen:table )
 	local items:table = {};
 	for key, e in pairs( new ) do
 		local before:table = old[ key ];
@@ -62,7 +64,8 @@ function HubEnemies.Describe( old:table, new:table, dead:table, dist )
 	end
 	for key, e in pairs( old ) do
 		if new[ key ] == nil and not dead[ key ] then
-			table.insert( items, { text = e.name .. " out of sight", near = e.near or 99, changed = true, key = key } );
+			local what:string = ( seen ~= nil and seen[ key ] ) and " no longer near" or " out of sight";
+			table.insert( items, { text = e.name .. what, near = e.near or 99, changed = true, key = key } );
 		end
 	end
 	if #items == 0 then return nil; end
@@ -93,10 +96,10 @@ end
 
 -- Visible hostile units near us: key -> entry.
 function HubEnemies.Gather()
-	local result:table = {};
+	local result:table, seen:table = {}, {};
 	local localID:number = Game.GetLocalPlayer();
 	local me:table = Players[ localID ];
-	if me == nil or localID == -1 then return result; end
+	if me == nil or localID == -1 then return result, seen; end
 	local anchors:table = {};
 	for _, city in me:GetCities():Members() do
 		table.insert( anchors, { name = Locale.Lookup( city:GetName() ), x = city:GetX(), y = city:GetY(), radius = CITY_RADIUS, city = true } );
@@ -104,12 +107,13 @@ function HubEnemies.Gather()
 	for _, unit in me:GetUnits():Members() do
 		table.insert( anchors, { name = "your " .. Locale.Lookup( unit:GetName() ), x = unit:GetX(), y = unit:GetY(), radius = UNIT_RADIUS } );
 	end
-	if #anchors == 0 then return result; end
+	if #anchors == 0 then return result, seen; end
 	for id = 0, 63 do
 		if id ~= localID and Players[ id ] ~= nil and HubCore.IsHostile( id ) then
 			for _, unit in Players[ id ]:GetUnits():Members() do
 				if PlotDescription_IsUnitVisible( unit ) then
 					local x:number, y:number = unit:GetX(), unit:GetY();
+					seen[ id .. ":" .. unit:GetID() ] = true;
 					local best:table, bestDistance:number = nil, 99;
 					for _, a in ipairs( anchors ) do
 						local d:number = Dist( x, y, a.x, a.y );
@@ -135,15 +139,22 @@ function HubEnemies.Gather()
 			end
 		end
 	end
-	return result;
+	return result, seen;
+end
+
+-- A unit died in combat (UnitKilledInCombat): not "out of sight" at the next turn start.
+function HubEnemies.OnUnitKilledInCombat( killedPlayer:number, killedId:number )
+	HubEnemies.m_killed[ killedPlayer .. ":" .. killedId ] = true;
 end
 
 -- End of our turn: remember what we see.
 function HubEnemies.TakeSnapshot()
+	HubEnemies.m_killed = {};
 	HubEnemies.m_snapshot = { turn = Game.GetCurrentGameTurn(), units = HubEnemies.Gather() };
 end
 
 function HubEnemies.Reset()
+	HubEnemies.m_killed = {};
 	HubEnemies.m_snapshot = nil;
 end
 
@@ -152,11 +163,7 @@ function HubEnemies.SpeakAtTurnStart()
 	local snap:table = HubEnemies.m_snapshot;
 	HubEnemies.m_snapshot = nil;
 	if snap == nil or snap.turn ~= Game.GetCurrentGameTurn() - 1 then return; end
-	local new:table = HubEnemies.Gather();
-	local dead:table = {};
-	for key, e in pairs( snap.units ) do
-		if new[ key ] == nil and Players[ e.owner ]:GetUnits():FindID( e.id ) == nil then dead[ key ] = true; end
-	end
-	local text:string = HubEnemies.Describe( snap.units, new, dead, Dist );
+	local new:table, seen:table = HubEnemies.Gather();
+	local text:string = HubEnemies.Describe( snap.units, new, HubEnemies.m_killed, Dist, seen );
 	if text ~= nil then HubCore.Announce( text, true, "enemies" ); end
 end

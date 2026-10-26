@@ -284,6 +284,7 @@ function Initialize()
 	end );
 	HubCore.AddEvent( "GoodyHutReward",				HubEvents.OnGoodyHutReward );
 	HubCore.AddEvent( "UnitKilledInCombat",			HubEvents.OnUnitKilledInCombat );
+	HubCore.AddEvent( "UnitKilledInCombat",			HubEnemies.OnUnitKilledInCombat );		-- killed units are not "out of sight"
 	HubCore.Listen( LuaEvents.SRA_UnitActions, HubMenus.OnUnitActionsReceived );
 	HubCore.Listen( LuaEvents.SRA_Notifications, HubRegions.OnNotificationsReceived );
 	HubCore.Listen( LuaEvents.SRA_NotificationAdded, HubCore.Safe( "NotificationAdded", HubRegions.OnNotificationAdded ) );
