@@ -2435,6 +2435,7 @@ end
 -- Closes the popup
 -- ===========================================================================
 function ClosePopup()
+	LuaEvents.SRA_SpeechHold( "WorldCongressResults", false );		-- ScreenReaderAccess
 	if ContextPtr:IsVisible() then
 		UIManager:DequeuePopup(ContextPtr);
 		Input.PopContext();
@@ -3251,7 +3252,7 @@ local function SRA_Announce()
 		head = SRA_TabName();
 		if #items == 0 then
 			local empty:string = Controls.EmptyLabel:IsHidden() and "" or SRA_Clean( Controls.EmptyLabel:GetText() );
-			SRA_Say( head .. ". " .. ( empty ~= "" and empty or "Nothing to show" ) .. ". Escape closes", true );
+			SRA_Say( head .. ". " .. ( empty ~= "" and empty or "Nothing to show" ) .. ". Escape closes", false );
 			return;
 		end
 		if m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
@@ -3269,12 +3270,18 @@ local function SRA_Announce()
 	for i, item in ipairs( items ) do
 		if item.key == m_sraMainList.GetFocusKey() then index = i; end
 	end
-	SRA_Say( head .. ". " .. items[ index ].text .. ", " .. index .. " of " .. #items .. ". " .. hint, true );
+	-- results (mode "review") interrupt: the player just finished the congress and the results come before the unit line;
+	-- the hub speech hold (SRA_RequestAnnounce) says the cut-off lines again after the screen closes.
+	SRA_Say( head .. ". " .. items[ index ].text .. ", " .. index .. " of " .. #items .. ". " .. hint, mode ~= "review" );
 end
 
 -- Called by the screen after the stage / phase changed or the popup was reopened. The announcement waits a moment so
 -- the populate calls and the popup queue have settled.
 function SRA_RequestAnnounce( resetFocus:boolean )
+	-- results screen: the hub's own announcements (notifications ...) wait until it closes; lines it cut off are repeated then
+	if m_CurrentStage == 4 then
+		LuaEvents.SRA_SpeechHold( "WorldCongressResults", true, "/InGame/" .. ContextPtr:GetID() );
+	end
 	m_sraPending = 0.4;
 	m_sraPendingAge = 0;
 	if resetFocus then m_sraResetFocus = true; end

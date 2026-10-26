@@ -4339,7 +4339,40 @@ local function SRIsRangedAttackName( typeName:string )
 end
 
 -- "Danger" alone does not say what: name the nearest visible enemy / barbarian unit within 3 tiles ("Danger, Barbarian Galley 1 tile east").
+-- "Too close to Tribal Village" does not say where: append the nearest revealed village within 4 tiles
+-- ("Too close to Tribal Village, 2 tiles north-west"). Pure wording: reason + relative (nil/"" = unchanged).
+function SRTribalVillageReason( reason:string, relative:string )
+	if reason == nil or string.find( string.lower( reason ), "tribal village", 1, true ) == nil then return reason; end
+	if relative == nil or relative == "" then return reason; end
+	return reason .. ", " .. relative;
+end
+
+local function SRAddTribalVillage( unit:table, reason:string )
+	if reason == nil or string.find( string.lower( reason ), "tribal village", 1, true ) == nil then return reason; end
+	local result:string = reason;
+	pcall( function()
+		local hut = GameInfo.Improvements["IMPROVEMENT_GOODY_HUT"];
+		local vis = PlayersVisibility[ Game.GetLocalPlayer() ];
+		if hut == nil or vis == nil then return; end
+		local ux:number, uy:number = unit:GetX(), unit:GetY();
+		local from = Map.GetPlot( ux, uy );
+		local best, bestDistance = nil, 99;
+		for dy = -4, 4 do
+			for dx = -4, 4 do
+				local plot = Map.GetPlot( ux + dx, uy + dy );
+				if plot ~= nil and vis:IsVisible( plot:GetX(), plot:GetY() ) and plot:GetImprovementType() == hut.Index then
+					local distance:number = Map.GetPlotDistance( ux, uy, plot:GetX(), plot:GetY() );
+					if distance <= 4 and distance < bestDistance then best, bestDistance = plot, distance; end
+				end
+			end
+		end
+		if best ~= nil then result = SRTribalVillageReason( reason, PlotDescription_GetRelative( from, best ) ); end
+	end );
+	return result;
+end
+
 local function SRAddDanger( unit:table, reason:string )
+	reason = SRAddTribalVillage( unit, reason );
 	if reason == nil or string.find( string.lower( reason ), "danger", 1, true ) == nil then return reason; end
 	local result:string = reason;
 	pcall( function()
@@ -4539,6 +4572,27 @@ function SRGreatPersonActivateName( unit:table )
 	return result, verb, person;
 end
 
+-- Tab menu order. 0 promotions; builders: 1 enabled build actions, 2 other main actions, 3 disabled build actions
+-- ("not possible on this tile"), 4 formation / upgrade / delete. Non-builders: 0, 2 (main), 4. Stable within a rank (caller sorts by index).
+function SRMenuRank( entry:table, isBuilder:boolean )
+	local typeName:string = entry.typeName or "";
+	if typeName == "PROMOTION" or typeName == "UNITCOMMAND_PROMOTE" then return 0; end
+	for _, word in ipairs( { "FORMATION", "ESCORT", "CORPS", "ARMY", "UPGRADE", "DELETE", "DISBAND" } ) do
+		if string.find( typeName, word, 1, true ) ~= nil then return 4; end
+	end
+	if string.find( string.lower( entry.name or "" ), "formation", 1, true ) ~= nil then return 4; end
+	if isBuilder then
+		local isBuild:boolean = entry.build == true or entry.category == "BUILD";
+		if not isBuild then
+			for _, word in ipairs( { "HARVEST", "REMOVE_FEATURE", "REMOVE_IMPROVEMENT", "REPAIR" } ) do
+				if string.find( typeName, word, 1, true ) ~= nil then isBuild = true; end
+			end
+		end
+		if isBuild then return ( entry.disabled == true ) and 3 or 1; end
+	end
+	return 2;
+end
+
 -- Rebuilds m_srActions (callbacks) and returns the plain list for the hub.
 local function SRBuildActions()
 	m_srActions = {};
@@ -4614,7 +4668,7 @@ local function SRBuildActions()
 						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey,
 						disabled = ( action.Disabled == true ), reason = reason,
 						detail = detail, category = category,
-					tag = action.userTag, typeName = SRTypeName( action.userTag ) } );
+					tag = action.userTag, typeName = SRTypeName( action.userTag ), build = ( action.SRName ~= nil ) } );
 				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
 				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil
 						and GameInfo.Units[unit:GetUnitType()].NumRandomChoices > 0 then
@@ -4700,19 +4754,11 @@ local function SRBuildActions()
 				category = "INPLACE", tag = GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash, typeName = "UNITOPERATION_SKIP_TURN" } );
 		end
 	end
-	-- Main actions first (promotion, build, found, attack, move, fortify, sleep, skip), formation / upgrade / delete last.
+	-- Ranking: SRMenuRank (defined above, before SRBuildActions).
 	-- The ids stay valid: they index m_srActions, only the order of the list changes.
-	local function MenuRank( entry:table )
-		local typeName:string = entry.typeName or "";
-		if entry.typeName == "PROMOTION" or typeName == "UNITCOMMAND_PROMOTE" then return 0; end
-		for _, word in ipairs( { "FORMATION", "ESCORT", "CORPS", "ARMY", "UPGRADE", "DELETE", "DISBAND" } ) do
-			if string.find( typeName, word, 1, true ) ~= nil then return 2; end
-		end
-		if string.find( string.lower( entry.name or "" ), "formation", 1, true ) ~= nil then return 2; end
-		return 1;
-	end
 	local ranked:table = {};
-	for i, entry in ipairs( plain ) do ranked[i] = { entry = entry, rank = MenuRank( entry ), index = i }; end
+	local isBuilder:boolean = unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:GetBuildCharges() > 0;
+	for i, entry in ipairs( plain ) do ranked[i] = { entry = entry, rank = SRMenuRank( entry, isBuilder ), index = i }; end
 	table.sort( ranked, function( a, b ) if a.rank ~= b.rank then return a.rank < b.rank; end return a.index < b.index; end );
 	for i, item in ipairs( ranked ) do plain[i] = item.entry; end
 	return plain;
