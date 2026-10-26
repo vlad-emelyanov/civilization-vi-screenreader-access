@@ -56,6 +56,7 @@ test("armed Enter: needs the builder selected, on the tile, with moves; other ke
 		GetID = function() return unit.id end, GetX = function() return unit.x end, GetY = function() return unit.y end,
 		GetMovesRemaining = function() return unit.moves end,
 	}
+	UnitManager.GetQueuedDestination = function() return nil end
 	local selected = obj
 	UI.GetHeadSelectedUnit = function() return selected end
 	local idx = Map.GetPlot(4, 4):GetIndex()
@@ -74,6 +75,14 @@ test("armed Enter: needs the builder selected, on the tile, with moves; other ke
 	-- armed for a later turn: keys do not disarm it
 	HubSettle.m_pending = { unitId = 9, plotIndex = idx, type = "IMPROVEMENT_FARM", name = "Farm", keepOnKeys = true }
 	HubSettle.OnOtherKey(65)
+	assert(HubSettle.BuildEnterArmed())
+	-- another order for the unit, a queued move, or a turn more than one later: disarmed
+	HubSettle.OnUnitOrder(0, 9)
+	assert(HubSettle.m_pending == nil)
+	HubSettle.m_pending = { unitId = 9, plotIndex = idx, type = "IMPROVEMENT_FARM", name = "Farm", keepOnKeys = true, turn = Game.GetCurrentGameTurn() - 2 }
+	assert(not HubSettle.BuildEnterArmed())
+	assert(HubSettle.m_pending == nil)
+	HubSettle.m_pending = { unitId = 9, plotIndex = idx, type = "IMPROVEMENT_FARM", name = "Farm", keepOnKeys = true }
 	assert(HubSettle.BuildEnterArmed())
 	-- moved off the tile: disarmed
 	unit.x = 5

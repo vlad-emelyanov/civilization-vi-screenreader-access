@@ -94,7 +94,7 @@ function Hub.HandleInput( input:table )
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
 	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN then
 		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
-		HubSettle.OnOtherKey( input:GetKey() );
+		if HubSettle ~= nil and HubSettle.OnOtherKey ~= nil then HubSettle.OnOtherKey( input:GetKey() ); end
 	end
 	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end

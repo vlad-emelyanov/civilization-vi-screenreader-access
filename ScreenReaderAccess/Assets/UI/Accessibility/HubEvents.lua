@@ -12,6 +12,7 @@ local m_spottedCount		:number = 0;
 --	RESULTS of the player's orders and what happens around the player's units
 -- ===========================================================================
 function HubEvents.OnUnitOperationStarted( ownerID:number, unitID:number, operationID:number )
+	if HubSettle ~= nil and HubSettle.OnUnitOrder ~= nil then HubSettle.OnUnitOrder( ownerID, unitID ); end
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitOperations[ operationID ];
 	if row == nil then return; end
@@ -42,6 +43,7 @@ function HubEvents.OnUnitOperationAdded( ownerID:number, unitID:number, hOperati
 end
 
 function HubEvents.OnUnitCommandStarted( ownerID:number, unitID:number, commandID:number )
+	if HubSettle ~= nil and HubSettle.OnUnitOrder ~= nil then HubSettle.OnUnitOrder( ownerID, unitID ); end
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitCommands[ commandID ];
 	if row == nil then return; end

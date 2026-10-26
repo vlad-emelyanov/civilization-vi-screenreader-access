@@ -363,7 +363,7 @@ function HubSettle.OnArrived( unit:table, plot:table, record:table )
 	local selected:boolean = head ~= nil and head:GetID() == unit:GetID();
 	local hasMoves:boolean = unit:GetMovesRemaining() > 0;
 	if hasMoves and b.hash ~= nil and not BuildScan_CanBuild( unit, plot, b ) then return nil; end
-	HubSettle.m_pending = { unitId = unit:GetID(), plotIndex = plot:GetIndex(), type = b.type, name = b.name,
+	HubSettle.m_pending = { unitId = unit:GetID(), plotIndex = plot:GetIndex(), type = b.type, name = b.name, turn = Game.GetCurrentGameTurn(),
 		keepOnKeys = not ( hasMoves and selected ) };
 	return HubSettle.ArrivalBuildText( b.name, hasMoves, selected );
 end
@@ -377,12 +377,20 @@ function HubSettle.OnOtherKey( key:number )
 	m_dangerGuard.warnSig = nil;
 end
 
+-- Any other operation or command started for the pending unit (HubEvents calls this): the choice is stale.
+function HubSettle.OnUnitOrder( ownerID:number, unitID:number )
+	local p:table = HubSettle.m_pending;
+	if p ~= nil and p.unitId == unitID and ownerID == Game.GetLocalPlayer() then HubSettle.m_pending = nil; end
+end
+
 -- Is Enter going to build? The pending builder is selected, stands on the tile and has moves.
 function HubSettle.BuildEnterArmed()
 	local p:table = HubSettle.m_pending;
 	if p == nil then return false; end
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil or unit:GetID() ~= p.unitId then return false; end
+	if p.turn ~= nil and Game.GetCurrentGameTurn() > p.turn + 1 then HubSettle.m_pending = nil; return false; end
+	if UnitManager.GetQueuedDestination( unit ) ~= nil then HubSettle.m_pending = nil; return false; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil or plot:GetIndex() ~= p.plotIndex then HubSettle.m_pending = nil; return false; end
 	return unit:GetMovesRemaining() > 0;
