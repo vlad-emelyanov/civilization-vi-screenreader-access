@@ -4360,7 +4360,7 @@ local function SRAddTribalVillage( unit:table, reason:string )
 		for dy = -4, 4 do
 			for dx = -4, 4 do
 				local plot = Map.GetPlot( ux + dx, uy + dy );
-				if plot ~= nil and plot:GetImprovementType() == hut.Index and vis:IsRevealed( plot:GetX(), plot:GetY() ) then
+				if plot ~= nil and vis:IsVisible( plot:GetX(), plot:GetY() ) and plot:GetImprovementType() == hut.Index then
 					local distance:number = Map.GetPlotDistance( ux, uy, plot:GetX(), plot:GetY() );
 					if distance <= 4 and distance < bestDistance then best, bestDistance = plot, distance; end
 				end
@@ -4754,7 +4754,7 @@ local function SRBuildActions()
 				category = "INPLACE", tag = GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash, typeName = "UNITOPERATION_SKIP_TURN" } );
 		end
 	end
-	-- Ranking: SRMenuRank (Accessibility/UnitMenuRank.lua).
+	-- Ranking: SRMenuRank (defined above, before SRBuildActions).
 	-- The ids stay valid: they index m_srActions, only the order of the list changes.
 	local ranked:table = {};
 	local isBuilder:boolean = unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:GetBuildCharges() > 0;
