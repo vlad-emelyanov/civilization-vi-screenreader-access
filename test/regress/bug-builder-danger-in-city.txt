@@ -1,0 +1,10 @@
+# Written blind 2026-10-26 (not run). Fixture bug-builder-danger-in-city (turn 70): the Builder stands IN Rome and a Barbarian Quadrireme is 1 tile away; no "in danger" line (a civilian in a city is safe, ships cannot take a civilian on land).
+# covers: **/HubEnemies.lua **/HubAnnounce.lua
+# no-share-load: loads a bug fixture
+load bug-builder-danger-in-city
+clear-advisors
+lua InGameAccess local t=HubEnemies.ScanThreats(); return #t.civilians
+expect-lua ^0$
+lua InGameAccess local items,sig=HubEnemies.ExposedCivilians(3); return #items
+expect-lua ^0$
+no-lua-errors

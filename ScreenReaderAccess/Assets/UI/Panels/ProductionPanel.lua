@@ -2836,17 +2836,23 @@ local function SRA_Announce( keepGuard:boolean )
 		if mode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
 	end
 	if not m_srHintSaid then m_srHintSaid = true; title = title .. ", Space for description"; end
-	-- Start on the first recommended item that can be built, else the first that can be built.
-	local initialKey = nil;
+	-- Start on the first item that can be built (the top of the list). The advisor's recommendation is named in the title, not
+	-- focused: it is often a wonder, and a second Enter would start its placement by accident.
 	local firstChoosable = nil;
+	local recommendedName = nil;
 	for _, item in ipairs( SRA_GetItems() ) do
 		if item.choosable then
 			if firstChoosable == nil then firstChoosable = item.key; end
-			if item.recommended then initialKey = item.key; break; end
+			if item.recommended and recommendedName == nil and item.data ~= nil and item.data.Name ~= nil then
+				recommendedName = Locale.Lookup( item.data.Name );
+			end
 		end
 	end
+	if recommendedName ~= nil and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then
+		title = title .. ", Recommended: " .. recommendedName;
+	end
 	m_srList.Reset();
-	m_srList.Open( title, initialKey or firstChoosable, false, keepGuard );
+	m_srList.Open( title, firstChoosable, false, keepGuard );
 end
 
 -- Tab / Control+Tab: next / previous tab of the panel (Production, Queue, Purchase gold, Purchase faith, wraps), like clicking it.

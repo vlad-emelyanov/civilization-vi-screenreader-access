@@ -3,6 +3,8 @@
 #  - t100-chooser-enter-guard (verified 2026-10-23): a quick second Enter after Next Action does not pick the recommended item (0.6 s guard);
 #    Enter after the guard does; Tab (re-open of the list) followed by an immediate Enter works (Tab disarms the guard).
 #  - t100-next-in-placement (written blind 2026-10-23): N while placing a district says what Enter does there, not the end-turn label.
+# 2026-10-26: the list now opens on its FIRST item (the recommendation is named in the opening line), so the "Enter picks ... ^Place" steps
+# need a re-record: Enter now builds/queues the first item (a district still asks for a spot, a unit or building does not).
 # Between parts the chooser / placement is closed with Escape (neutral map state again).
 # covers: **/ProductionPanel.lua **/KeyNavList.lua **/HubAnnounce.lua **/HubPlacement.lua
 # no-share-load: Enter picks the next unit / production

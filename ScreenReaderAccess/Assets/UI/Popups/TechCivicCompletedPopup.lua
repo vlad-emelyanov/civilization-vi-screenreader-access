@@ -388,6 +388,7 @@ function TryClose()
 		return;
 	end
 
+	OutputMessageToScreenReader( "Closed" );		-- ScreenReaderAccess mod change: the last popup closed (like the advisor popup); the held hub lines follow
 	Close();
 end
 
