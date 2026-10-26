@@ -138,9 +138,9 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "go back one step, then cancel the placement" },
 	} },
 	{ title = "Screens", entries = {
-		{ action = "ToggleTechTree",	default = "T",			text = "tech tree: Left and Right eras, Up and Down nodes, Enter sets the target, Shift+Enter queues" },
+		{ action = "ToggleTechTree",	default = "T",			text = "tech tree: Left and Right eras, Up and Down nodes, Enter sets the target (on a node you cannot research yet it says how many nodes and turns lie on the way, and what comes next), Shift+Enter queues" },
 		{ action = "ToggleCivicsTree",	default = "C",			text = "civics tree: the same keys as the tech tree" },
-		{ keys = "J, Q and F",			text = "in the trees: J current research, Q the queue, F search by name" },
+		{ keys = "J, Q and F",			text = "in the trees: J current research and the target at the end of the queue, Q the queue, F search by name" },
 		{ keys = "R",					text = "in the trees: lists the techs (civics) that unlock the improvement of resources near your cities, cheapest first; Up and Down, Enter sets the target, Shift+Enter queues, Escape leaves. A node that does so also says \"improves 2 Horses and 1 Sheep near your cities\"" },
 		{ action = "ToggleGovernment",	default = "F7",			text = "government: Tab switches policies, governments, my government" },
 		{ keys = "Escape in government",	text = "with an empty policy slot the changes are not confirmed: the first Escape warns, Escape again closes and discards them" },

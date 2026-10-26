@@ -256,3 +256,52 @@ test("The focus survives a rebuilt tree and recovers when its node vanished", fu
 	press(s, Keys.VK_DOWN)
 	listeq(Spoken(), { "Bronze Working, available, 4 turns, boosted, 4 of 4" })
 end)
+
+local FAR_PRE = { IRON = { "BRONZE" }, MATH = { "ARCHERY" }, BRONZE = {}, ARCHERY = {}, POTTERY = {} }
+
+test("Enter on a blocked node: path count, turns and what the game started on", function()
+	local s = newNav({ prereqs = function(k) return FAR_PRE[k] end, itemWord = "tech" })
+	s.nav.Open()
+	press(s, Keys.VK_RIGHT)		-- Iron Working (blocked, 9 turns) needs Bronze Working (available, 4 turns)
+	s.queueResult = { keys = { "BRONZE", "IRON" }, names = { "Bronze Working", "Iron Working" }, turns = 13, each = { 4, 9 } }
+	ClearPrinted()
+	press(s, Keys.VK_RETURN)
+	s.nav.QueueChanged()
+	s.nav.Update(0.3)
+	listeq(Spoken(), { "Iron Working set as the target: 2 techs on the way, about 13 turns. Next: Bronze Working, 4 turns." })
+end)
+
+test("Shift+Enter on a blocked node queues the path", function()
+	local s = newNav({ prereqs = function(k) return FAR_PRE[k] end, itemWord = "tech" })
+	s.nav.Open()
+	press(s, Keys.VK_RIGHT)
+	s.queueResult = { keys = { "ARCHERY", "BRONZE", "IRON" }, names = { "Archery", "Bronze Working", "Iron Working" }, turns = 18, each = { 5, 4, 9 } }
+	ClearPrinted()
+	press(s, Keys.VK_RETURN, { shift = true })
+	s.nav.Update(2)
+	listeq(Spoken(), { "Queued Iron Working: 2 techs, about 13 turns." })
+end)
+
+test("Enter on an available node keeps the plain wording", function()
+	local s = newNav({ prereqs = function(k) return FAR_PRE[k] end, itemWord = "tech" })
+	s.nav.Open()
+	press(s, Keys.VK_END)		-- Bronze Working, available
+	s.queueResult = { keys = { "BRONZE" }, names = { "Bronze Working" }, turns = 4, each = { 4 } }
+	ClearPrinted()
+	press(s, Keys.VK_RETURN)
+	s.nav.Update(2)
+	listeq(Spoken(), { "Target: Bronze Working, 4 turns" })
+end)
+
+test("Open and J add the target when the queue goes beyond the current research", function()
+	local s = newNav()
+	s.queueResult = { keys = { "ARCHERY", "BRONZE", "IRON" }, names = { "Archery", "Bronze Working", "Iron Working" }, turns = 18 }
+	ClearPrinted()
+	s.nav.Open()
+	listeq(Spoken(), { "Tech tree. Researching Archery, 5 turns. Target: Iron Working, about 18 turns. Ancient Era, 1 of 2 eras. Pottery, researched, 1 of 3" })
+	press(s, Keys.J)
+	listeq(Spoken(), { "Current: Ancient Era, 1 of 2 eras. Archery, currently researching, 5 turns, 2 of 3. Target: Iron Working, about 18 turns" })
+	s.queueResult = { keys = { "ARCHERY" }, names = { "Archery" }, turns = 5 }
+	press(s, Keys.J)
+	listeq(Spoken(), { "Current: Ancient Era, 1 of 2 eras. Archery, currently researching, 5 turns, 2 of 3" })
+end)

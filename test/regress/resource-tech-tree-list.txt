@@ -1,7 +1,7 @@
 # Written blind (round 23, G1). Unverified.
 # Tech tree: a node that unlocks an improvement for resources near my cities says "improves ... near your cities"; R lists those
 # techs cheapest first ("Resources to unlock, N", then "Animal Husbandry, 6 turns: Horses near Rome, 1 of N"); Down moves, Enter sets
-# the target like Enter on a node ("Target: ..."), Escape leaves the list. R is free in the trees (J, Q, F, Space, arrows, Enter).
+# the target like Enter on a node ("Target: ..." or, for a tech that is not researchable yet, "X set as the target: N techs on the way ..."), Escape leaves the list. R is free in the trees (J, Q, F, Space, arrows, Enter).
 # covers: **/TreeNav.lua **/TechTree.lua **/ResourceTech.lua
 load early-t60
 clear-advisors
@@ -15,7 +15,7 @@ key Escape -Settle 800
 expect ^Back in the tree
 key R -Settle 1500
 key Enter -Settle 2500 -NoQuiet
-expect ^Target:
+expect ^(Target: |.+ set as the target: )
 key Escape -Settle 1500
 expect ^Tech tree closed
 no-lua-errors

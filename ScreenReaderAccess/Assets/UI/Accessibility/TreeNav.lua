@@ -16,6 +16,8 @@
 --		currentLine = function() return "Researching Archery, 5 turns" end,
 --		idleText    = "Not researching anything",   -- optional: J when nothing is in progress
 --		request     = function(key, append) return ok, reasonText end,   -- sets the target (path queued) / appends
+--		prereqs     = function(key) return { keys } end,   -- optional: direct prerequisites; with itemWord ("tech" / "civic") Enter on a
+--		                                                   blocked node says how many nodes and turns the path takes and what comes next
 --		queue       = function() return { keys = {}, names = {}, turns = n } end,   -- read back after a request
 --		search      = function(text) return key or nil end,         -- optional fallback after the name match (full text)
 --		beginSearch = function(onCommit) end,           -- puts the screen's search box in edit mode; onCommit(text)
@@ -96,7 +98,14 @@ function TreeNav_Create( a:table )
 	end
 
 	-- Moves the focus to groups[gi].items[ii] and speaks it (with the era when withEra).
-	local function FocusAt( groups:table, gi:number, ii:number, withEra:boolean, prefix )
+	-- "Target: Political Philosophy, about 26 turns" when the queue goes beyond the current research, else nil.
+	local function TargetLine()
+		local ok:boolean, q = xpcall( a.queue, KeyNavErrorHandler );
+		if not ok or q == nil or #q.keys < 2 then return nil; end
+		return TreeText_TargetSuffix( q.names[ #q.names ], q.turns );
+	end
+
+	local function FocusAt( groups:table, gi:number, ii:number, withEra:boolean, prefix, suffix )
 		local g:table = groups[ gi ];
 		local e:table = g.items[ ii ];
 		m_focusKey = e.key;
@@ -104,6 +113,7 @@ function TreeNav_Create( a:table )
 		local text:string = ItemLine( e.key, ii, #g.items );
 		if withEra then text = TreeText_Era( g.name, gi, #groups ) .. ". " .. text; end
 		if prefix ~= nil then text = prefix .. text; end
+		if suffix ~= nil then text = text .. ". " .. suffix; end
 		Say( text );
 	end
 
@@ -140,7 +150,10 @@ function TreeNav_Create( a:table )
 		local g:table = groups[ gi ];
 		m_focusKey = g.items[1].key;
 		if a.scroll ~= nil then pcall( a.scroll, m_focusKey ); end
-		Say( a.name .. ". " .. a.currentLine() .. ". " .. TreeText_Era( g.name, gi, #groups ) .. ". " .. ItemLine( m_focusKey, 1, #g.items ) );
+		local cur:string = a.currentLine();
+		local target = TargetLine();
+		if target ~= nil then cur = cur .. ". " .. target; end
+		Say( a.name .. ". " .. cur .. ". " .. TreeText_Era( g.name, gi, #groups ) .. ". " .. ItemLine( m_focusKey, 1, #g.items ) );
 	end
 
 	function nav.Closed()
@@ -182,11 +195,11 @@ function TreeNav_Create( a:table )
 		FocusAt( groups, target, 1, true );
 	end
 
-	local function FocusKey( key, prefix )
+	local function FocusKey( key, prefix, suffix )
 		local groups:table = Groups();
 		for gi, g in ipairs( groups ) do
 			for ii, e in ipairs( g.items ) do
-				if e.key == key then FocusAt( groups, gi, ii, true, prefix ); return true; end
+				if e.key == key then FocusAt( groups, gi, ii, true, prefix, suffix ); return true; end
 			end
 		end
 		return false;
@@ -205,6 +218,26 @@ function TreeNav_Create( a:table )
 		if forKey ~= nil then m_focusKey = forKey; end
 		if m_focusKey == nil then Say( "Nothing selected" ); return; end
 		local key = m_focusKey;
+		-- a node that cannot be researched yet: count the path before the request changes the queue
+		local far = nil;
+		if a.prereqs ~= nil and a.itemWord ~= nil then
+			local okp:boolean, path = pcall( function()
+				local info = a.item( key );
+				if info == nil or info.status ~= "blocked" then return nil; end
+				return TreeText_Path( key, a.prereqs, function( k )
+					local i = a.item( k );
+					return i ~= nil and i.status == "researched";
+				end );
+			end );
+			if okp and path ~= nil and #path > 0 then
+				local turns:number = 0;
+				for _, k in ipairs( path ) do
+					local okt:boolean, i = pcall( a.item, k );
+					if okt and i ~= nil and i.turns ~= nil then turns = turns + i.turns; end
+				end
+				far = { count = #path, turns = turns };
+			end
+		end
 		local ok:boolean, done, reason = xpcall( function() return a.request( key, append ); end, KeyNavErrorHandler );
 		if not ok then
 			print( "TreeNav request error: " .. tostring( done ) );
@@ -215,7 +248,7 @@ function TreeNav_Create( a:table )
 			Say( reason or "Can't choose this" );
 			return;
 		end
-		m_pending = { key = key, append = append, wait = REQUEST_TIMEOUT, settle = nil };
+		m_pending = { key = key, append = append, wait = REQUEST_TIMEOUT, settle = nil, far = far };
 	end
 
 	-- The request went out: say what the player's own queue now holds.
@@ -237,7 +270,14 @@ function TreeNav_Create( a:table )
 		end
 		-- exclusive: the target ends the queue; appended: it is somewhere in it
 		if found and ( p.append or q.keys[ #q.keys ] == p.key ) then
-			Say( TreeText_Queue( p.append and "Added to queue" or "Target", name, q.names, q.turns ) );
+			if p.far ~= nil and p.append then
+				Say( TreeText_FarQueued( name, a.itemWord, p.far.count, p.far.turns ) );
+			elseif p.far ~= nil then
+				-- "Next" is read back: whatever the game now has first in the queue
+				Say( TreeText_FarTarget( name, a.itemWord, p.far.count, p.far.turns, q.names[1], q.each ~= nil and q.each[1] or nil ) );
+			else
+				Say( TreeText_Queue( p.append and "Added to queue" or "Target", name, q.names, q.turns ) );
+			end
 		else
 			Say( "Could not set " .. name .. " as the target" );
 		end
@@ -246,7 +286,7 @@ function TreeNav_Create( a:table )
 	local function JumpToCurrent()
 		local key = a.current();
 		if key == nil then Say( a.idleText or "Not researching anything" ); return; end
-		FocusKey( key, "Current: " );
+		FocusKey( key, "Current: ", TargetLine() );
 	end
 
 	local function ReadQueue()
@@ -448,6 +488,17 @@ function TreeNav_PrereqNames( item:table, done, revealed )
 		end
 	end
 	return names;
+end
+
+-- Keys of the direct prerequisites (tree start excluded).
+function TreeNav_PrereqKeys( typeName:string )
+	local keys:table = {};
+	local item:table = g_kItemDefaults[ typeName ];
+	if item == nil then return keys; end
+	for _, prereq in ipairs( item.Prereqs ) do
+		if prereq ~= PREREQ_ID_TREE_START and g_kItemDefaults[ prereq ] ~= nil then table.insert( keys, prereq ); end
+	end
+	return keys;
 end
 
 -- Names of the nodes that list typeName as a prerequisite, in tree order. revealed(item) (optional): unrevealed nodes
