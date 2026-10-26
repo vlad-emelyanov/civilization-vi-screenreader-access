@@ -1,0 +1,13 @@
+# Round 26 (written BLIND, unverified; run `civregress cityattack-preview-defender --record` first): the city ranged attack preview names and computes against the unit the shot really hits (the Man-At-Arms), not the captured Builder ("against no defense, deals 58").
+# Fixture bug-cityattack-preview-wrong-unit: t82 Rome, Barbarian Builder + Man-At-Arms on one tile in range of a city; production chooser of Cumae open on top.
+# covers: **/HubTargets.lua, **/CombatText.lua
+# no-share-load: opens the city attack target mode
+load bug-cityattack-preview-wrong-unit
+clear-advisors
+key Escape -Settle 800
+key Control+N -Settle 1500
+key Enter -Settle 1000
+expect City ranged attack
+key X -Settle 1500
+expect Man-At-Arms
+no-lua-errors

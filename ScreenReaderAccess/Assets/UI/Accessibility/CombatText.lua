@@ -45,3 +45,16 @@ function CombatText_Modifiers( mine:table, theirs:table )
 	if a ~= nil and b ~= nil then return a .. ". " .. b; end
 	return ( a or b ) .. ( a ~= nil and ". No modifiers for them" or ". No modifiers for you" );
 end
+
+-- The unit a shot at a stack really hits: the strongest military unit, never a civilian while a soldier shares the tile
+-- (verified in play: a city shot at a captured Builder + Man-At-Arms hit the Man-At-Arms). units: a list of units; accept: optional filter.
+function CombatText_PickDefender( units:table, accept )
+	local best:table, bestScore:number = nil, -1;
+	for _, other in ipairs( units ) do
+		if accept == nil or accept( other ) then
+			local score:number = math.max( other:GetCombat() or 0, other:GetRangedCombat() or 0, other:GetBombardCombat() or 0 );
+			if score > bestScore then best, bestScore = other, score; end
+		end
+	end
+	return best;
+end

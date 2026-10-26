@@ -1,0 +1,9 @@
+# Round 26 (written BLIND, unverified; run `civregress alone-warning-ship --record` first): a Barbarian Galley must not trigger "moving alone ... Escort first" for a Builder walking on land.
+# Fixture bug-civ-warning-ship-only: t84 Builder at Antium, Barbarian Galley 4 tiles from the path, Mine 1 tile east.
+# covers: **/HubEnemies.lua
+# no-share-load: orders a move
+load bug-civ-warning-ship-only
+clear-advisors
+key X -Settle 1500
+key Enter -Settle 1500
+no-lua-errors

@@ -825,8 +825,10 @@ function HubEnemies.AloneWarning( unit:table, plot:table )
 	local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
 	if path == nil or path.plots == nil or #path.plots < 2 then return nil; end
 	local points:table = {};
+	local pathWater:boolean = false;		-- the path embarks or sails: only then can a ship capture the civilian
 	for i, index in ipairs( path.plots ) do
 		local p:table = Map.GetPlotByIndex( index );
+		if p ~= nil and p:IsWater() then pathWater = true; end
 		if p ~= nil then table.insert( points, { x = p:GetX(), y = p:GetY(), target = ( i == #path.plots ) } ); end
 	end
 	local best:table = nil;
@@ -837,7 +839,7 @@ function HubEnemies.AloneWarning( unit:table, plot:table )
 		end
 	end
 	for _, h in ipairs( VisibleHostiles() ) do
-		if h.soldier then Consider( PlotDescription_GetUnitName( h.unit ), h.x, h.y ); end
+		if h.soldier and HubEnemies.CivilianAtRisk( false, pathWater, HubEnemies.IsNaval( h.unit ) ) then Consider( PlotDescription_GetUnitName( h.unit ), h.x, h.y ); end
 	end
 	if HubPlaces ~= nil and HubPlaces.RememberedCampPlots ~= nil then
 		for _, camp in ipairs( HubPlaces.RememberedCampPlots() ) do Consider( "Barbarian camp", camp:GetX(), camp:GetY() ); end
