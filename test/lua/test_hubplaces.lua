@@ -322,7 +322,7 @@ test("a clan camp says its clan and type first and offers T while in view", func
 	eq(item.clan, true)
 	world:set(2, 12, { fogged = true })
 	item = campItem({ plot = Map.GetPlot(5, 5) })
-	assert(item.text:find("^Badger Claw clan, Melee Open, Barbarian Camp, last seen, "), item.text)
+	assert(item.text:find("^Badger Claw clan, Melee Open, Barbarian Camp, .*last seen"), item.text)
 	assert(not item.text:find("T to treat"), item.text)
 	world:set(2, 12, { fogged = false })
 	Game.GetBarbarianManager = nil
@@ -526,4 +526,133 @@ test("tech tree key: on a clan camp it treats (in view) or says out of sight; el
 	eq(pushed[#pushed], false)
 	HubCursor.GetCursor = function() return 5, 5 end
 	Game.GetBarbarianManager = nil
+end)
+
+-- ===========================================================================
+-- Camps: guards, advice, attack party, destroyed; blind spots category
+-- ===========================================================================
+local function campPoint(ctx)
+	for _, c in ipairs(HubPlaces.BuildCategories(ctx)) do
+		if c.name == "Points of interest" then
+			for _, i in ipairs(c.items) do if i.name == "Barbarian Camp" then return i end end
+		end
+	end
+end
+local function barbarian(id, x, y, name)
+	local u = { id = id, owner = 63, x = x, y = y, unitType = 11, combat = 20, name = name }
+	world.units[#world.units + 1] = u
+	return u
+end
+
+test("a camp in view says who guards it, in the fog it says how long ago", function()
+	GameInfo.Units = setmetatable({}, { __index = function(_, i) return unitRows[i] or { UnitType = "UNIT_X", Name = "x" } end })
+	world:set(2, 12, { fogged = false, improvement = 3 })
+	local guard = barbarian(300, 2, 12, "Spearman")
+	plotUnits = { guard }
+	HubPlaces.RefreshSeen()
+	local item = campPoint({ plot = Map.GetPlot(5, 5) })
+	assert(item.text:find("^Barbarian Camp, .*, guarded by Spearman$"), item.text)
+	eq(item.camp, true)
+	PlotDescription_GetShort = function() return "Barbarian Camp" end		-- the stub plot cannot describe units
+	local advice = item.detail()
+	assert(advice:find("Destroying it gives", 1, true) and advice:find("stops raids from it", 1, true), advice)
+	assert(advice:find("experience", 1, true), advice)
+	-- fogged: the memory speaks, not the live plot (the guard left in the meantime)
+	world:set(2, 12, { fogged = true })
+	plotUnits = {}
+	item = campPoint({ plot = Map.GetPlot(5, 5) })
+	assert(item.text:find("guarded by Spearman %(last seen this turn%)$"), item.text)
+	-- an empty camp in view
+	world:set(2, 12, { fogged = false })
+	HubPlaces.RefreshSeen()
+	item = campPoint({ plot = Map.GetPlot(5, 5) })
+	assert(item.text:find(", not guarded right now$"), item.text)
+end)
+
+test("the camp's gold is only stated when the game's data has it", function()
+	GameInfo.Improvements.IMPROVEMENT_BARBARIAN_CAMP = GameInfo.Improvements[3]
+	GameInfo.Improvements[3].DispersalGold = 50
+	local item = campPoint({ plot = Map.GetPlot(5, 5) })
+	assert(item.detail():find("gives about 50 gold and stops raids", 1, true), item.detail())
+	GameInfo.Improvements[3].DispersalGold = nil
+	assert(campPoint({ plot = Map.GetPlot(5, 5) }).detail():find("gives gold and stops raids", 1, true))
+end)
+
+test("M on a camp offers an attack party of the two fastest military land units first", function()
+	for i = #units, 1, -1 do if units[i].id >= 70 then table.remove(units, i) end end
+	local types = { [201] = 11, [202] = 11, [203] = 10 }
+	addUnit(201, "Warrior", 3, 12)
+	addUnit(202, "Slinger", 8, 12)
+	addUnit(203, "Builder", 2, 11)
+	local function withType(u)
+		local o = unitObject(u)
+		o.GetUnitType = function() return types[u.id] or 0 end
+		o.GetCombat = function() return (u.id == 201) and 20 or 0 end
+		o.GetRangedCombat = function() return (u.id == 202) and 15 or 0 end
+		return o
+	end
+	local oldGetUnits = player.GetUnits
+	player.GetUnits = function() return {
+		Members = function() local l = {}; for _, u in ipairs(units) do l[#l + 1] = withType(u) end; return ipairs(l) end,
+		FindID = function(_, id) for _, u in ipairs(units) do if u.id == id then return withType(u) end end end,
+	} end
+	local items = HubPlaces.BuildSendItems({ name = "Barbarian Camp", x = 2, y = 12, camp = true })
+	eq(items[1].key, "party")
+	assert(items[1].text:find("^Attack party, send 2 units: Warrior %d+ turns?, Slinger %d+ turns?$"), items[1].text)
+	eq(#items[1].members, 2)
+	-- without the camp flag there is no party
+	assert(HubPlaces.BuildSendItems({ name = "Barbarian Camp", x = 2, y = 12 })[1].key ~= "party")
+	-- one soldier only: no party
+	table.remove(units, #units - 1)
+	items = HubPlaces.BuildSendItems({ name = "Barbarian Camp", x = 2, y = 12, camp = true })
+	assert(items[1].key ~= "party", items[1].key)
+	player.GetUnits = oldGetUnits
+	for i = #units, 1, -1 do if units[i].id >= 200 then table.remove(units, i) end end
+end)
+
+test("a camp destroyed in view is announced with the gold gained", function()
+	HubCore.m_ready = true
+	local gold = 100
+	player.GetTreasury = function() return { GetGoldBalance = function() return gold end } end
+	world:set(2, 12, { fogged = false, improvement = 3 })
+	plotUnits = {}
+	HubPlaces.RefreshSeen()
+	HubPlaces.Update(1)		-- samples the treasury
+	HubCore.m_delayed = {}
+	world:set(2, 12, { improvement = -1 })
+	gold = 150
+	HubPlaces.OnImprovementRemovedFromMap(2, 12)
+	for _, d in ipairs(HubCore.m_delayed) do d.fn() end
+	HubCore.m_delayed = {}
+	local spoken = Spoken()
+	eq(spoken[#spoken], "Barbarian camp destroyed, 50 gold")
+	player.GetTreasury = nil
+end)
+
+test("a village removed (not a camp) says nothing about a camp", function()
+	HubCore.m_ready = true
+	world:set(18, 8, { fogged = false, improvement = 1 })
+	HubPlaces.RefreshSeen()
+	local before = #Spoken()
+	HubPlaces.OnImprovementRemovedFromMap(18, 8)
+	for _, d in ipairs(HubCore.m_delayed) do d.fn() end
+	HubCore.m_delayed = {}
+	eq(#Spoken(), before)
+end)
+
+test("blind spots: a category after the points of interest, with the game's distances in Space", function()
+	-- a block of revealed land out of sight, 5 to 6 tiles north of Rome; everything else in view
+	for y = 0, 1 do for x = 4, 8 do world:set(x, y, { fogged = true }) end end
+	GameInfo.GlobalParameters = { BARBARIAN_CAMP_MINIMUM_DISTANCE_CITY = { Value = "4" }, BARBARIAN_CAMP_MINIMUM_DISTANCE_ANOTHER_CAMP = { Value = "7" } }
+	local cats = HubPlaces.BuildCategories({ plot = Map.GetPlot(5, 5) })
+	local names, spot = {}, nil
+	for _, c in ipairs(cats) do names[#names + 1] = c.name; if c.name == "Blind spots" then spot = c end end
+	assert(spot, table.concat(names, ","))
+	local poi, blind = 0, 0
+	for i, n in ipairs(names) do if n == "Points of interest" then poi = i end; if n == "Blind spots" then blind = i end end
+	eq(blind, poi + 1)
+	assert(spot.items[1].text:find("^Blind spot: %d+ tiles out of sight, %d+ tiles? .* of %a+$"), spot.items[1].text)
+	eq(spot.items[1].kind, "blind")
+	local detail = spot.items[1].detail()
+	assert(detail:find("at least 4 tiles from any city and 7 from another camp", 1, true), detail)
 end)

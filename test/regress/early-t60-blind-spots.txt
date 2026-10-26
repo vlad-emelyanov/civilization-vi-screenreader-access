@@ -1,0 +1,23 @@
+# Written blind 2026-10-26 (G10, not yet recorded; run with civregress --record first). J has a "Blind spots" category after Points of interest: clusters of
+# land 4 to 8 tiles from our cities that are revealed but out of sight, and unexplored plots near them. Space gives the game's spawn rule, Enter jumps the cursor.
+# The category index depends on what the fixture has (huts, notifications), so Tab and Space walk every category; the checks look at the whole window.
+# no-share-load: the tuner removes the two barbarians that the fixture has next to Rome (they add a Threats category to J)
+# covers: **/HubPlaces.lua **/BlindSpots.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
+load early-t60
+clear-advisors
+lua GameCore_Tuner for _, u in Players[63]:GetUnits():Members() do local x, y = u:GetX(), u:GetY(); if x == 63 and (y == 33 or y == 34) then Players[63]:GetUnits():Destroy(u) end end return 1
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 800
+key Space -Settle 1000
+key Tab -Settle 800
+key Space -Settle 1000
+key Tab -Settle 800
+key Space -Settle 1000
+key Tab -Settle 800
+key Space -Settle 1000
+key Tab -Settle 800
+key Space -Settle 1000
+expect (?i)^Blind spots, \d+ of \d+ categories, \d+ items?\. (Blind spot: \d+ tiles? out of sight|\d+ unexplored tiles?), \d+ tiles? [a-z-]+ of \w+, 1 of \d+
+expect Barbarians can appear where no one sees: at least \d+ tiles? from any city and \d+ from another camp
+key Escape -Settle 1000
+no-lua-errors

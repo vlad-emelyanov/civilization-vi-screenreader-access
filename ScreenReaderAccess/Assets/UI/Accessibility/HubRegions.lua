@@ -232,6 +232,16 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 	elseif typeName == "NOTIFICATION_CHOOSE_BELIEF" then
 		text = text .. ". Control+N, then Enter to choose";
 	end
+	-- "New Barbarian Outpost" alone does not say where: from the nearest city of ours, like the camps in the places list (J)
+	if typeName == "NOTIFICATION_NEW_BARBARIAN_CAMP" then
+		local ok:boolean, position = pcall( function()
+			local note:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
+			if note == nil or not note:IsLocationValid() then return nil; end
+			local x:number, y:number = note:GetLocation();
+			return HubAnnounce.PositionText( Map.GetPlot( x, y ) );
+		end );
+		if ok and position ~= nil then text = text .. ", " .. position; end
+	end
 	table.insert( HubCore.m_arrivals, { text = text, time = UI.GetElapsedTime(), spotType = ( typeName == "NOTIFICATION_BARBARIANS_SIGHTED" ) } );
 	if HubCore.m_arrivalTimer < 0 then HubCore.m_arrivalTimer = 0.8; end		-- flush 0.8 s after the first one: a trickle must not postpone the burst
 end
