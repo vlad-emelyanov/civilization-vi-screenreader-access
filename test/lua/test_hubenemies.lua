@@ -142,3 +142,47 @@ test("ships stay out of the raid count", function()
 	eq(HubEnemies.IsNaval({ GetUnitType = function() return 2 end }), false)
 	GameInfo.Units = old
 end)
+
+test("raid decision: full once, silent while unchanged, short every 3 turns, full on new member or first close", function()
+	local kind, st = HubEnemies.RaidDecision(nil, "a;b", { }, 10)
+	eq(kind, "full")
+	kind, st = HubEnemies.RaidDecision(st, "a;b", { }, 11)
+	eq(kind, nil)
+	kind, st = HubEnemies.RaidDecision(st, "a;b", { }, 13)
+	eq(kind, "short")
+	kind, st = HubEnemies.RaidDecision(st, "a;b", { }, 14)
+	eq(kind, nil)
+	kind, st = HubEnemies.RaidDecision(st, "a;b", { "a" }, 14)
+	eq(kind, "full")		-- a came within 2 tiles for the first time
+	kind, st = HubEnemies.RaidDecision(st, "a;b", { "a" }, 15)
+	eq(kind, nil)		-- ... and only the first time
+	kind, st = HubEnemies.RaidDecision(st, "a;b;c", { "a" }, 15)
+	eq(kind, "full")		-- a member joined
+	eq(HubEnemies.RaidContinuesText(nil, "Rome", 2), "Raid near Rome continues, 2 barbarians")
+	eq(HubEnemies.RaidContinuesText("Japan", "Rome", 1), "Japan raid near Rome continues, 1 unit")
+end)
+
+test("exposed civilians wording", function()
+	eq(HubEnemies.ExposedText({ { name = "Settler", enemy = "Barbarian Archer", relative = "2 tiles north-east" } }),
+		"Settler exposed: Barbarian Archer 2 tiles north-east. Enter again ends the turn anyway")
+	eq(HubEnemies.ExposedText({ { name = "Settler", enemy = "Barbarian Archer", relative = "2 tiles north-east" },
+		{ name = "Builder", enemy = "Barbarian Archer", relative = "2 tiles north-east" } }),
+		"Settler and Builder exposed: Barbarian Archer 2 tiles north-east. Enter again ends the turn anyway")
+	eq(HubEnemies.ExposedText({ { name = "Builder", enemy = "Barbarian Archer", relative = "1 tile east" },
+		{ name = "Builder", enemy = "Barbarian Warrior", relative = "3 tiles west" } }),
+		"2 Builders exposed: Barbarian Archer 1 tile east, Barbarian Warrior 3 tiles west. Enter again ends the turn anyway")
+end)
+
+test("end-turn guard: warn, confirm within 10 s, no nagging after, new set warns again, new turn resets", function()
+	local g = { turn = -1, warnSig = nil, warnTime = 0, confirmSig = nil }
+	HubEnemies.m_guard = g
+	eq(HubEnemies.GuardDecision(g, 5, "", 0), "pass")
+	eq(HubEnemies.GuardDecision(g, 5, "1", 100), "warn")
+	eq(HubEnemies.GuardDecision(g, 5, "1", 105), "confirm")
+	eq(HubEnemies.GuardDecision(g, 5, "1", 120), "pass")		-- the player confirmed: no nagging this turn
+	eq(HubEnemies.GuardDecision(g, 5, "1;2", 121), "warn")		-- another set
+	eq(HubEnemies.GuardDecision(g, 5, "1;2", 135), "warn")		-- too late: warns again
+	HubEnemies.EndTurnGuardOtherKey()
+	eq(HubEnemies.GuardDecision(g, 5, "1;2", 136), "warn")		-- another key in between
+	eq(HubEnemies.GuardDecision(g, 6, "1", 140), "warn")		-- next turn
+end)

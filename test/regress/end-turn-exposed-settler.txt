@@ -1,0 +1,13 @@
+# Written blind (round 25, G3b/G4): a settler of ours 2 tiles from a barbarian archer, away from every city. The first Enter
+# should say "Settler exposed: ... Enter again ends the turn anyway" and not end the turn; a second Enter within 10 s ends it.
+# The fixtures bug-settler-captured / pt-early-t64 are not in every checkout: the situation is built on early-t60 with the tuner.
+# covers: **/HubEnemies.lua **/HubAnnounce.lua **/InGameAccess.lua
+# no-share-load: spawns units
+load early-t60
+clear-advisors
+lua GameCore_Tuner local c=Players[0]:GetCities():GetCapitalCity(); for dx=4,6 do local pl=Map.GetPlot(c:GetX()+dx,c:GetY()); if pl and not pl:IsWater() and not pl:IsImpassable() then local b=Map.GetPlot(pl:GetX()+2,pl:GetY()); if b and not b:IsWater() and not b:IsImpassable() then Players[0]:GetUnits():Create(GameInfo.Units["UNIT_SETTLER"].Index, pl:GetX(), pl:GetY()); Players[63]:GetUnits():Create(GameInfo.Units["UNIT_ARCHER"].Index, b:GetX(), b:GetY()) return 1 end end end return 0
+lua InGameAccess local items,sig=HubEnemies.ExposedCivilians(3) return 'EXPOSED '..#items
+expect-lua EXPOSED [1-9]
+lua InGameAccess return HubEnemies.ExposedText((HubEnemies.ExposedCivilians(3)))
+expect-lua Settler exposed: Barbarian Archer 2 tiles east\. Enter again ends the turn anyway
+no-lua-errors

@@ -92,6 +92,7 @@ function Hub.HandleInput( input:table )
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
+	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN and HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
 	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
@@ -123,6 +124,10 @@ function Hub.HandleInput( input:table )
 	if key == Keys.VK_RETURN and UI.GetElapsedTime() - HubTargets.attackTime < 5 and Hub.IsGovernorLabel() then
 		if msg == KeyEvents.KeyUp then HubCore.SayResult( "The attack is still resolving, press Enter again in a moment" ); end
 		return true;
+	end
+	-- Enter that would end the turn while a settler or builder stands exposed near a hostile soldier: the first Enter only warns
+	if key == Keys.VK_RETURN and HubEnemies ~= nil and not HubCore.IsGamePopupOpen() and HubAnnounce.IsReadyNow() then
+		if HubEnemies.EndTurnKey( msg == KeyEvents.KeyUp, UI.GetElapsedTime() ) then return true; end
 	end
 	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp and not HubCore.IsGamePopupOpen() then Hub.ArmEnterWatch(); end		-- an open screen (City-States, governors) takes Enter itself
 	return false;
