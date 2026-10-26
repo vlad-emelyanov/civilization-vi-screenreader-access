@@ -75,7 +75,13 @@ local function _Stamp( city:table )
 	local count:number = 0;
 	local ok:boolean, districts = pcall( function() return city:GetDistricts():GetNumDistricts(); end );
 	if ok and districts ~= nil then count = districts; end
-	return tostring( Game.GetCurrentGameTurn() ) .. ":" .. count;
+	local gold:number = 0;
+	local plots:number = 0;
+	local buildings:number = 0;
+	pcall( function() gold = math.floor( Players[ city:GetOwner() ]:GetTreasury():GetGoldBalance() ); end );
+	pcall( function() plots = #city:GetOwnedPlots(); end );
+	pcall( function() buildings = city:GetBuildings():GetNumBuildings(); end );
+	return table.concat( { Game.GetCurrentGameTurn(), count, gold, plots, buildings }, ":" );
 end
 
 local function _Slot( city:table )
