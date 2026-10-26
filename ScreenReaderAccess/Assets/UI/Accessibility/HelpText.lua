@@ -94,7 +94,7 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "in a target mode: cancel" },
 	} },
 	{ title = "Settler and builder", entries = {
-		{ keys = "X",					text = "with a settler: browse the best places to found a city" },
+		{ keys = "X",					text = "with a settler: browse the best places to found a city, each with its distance to your nearest city and to a rival city within 10 tiles; Space adds Between you and a rival or Behind your city, hills and mountain or water sides. Selecting the settler says Here is good when no spot nearby is clearly better, or Best spot is clearly better" },
 		{ keys = "X",					text = "with a builder: browse the tiles it can improve; after them a Later group lists resource tiles that need a tech or civic first, Enter says what is missing" },
 		{ keys = "Up and Down",			text = "in the browser: next and previous place or tile" },
 		{ keys = "Left and Right",		text = "builder browser: next and previous city" },

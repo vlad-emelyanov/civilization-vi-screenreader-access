@@ -49,6 +49,10 @@ include( "ScreenReader" );
 include( "PlotDescription" );
 
 local SCAN_RADIUS		:number = 6;
+local RIVAL_RANGE		:number = 10;		-- G6: a foreign major city this close is named with its distance
+local SAME_GAP			:number = 3;		-- G8: the best spot scores less than this above "here": about the same
+local CLEAR_GAP			:number = 6;		-- G8: more than this above "here": clearly better
+local SIDES_NOTE		:number = 3;		-- G6: this many of the 6 neighbours mountain or water: said in Space
 local MAX_CANDIDATES	:number = 12;
 local MAX_PATHS			:number = 60;	-- path finding calls per scan at most (it runs in order of static score)
 local TURN_COST			:number = 1.2;
@@ -585,6 +589,130 @@ local function _Score( plot:table, ctx:table )
 end
 
 -- ===========================================================================
+--	G6 context (distances to cities, rivals, defensibility) and G8 wording. Pure functions on candidate fields.
+--	c.context = { own = { name, d } | nil, rival = { name, civ, d } | nil, hills = bool, sides = number }
+-- ===========================================================================
+local function _Tiles( n:number )
+	return n .. ( n == 1 and " tile" or " tiles" );
+end
+
+-- ", 4 tiles from Rome" (empty when I have no city; the rival is in the Space text)
+function SettleScan_DistanceText( c:table )
+	local ctx:table = c.context;
+	if ctx == nil then return ""; end
+	local text:string = "";
+	if ctx.own ~= nil then text = text .. ", " .. _Tiles( ctx.own.d ) .. " from " .. ctx.own.name; end
+	return text;
+end
+
+-- "Between Rome and Japan. Hills. 3 of 6 sides mountain or water" (empty when there is nothing to say)
+function SettleScan_SpaceText( c:table )
+	local ctx:table = c.context;
+	if ctx == nil then return ""; end
+	local parts:table = {};
+	if ctx.rival ~= nil then table.insert( parts, _Tiles( ctx.rival.d ) .. " from " .. ctx.rival.name .. " (" .. ctx.rival.civ .. ")" ); end
+	if ctx.own ~= nil and ctx.rival ~= nil and ctx.rival.d < ctx.own.d then
+		if ( ctx.rival.fromOwn or 0 ) > ctx.own.d then
+			table.insert( parts, "Between " .. ctx.own.name .. " and " .. ctx.rival.civ );
+		else
+			table.insert( parts, "Toward " .. ctx.rival.civ );
+		end
+	elseif ctx.own ~= nil and ctx.rival == nil then
+		table.insert( parts, "Behind " .. ctx.own.name );
+	end
+	if ctx.hills then table.insert( parts, "On hills" ); end
+	if ctx.sides >= SIDES_NOTE then table.insert( parts, ctx.sides .. " of 6 sides mountain or water" ); end
+	return table.concat( parts, ". " );
+end
+
+-- The first n good and m bad reasons as "river, coast, silk, but floods, poor food" (empty when there are none).
+function SettleScan_ReasonList( c:table, n:number, m:number )
+	local parts:table = {};
+	for i = 1, math.min( n, #c.reasons ) do table.insert( parts, c.reasons[i] ); end
+	local bad:table = {};
+	for i = 1, math.min( m, #c.negatives ) do table.insert( bad, c.negatives[i] ); end
+	local text:string = table.concat( parts, ", " );
+	if #bad > 0 then text = text .. ( #parts > 0 and ", " or "" ) .. "but " .. table.concat( bad, ", " ); end
+	return text;
+end
+
+-- "same" | "clearly" | "between" | nil (no comparison: here cannot found, or here is the best, or no spot)
+function SettleScan_Compare( scan:table )
+	local here:table, best:table = scan.here, scan.best;
+	if here == nil or best == nil or best.here then return nil; end
+	local gap:number = best.score - here.score;
+	if gap < SAME_GAP then return "same"; end
+	if gap > CLEAR_GAP then return "clearly"; end
+	return "between";
+end
+
+-- The sentence said when a settler is selected. foundKey = the Found City key ("B"), hasMoves = it can found now.
+function SettleScan_Sentence( scan:table, foundKey:string, hasMoves:boolean )
+	local here:table, best:table = scan.here, scan.best;
+	local function Reasons( c:table, n:number, m:number )
+		local list:string = SettleScan_ReasonList( c, n, m );
+		return ( list ~= "" ) and ( ", " .. list ) or "";
+	end
+	local text:string;
+	if here ~= nil then
+		text = "Can settle here" .. Reasons( { reasons = {}, negatives = here.negatives }, 0, 2 );
+	elseif scan.hereReason ~= nil and scan.hereReason ~= "" then
+		text = "Cannot settle here: " .. scan.hereReason;
+	else
+		text = "Cannot settle here";
+	end
+	if best == nil then return text .. ". No spot found nearby."; end
+	if best.here then
+		local list:string = SettleScan_ReasonList( best, 3, 2 );
+		return ( here ~= nil and "Can settle here" or text ) .. ", this is the best spot nearby" .. ( list ~= "" and ( ": " .. list ) or "" )
+			.. ( hasMoves and ( ". " .. foundKey .. " to found." ) or ( ". " .. foundKey .. " to found next turn." ) );
+	end
+	local verdict:string = SettleScan_Compare( scan );
+	if verdict == "same" then
+		local list:string = SettleScan_ReasonList( here, 3, 2 );
+		return "Here is good" .. ( list ~= "" and ( ": " .. list ) or "" ) .. ". Best nearby is about the same. " .. foundKey
+			.. ( hasMoves and " to found here." or " to found here next turn." );
+	end
+	local turns:string = best.turns .. ( best.turns == 1 and " turn" or " turns" );
+	if verdict == "clearly" then
+		return "Best spot is clearly better: " .. best.relative .. Reasons( best, 3, 2 ) .. ", " .. turns
+			.. SettleScan_DistanceText( best ) .. ". X to browse.";
+	end
+	text = text .. ". Best: " .. best.relative .. ", " .. turns .. Reasons( best, 3, 2 );
+	if best.recommended then text = text .. ", recommended"; end
+	return text .. SettleScan_DistanceText( best ) .. ". X to browse.";
+end
+
+-- Fills c.context from the cities list.
+local function _Context( c:table, ctx:table )
+	local own:table, ownD:number = nil, 99;
+	local rival:table, rivalD:number = nil, 99;
+	for _, city in ipairs( ctx.cities ) do
+		local d:number = _Dist( c.x, c.y, city.x, city.y );
+		if city.owner == ctx.localPlayer then
+			if d < ownD then own, ownD = city, d; end
+		elseif d <= RIVAL_RANGE and d < rivalD then
+			local player:table = Players[ city.owner ];
+			local cityPlot:table = Map.GetPlot( city.x, city.y );
+			if player ~= nil and player:IsMajor() and cityPlot ~= nil and _IsRevealed( cityPlot ) then rival, rivalD = city, d; end
+		end
+	end
+	local result:table = { hills = false, sides = 0 };
+	if own ~= nil then result.own = { name = _CityName( own ), d = ownD }; end
+	if rival ~= nil then result.rival = { name = _CityName( rival ), civ = _OwnerName( rival.owner ), d = rivalD,
+		fromOwn = ( own ~= nil ) and _Dist( own.x, own.y, rival.x, rival.y ) or nil }; end
+	local terrain:table = GameInfo.Terrains[ c.plot:GetTerrainType() ];
+	result.hills = terrain ~= nil and string.find( terrain.TerrainType, "_HILLS", 1, true ) ~= nil;
+	for _, around in ipairs( ctx.GetAround( c.x, c.y, 1 ) ) do
+		if around.d == 1 then
+			local info:table = _Info( ctx, around.plot );
+			if info.revealed and ( info.mountain or info.water ) then result.sides = result.sides + 1; end
+		end
+	end
+	c.context = result;
+end
+
+-- ===========================================================================
 --	Scan
 -- ===========================================================================
 local function _Detail( c:table )
@@ -594,6 +722,8 @@ local function _Detail( c:table )
 		where = where .. ", " .. c.turns .. ( c.turns == 1 and " turn" or " turns" );
 	end
 	table.insert( parts, where );
+	local space:string = SettleScan_SpaceText( c );
+	if space ~= "" then table.insert( parts, space ); end
 	if c.recommended then table.insert( parts, "recommended by the advisor" ); end
 	if c.advisor ~= nil then
 		if c.advisor.tooltip ~= nil then table.insert( parts, c.advisor.tooltip ); end
@@ -771,6 +901,7 @@ function SettleScan_Scan( unit:table, force:boolean )
 				if #c.negatives < 3 then table.insert( c.negatives, item.text ); end
 			end
 		end
+		_Context( c, ctx );
 		c.detail = _Detail( c );
 		if c.here then result.here = c; end
 	end

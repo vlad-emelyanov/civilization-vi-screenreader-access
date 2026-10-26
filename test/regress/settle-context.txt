@@ -1,0 +1,12 @@
+# Written blind 2026-10-26 (G6/G8). Fixture pt-modes-t94 (own cities exist, settler 917509): the settle browser items end with the distance to the nearest own city; Space may add Between/Behind, hills, sides; the selection line compares here with the best.
+# covers: Accessibility/SettleScan.lua Accessibility/HubSettle.lua Accessibility/HubCore.lua
+# no-share-load: selects the settler
+load pt-modes-t94
+lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(917509)) return 1
+key X -Settle 1500
+expect ^Settle spots, \d+ options
+expect (?i)\d+ tiles? from \w+
+key Space -Settle 800
+expect (?i)(Behind|Between|hills|sides mountain or water|ring 1)
+key Escape -Settle 800
+no-lua-errors
