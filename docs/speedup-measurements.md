@@ -233,3 +233,5 @@ Goal: do game config settings (`AppOptions.txt`, `GraphicsOptions.txt`, read at 
 Config 6a verification: `regress early-t60-places-list t100-chooser-flow t128-city-attack` 3 scripts, 29 checks passed, 0 failed (mouse/click flows fine), TOTAL 2 m 12 s. `advance 3` on medieval-t100: 77 s with 6a and 77 s with baseline, so AI turn speed is unchanged (CPU bound). Start-to-menu: 42 s on the first (cold) start, then 27-29 s for every config, so the restart time is not affected by the settings either.
 
 Conclusion: only the low graphics preset helps (about 3-4 s of the ~31 s in-script load, -17% of wall time of a bare `load`); asserts off adds nothing measurable on top. A `regress all` with ~39 loads would save about 2-3 min of ~26. The cost is that the user's graphics settings change, so apply it to a test-only profile (swap the files in `civctl start`/`stop`) rather than the user's real files. Not worth: tick interval, UIOnlyRendering, minimap snapshot.
+
+Applied permanently to the user's config on 2026-10-26 (user's choice); originals in %TEMP%\civctl\perf-backup.
