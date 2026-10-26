@@ -699,6 +699,13 @@ function OnLocalPlayerChanged()
 	RefreshReligion();
 end
 
+-- Begin ScreenReaderAccess mod change: the hub says whether the map cursor stands on a clan camp (false after a reload of either side)
+local m_sraClanCampUnderCursor = false;
+local function SRA_OnClanCampUnderCursor( onCamp )
+	m_sraClanCampUnderCursor = ( onCamp == true );
+end
+-- End ScreenReaderAccess mod change
+
 -- Begin ScreenReaderAccess mod change: a hotkey for a screen that is not available yet used to do nothing at all; say why.
 local function SRA_SayUnavailable( actionId )
 	if actionId == Input.GetActionId("ToggleGovernment") and not m_isGovernmentAvailable and HasCapability("CAPABILITY_GOVERNMENTS_VIEW") then
@@ -720,7 +727,13 @@ function OnInputActionTriggered( actionId )
 	SRA_SayUnavailable( actionId );		-- ScreenReaderAccess
 	if ( m_isTechTreeAvailable ) then
 		if ( actionId == Input.GetActionId("ToggleTechTree") ) then
-			OnOpenResearch();
+			-- Begin ScreenReaderAccess mod change: with the map cursor on a clan camp T treats with the clan instead (the hub pushes the state)
+			if m_sraClanCampUnderCursor then
+				LuaEvents.SRA_TechTreeKeyOnCamp();
+			else
+				OnOpenResearch();
+			end
+			-- End ScreenReaderAccess mod change
 		end
 	end
 
@@ -787,6 +800,7 @@ function Unsubscribe()
 	Events.GovernmentPolicyObsoleted.Remove( OnGovernmentRefresh );
 	Events.GreatWorkCreated.Remove( OnGreatWorkCreated );
 	Events.InputActionTriggered.Remove( OnInputActionTriggered );
+	LuaEvents.SRA_ClanCampUnderCursor.Remove( SRA_OnClanCampUnderCursor );		-- ScreenReaderAccess
 	Events.InterfaceModeChanged.Remove( OnInterfaceModeChanged );
 	Events.LocalPlayerChanged.Remove( OnLocalPlayerChanged );
 	Events.LocalPlayerTurnBegin.Remove( OnLocalPlayerTurnBegin );
@@ -839,6 +853,7 @@ function Subscribe()
 	Events.GovernmentPolicyObsoleted.Add( OnGovernmentRefresh );
 	Events.GreatWorkCreated.Add( OnGreatWorkCreated );
 	Events.InputActionTriggered.Add( OnInputActionTriggered );
+	LuaEvents.SRA_ClanCampUnderCursor.Add( SRA_OnClanCampUnderCursor );		-- ScreenReaderAccess
 	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
 	Events.LocalPlayerChanged.Add( OnLocalPlayerChanged );
 	Events.LocalPlayerTurnBegin.Add( OnLocalPlayerTurnBegin );

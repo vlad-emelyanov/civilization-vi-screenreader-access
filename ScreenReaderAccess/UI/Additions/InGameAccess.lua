@@ -132,6 +132,7 @@ function Hub.OnInput( input:table )
 end
 
 function Hub.OnUpdate( deltaTime:number )
+	HubPlaces.Update( deltaTime );
 	HubCursor.UpdateMouse( deltaTime );
 	HubCore.UpdateSpeech( deltaTime );
 	if HubCore.m_arrivalTimer >= 0 then
@@ -277,6 +278,13 @@ function Initialize()
 	HubCore.AddEvent( "CityAddedToMap",				HubEvents.OnCityAddedToMap );
 	HubCore.AddEvent( "ImprovementAddedToMap",		HubEvents.OnImprovementAddedToMap );
 	HubCore.AddEvent( "UnitVisibilityChanged",		HubEvents.OnUnitVisibilityChanged );
+	HubCore.AddEvent( "ImprovementVisibilityChanged",	HubPlaces.OnImprovementVisibilityChanged );		-- villages and camps are remembered as they are seen
+	HubCore.AddEvent( "ImprovementAddedToMap",		HubPlaces.OnImprovementAddedToMap );
+	HubCore.AddEvent( "ImprovementRemovedFromMap",	HubPlaces.OnImprovementRemovedFromMap );
+	HubCore.AddEvent( "UnitMoveComplete",			HubPlaces.OnUnitMoveComplete );
+	HubCore.AddEvent( "LocalPlayerTurnBegin",		HubPlaces.RefreshSeen );
+	HubCore.Listen( LuaEvents.SRA_TechTreeKeyOnCamp, HubCore.Safe( "TechTreeKeyOnCamp", HubPlaces.OnTechTreeKeyOnCamp ) );		-- LaunchBar: T on a clan camp treats with the clan
+	HubPlaces.PushCampState( true );
 	-- "Promoted: X" is spoken by the UnitPromotionPopup override (the only keyboard way to promote)
 	HubCore.AddEvent( "UnitUpgraded",				function( player:number, unitID:number, unitType:number )
 		local row:table = GameInfo.Units[ unitType ];
@@ -302,6 +310,6 @@ function Initialize()
 
 	ContextPtr:SetInputHandler( Hub.OnInput, true );
 	ContextPtr:SetUpdate( HubCore.Safe( "Update", Hub.OnUpdate ) );
-	ContextPtr:SetShutdown( HubCore.OnShutdown );
+	ContextPtr:SetShutdown( function() pcall( HubPlaces.ResetCampState ); HubCore.OnShutdown(); end );
 end
 Initialize();

@@ -327,3 +327,203 @@ test("a clan camp says its clan and type first and offers T while in view", func
 	world:set(2, 12, { fogged = false })
 	Game.GetBarbarianManager = nil
 end)
+
+-- ===========================================================================
+-- Remembering points as they are seen, civilians to capture, T on a clan camp (tech tree key)
+-- ===========================================================================
+local function pointNames(ctx)
+	local out = {}
+	for _, c in ipairs(HubPlaces.BuildCategories(ctx)) do
+		if c.name == "Points of interest" then for _, i in ipairs(c.items) do out[#out + 1] = i.x .. "," .. i.y end end
+	end
+	return table.concat(out, "|")
+end
+
+test("a village seen by the ImprovementVisibilityChanged event is remembered after it falls back into the fog", function()
+	local ctx = { plot = Map.GetPlot(5, 5) }
+	world:set(18, 8, { fogged = false, improvement = -1 })
+	HubPlaces.OnImprovementVisibilityChanged(18, 8, 1, 1)		-- reported visible with a village (the live plot says nothing yet)
+	world:set(18, 8, { fogged = true, improvement = 1 })
+	assert(pointNames(ctx):find("18,8", 1, true), pointNames(ctx))
+	-- fogged again and gone in the fog: the memory stays (last seen)
+	world:set(18, 8, { improvement = -1 })
+	assert(pointNames(ctx):find("18,8", 1, true), pointNames(ctx))
+	-- seen again, gone
+	world:set(18, 8, { fogged = false })
+	HubPlaces.OnImprovementVisibilityChanged(18, 8, -1, 1)
+	assert(not pointNames(ctx):find("18,8", 1, true), pointNames(ctx))
+end)
+
+test("an event for a plot that is in the fog is not remembered (only visible plots count)", function()
+	local ctx = { plot = Map.GetPlot(5, 5) }
+	world:set(19, 8, { fogged = true, improvement = 1 })
+	HubPlaces.OnImprovementVisibilityChanged(19, 8, 1, 1)
+	HubPlaces.OnImprovementAddedToMap(19, 8, 1, 0)
+	assert(not pointNames(ctx):find("19,8", 1, true), pointNames(ctx))
+end)
+
+test("a unit that moves remembers the village next to it", function()
+	local ctx = { plot = Map.GetPlot(5, 5) }
+	world:set(23, 8, { fogged = false, improvement = 1 })
+	HubPlaces.OnUnitMoveComplete(0, 1, 22, 8)
+	HubPlaces.OnUnitMoveComplete(0, 1, 22, 8)		-- coalesced: one delayed scan
+	eq(#HubCore.m_delayed, 1)
+	HubPlaces.ScanMoved()
+	HubCore.m_delayed = {}
+	world:set(23, 8, { fogged = true })
+	assert(pointNames(ctx):find("23,8", 1, true), pointNames(ctx))
+	HubPlaces.OnUnitMoveComplete(1, 1, 22, 8)		-- another player's unit: ignored
+end)
+
+test("Prime runs once: villages that appear in the fog later are not accepted", function()
+	local ctx = { plot = Map.GetPlot(5, 5) }
+	world:set(26, 2, { fogged = true, improvement = 1 })
+	world:set(27, 2, { fogged = true, improvement = 3 })
+	HubPlaces.Prime()
+	assert(not pointNames(ctx):find("26,2", 1, true))
+	assert(not pointNames(ctx):find("27,2", 1, true))
+end)
+
+-- civilians
+GameInfo.UnitCaptures = setmetatable({}, { __call = function()
+	local rows = { { CapturedUnitType = "UNIT_BUILDER" }, { CapturedUnitType = "UNIT_SETTLER" } }
+	local i = 0
+	return function() i = i + 1; return rows[i] end
+end })
+local unitRows = {
+	[10] = { UnitType = "UNIT_BUILDER", Name = "Builder", Domain = "DOMAIN_LAND", CanCapture = false },
+	[11] = { UnitType = "UNIT_WARRIOR", Name = "Warrior", Domain = "DOMAIN_LAND" },
+	[12] = { UnitType = "UNIT_TRADER", Name = "Trader", Domain = "DOMAIN_LAND", CanCapture = false },
+	[13] = { UnitType = "UNIT_GALLEY", Name = "Galley", Domain = "DOMAIN_SEA" },
+}
+local realUnits = GameInfo.Units
+GameInfo.Units = setmetatable({}, { __index = function(_, i) return unitRows[i] or { UnitType = "UNIT_X", Name = "x" } end })
+
+local function captureCat(ctx)
+	for _, c in ipairs(HubPlaces.BuildCategories(ctx)) do if c.name == "Civilians to capture" then return c end end
+end
+PlotDescription_FormationName = function(_, text) return text end
+local worldUnits = {}
+local function addWorldUnit(u) world.units[#world.units + 1] = u; worldUnits[#worldUnits + 1] = u; return u end
+local function clearWorldUnits()
+	for _, u in ipairs(worldUnits) do for i = #world.units, 1, -1 do if world.units[i] == u then table.remove(world.units, i) end end end
+	worldUnits = {}
+end
+world.units = world.units or {}
+local plotUnits = {}
+Units.GetUnitsInPlot = function(plot)
+	local list = {}
+	for _, u in ipairs(plotUnits) do if u.x == plot:GetX() and u.y == plot:GetY() then list[#list + 1] = world.fakeUnit(u) end end
+	return list
+end
+
+test("no visible enemy civilian: no capture category", function()
+	eq(captureCat({ plot = Map.GetPlot(5, 5) }), nil)
+end)
+
+test("barbarian builder is listed with its place; trader and warrior are not", function()
+	local b = addWorldUnit({ id = 50, owner = 63, x = 9, y = 7, unitType = 10, name = "Builder" })
+	addWorldUnit({ id = 51, owner = 63, x = 10, y = 7, unitType = 12, name = "Trader" })
+	addWorldUnit({ id = 52, owner = 63, x = 11, y = 7, unitType = 11, combat = 20, name = "Warrior" })
+	plotUnits = { b }
+	local cat = captureCat({ plot = Map.GetPlot(5, 5) })
+	assert(cat, "no category")
+	eq(#cat.items, 1)
+	assert(cat.items[1].text:find("^Barbarian Builder, "), cat.items[1].text)
+	assert(not cat.items[1].text:find("escorted"), cat.items[1].text)
+	eq(cat.items[1].kind, "capture")
+end)
+
+test("a military unit on the plot is the escort", function()
+	local w = addWorldUnit({ id = 53, owner = 63, x = 9, y = 7, unitType = 11, combat = 20, name = "Warrior" })
+	plotUnits = { worldUnits[1], w }
+	local cat = captureCat({ plot = Map.GetPlot(5, 5) })
+	assert(cat.items[1].text:find(", escorted by Warrior$"), cat.items[1].text)
+	eq(cat.items[1].escorted, true)
+end)
+
+test("a civ at war is listed, a civ at peace is not", function()
+	addWorldUnit({ id = 60, owner = 2, x = 14, y = 9, unitType = 10, name = "Builder" })
+	local cat = captureCat({ plot = Map.GetPlot(5, 5) })
+	eq(#cat.items, 1)
+	world.at_war = { [2] = true }
+	cat = captureCat({ plot = Map.GetPlot(5, 5) })
+	eq(#cat.items, 2)
+	assert(cat.items[2].text:find("Builder, "), cat.items[2].text)
+	world.at_war = {}
+end)
+
+test("the send chooser for a civilian offers only military land units", function()
+	addUnit(70, "Builder", 7, 7)
+	addUnit(71, "Warrior", 6, 7)
+	local types = { [70] = 10, [71] = 11 }
+	local function withType(u)
+		local o = unitObject(u)
+		o.GetUnitType = function() return types[u.id] or 0 end
+		o.GetCombat = function() return u.id == 71 and 20 or 0 end
+		return o
+	end
+	local oldGetUnits = player.GetUnits
+	player.GetUnits = function() return {
+		Members = function() local l = {}; for _, u in ipairs(units) do l[#l + 1] = withType(u) end; return ipairs(l) end,
+		FindID = function(_, id) for _, u in ipairs(units) do if u.id == id then return withType(u) end end end,
+	} end
+	local items = HubPlaces.BuildSendItems({ name = "Barbarian Builder", x = 9, y = 7, capture = true })
+	local names = {}
+	for _, i in ipairs(items) do names[#names + 1] = i.name end
+	eq(table.concat(names, ","), "Warrior")
+	player.GetUnits = oldGetUnits
+	for i = #units, 1, -1 do if units[i].id >= 70 then table.remove(units, i) end end
+end)
+
+test("tech tree key: on a clan camp it treats (in view) or says out of sight; elsewhere it leaves the tech tree alone", function()
+	plotUnits = {}
+	clearWorldUnits()
+	GameInfo.Units = realUnits
+	GameInfo.BarbarianTribeNames = { [7] = { TribeDisplayName = "Badger Claw" } }
+	GameInfo.BarbarianTribes = { [2] = { Name = "Melee Open" } }
+	local manager = {
+		GetTribeIndexAtLocation = function(_, x, y) if x == 2 and y == 12 then return 0 end return -1 end,
+		GetTribeNameType = function() return 7 end, GetTribeType = function() return 2 end,
+	}
+	Game.GetBarbarianManager = function() return manager end
+	PlotDescription_ResetClanMode()
+	HubTargets.GetTargetMode = function() return nil end
+	HubCore.IsGamePopupOpen = function() return false end
+	HubCore.m_mode = nil
+	local opened = {}
+	LuaEvents = LuaEvents or {}
+	LuaEvents.CityBannerManager_OpenTreatWithTribePopup = function(index) opened[#opened + 1] = index end
+	local cx, cy = 5, 5
+	HubCursor.GetCursor = function() return cx, cy end
+	local pushed = {}
+	LuaEvents.SRA_ClanCampUnderCursor = function(on) pushed[#pushed + 1] = on end
+	HubPlaces.PushCampState(true)
+	eq(pushed[#pushed], false)
+	HubPlaces.PushCampState(false)
+	eq(#pushed, 1)		-- unchanged: nothing sent
+	cx, cy = 2, 12
+	world:set(2, 12, { fogged = false, improvement = 3 })
+	HubPlaces.PushCampState(false)
+	eq(pushed[#pushed], true)
+	HubPlaces.OnTechTreeKeyOnCamp()
+	eq(opened[1], 12 * 30 + 2)
+	world:set(2, 12, { fogged = true })
+	HubPlaces.OnTechTreeKeyOnCamp()
+	eq(#opened, 1)
+	local spoken = Spoken()
+	assert(spoken[#spoken]:find("out of sight", 1, true), spoken[#spoken])
+	-- a screen is open: false is pushed, the tech tree toggles as before
+	world:set(2, 12, { fogged = false })
+	HubCore.IsGamePopupOpen = function() return true end
+	HubPlaces.PushCampState(false)
+	eq(pushed[#pushed], false)
+	-- reset on shutdown
+	HubCore.IsGamePopupOpen = function() return false end
+	HubPlaces.PushCampState(false)
+	eq(pushed[#pushed], true)
+	HubPlaces.ResetCampState()
+	eq(pushed[#pushed], false)
+	HubCursor.GetCursor = function() return 5, 5 end
+	Game.GetBarbarianManager = nil
+end)
