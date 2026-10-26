@@ -1,0 +1,29 @@
+# Written blind (2026-10-26): the congress results screen interrupts (the player just finished the congress and wants the results before the unit line) and holds the hub's own announcements until it closes (SRA_SpeechHold "WorldCongressResults"). Fixture bug-congress-result-unmet (turn 151).
+# covers: **/WorldCongressPopup_SRA.lua **/WorldCongressText.lua **/HubCore.lua
+# no-share-load: opens and closes the congress results
+load bug-congress-result-unmet
+clear-advisors
+# the popup is not restored by a load: open it like the results notification does
+lua InGame LuaEvents.NotificationPanel_OpenWorldCongressResults()
+wait (?i)World Congress results -Timeout 10
+expect (?i)option [AB] passed
+#   -> PASS; window had 14 SR> line(s):
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | New powers call forth, from the barrel of muskets to flowers of fire in the sky. Even the quiet words on newly printed pages hold great changes within. The world, once so vast and mysterious, has grown smaller and more familiar. Yet, there are always questions to be answered, faiths to be tested, and national identities to be formed.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 151, 1860 AD
+#      | Choose mission in Edirne: 8 missions. Gain Sources, 100 percent success, 4 turns, 1 of 8
+#      | Bambi, 1 of 1 moves. Edirne, Ottomans city, Plains, Plains Floodplains, Wheat (bonus), river, Ottomans, 5 Food 1 Production
+#      | World Congress results. Border Control Treaty: option A passed, target an unmet civilization, New districts built by this player act as Culture bombs, votes: A 6, B 0, 1 of 2. Enter to continue, Space for details, Left or Right for other tabs
+key Escape -Settle 1500
+expect (?i)World Congress closed
+#   -> PASS; window had 1 SR> line(s):
+#      | World Congress closed
+no-lua-errors

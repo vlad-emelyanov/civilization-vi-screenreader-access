@@ -1,0 +1,45 @@
+# Written blind 2026-10-26 (not yet recorded; run with civregress --record first). Places list: the last category "Civilians to capture"
+# lists a visible barbarian Builder (scenario barbarian-builder); M offers military land units only (the Builder, Scout ... are left out).
+# covers: **/HubPlaces.lua **/PlotDescription.lua **/HelpText.lua
+# no-share-load: scenario spawns a barbarian unit
+load early-t60
+clear-advisors
+scenario barbarian-builder
+action KeyNavPlaces -Settle 1500
+key Control+Tab -Settle 1200
+expect ^Civilians to capture, \d+ of \d+ categories, 1 item\. Barbarian Builder, .+, 1 of 1
+#   -> PASS; window had 22 SR> line(s):
+#      | 2 new notifications: Make Dedication, New City-State Quest
+#      | ADVISOR: Just as our citizens have faith in your leadership, so they are beginning to have faith in a higher power. Space reads all, Enter closes.
+#      | Barbarian Galley spotted, 2 tiles north-west of your Heavy Chariot
+#      | 4 new notifications: Fill Policy Slot, Choose Production, Command Units and 1 more
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Places. Your cities, 1 of 5 categories, 1 item. Rome, capital, 1 tile north-east, 1 of 1
+#      | Civilians to capture, 5 of 5 categories, 1 item. Barbarian Builder, 3 tiles south-west of Rome, 2 tiles south-west of Warrior, 1 of 1
+key Space -Settle 1000
+expect (?i)builder
+#   -> PASS; window had 1 SR> line(s):
+#      | Barbarian Builder, Desert (Hills), Iron (strategic), river, your territory, 1 Production 1 Science. 3 tiles south-west of Rome, 2 tiles south-west of Warrior
+key M -Settle 2000
+expect (?i)^(Send a unit to Barbarian Builder|No military unit can reach it)
+#   -> PASS; window had 2 SR> line(s):
+#      | Send a unit to Barbarian Builder, 4 options
+#      | Warrior, 2 turns, 1 of 4
+key Escape -Settle 1200
+key Escape -Settle 1200
+no-lua-errors

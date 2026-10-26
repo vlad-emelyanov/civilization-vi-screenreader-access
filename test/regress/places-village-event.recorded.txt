@@ -1,0 +1,32 @@
+# Written blind 2026-10-26 (not yet recorded; run with civregress --record first). A tribal village is in the places list (Points of interest) as soon as it was
+# seen: the scenario puts a hut next to a unit (ImprovementAddedToMap / ImprovementVisibilityChanged remember it without the list being open).
+# Extending it to "unit walks away, hut fogged again, J still lists it as last seen" needs a fogged position; the verifier may add steps after recording.
+# covers: **/HubPlaces.lua UI/Additions/InGameAccess.lua
+# no-share-load: scenario places a hut
+load pt-modes-t75
+clear-advisors
+scenario goody-hut
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 1000
+key Tab -Settle 1200
+expect ^Points of interest.*Tribal Village,
+#   -> PASS; window had 17 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 75, 660 AD
+#      | Spearman, 2 of 2 moves, 55 of 100 health. Rome, capital, Builder, Grassland, Grassland Floodplains, river, yours, 2 Food 1 Production
+#      | Places. Your cities, 1 of 4 categories, 1 item. Rome, capital, here, 1 of 1
+#      | Your units, 2 of 4 categories, 7 items. Trader, sleeping, in Rome, 1 of 7
+#      | Points of interest, 3 of 4 categories, 2 items. Tribal Village, 5 tiles east of Rome, 5 tiles east of Spearman, 1 of 2
+key Escape -Settle 1200
+no-lua-errors

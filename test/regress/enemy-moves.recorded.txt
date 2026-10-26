@@ -1,0 +1,39 @@
+# Verified in the game (round 23); the barbarian line is spoken at turn start.
+# Scenario enemy-at-capital on early-t60 puts a barbarian warrior next to Rome; we end the turn, and the next turn start says what it did.
+# covers: **/HubEnemies.lua **/HubAnnounce.lua
+# no-share-load: scenario enemy-at-capital and an ended turn
+load early-t60
+scenario enemy-at-capital
+clear-advisors
+# (util/civregress.py has no endturn step, hence the lua steps; Turn 61 = early-t60 plus one)
+lua InGame UI.RequestAction(ActionTypes.ACTION_ENDTURN)
+wait Turn 61 -Timeout 60
+expect ^Enemies: .*Barbarian
+#   -> PASS; window had 26 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | Barbarian Warrior spotted, 1 tile south-east of Rome
+#      | Turn ended
+#      | Notification: Wonder Completed
+#      | Barbarian Archer spotted, 2 tiles north-east of your Spearman
+#      | Barbarian Archer attacks Your Scout: Your Scout takes 48 damage, 23 of 100 left
+#      | Barbarian Swordsman spotted, 1 tile east of your Spearman
+#      | Barbarian Swordsman attacks Your Spearman: Your Spearman takes 39 damage, 45 of 100 left
+#      | Barbarian Swordsman takes 22 damage, 78 of 100 left
+#      | Turn 61, 50 AD
+#      | Enemies: Barbarian Swordsman moved 1 tile toward your Spearman, now 1 tile east of your Spearman, in your territory, wounded, 78 of 100; Barbarian Warrior moved 1 tile away from Rome, now 2 tiles south-east of Rome, in your territory.
+no-lua-errors
