@@ -16,7 +16,7 @@ expect valid target\. Barbarian Crossbowman
 # G5: CombatManager.SimulateAttackInto returns nil for a city as attacker (checked in game 2026-10-26), so the city line has no
 # strengths and Space says that there is no modifier preview. If a way to preview city shots is found, expect strengths again.
 key Space -Settle 800
-expect (Strength|Ranged strength) d+|No modifier preview for a city attack|modifier
+expect (Strength|Ranged strength) \d+|No modifier preview for a city attack|modifier
 key Enter -Settle 8000 -NoQuiet
 expect ^Attacking Barbarian Crossbowman
 expect (?i)crossbowman killed by Ostia
