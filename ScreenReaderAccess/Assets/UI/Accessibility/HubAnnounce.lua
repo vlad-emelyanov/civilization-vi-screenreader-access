@@ -437,6 +437,21 @@ local function TurnNotEnded( turn:number )
 	Check();
 end
 
+-- The turn-start line (selected unit, else what blocks the turn) said again: the World Congress results popup is spoken
+-- first at a turn start and the engine's own unit selection (spoken before it) was queued behind, or never happened.
+function HubAnnounce.RepeatTurnStartLine()
+	local player:table = Players[ Game.GetLocalPlayer() or -1 ];
+	if player == nil or not player:IsTurnActive() then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit ~= nil then
+		HubAnnounce.OnUnitSelectionChanged( player:GetID(), unit:GetID(), unit:GetX(), unit:GetY(), 0, true, true );
+		return;
+	end
+	if UI.GetHeadSelectedCity() ~= nil then return; end
+	local text:string = BlockerText();
+	if text ~= "" then HubCore.Announce( text .. ". Enter handles it", true, "turn" ); end
+end
+
 function HubAnnounce.OnPlayerTurnActivated( playerID:number, isFirstTime:boolean )
 	if playerID ~= Game.GetLocalPlayer() or isFirstTime or m_endedTurn ~= Game.GetCurrentGameTurn() then return; end
 	TurnNotEnded( m_endedTurn );

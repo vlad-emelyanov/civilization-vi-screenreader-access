@@ -13,6 +13,7 @@ HubCore.m_delayed = {};		-- { time = seconds left, fn = function }
 HubCore.m_enterWatch = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
 HubCore.m_placeCommitTime = -100;		-- UI.GetElapsedTime() of the last placement commit (its result must outlive the selection that follows)
 HubCore.m_lastResultTime = -100;		-- UI.GetElapsedTime() of the last announced result of a player's action
+HubCore.m_repeatTurnLine = false;		-- set when the congress results popup closed: say the turn-start line again (HubAnnounce.RepeatTurnStartLine)
 HubCore.m_movers = {};		-- unit id -> { dest = plot index, issued = time }: units on a move order given in this session
 HubCore.m_lastKeyTime = -100;		-- UI.GetElapsedTime() of the last key press seen by the input handler
 HubCore.m_unitNames = {};		-- "player:unit" -> spoken name, remembered while the unit is alive (it is gone when its death is reported)
@@ -301,6 +302,8 @@ end
 function HubCore.SetSpeechHold( name:string, on:boolean, contextPath:string, silent:boolean )
 	local speech:table = HubCore.m_speech;
 	if not on then
+		-- the congress results are spoken before the unit line at a turn start: say that line again once they are closed
+		if name == "WorldCongressResults" and speech.holds[ name ] ~= nil then HubCore.m_repeatTurnLine = true; end
 		speech.holds[ name ] = nil;
 		return;
 	end
@@ -328,6 +331,7 @@ end
 -- Turn end: the holds go, queued selection/settle/ready lines are stale, the rest (fights the status panel already
 -- dropped its copy of) is spoken now.
 function HubCore.ReleaseSpeechAtTurnEnd()
+	HubCore.m_repeatTurnLine = false;
 	local queue:table = HubCore.m_speech.queue;
 	HubCore.ClearSpeechHold();
 	for _, entry in ipairs( queue ) do
@@ -370,6 +374,10 @@ function HubCore.UpdateSpeech( deltaTime:number )
 				end
 			end
 		end
+	end
+	if HubCore.m_repeatTurnLine and not HubCore.IsSpeechHeld() and #speech.queue == 0 and speech.releaseTimer < 0 and not HubCore.IsGamePopupOpen() then
+		HubCore.m_repeatTurnLine = false;
+		if HubAnnounce ~= nil and HubAnnounce.RepeatTurnStartLine ~= nil then HubAnnounce.RepeatTurnStartLine(); end
 	end
 	if HubAnnounce ~= nil and HubAnnounce.UpdateReadyWatch ~= nil then HubAnnounce.UpdateReadyWatch( deltaTime ); end
 end

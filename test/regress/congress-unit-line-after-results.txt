@@ -1,0 +1,37 @@
+# Fixture pt-late-congress-t210 (World Congress intro open at turn 210; at turn 211 only "City ranged attack" blocks). User playtest item 7: the results popup is spoken first at the turn start; after it is closed the turn-start line (selected unit, else what blocks the turn) is said again so the player knows where they are.
+# covers: **/HubAnnounce.lua **/HubCore.lua **/WorldCongressPopup_SRA.lua
+# no-share-load: votes in the congress and ends the turn
+# own-load: the first expect checks the congress intro the load itself speaks
+load pt-late-congress-t210
+expect (?i)enter to begin voting
+key Enter -Settle 2500
+key Home -Settle 500
+key OemPlus -Settle 700
+key Down -Settle 500
+key OemPlus -Settle 700
+key T -Settle 800
+key Enter -Settle 800
+key Up -Settle 500
+key T -Settle 800
+key Enter -Settle 800
+key Down -Settle 500
+key Down -Settle 500
+key OemPlus -Settle 700
+key T -Settle 800
+key Enter -Settle 800
+key Down -Settle 500
+key OemPlus -Settle 700
+key N -Settle 2500
+expect (?i)review your votes
+key End -Settle 600
+expect ^Submit votes
+key Enter -Settle 45000
+expect (?i)votes submitted
+wait World Congress results\. -Timeout 300
+expect World Congress results\.
+# close every popup the new turn opened (results, then the competition notice) with Enter; the line comes after the last one
+key Enter -Settle 2500
+key Enter -Settle 2500 -NoQuiet
+expect ^World Congress closed
+expect (?i)city ranged attack\. Enter handles it
+no-lua-errors
