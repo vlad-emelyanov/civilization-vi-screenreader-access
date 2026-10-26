@@ -1,0 +1,124 @@
+# Options > Key Bindings: rebinding an action to a plain navigation key (Down/Up) used to leave the capture active: the in-game menu below consumed the KeyUp the engine needs, so the key went to the menu (RESTART/RETIRE spoken) and the capture state survived.
+# covers: **/Options.lua **/InGameTopOptionsMenu.lua
+# no-share-load: rebinds keys (restored at the end, but the reset check cannot see it)
+load early-t60
+clear-advisors
+key Escape -Settle 1500
+expect ^In game menu
+#   -> PASS; window had 17 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading, please wait...
+#      | ROMAN EMPIRE
+#      | TRAJAN
+#      | From humble beginnings, you have shown remarkable growth. Leave your bronze for iron and rule with horse and sword. The sky above begins to reveal its secrets, a collection of heaven that uplifts our hearts and guides us to foreign shores.
+#      | Cast your net wide, oh Trajan, emperor of mighty Rome. Your legions stand at the ready to march out and establish the largest empire the world has ever seen. If you can truly get all roads to lead to Rome, yours will be an empire of great riches and luxuries.� Surely then our citizens will proclaim you as their best ruler, the Optimus Princeps.
+#      | TRAJAN'S COLUMN: All cities start with an additional City Center building. (Starts with a Monument building in the Ancient era).
+#      | ALL ROADS LEAD TO ROME: All cities you found or conquer start with a Trading Post. If in Trade Route range of your Capital, they also start with a road to it. Your Trade Routes earn +1 Gold for passing through Trading Posts in your own cities.
+#      | LEGION: A unique land unit
+#      | BATH: A unique district
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 60, 1 AD
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production, 1 tile south-west of Rome
+#      | Warrior, 2 of 2 moves, 35 of 100 health. Hannibal Barca, Plains, Plains Floodplains, river, yours, 3 Food 2 Production
+#      | 2 new notifications: Storm Peters Out, Command Units
+#      | In game menu
+key Down -Count 4 -Quiet 100
+expect OPTIONS
+#   -> PASS; window had 4 SR> line(s):
+#      | QUICK SAVE GAME
+#      | SAVE GAME
+#      | LOAD GAME
+#      | OPTIONS
+key Enter -Settle 2500
+expect Game Options, tab 1 of 7
+#   -> PASS; window had 2 SR> line(s):
+#      | Options
+#      | Game Options, tab 1 of 7
+key Down -Count 6 -Quiet 100
+expect Key Bindings, tab 7 of 7
+#   -> PASS; window had 6 SR> line(s):
+#      | Graphics Options, tab 2 of 7
+#      | Audio Options, tab 3 of 7
+#      | Interface Options, tab 4 of 7
+#      | Application Options, tab 5 of 7
+#      | Language Options, tab 6 of 7
+#      | Key Bindings, tab 7 of 7
+key Enter -Settle 1500
+expect Key Bindings, 89 actions
+#   -> PASS; window had 1 SR> line(s):
+#      | Key Bindings, 89 actions. Up and Down to move, Left and Right for primary or alternate, Enter to rebind, Delete to clear, Tab for next category. Global Actions. Accessibility help, primary binding: Control+H
+key Down -Count 13 -Quiet 100
+expect ^Move cell down, primary binding: Shift\+Down Arrow
+#   -> PASS; window had 13 SR> line(s):
+#      | Camera Pan Down, primary binding: Down Arrow
+#      | Camera Pan Left, primary binding: Left Arrow
+#      | Camera Pan Right, primary binding: Right Arrow
+#      | Camera Pan Up, primary binding: Up Arrow
+#      | Capital City, primary binding: \
+#      | City report, primary binding: Control+I
+#      | Cursor to selection, primary binding: .
+#      | Cycle all units, primary binding: Control+K
+#      | Diplomacy, primary binding: V
+#      | Era progress, primary binding: Control+E
+#      | Great Works screen, primary binding: Control+W
+#      | In-Game Menu, primary binding: Home
+#      | Move cell down, primary binding: Shift+Down Arrow
+key Enter -Settle 800
+expect ^Press the new key for Move cell down
+#   -> PASS; window had 1 SR> line(s):
+#      | Press the new key for Move cell down, primary binding. Escape to cancel
+key Down -Settle 1500
+expect ^Move cell down bound to Down Arrow, primary binding. Removed from Camera Pan Down
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell down bound to Down Arrow, primary binding. Removed from Camera Pan Down
+expect-not RESTART
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell down bound to Down Arrow, primary binding. Removed from Camera Pan Down
+key Down -Settle 800
+expect ^Move cell left
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell left, primary binding: Shift+Left Arrow
+key Up -Settle 800
+expect ^Move cell down, primary binding: Down Arrow
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell down, primary binding: Down Arrow
+key Enter -Settle 800
+expect ^Press the new key
+#   -> PASS; window had 1 SR> line(s):
+#      | Press the new key for Move cell down, primary binding. Escape to cancel
+key Up -Settle 1500
+expect ^Move cell down bound to Up Arrow, primary binding. Removed from Camera Pan Up
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell down bound to Up Arrow, primary binding. Removed from Camera Pan Up
+expect-not RESTART
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell down bound to Up Arrow, primary binding. Removed from Camera Pan Up
+key Enter -Settle 800
+expect ^Press the new key
+#   -> PASS; window had 1 SR> line(s):
+#      | Press the new key for Move cell down, primary binding. Escape to cancel
+key Escape -Settle 800
+expect ^Cancelled, Move cell down
+#   -> PASS; window had 1 SR> line(s):
+#      | Cancelled, Move cell down, primary binding: Up Arrow
+key Up -Settle 800
+expect ^In-Game Menu
+#   -> PASS; window had 1 SR> line(s):
+#      | In-Game Menu, primary binding: Home
+key Down -Settle 800
+expect ^Move cell down
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell down, primary binding: Up Arrow
+key Enter -Settle 800
+expect ^Press the new key
+#   -> PASS; window had 1 SR> line(s):
+#      | Press the new key for Move cell down, primary binding. Escape to cancel
+key Shift+Down -Settle 1500
+expect ^Move cell down bound to Shift\+Down Arrow, primary binding
+#   -> PASS; window had 1 SR> line(s):
+#      | Move cell down bound to Shift+Down Arrow, primary binding
+key Escape -Settle 1200
+key Escape -Settle 1500
+key Escape -Settle 1500
+no-lua-errors

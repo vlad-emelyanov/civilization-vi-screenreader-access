@@ -568,9 +568,15 @@ end
 --	fall past it.  Forge will send input to popups and children first before
 --	this context gets a crack at it.
 -- ===========================================================================
+-- Options (a child screen) sets this while it records a new key binding: the engine completes the capture on
+-- the KeyUp, so the menu must not consume Up/Down/Enter ... or those keys can never be bound.
+local m_isKeyBindingCapture:boolean = false;
+LuaEvents.KeyNavBindingCapture.Add(function(active) m_isKeyBindingCapture = (active == true); end);
+
 function OnInput( pInputStruct:table )
 	local uiMsg:number = pInputStruct:GetMessageType();
 	local key:number = pInputStruct:GetKey();
+	if m_isKeyBindingCapture then return false; end
 
 	if uiMsg == KeyEvents.KeyUp then 
 		return KeyHandler( pInputStruct:GetKey() ); 

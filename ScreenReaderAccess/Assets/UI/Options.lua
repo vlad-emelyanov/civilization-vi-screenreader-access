@@ -2680,6 +2680,11 @@ function InitializeKeyBinding()
 		print("#KEYMAP - END");
 	end
 
+	-- tell the in-game menu below us to let all keys through while the engine records a gesture
+	function SetBindingCapture(active)
+		pcall(function() LuaEvents.KeyNavBindingCapture(active); end);
+	end
+
 	function StartActiveKeyBinding(actionId, index)
         Controls.BindingTitle:SetText(Locale.Lookup(Input.GetActionName(actionId)));
 		Controls.KeyBindingPopup:SetHide(false);
@@ -2690,6 +2695,7 @@ function InitializeKeyBinding()
 		_CurrentAction = actionId;
 		_CurrentActionIndex = index;
 		Input.BeginRecordingGestures(true);
+		SetBindingCapture(true);
 	end
 
 	function StopActiveKeyBinding()
@@ -2697,6 +2703,7 @@ function InitializeKeyBinding()
 		_CurrentActionIndex = nil;
 				
 		Input.StopRecordingGestures();
+		SetBindingCapture(false);
 		Input.ClearRecordedGestures();
 		Controls.KeyBindingPopup:SetHide(true);
 	end
@@ -2705,8 +2712,18 @@ function InitializeKeyBinding()
 		local recordedAction = _CurrentAction;
 		if(_CurrentAction and _CurrentActionIndex) then
 			Controls.ConfirmButton:SetDisabled(false);
+			local before = {};
+			for _, bi in ipairs(m_bindingInfo) do before[bi.actionId] = {bi.g1, bi.g2}; end
 			Input.BindAction(_CurrentAction, _CurrentActionIndex, gesture);
 			RefreshKeyBinding();
+			-- the engine silently takes a key away from the action that used it: say so
+			local lost = {};
+			for _, bi in ipairs(m_bindingInfo) do
+				local old = before[bi.actionId];
+				if bi.actionId ~= recordedAction and old ~= nil and (old[1] ~= bi.g1 or old[2] ~= bi.g2) then
+					table.insert(lost, bi.name);
+				end
+			end
 			m_swallowKeyUp = m_captureKeyDown;
 			local info = nil;
 			for _, bi in ipairs(m_bindingInfo) do
@@ -2714,7 +2731,9 @@ function InitializeKeyBinding()
 			end
 			if info ~= nil then
 				local bound = (_CurrentActionIndex == 0) and info.g1 or info.g2;
-				OutputMessageToScreenReader(info.name.." bound to "..tostring(bound or "none")..", "..((_CurrentActionIndex == 0) and "primary" or "alternate").." binding");
+				local msg = info.name.." bound to "..tostring(bound or "none")..", "..((_CurrentActionIndex == 0) and "primary" or "alternate").." binding";
+				if #lost > 0 then msg = msg..". Removed from "..table.concat(lost, ", "); end
+				OutputMessageToScreenReader(msg);
 			end
 		end
 

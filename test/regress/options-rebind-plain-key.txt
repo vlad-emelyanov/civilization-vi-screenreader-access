@@ -1,0 +1,47 @@
+# Options > Key Bindings: rebinding an action to a plain navigation key (Down/Up) used to leave the capture active: the in-game menu below consumed the KeyUp the engine needs, so the key went to the menu (RESTART/RETIRE spoken) and the capture state survived.
+# covers: **/Options.lua **/InGameTopOptionsMenu.lua
+# no-share-load: rebinds keys (restored at the end, but the reset check cannot see it)
+load early-t60
+clear-advisors
+key Escape -Settle 1500
+expect ^In game menu
+key Down -Count 4 -Quiet 100
+expect OPTIONS
+key Enter -Settle 2500
+expect Game Options, tab 1 of 7
+key Down -Count 6 -Quiet 100
+expect Key Bindings, tab 7 of 7
+key Enter -Settle 1500
+expect Key Bindings, 89 actions
+key Down -Count 13 -Quiet 100
+expect ^Move cell down, primary binding: Shift\+Down Arrow
+key Enter -Settle 800
+expect ^Press the new key for Move cell down
+key Down -Settle 1500
+expect ^Move cell down bound to Down Arrow, primary binding. Removed from Camera Pan Down
+expect-not RESTART
+key Down -Settle 800
+expect ^Move cell left
+key Up -Settle 800
+expect ^Move cell down, primary binding: Down Arrow
+key Enter -Settle 800
+expect ^Press the new key
+key Up -Settle 1500
+expect ^Move cell down bound to Up Arrow, primary binding. Removed from Camera Pan Up
+expect-not RESTART
+key Enter -Settle 800
+expect ^Press the new key
+key Escape -Settle 800
+expect ^Cancelled, Move cell down
+key Up -Settle 800
+expect ^In-Game Menu
+key Down -Settle 800
+expect ^Move cell down
+key Enter -Settle 800
+expect ^Press the new key
+key Shift+Down -Settle 1500
+expect ^Move cell down bound to Shift\+Down Arrow, primary binding
+key Escape -Settle 1200
+key Escape -Settle 1500
+key Escape -Settle 1500
+no-lua-errors
