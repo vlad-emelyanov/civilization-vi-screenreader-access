@@ -1144,6 +1144,63 @@ def select_changed(scripts, changed):
     return {n: selected[n] for n, _ in scripts if n in selected}, uncovered
 
 
+# ---------------------------------------------------------------- impact (stale-script search, pure text)
+
+_LITERAL = re.compile(r'"((?:[^"\\]|\\.)*)"|\'((?:[^\'\\]|\\.)*)\'')
+
+
+def find_impact(texts, directory=None):
+    """[(script, line number, line)] for every expect / expect-not line (test/regress/*.txt, no .recorded.txt) whose regex matches
+    one of `texts` or whose text contains one of them as a substring."""
+    directory = directory or REGRESS_DIR
+    found = []
+    for fn in sorted(os.listdir(directory)):
+        if not fn.endswith(".txt") or fn.endswith(".recorded.txt"):
+            continue
+        with open(os.path.join(directory, fn), encoding="utf-8-sig") as f:
+            for no, raw in enumerate(f.read().splitlines(), 1):
+                line = raw.strip()
+                kind, _, arg = line.partition(" ")
+                if line.startswith("#") or kind.lower() not in CHECKS or not arg.strip():
+                    continue
+                arg = arg.strip()
+                try:
+                    rx = re.compile(arg)
+                except re.error:
+                    rx = None
+                if any(t in arg or (rx is not None and rx.search(t)) for t in texts):
+                    found.append((fn[:-4], no, line))
+    return found
+
+
+def removed_literals(diff_lines, min_len=4):
+    """String literals (>= min_len chars) on removed `-` lines of a unified diff that are not on an added `+` line too."""
+    def lits(prefix):
+        out = []
+        for l in diff_lines:
+            if l.startswith(prefix) and not l.startswith(prefix * 3):
+                for m in _LITERAL.finditer(l[1:]):
+                    t = m.group(1) if m.group(1) is not None else m.group(2)
+                    if len(t) >= min_len:
+                        out.append(t)
+        return out
+    added = set(lits("+"))
+    seen, res = set(), []
+    for t in lits("-"):
+        if t not in added and t not in seen:
+            seen.add(t)
+            res.append(t)
+    return res
+
+
+def print_impact(texts, out=print):
+    hits = find_impact(texts)
+    for name, no, line in hits:
+        out("%s:%d: %s" % (name, no, line))
+    out("impact: %d line(s) in %d script(s) for %d text(s)" % (len(hits), len({h[0] for h in hits}), len(texts)))
+    return hits
+
+
 def last_green_path(directory=None):
     return os.path.join(directory or os.path.join(tempfile.gettempdir(), "civctl"), "regress-last-green.txt")
 
@@ -1286,8 +1343,21 @@ def main(argv=None):
     ap.add_argument("--no-batch", action="store_true", help="start powershell.exe for every civctl call (default: one long-lived `civctl batch` process)")
     ap.add_argument("--real-options", action="store_true", help="do not apply the test game options (testopts.py: advisor off, quick combat/movement) for this run")
     ap.add_argument("--no-retry", action="store_true", help="`all` / `changed` retry each failed script once with a fresh load at the end (a pass = FLAKY, run still green); this disables it")
+    ap.add_argument("--impact", nargs="+", metavar="TEXT", help="offline: list the expect lines of test/regress/*.txt that match (regex) or contain any of these old texts, then exit")
+    ap.add_argument("--impact-diff", metavar="REV", help="offline: like --impact with the string literals (>= 4 chars) removed from ScreenReaderAccess/**/*.lua in the diff against REV")
     ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
+    if a.impact or a.impact_diff:
+        texts = list(a.impact or [])
+        if a.impact_diff:
+            diff = git_out(["diff", "-U0", a.impact_diff, "--", MOD_DIR + "*.lua"])
+            if diff is None:
+                print("ERROR: unknown revision %s" % a.impact_diff, file=sys.stderr)
+                return 2
+            texts += removed_literals(diff)
+            print("old texts: %d" % len(texts))
+        print_impact(texts)
+        return 0
     if a.clear_advisors:
         owner = a.owner or os.environ.get("CIVCTL_OWNER")
         if not owner:
