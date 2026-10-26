@@ -186,3 +186,20 @@ test("end-turn guard: warn, confirm within 10 s, no nagging after, new set warns
 	eq(HubEnemies.GuardDecision(g, 5, "1;2", 136), "warn")		-- another key in between
 	eq(HubEnemies.GuardDecision(g, 6, "1", 140), "warn")		-- next turn
 end)
+
+test("threat items: one per unit key across rules", function()
+	local items, seen = {}, {}
+	local e = { key = "63:7", x = 1, y = 2 }
+	eq(HubEnemies.AddThreatItem(items, seen, e, "Barbarian Archer", "raiding"), true)
+	eq(HubEnemies.AddThreatItem(items, seen, e, "Barbarian Archer", "near your city"), false)
+	eq(HubEnemies.AddThreatItem(items, seen, { key = "63:8", x = 1, y = 3 }, "Barbarian Archer", "near your city"), true)
+	eq(#items, 2)
+	eq(items[1].text, "raiding")
+end)
+
+test("end-turn key: stale KeyDown state is dropped", function()
+	HubEnemies.m_guard = { turn = -1, warnSig = nil, warnTime = 0, confirmSig = nil, down = true, downBlock = true, text = "x", downTime = 0 }
+	Game.GetCurrentGameTurn = function() return 3 end
+	HubEnemies.ExposedCivilians = function() return {}, "" end
+	eq(HubEnemies.EndTurnKey(false, 5), false)
+end)

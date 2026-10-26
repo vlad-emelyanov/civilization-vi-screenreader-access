@@ -10,4 +10,8 @@ lua InGameAccess local items,sig=HubEnemies.ExposedCivilians(3) return 'EXPOSED 
 expect-lua EXPOSED [1-9]
 lua InGameAccess return HubEnemies.ExposedText((HubEnemies.ExposedCivilians(3)))
 expect-lua Settler exposed: Barbarian Archer 2 tiles east\. Enter again ends the turn anyway
+key Enter -Settle 1500
+expect Enter again ends the turn anyway
+key Enter -Settle 3000
+expect Turn ended|Turn \d+
 no-lua-errors

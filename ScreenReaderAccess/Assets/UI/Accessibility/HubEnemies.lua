@@ -762,14 +762,20 @@ function HubEnemies.OnHostileVisible( unit:table )
 	end );
 end
 
+-- One Threats item per unit key, whichever rule (scout, raid, danger, near a city) reaches it first.
+function HubEnemies.AddThreatItem( items:table, seen:table, entry:table, name:string, text:string )
+	if seen[ entry.key ] then return false; end
+	seen[ entry.key ] = true;
+	table.insert( items, { key = "t:" .. entry.key, name = name, x = entry.x, y = entry.y, text = text } );
+	return true;
+end
+
 -- Items for the places list (J): { key, name, x, y, text } of the alarmed scouts in view, the raiders and the enemies near
 -- a civilian of ours. Empty when nothing is active.
 function HubEnemies.ThreatItems()
 	local items:table, seen:table = {}, {};
 	local function Add( entry:table, text:string )
-		if seen[ entry.key ] then return; end
-		seen[ entry.key ] = true;
-		table.insert( items, { key = "t:" .. entry.key, name = PlotDescription_GetUnitName( entry.unit ), x = entry.x, y = entry.y, text = text } );
+		HubEnemies.AddThreatItem( items, seen, entry, PlotDescription_GetUnitName( entry.unit ), text );
 	end
 	for _, h in ipairs( VisibleHostiles() ) do
 		if h.scout and HubEnemies.m_alarmed[ h.key ] and HubEnemies.m_scouts[ h.key ] ~= nil then
@@ -912,6 +918,8 @@ end
 local EXPOSED_RADIUS:number = 3;
 HubEnemies.m_guard = { turn = -1, warnSig = nil, warnTime = 0, confirmSig = nil, down = false, downBlock = false, text = nil };
 
+function HubEnemies.EndTurnKeyPending() return HubEnemies.m_guard.down == true; end
+
 -- Any other key between the warning and the second Enter cancels the pending confirmation.
 function HubEnemies.EndTurnGuardOtherKey()
 	HubEnemies.m_guard.warnSig = nil;
@@ -921,6 +929,7 @@ end
 -- is only a warning). Decided on KeyDown (key repeat reuses it), spoken on KeyUp.
 function HubEnemies.EndTurnKey( isUp:boolean, now:number )
 	local g:table = HubEnemies.m_guard;
+	if g.down and now - ( g.downTime or 0 ) > 1.0 then g.down, g.downBlock, g.text = false, false, nil; end		-- stale: its KeyUp never came
 	if not isUp and g.down then return g.downBlock; end
 	if isUp and g.down then
 		g.down = false;
@@ -931,7 +940,7 @@ function HubEnemies.EndTurnKey( isUp:boolean, now:number )
 		end
 		return false;
 	end
-	g.down, g.downBlock, g.text = not isUp, false, nil;
+	g.down, g.downBlock, g.text, g.downTime = not isUp, false, nil, now;
 	local ok:boolean, items, sig = pcall( HubEnemies.ExposedCivilians, EXPOSED_RADIUS );
 	if not ok then print( "HubEnemies guard error: " .. tostring( items ) ); g.down = false; return false; end
 	local kind:string = HubEnemies.GuardDecision( g, Game.GetCurrentGameTurn(), sig, now );

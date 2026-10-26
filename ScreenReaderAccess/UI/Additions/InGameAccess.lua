@@ -126,7 +126,7 @@ function Hub.HandleInput( input:table )
 		return true;
 	end
 	-- Enter that would end the turn while a settler or builder stands exposed near a hostile soldier: the first Enter only warns
-	if key == Keys.VK_RETURN and HubEnemies ~= nil and not HubCore.IsGamePopupOpen() and HubAnnounce.IsReadyNow() then
+	if key == Keys.VK_RETURN and HubEnemies ~= nil and ( HubEnemies.EndTurnKeyPending() or ( not HubCore.IsGamePopupOpen() and HubAnnounce.IsReadyNow() ) ) then
 		if HubEnemies.EndTurnKey( msg == KeyEvents.KeyUp, UI.GetElapsedTime() ) then return true; end
 	end
 	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp and not HubCore.IsGamePopupOpen() then Hub.ArmEnterWatch(); end		-- an open screen (City-States, governors) takes Enter itself
