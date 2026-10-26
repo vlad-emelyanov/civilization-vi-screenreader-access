@@ -218,6 +218,7 @@ local DANGER_RADIUS:number = 2;			-- a hostile soldier this close to an unescort
 local PATH_DANGER:number = 4;			-- a hostile soldier / camp this close to a moving civilian's path or target
 local RAID_EXPECTED_TURNS:number = 10;
 local MAX_RAID_GROUPS:number = 3;
+local NEAR_CITY:number = 3;			-- any visible hostile soldier this close to a city of ours is listed under Threats
 
 HubEnemies.m_scouts = {};				-- "owner:id" -> { name, x, y (last seen), cx, cy (the city it saw), turn } of alarmed scouts not yet escaped or dead
 HubEnemies.m_alarmed = {};				-- "owner:id" -> true: this scout already had its alarm (once per scout)
@@ -293,6 +294,64 @@ function HubEnemies.RaidText( owner:string, cityName:string, total:number, group
 		text = text .. " You have no soldiers near";
 	end
 	return text;
+end
+
+-- The short line of a raid that goes on unchanged ("Raid near Rome continues, 2 barbarians").
+function HubEnemies.RaidContinuesText( owner:string, cityName:string, total:number )
+	if owner == nil then return "Raid near " .. cityName .. " continues, " .. HubCore.Plural( total, "barbarian", "barbarians" ); end
+	return owner .. " raid near " .. cityName .. " continues, " .. HubCore.Plural( total, "unit", "units" );
+end
+
+-- Pure: what to say about a raid on a city. state: what was kept when it was last spoken ({ sig, close = { key = true }, turn }) or nil.
+-- sig: the sorted member keys; closeKeys: the members within 2 tiles of the city now; turn: the game turn.
+-- Returns "full" (new raid, the member set changed, or a member is within 2 tiles for the first time), "short" (unchanged
+-- for RAID_REPEAT_TURNS turns: one reminder line) or nil (silent), and the state to keep.
+local RAID_REPEAT_TURNS:number = 3;
+function HubEnemies.RaidDecision( state:table, sig:string, closeKeys:table, turn:number )
+	local function CloseSet()
+		local set:table = {};
+		for _, k in ipairs( closeKeys ) do set[k] = true; end
+		return set;
+	end
+	if state == nil or state.sig ~= sig then return "full", { sig = sig, close = CloseSet(), turn = turn }; end
+	local fresh:boolean = false;
+	for _, k in ipairs( closeKeys ) do
+		if not state.close[k] then fresh = true; state.close[k] = true; end
+	end
+	if fresh then state.turn = turn; return "full", state; end
+	if turn - state.turn >= RAID_REPEAT_TURNS then state.turn = turn; return "short", state; end
+	return nil, state;
+end
+
+-- Pure: the end-turn guard. g: { turn, warnSig, warnTime, confirmSig }; sig: "" when no civilian is exposed.
+-- "pass" (Enter goes through), "warn" (consumed, the warning is spoken) or "confirm" (second Enter within 10 s: through).
+local GUARD_WINDOW:number = 10;
+function HubEnemies.GuardDecision( g:table, turn:number, sig:string, now:number )
+	if g.turn ~= turn then g.turn, g.warnSig, g.warnTime, g.confirmSig = turn, nil, 0, nil; end
+	if sig == nil or sig == "" or g.confirmSig == sig then return "pass"; end
+	if g.warnSig == sig and now - g.warnTime <= GUARD_WINDOW then g.confirmSig = sig; g.warnSig = nil; return "confirm"; end
+	g.warnSig, g.warnTime = sig, now;
+	return "warn";
+end
+
+-- items: { { name = "Settler", enemy = "Barbarian Archer", relative = "2 tiles north-east" } ... }
+function HubEnemies.ExposedText( items:table )
+	local counts:table, order:table = {}, {};
+	local enemies:table, seen:table = {}, {};
+	for _, item in ipairs( items ) do
+		if counts[ item.name ] == nil then counts[ item.name ] = 0; table.insert( order, item.name ); end
+		counts[ item.name ] = counts[ item.name ] + 1;
+		local e:string = item.enemy .. ( ( item.relative ~= nil and item.relative ~= "" ) and ( " " .. item.relative ) or "" );
+		if not seen[e] then seen[e] = true; table.insert( enemies, e ); end
+	end
+	local names:table = {};
+	for _, name in ipairs( order ) do
+		table.insert( names, counts[ name ] > 1 and ( counts[ name ] .. " " .. HubEnemies.PluralName( name, counts[ name ] ) ) or name );
+	end
+	local who:string = names[1];
+	if #names == 2 then who = names[1] .. " and " .. names[2];
+	elseif #names > 2 then who = table.concat( names, ", ", 1, #names - 1 ) .. " and " .. names[ #names ]; end
+	return who .. " exposed: " .. table.concat( enemies, ", " ) .. ". Enter again ends the turn anyway";
 end
 
 -- hint: "Move it into Rome" or nil.
@@ -528,7 +587,7 @@ end
 -- Live scan of the dangers. Returns { raids = { { key, sig, text, barbarian, members = { entry } } },
 -- civilians = { { key, sig, text, enemy = entry, unit } } }.
 function HubEnemies.ScanThreats()
-	local result:table = { raids = {}, civilians = {} };
+	local result:table = { raids = {}, civilians = {}, nearCity = {} };
 	local cities:table = OwnCities();
 	local soldiers:table = {};
 	local landSoldiers:table = {};
@@ -577,11 +636,15 @@ function HubEnemies.ScanThreats()
 			if not barbarian then ownerName = Locale.Lookup( PlayerConfigurations[ raid.owner ]:GetCivilizationShortDescription() ); end
 			local text:string = HubEnemies.RaidText( ownerName, Locale.Lookup( city:GetName() ), #raid.members, order, CityDefense( city ),
 				NearestOwnSoldiers( city ) );
-			-- the signature changes with the soldiers and their positions, not with the wording of our own units
-			local sigParts:table = {};
-			-- who is in it and how close (a band), so a raid that walks on is not spoken again every turn
-			for _, m in ipairs( raid.members ) do table.insert( sigParts, m.key .. ( m.near <= 2 and "a" or "b" ) ); end
-			table.insert( result.raids, { key = key, sig = table.concat( sigParts, ";" ), text = text, barbarian = barbarian, members = raid.members } );
+			-- the signature is the member set; the members within 2 tiles are kept apart (HubEnemies.RaidDecision)
+			local sigParts:table, closeKeys:table = {}, {};
+			for _, m in ipairs( raid.members ) do
+				table.insert( sigParts, m.key );
+				if m.near <= 2 then table.insert( closeKeys, m.key ); end
+			end
+			table.sort( sigParts );
+			table.insert( result.raids, { key = key, sig = table.concat( sigParts, ";" ), closeKeys = closeKeys, text = text, barbarian = barbarian,
+				members = raid.members, cityName = Locale.Lookup( city:GetName() ), ownerName = ownerName } );
 		end
 	end
 	table.sort( result.raids, function( a, b ) return a.key < b.key; end );
@@ -631,6 +694,18 @@ function HubEnemies.ScanThreats()
 			end
 		end
 	end
+	-- any other visible hostile land soldier within NEAR_CITY tiles of a city of ours (a lone archer escorting a settler is no raid)
+	result.nearCity = {};
+	for _, s in ipairs( landSoldiers ) do
+		for _, city in ipairs( cities ) do
+			local d:number = Dist( s.x, s.y, city:GetX(), city:GetY() );
+			if d <= NEAR_CITY then
+				local relative:string = PlotDescription_GetRelative( Map.GetPlot( city:GetX(), city:GetY() ), Map.GetPlot( s.x, s.y ) );
+				table.insert( result.nearCity, { enemy = s, city = city, d = d, relative = relative } );
+				break;
+			end
+		end
+	end
 	return result;
 end
 
@@ -641,10 +716,11 @@ function HubEnemies.SpeakThreats( nointerrupt:boolean )
 	local liveRaids:table, liveCivilians:table = {}, {};
 	for _, raid in ipairs( threats.raids ) do
 		liveRaids[ raid.key ] = true;
-		if HubEnemies.m_raidSig[ raid.key ] ~= raid.sig then
-			HubEnemies.m_raidSig[ raid.key ] = raid.sig;
+		local kind:string, state:table = HubEnemies.RaidDecision( HubEnemies.m_raidSig[ raid.key ], raid.sig, raid.closeKeys, Game.GetCurrentGameTurn() );
+		HubEnemies.m_raidSig[ raid.key ] = state;
+		if kind ~= nil then
 			if raid.barbarian then HubEnemies.m_raidExpected = nil; end		-- it has come
-			HubCore.Announce( raid.text, nointerrupt, "raid" );
+			HubCore.Announce( kind == "full" and raid.text or HubEnemies.RaidContinuesText( raid.ownerName, raid.cityName, #raid.members ), nointerrupt, "raid" );
 		end
 	end
 	for _, danger in ipairs( threats.civilians ) do
@@ -686,14 +762,20 @@ function HubEnemies.OnHostileVisible( unit:table )
 	end );
 end
 
+-- One Threats item per unit key, whichever rule (scout, raid, danger, near a city) reaches it first.
+function HubEnemies.AddThreatItem( items:table, seen:table, entry:table, name:string, text:string )
+	if seen[ entry.key ] then return false; end
+	seen[ entry.key ] = true;
+	table.insert( items, { key = "t:" .. entry.key, name = name, x = entry.x, y = entry.y, text = text } );
+	return true;
+end
+
 -- Items for the places list (J): { key, name, x, y, text } of the alarmed scouts in view, the raiders and the enemies near
 -- a civilian of ours. Empty when nothing is active.
 function HubEnemies.ThreatItems()
 	local items:table, seen:table = {}, {};
 	local function Add( entry:table, text:string )
-		if seen[ entry.key ] then return; end
-		seen[ entry.key ] = true;
-		table.insert( items, { key = "t:" .. entry.key, name = PlotDescription_GetUnitName( entry.unit ), x = entry.x, y = entry.y, text = text } );
+		HubEnemies.AddThreatItem( items, seen, entry, PlotDescription_GetUnitName( entry.unit ), text );
 	end
 	for _, h in ipairs( VisibleHostiles() ) do
 		if h.scout and HubEnemies.m_alarmed[ h.key ] and HubEnemies.m_scouts[ h.key ] ~= nil then
@@ -706,6 +788,10 @@ function HubEnemies.ThreatItems()
 	end
 	for _, danger in ipairs( threats.civilians ) do
 		Add( danger.enemy, PlotDescription_GetUnitName( danger.enemy.unit ) .. ", threatens your " .. Locale.Lookup( danger.unit:GetName() ) );
+	end
+	for _, near in ipairs( threats.nearCity ) do
+		Add( near.enemy, PlotDescription_GetUnitName( near.enemy.unit ) .. ", "
+			.. ( near.relative ~= nil and ( near.relative .. " of " ) or "at " ) .. Locale.Lookup( near.city:GetName() ) .. ", near your city" );
 	end
 	return items;
 end
@@ -771,4 +857,97 @@ function HubEnemies.EscortText( unit:table )
 	if HubEnemies.m_escortHinted[ key ] then return nil; end
 	HubEnemies.m_escortHinted[ key ] = true;
 	return HubEnemies.EscortHintText( name, HubEnemies.KeyText( "ExtraHotkeysEnterFormation", "Shift+E" ) );
+end
+
+-- ---------------------------------------------------------------------------
+-- Auto-explore caution and the end-turn guard
+-- ---------------------------------------------------------------------------
+-- "Barbarian Archer 2 tiles east" for the nearest visible hostile soldier within radius tiles of the unit, else nil.
+function HubEnemies.NearestHostileText( unit:table, radius:number )
+	if unit == nil then return nil; end
+	local best:table, bestDistance:number = nil, 99;
+	for _, h in ipairs( VisibleHostiles() ) do
+		if h.soldier then
+			local d:number = Dist( h.x, h.y, unit:GetX(), unit:GetY() );
+			if d <= radius and d < bestDistance then best, bestDistance = h, d; end
+		end
+	end
+	if best == nil then return nil; end
+	local relative:string = PlotDescription_GetRelative( Map.GetPlot( unit:GetX(), unit:GetY() ), Map.GetPlot( best.x, best.y ) );
+	return PlotDescription_GetUnitName( best.unit ) .. ( relative ~= nil and ( " " .. relative ) or " here" );
+end
+
+-- Our settlers and builders outside a city, not in a formation, without a soldier of ours on their tile, with a visible
+-- hostile land soldier within radius tiles: { { name, enemy, relative } ... }, "id;id" ("" for none).
+function HubEnemies.ExposedCivilians( radius:number )
+	local items:table, ids:table = {}, {};
+	local me:table = Players[ Game.GetLocalPlayer() ];
+	if me == nil then return items, ""; end
+	local soldiers:table = {};
+	for _, h in ipairs( VisibleHostiles() ) do
+		if h.soldier and not HubEnemies.IsNaval( h.unit ) then table.insert( soldiers, h ); end
+	end
+	if #soldiers == 0 then return items, ""; end
+	for _, unit in me:GetUnits():Members() do
+		if HubEnemies.IsCivilian( unit ) and not InFormation( unit ) then
+			local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+			local escorted:boolean = plot == nil or plot:IsCity();
+			if not escorted then
+				for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+					if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and IsSoldier( other ) then escorted = true; end
+				end
+			end
+			if not escorted then
+				local nearest:table, nearestDistance:number = nil, 99;
+				for _, s in ipairs( soldiers ) do
+					local d:number = Dist( s.x, s.y, unit:GetX(), unit:GetY() );
+					if d <= radius and d < nearestDistance then nearest, nearestDistance = s, d; end
+				end
+				if nearest ~= nil then
+					table.insert( items, { name = Locale.Lookup( unit:GetName() ), enemy = PlotDescription_GetUnitName( nearest.unit ),
+						relative = PlotDescription_GetRelative( plot, Map.GetPlot( nearest.x, nearest.y ) ) } );
+					table.insert( ids, unit:GetID() );
+				end
+			end
+		end
+	end
+	table.sort( ids );
+	return items, table.concat( ids, ";" );
+end
+
+local EXPOSED_RADIUS:number = 3;
+HubEnemies.m_guard = { turn = -1, warnSig = nil, warnTime = 0, confirmSig = nil, down = false, downBlock = false, text = nil };
+
+function HubEnemies.EndTurnKeyPending() return HubEnemies.m_guard.down == true; end
+
+-- Any other key between the warning and the second Enter cancels the pending confirmation.
+function HubEnemies.EndTurnGuardOtherKey()
+	HubEnemies.m_guard.warnSig = nil;
+end
+
+-- Enter while it would end the turn (the caller checked): true = consume the key (the first Enter with exposed civilians
+-- is only a warning). Decided on KeyDown (key repeat reuses it), spoken on KeyUp.
+function HubEnemies.EndTurnKey( isUp:boolean, now:number )
+	local g:table = HubEnemies.m_guard;
+	if g.down and now - ( g.downTime or 0 ) > 1.0 then g.down, g.downBlock, g.text = false, false, nil; end		-- stale: its KeyUp never came
+	if not isUp and g.down then return g.downBlock; end
+	if isUp and g.down then
+		g.down = false;
+		if g.downBlock then
+			g.downBlock = false;
+			if g.text ~= nil then OutputMessageToScreenReader( g.text ); end
+			return true;
+		end
+		return false;
+	end
+	g.down, g.downBlock, g.text, g.downTime = not isUp, false, nil, now;
+	local ok:boolean, items, sig = pcall( HubEnemies.ExposedCivilians, EXPOSED_RADIUS );
+	if not ok then print( "HubEnemies guard error: " .. tostring( items ) ); g.down = false; return false; end
+	local kind:string = HubEnemies.GuardDecision( g, Game.GetCurrentGameTurn(), sig, now );
+	if kind == "warn" then
+		g.text = HubEnemies.ExposedText( items );
+		if isUp then OutputMessageToScreenReader( g.text ); return true; end
+		g.downBlock = true;
+	end
+	return g.downBlock;
 end

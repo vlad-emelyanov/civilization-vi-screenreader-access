@@ -33,7 +33,12 @@ function HubEvents.OnUnitOperationAdded( ownerID:number, unitID:number, hOperati
 	-- The game also re-adds the operation of units that are already exploring (every turn, after a load): only the
 	-- order the player just gave is told. (The old "it has not moved" check after 1 s was dropped: unreliable.)
 	if UI.GetElapsedTime() - HubCore.m_lastKeyTime > 2.0 then return; end
-	HubCore.SayResult( HubMenus.OPERATION_RESULTS.UNITOPERATION_AUTOMATE_EXPLORE );
+	local text:string = HubMenus.OPERATION_RESULTS.UNITOPERATION_AUTOMATE_EXPLORE;
+	-- a hostile soldier within 3 tiles: the explorer may walk into it
+	local unit = Players[ ownerID ] ~= nil and Players[ ownerID ]:GetUnits():FindID( unitID ) or nil;
+	local caution = HubEnemies ~= nil and HubEnemies.NearestHostileText( unit, 3 ) or nil;
+	if caution ~= nil then text = text .. ". Caution: " .. caution; end
+	HubCore.SayResult( text );
 end
 
 function HubEvents.OnUnitCommandStarted( ownerID:number, unitID:number, commandID:number )
