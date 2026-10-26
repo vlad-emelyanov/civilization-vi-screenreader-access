@@ -363,6 +363,8 @@ function HubAnnounce.OnLoadScreenClose()
 	m_lastSettleSpoken = nil;
 	HubCursor.ResetCursor();
 	HubCore.m_ready = true;
+	-- Accept the camps in the fog right now, not at the first J/X: one that spawns later must be reported as new.
+	if HubPlaces ~= nil then pcall( HubPlaces.Prime ); end
 	HubCore.m_movers = {};
 	HubCore.m_spotted = {};
 	HubCore.m_arrivals = {};

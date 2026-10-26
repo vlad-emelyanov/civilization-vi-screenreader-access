@@ -237,6 +237,8 @@ function Initialize()
 		HubCore.m_cursorPlayer = Game.GetLocalPlayer();
 		HubCore.m_lastAnnouncedTurn = Game.GetLocalPlayer() .. ":" .. Game.GetCurrentGameTurn();
 		for _, unit in Players[ Game.GetLocalPlayer() ]:GetUnits():Members() do HubCore.RememberUnit( unit ); end
+		-- Camps in the fog are accepted now (dev only: one that spawned in the fog since the load leaks once on a hot reload).
+		pcall( HubPlaces.Prime );
 	end
 
 	Hub.RegisterAction( "KeyNavMoveCellLeft",		function() HubCursor.MoveCursor( -1, 0 ); end );

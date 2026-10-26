@@ -4993,6 +4993,8 @@ function SRUnitPanelUpdate()
 			if f.exiting == true then
 				if u ~= nil and u:GetFormationUnitCount() < f.before then
 					text = "Escort ended: " .. f.mine .. " is on its own again";
+				elseif u == nil then
+					return;		-- the unit is gone (killed, disbanded): nothing to say
 				elseif now < f.due + 2.0 then
 					return;
 				else

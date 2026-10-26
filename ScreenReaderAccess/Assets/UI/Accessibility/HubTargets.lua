@@ -418,6 +418,21 @@ function HubTargets.UnreachableReason( unit:table, plot:table )
 		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
 			local class:string = ClassOf( other );
 			if other:GetOwner() == unit:GetOwner() and not own[ other:GetID() ] and class ~= nil and classes[ class ] and other:GetFormationUnitCount() <= 1 then
+				-- Only when this really is the blocker: the plot is one the unit's domain can enter and a neighbour of it is reachable
+				-- (else it is water for a land unit, an island, ZOC ...: plain "Unreachable").
+				local unitRow:table = GameInfo.Units[ unit:GetUnitType() ];
+				local domain:string = ( unitRow ~= nil ) and unitRow.Domain or "";
+				if ( domain == "DOMAIN_LAND" and plot:IsWater() ) or ( domain == "DOMAIN_SEA" and not plot:IsWater() ) or ( domain ~= "DOMAIN_LAND" and domain ~= "DOMAIN_SEA" ) then return; end
+				local neighbourReached:boolean = false;
+				for dir = 0, 5 do
+					local n:table = Map.GetAdjacentPlot( plot:GetX(), plot:GetY(), dir );
+					if n ~= nil then
+						if n:GetX() == unit:GetX() and n:GetY() == unit:GetY() then neighbourReached = true; break; end
+						local path:table = UnitManager.GetMoveToPathEx( unit, n:GetIndex() );
+						if path ~= nil and path.plots ~= nil and #path.plots >= 2 then neighbourReached = true; break; end
+					end
+				end
+				if not neighbourReached then return; end
 				local kind:string = ( class == "FORMATION_CLASS_CIVILIAN" ) and "civilian" or ( class == "FORMATION_CLASS_LAND_COMBAT" and "land military unit" or "unit of that kind" );
 				text = Locale.Lookup( other:GetName() ) .. " is already there, only one " .. kind .. " fits on a tile";
 				return;

@@ -15,5 +15,6 @@ key Control+Tab -Settle 800
 key Control+Tab -Settle 800
 key Control+Tab -Settle 800
 expect ^Points of interest, 3 of 6 categories, 6 items
+expect Barbarian Outpost
 key Escape -Settle 800
 no-lua-errors

@@ -4076,7 +4076,7 @@ function SRA_CreateLists()
 		extraKeys = { [ Keys.VK_DELETE ] = SRA_KeyDelete } };
 	m_srLists[2] = KeyNavList_Create{ build = function() return SRA_AvailableItems( LOCAL_PLAYER ); end, isActive = Active( 2 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
 	m_srLists[3] = KeyNavList_Create{ build = function() return SRA_AvailableItems( OTHER_PLAYER ); end, isActive = Active( 3 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
-	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, focusLostSafe = true, focusLostText = function() return DealSpeech_InvalidItemsText( SRA_InvalidItems() ) or "Nothing was focused yet"; end, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };
+	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, focusLostSafe = true, focusLostText = function() local t = DealSpeech_InvalidItemsText( SRA_InvalidItems() ); if t == nil or t == "" then t = "Nothing was focused yet"; end return t; end, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };
 	m_srOptList = KeyNavList_Create{ build = SRA_OptionItems, isActive = function() return not ContextPtr:IsHidden() and SRA_OptionsOpen() and not m_kPopupDialog:IsOpen(); end,
 		onActivate = SRA_OnOptionActivate, onClose = SRA_OnOptionsClose };
 end
