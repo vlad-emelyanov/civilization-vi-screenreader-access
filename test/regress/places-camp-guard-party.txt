@@ -12,11 +12,11 @@ key Tab -Settle 800
 key Tab -Settle 800
 key Tab -Settle 800
 expect (?i)Points of interest, \d+ of \d+ categories
-expect Barbarian Camp, \d+ tiles? [a-z-]+ of \w+, guarded by Warrior, 1 of \d+
+expect Barbarian (Camp|Outpost), \d+ tiles? [a-z-]+ of \w+.*guarded by \w+.*1 of \d+
 key Space -Settle 1200
 expect Destroying it gives (about \d+ )?gold and stops raids from it\. Fighting near it gives your units experience
 key M -Settle 1500
-expect ^Send a unit to Barbarian Camp
+expect ^Send a unit to Barbarian (Camp|Outpost)
 expect Attack party, send 2 units: \w+ \d+ turns?, \w+ \d+ turns?
 key Escape -Settle 1000
 key Escape -Settle 1000
