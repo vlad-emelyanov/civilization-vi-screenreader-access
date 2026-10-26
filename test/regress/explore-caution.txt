@@ -1,0 +1,18 @@
+# Round 24: automatic exploration with a hostile soldier within 3 tiles says "Exploring automatically. Caution: Barbarian Archer 3 tiles east".
+# Fixture pt-early-t64: Heavy Chariot at 59,32, barbarian archer 3 tiles east of it. Threats (J) lists the lone archer near Rome;
+# a raid (3 barbarians spawned with the tuner) is spoken once and after 3 unchanged turns as "Raid near Rome continues, 3 barbarians".
+# covers: **/HubEvents.lua **/HubEnemies.lua
+# no-share-load: spawns units
+load pt-early-t64
+clear-advisors
+lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_HEAVY_CHARIOT" and u:GetX()==59 and u:GetY()==32 then UI.SelectUnit(u) UI.LookAtPlot(u:GetX(),u:GetY()) return u:GetID() end end
+action AutoExplore -Settle 2500
+expect ^Exploring automatically\. Caution: Barbarian Archer 3 tiles east$
+lua GameCore_Tuner local n=0 for _,xy in ipairs({{62,35},{63,34}}) do local p=Map.GetPlot(xy[1],xy[2]) if p and not p:IsWater() and not p:IsImpassable() and p:GetUnitCount()==0 then Players[63]:GetUnits():Create(GameInfo.Units["UNIT_WARRIOR"].Index, xy[1], xy[2]) n=n+1 end end return n
+expect-lua ^2$
+lua InGameAccess HubEnemies.SpeakThreats(false) return "spoke"
+wait Raid: 3 barbarians near Rome -Timeout 5
+lua InGameAccess for k,s in pairs(HubEnemies.m_raidSig) do s.turn = s.turn - 3 end HubEnemies.SpeakThreats(false) return "aged"
+wait Raid near Rome continues, 3 barbarians -Timeout 5
+expect ^Raid near Rome continues, 3 barbarians$
+no-lua-errors
