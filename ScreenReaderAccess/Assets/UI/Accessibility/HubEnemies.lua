@@ -410,6 +410,25 @@ function HubEnemies.IsCivilian( unit:table )
 	return row ~= nil and ( row.FoundCity == true or ( row.BuildCharges ~= nil and row.BuildCharges > 0 ) );
 end
 
+-- Pure: can a hostile unit threaten a civilian of ours? A civilian inside a city of ours is safe (a city cannot be entered
+-- while it stands); a ship cannot capture a civilian on land (an embarked one on water still counts).
+function HubEnemies.CivilianAtRisk( inCity:boolean, onWater:boolean, enemyNaval:boolean )
+	if inCity then return false; end
+	if enemyNaval and not onWater then return false; end
+	return true;
+end
+
+-- Is there a city of ours on this tile (plot:IsCity() plus the city list, so a missing flag cannot expose a civilian in Rome)?
+local function CityOnTile( plot:table, x:number, y:number )
+	if plot ~= nil and plot:IsCity() then return true; end
+	local me:table = Players[ Game.GetLocalPlayer() ];
+	if me == nil then return false; end
+	for _, city in me:GetCities():Members() do
+		if city:GetX() == x and city:GetY() == y then return true; end
+	end
+	return false;
+end
+
 local function InFormation( unit:table )
 	local ok:boolean, count = pcall( function() return unit:GetFormationUnitCount(); end );
 	return ok and count ~= nil and count > 1;
@@ -653,7 +672,7 @@ function HubEnemies.ScanThreats()
 	for _, unit in me:GetUnits():Members() do
 		if HubEnemies.IsCivilian( unit ) and not InFormation( unit ) then
 			local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
-			local escorted:boolean = plot == nil or plot:IsCity();
+			local escorted:boolean = plot == nil or CityOnTile( plot, unit:GetX(), unit:GetY() );
 			if not escorted then
 				for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
 					if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and IsSoldier( other ) then escorted = true; end
@@ -663,7 +682,7 @@ function HubEnemies.ScanThreats()
 				local nearest:table, nearestDistance:number = nil, 99;
 				for _, s in ipairs( soldiers ) do
 					local d:number = Dist( s.x, s.y, unit:GetX(), unit:GetY() );
-					if d <= DANGER_RADIUS and d < nearestDistance then nearest, nearestDistance = s, d; end
+					if d <= DANGER_RADIUS and d < nearestDistance and HubEnemies.CivilianAtRisk( false, plot:IsWater(), HubEnemies.IsNaval( s.unit ) ) then nearest, nearestDistance = s, d; end
 				end
 				if nearest ~= nil then
 					local nearCity:table, cityDistance:number = nil, 99;
@@ -886,13 +905,13 @@ function HubEnemies.ExposedCivilians( radius:number )
 	if me == nil then return items, ""; end
 	local soldiers:table = {};
 	for _, h in ipairs( VisibleHostiles() ) do
-		if h.soldier and not HubEnemies.IsNaval( h.unit ) then table.insert( soldiers, h ); end
+		if h.soldier then table.insert( soldiers, h ); end
 	end
 	if #soldiers == 0 then return items, ""; end
 	for _, unit in me:GetUnits():Members() do
 		if HubEnemies.IsCivilian( unit ) and not InFormation( unit ) then
 			local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
-			local escorted:boolean = plot == nil or plot:IsCity();
+			local escorted:boolean = plot == nil or CityOnTile( plot, unit:GetX(), unit:GetY() );
 			if not escorted then
 				for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
 					if other:GetOwner() == unit:GetOwner() and other:GetID() ~= unit:GetID() and IsSoldier( other ) then escorted = true; end
@@ -902,7 +921,7 @@ function HubEnemies.ExposedCivilians( radius:number )
 				local nearest:table, nearestDistance:number = nil, 99;
 				for _, s in ipairs( soldiers ) do
 					local d:number = Dist( s.x, s.y, unit:GetX(), unit:GetY() );
-					if d <= radius and d < nearestDistance then nearest, nearestDistance = s, d; end
+					if d <= radius and d < nearestDistance and HubEnemies.CivilianAtRisk( false, plot:IsWater(), HubEnemies.IsNaval( s.unit ) ) then nearest, nearestDistance = s, d; end
 				end
 				if nearest ~= nil then
 					table.insert( items, { name = Locale.Lookup( unit:GetName() ), enemy = PlotDescription_GetUnitName( nearest.unit ),

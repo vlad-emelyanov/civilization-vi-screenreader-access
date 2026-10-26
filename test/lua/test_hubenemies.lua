@@ -216,3 +216,10 @@ test("threat item for a soldier near a city has no position of its own (the plac
 	eq(#items, 1)
 	eq(items[1].text, "Barbarian Archer, near your city")
 end)
+
+test("civilian risk: not in a city, ships cannot take a civilian on land", function()
+	eq(HubEnemies.CivilianAtRisk(true, false, false), false)
+	eq(HubEnemies.CivilianAtRisk(false, false, true), false)		-- Quadrireme vs Builder on land
+	eq(HubEnemies.CivilianAtRisk(false, true, true), true)		-- embarked civilian
+	eq(HubEnemies.CivilianAtRisk(false, false, false), true)
+end)
