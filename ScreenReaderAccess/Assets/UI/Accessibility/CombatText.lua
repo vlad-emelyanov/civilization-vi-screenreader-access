@@ -12,12 +12,13 @@ function CombatText_ModifierLine( text:string )
 	return text;
 end
 
--- "Strength 20 against 17" (defenderTotal nil or <= 0: the target cannot defend, only our strength is told).
+-- "Strength 20 against 17" (defenderTotal nil: only our strength is told; <= 0: "against no defense").
 -- prefix: "Strength", "Ranged strength", "Bombard strength".
 function CombatText_StrengthPhrase( prefix:string, attackerTotal:number, defenderTotal:number )
 	if attackerTotal == nil then return nil; end
 	attackerTotal = math.max( 0, math.floor( attackerTotal + 0.5 ) );
-	if defenderTotal == nil or defenderTotal <= 0 then return prefix .. " " .. attackerTotal; end
+	if defenderTotal == nil then return prefix .. " " .. attackerTotal; end
+	if defenderTotal <= 0 then return prefix .. " " .. attackerTotal .. " against no defense"; end
 	return prefix .. " " .. attackerTotal .. " against " .. math.max( 0, math.floor( defenderTotal + 0.5 ) );
 end
 

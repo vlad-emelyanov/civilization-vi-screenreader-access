@@ -4,7 +4,7 @@ include("CombatText")
 
 test("strength phrase", function()
 	eq(CombatText_StrengthPhrase("Strength", 20, 17), "Strength 20 against 17")
-	eq(CombatText_StrengthPhrase("Ranged strength", 25, 0), "Ranged strength 25")
+	eq(CombatText_StrengthPhrase("Ranged strength", 25, 0), "Ranged strength 25 against no defense")
 	eq(CombatText_StrengthPhrase("Strength", nil, 3), nil)
 end)
 

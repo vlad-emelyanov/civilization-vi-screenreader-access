@@ -105,8 +105,37 @@ local function IsCityOrDistrictPlot( plot:table )
 	return false;
 end
 
+-- The game (UnitPanel OnShowCombat / GetDistrictFromCity) previews a city attack with the city's DISTRICT object:
+-- SimulateAttackVersus( district:GetComponentID(), defenderUnit:GetComponentID() ); a city is not a valid attacker
+-- for SimulateAttackInto (it returns nil), a district component is.
+local function CityDistrict( city:table )
+	if city == nil then return nil; end
+	if city.GetDistrictID == nil then return city; end		-- already a district
+	local player:table = Players[ city:GetOwner() ];
+	if player == nil then return nil; end
+	return player:GetDistricts():FindID( city:GetDistrictID() );
+end
+
 local function SimulateAttack( unit:table, plot:table, combatType )
-	local ok:boolean, results = pcall( CombatManager.SimulateAttackInto, unit:GetComponentID(), combatType, plot:GetX(), plot:GetY() );
+	local ok:boolean, results;
+	if combatType == CombatTypes.RANGED and unit.GetDistrictID ~= nil then
+		-- a city: use its district, versus the unit on the plot when there is one
+		local district:table = CityDistrict( unit );
+		if district == nil then return nil; end
+		local defender:table = nil;
+		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+			if other:GetOwner() ~= Game.GetLocalPlayer() then defender = other; break; end
+		end
+		if defender ~= nil then
+			ok, results = pcall( CombatManager.SimulateAttackVersus, district:GetComponentID(), defender:GetComponentID() );
+		else
+			ok, results = pcall( CombatManager.SimulateAttackInto, district:GetComponentID(), combatType, plot:GetX(), plot:GetY() );
+		end
+	else
+		local source:table = unit;
+		if unit.GetDistrictID == nil and unit.GetComponentID == nil then return nil; end
+		ok, results = pcall( CombatManager.SimulateAttackInto, source:GetComponentID(), combatType, plot:GetX(), plot:GetY() );
+	end
 	if not ok or results == nil then return nil; end
 	return results;
 end
