@@ -310,12 +310,27 @@ function HubPlaces.OnImprovementRemovedFromMap( x:number, y:number )
 	HubCore.After( 0.3, function() RememberIfVisible( x, y, nil ); end );
 end
 
--- Events.UnitMoveComplete( player, unit, x, y ): the plots around our own unit are in view; remember them
+-- Events.UnitMoveComplete( player, unit, x, y ): the plots around our own unit are in view; remember them. Moves are collected
+-- and scanned once, 0.2 s later, only around the plots where units ended a move.
+local m_moved:table = {};
+local m_moveScanArmed:boolean = false;
 function HubPlaces.OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:number )
 	if playerID ~= Game.GetLocalPlayer() then return; end
-	for dy = -3, 3 do
-		for dx = -3, 3 do
-			RememberIfVisible( x + dx, y + dy, nil );
+	m_moved[ unitID ] = { x = x, y = y };
+	if m_moveScanArmed then return; end
+	m_moveScanArmed = true;
+	HubCore.After( 0.2, HubPlaces.ScanMoved );
+end
+
+function HubPlaces.ScanMoved()
+	m_moveScanArmed = false;
+	local moved:table = m_moved;
+	m_moved = {};
+	for _, spot in pairs( moved ) do
+		for dy = -3, 3 do
+			for dx = -3, 3 do
+				RememberIfVisible( spot.x + dx, spot.y + dy, nil );
+			end
 		end
 	end
 end
@@ -661,15 +676,46 @@ local function TreatKey()
 	LuaEvents.CityBannerManager_OpenTreatWithTribePopup( plot:GetIndex() );
 end
 
--- T on the map (the game's ToggleTechTree): LaunchBar asks first (LuaEvents.SRA_TechTreeKey( request )). With the map cursor on a
--- barbarian clan camp T treats with the clan (the same call as T in the places list) and request.handled keeps the tech tree
--- closed; out of sight it only says so. Any other plot, a list, a mode or an open screen: nothing here, the tech tree toggles.
-function HubPlaces.OnTechTreeKey( request:table )
-	if request == nil or HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return; end
+-- T on the map (the game's ToggleTechTree), push model: the hub tells LaunchBar (LuaEvents.SRA_ClanCampUnderCursor( bool )) whether
+-- a T press would belong to a clan camp: true only while no list / mode / target mode / screen is open and the map cursor plot has
+-- a clan. LaunchBar then skips the tech tree and fires LuaEvents.SRA_TechTreeKeyOnCamp(), which treats with the clan (the same call
+-- as T in the places list) or, out of sight, only says so. Polled every 0.1 s from the hub update; false is pushed on shutdown.
+local CAMP_POLL_SECONDS	:number = 0.1;
+local m_campPushed		:boolean = nil;		-- last value sent (nil: nothing sent yet, so the first poll always sends)
+local m_campTimer		:number = 0;
+
+local function CampPlotUnderCursor()
+	if HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return nil; end
 	local x:number, y:number = HubCursor.GetCursor();
 	local plot:table = Map.GetPlot( x, y );
-	if plot == nil or PlotDescription_GetClan( plot ) == nil then return; end
-	request.handled = true;
+	if plot == nil or PlotDescription_GetClan( plot ) == nil then return nil; end
+	return plot;
+end
+
+function HubPlaces.PushCampState( force:boolean )
+	local on:boolean = CampPlotUnderCursor() ~= nil;
+	if force or on ~= m_campPushed then
+		m_campPushed = on;
+		LuaEvents.SRA_ClanCampUnderCursor( on );
+	end
+end
+
+function HubPlaces.Update( deltaTime:number )
+	m_campTimer = m_campTimer - deltaTime;
+	if m_campTimer > 0 then return; end
+	m_campTimer = CAMP_POLL_SECONDS;
+	HubPlaces.PushCampState( false );
+end
+
+-- Shutdown / reload of the hub: a stale true must not block the tech tree
+function HubPlaces.ResetCampState()
+	m_campPushed = false;
+	LuaEvents.SRA_ClanCampUnderCursor( false );
+end
+
+function HubPlaces.OnTechTreeKeyOnCamp()
+	local plot:table = CampPlotUnderCursor();
+	if plot == nil then return; end
 	if not PlotDescription_CanTreatWithClan( plot ) then
 		OutputMessageToScreenReader( "The clan camp is out of sight. Move a unit near it first" );
 		return;

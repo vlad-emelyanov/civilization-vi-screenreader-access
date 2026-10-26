@@ -366,6 +366,10 @@ test("a unit that moves remembers the village next to it", function()
 	local ctx = { plot = Map.GetPlot(5, 5) }
 	world:set(23, 8, { fogged = false, improvement = 1 })
 	HubPlaces.OnUnitMoveComplete(0, 1, 22, 8)
+	HubPlaces.OnUnitMoveComplete(0, 1, 22, 8)		-- coalesced: one delayed scan
+	eq(#HubCore.m_delayed, 1)
+	HubPlaces.ScanMoved()
+	HubCore.m_delayed = {}
 	world:set(23, 8, { fogged = true })
 	assert(pointNames(ctx):find("23,8", 1, true), pointNames(ctx))
 	HubPlaces.OnUnitMoveComplete(1, 1, 22, 8)		-- another player's unit: ignored
@@ -492,28 +496,34 @@ test("tech tree key: on a clan camp it treats (in view) or says out of sight; el
 	LuaEvents.CityBannerManager_OpenTreatWithTribePopup = function(index) opened[#opened + 1] = index end
 	local cx, cy = 5, 5
 	HubCursor.GetCursor = function() return cx, cy end
-	local req = {}
-	HubPlaces.OnTechTreeKey(req)
-	eq(req.handled, nil)
+	local pushed = {}
+	LuaEvents.SRA_ClanCampUnderCursor = function(on) pushed[#pushed + 1] = on end
+	HubPlaces.PushCampState(true)
+	eq(pushed[#pushed], false)
+	HubPlaces.PushCampState(false)
+	eq(#pushed, 1)		-- unchanged: nothing sent
 	cx, cy = 2, 12
 	world:set(2, 12, { fogged = false, improvement = 3 })
-	req = {}
-	HubPlaces.OnTechTreeKey(req)
-	eq(req.handled, true)
+	HubPlaces.PushCampState(false)
+	eq(pushed[#pushed], true)
+	HubPlaces.OnTechTreeKeyOnCamp()
 	eq(opened[1], 12 * 30 + 2)
 	world:set(2, 12, { fogged = true })
-	req = {}
-	HubPlaces.OnTechTreeKey(req)
-	eq(req.handled, true)
+	HubPlaces.OnTechTreeKeyOnCamp()
 	eq(#opened, 1)
 	local spoken = Spoken()
 	assert(spoken[#spoken]:find("out of sight", 1, true), spoken[#spoken])
-	-- a screen is open: the key toggles the tree as before
+	-- a screen is open: false is pushed, the tech tree toggles as before
 	world:set(2, 12, { fogged = false })
 	HubCore.IsGamePopupOpen = function() return true end
-	req = {}
-	HubPlaces.OnTechTreeKey(req)
-	eq(req.handled, nil)
+	HubPlaces.PushCampState(false)
+	eq(pushed[#pushed], false)
+	-- reset on shutdown
+	HubCore.IsGamePopupOpen = function() return false end
+	HubPlaces.PushCampState(false)
+	eq(pushed[#pushed], true)
+	HubPlaces.ResetCampState()
+	eq(pushed[#pushed], false)
 	HubCursor.GetCursor = function() return 5, 5 end
 	Game.GetBarbarianManager = nil
 end)
