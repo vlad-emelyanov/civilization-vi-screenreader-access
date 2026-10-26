@@ -230,6 +230,7 @@ function TreeNav_Create( a:table )
 				end );
 			end );
 			if okp and path ~= nil and #path > 0 then
+				-- standalone estimates of nodes that are not queued yet: summed (the queue read back later replaces this)
 				local turns:number = 0;
 				for _, k in ipairs( path ) do
 					local okt:boolean, i = pcall( a.item, k );
@@ -238,6 +239,9 @@ function TreeNav_Create( a:table )
 				far = { count = #path, turns = turns };
 			end
 		end
+		local before = nil;		-- the research in progress before the request: Enter on a far target may replace it
+		local okb:boolean, cur = pcall( a.current );
+		if okb then before = cur; end
 		local ok:boolean, done, reason = xpcall( function() return a.request( key, append ); end, KeyNavErrorHandler );
 		if not ok then
 			print( "TreeNav request error: " .. tostring( done ) );
@@ -248,7 +252,7 @@ function TreeNav_Create( a:table )
 			Say( reason or "Can't choose this" );
 			return;
 		end
-		m_pending = { key = key, append = append, wait = REQUEST_TIMEOUT, settle = nil, far = far };
+		m_pending = { key = key, append = append, wait = REQUEST_TIMEOUT, settle = nil, far = far, before = before };
 	end
 
 	-- The request went out: say what the player's own queue now holds.
@@ -264,18 +268,22 @@ function TreeNav_Create( a:table )
 			if k == p.key then found = true; end
 		end
 		local name:string = "";
+		local beforeName:string = nil;
 		for _, g in ipairs( Groups() ) do
 			for _, e in ipairs( g.items ) do
 				if e.key == p.key then name = e.name; end
+				if p.before ~= nil and e.key == p.before then beforeName = e.name; end
 			end
 		end
+		local replaced = nil;
+		if beforeName ~= nil and q.keys[1] ~= nil and q.keys[1] ~= p.before and q.keys[1] ~= p.key then replaced = beforeName; end
 		-- exclusive: the target ends the queue; appended: it is somewhere in it
 		if found and ( p.append or q.keys[ #q.keys ] == p.key ) then
 			if p.far ~= nil and p.append then
 				Say( TreeText_FarQueued( name, a.itemWord, p.far.count, p.far.turns ) );
 			elseif p.far ~= nil then
 				-- "Next" is read back: whatever the game now has first in the queue
-				Say( TreeText_FarTarget( name, a.itemWord, queueRead and #q.keys or p.far.count, queueRead and q.turns or p.far.turns, q.names[1], q.each ~= nil and q.each[1] or nil ) );
+				Say( TreeText_FarTarget( name, a.itemWord, queueRead and #q.keys or p.far.count, queueRead and q.turns or p.far.turns, q.names[1], q.each ~= nil and q.each[1] or nil, replaced ) );
 			else
 				Say( TreeText_Queue( p.append and "Added to queue" or "Target", name, q.names, q.turns ) );
 			end

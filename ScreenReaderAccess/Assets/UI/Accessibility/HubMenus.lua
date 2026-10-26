@@ -141,6 +141,28 @@ end
 
 local m_menu:table;
 
+-- "Remove Improvement destroys the Mine on this tile. Enter again to confirm"
+function HubMenus.ConfirmText( unit:table, typeName:string )
+	local impName:string = "improvement";
+	local resName:string = "resource";
+	pcall( function()
+		local plot = Map.GetPlot( unit:GetX(), unit:GetY() );
+		local imp = GameInfo.Improvements[ plot:GetImprovementType() ];
+		if imp ~= nil then impName = Locale.Lookup( imp.Name ); end
+		local res = GameInfo.Resources[ plot:GetResourceType() ];
+		if res ~= nil then resName = Locale.Lookup( res.Name ); end
+	end );
+	local text:string;
+	if string.find( typeName, "HARVEST", 1, true ) ~= nil then
+		text = "Harvest destroys the " .. resName .. " on this tile for a one-time yield";
+	elseif string.find( typeName, "PILLAGE", 1, true ) ~= nil then
+		text = "Pillage damages the " .. impName .. " on this tile";
+	else
+		text = "Remove Improvement destroys the " .. impName .. " on this tile";
+	end
+	return text .. ". Enter again to confirm";
+end
+
 local function RunMenuItem( item:table )
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil then return; end
@@ -155,6 +177,19 @@ local function RunMenuItem( item:table )
 		return;
 	end
 	item = fresh;
+	-- Destructive builder actions (Remove Improvement, Harvest, Pillage) ask first: the menu stays open on the item, a second
+	-- Enter on it (same unit, plot and action) within 5 s runs it.
+	if item.action.destructive == true then
+		local now:number = UI.GetElapsedTime();
+		local id:string = unit:GetID() .. "|" .. unit:GetX() .. "," .. unit:GetY() .. "|" .. tostring( item.action.typeName );
+		if HubMenus.m_confirm ~= nil and HubMenus.m_confirm.id == id and now - HubMenus.m_confirm.time <= 5.0 then
+			HubMenus.m_confirm = nil;
+		else
+			HubMenus.m_confirm = { id = id, time = now };
+			HubCore.SayResult( HubMenus.ConfirmText( unit, item.action.typeName ) );
+			return;
+		end
+	end
 	HubCore.CloseMode( false, false );
 	local modeBefore:number = UI.GetInterfaceMode();
 	LuaEvents.SRA_RunUnitAction( item.action.id, unit:GetID() );

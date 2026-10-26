@@ -268,7 +268,7 @@ test("Enter on a blocked node: path count, turns and what the game started on", 
 	press(s, Keys.VK_RETURN)
 	s.nav.QueueChanged()
 	s.nav.Update(0.3)
-	listeq(Spoken(), { "Iron Working set as the target: 2 techs on the way, about 13 turns. Next: Bronze Working, 4 turns." })
+	listeq(Spoken(), { "Iron Working set as the target: 2 techs on the way, about 13 turns. Next: Bronze Working, 4 turns, replaces Archery." })
 end)
 
 test("Shift+Enter on a blocked node queues the path", function()

@@ -2191,6 +2191,7 @@ local function SRA_CivicInfo( civicType:string )
 		info.turns = culture:GetTurnsToProgressCivic( id );
 	else
 		info.status = "blocked";
+		info.alone = "civic";
 		info.turns = culture:GetTurnsToProgressCivic( id );
 		info.needs = TreeNav_PrereqNames( item, function( p ) return culture:HasCivic( SRA_CivicId( p ) ); end, function( p ) return SRA_IsRevealed( culture, p ); end );
 	end
@@ -2260,7 +2261,6 @@ local function SRA_CivicQueue()
 	local queue:table = culture:GetCivicQueue();
 	local current:number = culture:GetProgressingCivic();
 	local keys:table, names:table = {}, {};
-	local turns:number = 0;
 	local each:table = {};
 	for _, id in ipairs( queue ) do
 		local row = GameInfo.Civics[ id ];
@@ -2270,10 +2270,9 @@ local function SRA_CivicQueue()
 			table.insert( names, item ~= nil and TreeNav_ItemName( item ) or CleanTextForSpeech( Locale.Lookup( row.Name ) ) );
 			local t:number = ( id == current ) and culture:GetTurnsLeft() or culture:GetTurnsToProgressCivic( id );
 			table.insert( each, t );
-			turns = turns + t;
 		end
 	end
-	return { keys = keys, names = names, turns = turns, each = each };
+	return { keys = keys, names = names, turns = TreeText_QueueTotal( each ), each = each };
 end
 
 local function SRA_CivicSearch( text:string )
