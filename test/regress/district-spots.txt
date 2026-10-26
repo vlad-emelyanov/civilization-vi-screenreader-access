@@ -1,0 +1,33 @@
+# Written blind 2026-10-26 (not yet recorded). G7: the city report's "District spots" item and Space on a district in the production panel.
+# medieval-t100: Rome has Campus and Theater Square, so other districts (Holy Site, Commercial Hub, Industrial Zone, Harbor ...) are offered.
+# covers: **/DistrictAdvice.lua **/CityReportData.lua **/CityReportGather.lua **/HubCityReport.lua **/ProductionPanel.lua **/PlacementScan.lua
+# no-share-load: opens the production panel
+load medieval-t100
+clear-advisors
+action CapitalCity -Settle 1500
+key Control+I -Settle 2500
+expect ^.+ report, \d+ options
+# the item follows the Districts item (yields, growth, amenities, [loyalty,] defense, production, districts)
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+expect ^District spots: .*, \d+ of \d+
+key Space -Settle 3000
+expect Best spot: .*Tab opens production
+key Enter -Settle 2000
+expect ^District spots: 
+key Tab -Settle 2500
+expect (?i)production
+# Down to the first district item and read it: the description, then where it fits best
+key Down -Settle 800
+key Space -Settle 3000
+expect (?i)(Best spot: .*|none available now)
+key Escape -Settle 2000
+expect ^City report,
+key Escape -Settle 1500
+expect ^Closed
+no-lua-errors

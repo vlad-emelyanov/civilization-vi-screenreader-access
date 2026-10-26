@@ -307,6 +307,7 @@ m_reportList = KeyNavList_Create{
 	isActive	= function() return HubCore.IsModeOpen( "cityreport" ) and HubCityReport.m_manageView == nil; end,
 	onActivate	= function( item )
 		if item.manage ~= nil then HubCityReport.EnterManageView( item.manage ); return; end
+		if item.key == "districtspots" then OutputMessageToScreenReader( item.detail ); return; end		-- the production panel has no focus-by-item entry: Tab opens it
 		OutputMessageToScreenReader( "Nothing to open here. Space reads the details" );
 	end,
 	onClose		= function() HubCore.CloseMode( true, false ); end,

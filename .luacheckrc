@@ -45,6 +45,7 @@ globals = {
 	"KeyNavSetup_IsUsable", "KeyNavSetup_LeaderItem", "KeyNavSetup_MapItem", "KeyNavSetup_NewController",
 	"KeyNavSetup_OpenPicker", "KeyNavSetup_ParameterItem", "KeyNavSetup_PulldownItem", "KeyNavSetup_SectionPrefix",
 	"KeyNavSetup_SortByPosition", "KeyNavToggleDontShow", "KeyNav_Tick", "OutputMessageToScreenReader", "SRActionResultText", "SRPlotResourceHidden", "SRHiddenHarvestSentence", "SRStripHiddenHarvest", "SRMenuRank", "SRTribalVillageReason", "SRGreatPersonActivateName", "SRFoundReligionRefusal", "SRTryFoundReligionHotkey",
+	"DistrictAdvice_Line", "DistrictAdvice_BestSpot", "DistrictAdvice_Entry", "DistrictAdvice_Spots", "DistrictAdvice_Reset",
 	"PlacementScan_Blockers", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
 	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_GetDirectionWord",
 	"PlotDescription_GetRelative", "PlotDescription_GetShort", "PlotDescription_GetUnitName", "PlotDescription_FormationName", "PlotDescription_IsEmbarked", "PlotDescription_UnitStateText",

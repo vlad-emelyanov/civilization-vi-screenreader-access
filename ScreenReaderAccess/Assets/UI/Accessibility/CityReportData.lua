@@ -11,6 +11,7 @@
 -- ===========================================================================
 
 include( "ScreenReader" );
+include( "DistrictAdvice" );
 
 local function Round1( value:number )
 	return math.floor( value * 10 + 0.5 ) / 10;
@@ -296,6 +297,37 @@ local function DistrictsItem( d:table )
 	return { key = "districts", text = text, detail = Join( detail, ". " ) };
 end
 
+-- "District spots": d.districtSpots() returns the entries of DistrictAdvice (computed lazily: the item's text is only
+-- looked up when it is spoken, because the item list is rebuilt at every key and the scan is not free).
+local function DistrictSpotsItem( d:table )
+	if d.districtSpots == nil then return nil; end
+	local item:table = { key = "districtspots" };
+	local function Entries()
+		local ok:boolean, entries = pcall( d.districtSpots );
+		if ok and entries ~= nil then return entries; end
+		return {};
+	end
+	setmetatable( item, { __index = function( t, k )
+		if k == "text" then
+			local text:string = DistrictAdvice_Line( Entries(), false );
+			rawset( t, "text", text );
+			return text;
+		elseif k == "detail" then
+			local entries:table = Entries();
+			local text:string = DistrictAdvice_Line( entries, true );
+			local best:table = {};
+			for _, e in ipairs( entries ) do
+				if ( e.total or 0 ) > 0 then table.insert( best, e.name .. ": " .. DistrictAdvice_BestSpot( e ) ); end
+			end
+			if #best > 0 then text = text .. ". " .. Join( best, ". " ); end
+			text = text .. ". Tab opens production";
+			rawset( t, "detail", text );
+			return text;
+		end
+	end } );
+	return item;
+end
+
 -- ---------------------------------------------------------------------------
 -- 8. Citizens
 -- ---------------------------------------------------------------------------
@@ -511,6 +543,7 @@ function CityReport_BuildItems( d:table )
 	Guard( function() Add( DefenseItem( d ) ); end );
 	Guard( function() Add( ProductionItem( d ) ); end );
 	Guard( function() Add( DistrictsItem( d ) ); end );
+	Guard( function() Add( DistrictSpotsItem( d ) ); end );
 	Guard( function() Add( CitizensItem( d ) ); end );
 	Guard( function() Add( FocusItem( d ) ); end );
 	Guard( function() Add( TilesItem( d ) ); end );

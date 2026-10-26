@@ -124,6 +124,8 @@ local m_sections:table = {
 		{ keys = "Enter",				text = "in the production panel: produce or buy; districts and wonders start the placement mode" },
 		{ action = "KeyNavCityReport",	default = "Control+I",	text = "city report: yields, growth, amenities, loyalty, defense, districts, citizens, religion" },
 		{ keys = "Space",				text = "in the city report: the breakdown of the entry" },
+		{ keys = "District spots entry",	text = "city report: which districts the city can build and the best adjacency spot for each (Enter repeats it with the best spot of every district, Tab opens production)" },
+		{ keys = "Space",				text = "in the production panel on a district: the description, then Best spot with the adjacency bonus, direction and tile cost" },
 		{ keys = "Resources entry",		text = "city report: the resources on the city's tiles, improved or not, and which tech or civic the missing improvements need" },
 		{ keys = "Enter",				text = "city report: change yield focus, manage tiles, specialists, buy a tile" },
 		{ keys = "Backspace or Delete",	text = "city report, specialists: remove one" },

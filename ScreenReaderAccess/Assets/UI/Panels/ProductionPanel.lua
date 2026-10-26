@@ -14,6 +14,8 @@ include( "ProductionHelper" );
 include("ScreenReader");
 include("SRListen");		-- ScreenReaderAccess: removable listeners
 include("KeyNavList");		-- ScreenReaderAccess: keyboard navigation of the item list
+include("PlacementScan");		-- ScreenReaderAccess: Space on a district says where it fits best
+include("DistrictAdvice");
 
 -- ===========================================================================
 --	Constants
@@ -2516,7 +2518,15 @@ end
 -- (or leave it out of the first lines), so it is looked up in the database and spoken first.
 local function SRA_Detail( kItem:table )
 	local row:table = GameInfo.Units[ kItem.Hash ] or GameInfo.Buildings[ kItem.Hash ] or GameInfo.Districts[ kItem.Hash ] or GameInfo.Projects[ kItem.Hash ];
-	return SRDescriptionFirst( kItem.Name, row ~= nil and row.Description or nil, kItem.ToolTip );
+	local text:string = SRDescriptionFirst( kItem.Name, row ~= nil and row.Description or nil, kItem.ToolTip );
+	-- districts: where it fits best (PlacementScan, cached per city and turn; only computed here, when asked)
+	local district:table = GameInfo.Districts[ kItem.Hash ];
+	local city:table = UI.GetHeadSelectedCity();
+	if district ~= nil and city ~= nil and district.OnePerCity and not kItem.HasBeenBuilt then
+		local ok:boolean, advice = pcall( function() return DistrictAdvice_BestSpot( DistrictAdvice_Entry( city, kItem.Hash ) ); end );
+		if ok and advice ~= nil then text = text .. ". " .. advice; end
+	end
+	return text;
 end
 
 local function SRA_TurnsText( turns:number )

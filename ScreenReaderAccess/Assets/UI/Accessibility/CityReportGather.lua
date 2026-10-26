@@ -348,6 +348,7 @@ function CityReport_Gather( pCity:table )
 		end
 	end );
 
+	d.districtSpots = function() return DistrictAdvice_Spots( pCity ); end;
 	d.manage = Guard( "city management", function() return CityManage_Gather( pCity ); end );
 	d.resources = Guard( "resources", function() return ResourceTech_CityResources( pCity ); end );
 	d.greatWorks = Guard( "great works", function() return GatherGreatWorks( pCity ); end );
