@@ -24,7 +24,8 @@ test("distances name the nearest own city and a rival city within 10", function(
 	eq(here.context.own.d, 5)
 	eq(here.context.rival.name, "Kyoto")
 	eq(here.context.rival.d, 8)
-	eq(SettleScan_DistanceText(here), ", 5 tiles from Rome, 8 from Kyoto (LOC_CIV_1)")
+	eq(SettleScan_DistanceText(here), ", 5 tiles from Rome")
+	contains(SettleScan_SpaceText(here), "8 tiles from Kyoto (LOC_CIV_1)")
 end)
 
 test("rival beyond 10 tiles is not named; Behind the own city", function()
@@ -43,6 +44,16 @@ test("Between when the rival city is closer than mine", function()
 	w:city(1, 14, 7, "Kyoto")
 	local c = SettleScan_Scan(settler(w, 9, 7), true).here
 	contains(SettleScan_SpaceText(c), "Between Rome and LOC_CIV_1")
+end)
+
+test("Toward when the rival is closer but not between", function()
+	local w = freshWorld()
+	w:city(0, 10, 7, "Rome")
+	w:city(1, 13, 7, "Kyoto")
+	local c = SettleScan_Scan(settler(w, 17, 7), true).here
+	local sp = SettleScan_SpaceText(c)
+	contains(sp, "Toward LOC_CIV_1")
+	istrue(not string.find(sp, "Between", 1, true), sp)
 end)
 
 test("a minor civ city is not named as a rival", function()
@@ -77,7 +88,7 @@ test("here and best about the same", function()
 	local here, best = cand(20), cand(22)
 	here.here = true
 	local text = SettleScan_Sentence({ here = here, best = best, list = { best, here } }, "B", true)
-	eq(text, "Here is good: river, coast. Best nearby is about the same. B founds here")
+	eq(text, "Here is good: river, coast. Best nearby is about the same. B to found here.")
 	eq(SettleScan_Compare({ here = here, best = best }), "same")
 end)
 
@@ -85,7 +96,7 @@ test("best clearly better", function()
 	local here, best = cand(10), cand(20, { reasons = { "coast", "silk" } })
 	here.here = true
 	local text = SettleScan_Sentence({ here = here, best = best }, "B", true)
-	eq(text, "Best spot is clearly better: 1 tile north, coast, silk, 1 turn. X to browse")
+	eq(text, "Best spot is clearly better: 1 tile north, coast, silk, 1 turn. X to browse.")
 end)
 
 test("in between keeps the old wording; gap at the thresholds", function()
