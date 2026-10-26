@@ -449,13 +449,7 @@ end
 -- The first n good and m bad reasons of a settle candidate as "river, coast, silk, but floods, poor food" (empty when
 -- there are none).
 local function SettleReasonList( candidate:table, n:number, m:number )
-	local parts:table = {};
-	for i = 1, math.min( n, #candidate.reasons ) do table.insert( parts, candidate.reasons[i] ); end
-	local bad:table = {};
-	for i = 1, math.min( m, #candidate.negatives ) do table.insert( bad, candidate.negatives[i] ); end
-	local text:string = table.concat( parts, ", " );
-	if #bad > 0 then text = text .. ( #parts > 0 and ", " or "" ) .. "but " .. table.concat( bad, ", " ); end
-	return text;
+	return SettleScan_ReasonList( candidate, n, m );
 end
 
 -- The same with a leading comma (empty when there are none).
@@ -469,25 +463,9 @@ end
 -- The terrain and river of the settler's plot are in the unit announcement already: only "can settle" and what is
 -- wrong with the plot are said about it.
 function HubCore.SettleSentence( unit:table )
-	local scan:table = SettleScan_Scan( unit );
-	local here:table, best:table = scan.here, scan.best;
-	local text:string;
-	if here ~= nil then
-		text = "Can settle here" .. HubCore.SettleReasons( { reasons = {}, negatives = here.negatives }, 0, 2 );
-	elseif scan.hereReason ~= nil and scan.hereReason ~= "" then
-		text = "Cannot settle here: " .. scan.hereReason;
-	else
-		text = "Cannot settle here";
-	end
-	if best == nil then return text .. ". No spot found nearby."; end
-	if best.here then
-		local list:string = SettleReasonList( best, 3, 2 );
-		return ( here ~= nil and "Can settle here" or text ) .. ", this is the best spot nearby" .. ( list ~= "" and ( ": " .. list ) or "" )
-			.. ( unit:GetMovesRemaining() > 0 and ". B to found." or ". B to found next turn." );
-	end
-	text = text .. ". Best: " .. best.relative .. ", " .. HubCore.Plural( best.turns, "turn", "turns" ) .. HubCore.SettleReasons( best, 3 );
-	if best.recommended then text = text .. ", recommended"; end
-	return text .. ". X to browse.";
+	local key:string = "B";
+	if HubEnemies ~= nil and HubEnemies.KeyText ~= nil then key = HubEnemies.KeyText( "FoundCity", "B" ); end
+	return SettleScan_Sentence( SettleScan_Scan( unit ), key, unit:GetMovesRemaining() > 0 );
 end
 
 -- Adds a handler to an event when the game has that event.

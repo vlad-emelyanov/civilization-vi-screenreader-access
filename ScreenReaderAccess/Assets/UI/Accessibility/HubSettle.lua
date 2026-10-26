@@ -25,12 +25,12 @@ local function BuildSettleItems()
 	return m_settleItems;
 end
 
--- "2 tiles north-east, 1 turn, river, coast, silk, recommended" / "Here, river, wine"
+-- "2 tiles north-east, 1 turn, river, coast, silk, recommended, 4 tiles from Rome, 7 from Kyoto (Japan)" / "Here, river, wine"
 local function SettleItemText( c:table )
 	local text:string = c.here and "Here" or ( c.relative .. ", " .. HubCore.Plural( c.turns, "turn", "turns" ) );
 	text = text .. HubCore.SettleReasons( c, 3, 2 );
 	if c.recommended then text = text .. ", recommended"; end
-	return text;
+	return text .. SettleScan_DistanceText( c );
 end
 
 local function OpenSettleBrowser( unit:table )
