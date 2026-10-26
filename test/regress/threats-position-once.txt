@@ -1,0 +1,11 @@
+# Written blind 2026-10-26 (round 25, not yet recorded; run with civregress --record first). Fixture pt-early-t64 has a lone Barbarian Archer
+# near Rome: J opens on Threats (first category) and the item names the position once ("..., near your city, N tiles <dir> of Rome, ...").
+# covers: **/HubEnemies.lua **/HubPlaces.lua
+load pt-early-t64
+clear-advisors
+action KeyNavPlaces -Settle 1500
+expect ^Places\. Threats, 1 of \d+ categories, \d+ items?\. Barbarian Archer, near your city, \d+ tiles? [a-z-]+ of Rome
+expect-not of Rome.*of Rome
+key Escape -Settle 1200
+expect ^Closed
+no-lua-errors

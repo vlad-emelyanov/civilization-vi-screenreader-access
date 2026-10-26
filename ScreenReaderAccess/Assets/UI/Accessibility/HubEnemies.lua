@@ -789,9 +789,9 @@ function HubEnemies.ThreatItems()
 	for _, danger in ipairs( threats.civilians ) do
 		Add( danger.enemy, PlotDescription_GetUnitName( danger.enemy.unit ) .. ", threatens your " .. Locale.Lookup( danger.unit:GetName() ) );
 	end
+	-- no position here: the places list appends where the unit is, seen from the nearest city of ours
 	for _, near in ipairs( threats.nearCity ) do
-		Add( near.enemy, PlotDescription_GetUnitName( near.enemy.unit ) .. ", "
-			.. ( near.relative ~= nil and ( near.relative .. " of " ) or "at " ) .. Locale.Lookup( near.city:GetName() ) .. ", near your city" );
+		Add( near.enemy, PlotDescription_GetUnitName( near.enemy.unit ) .. ", near your city" );
 	end
 	return items;
 end
