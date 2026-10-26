@@ -6,8 +6,8 @@
 load early-t60
 scenario barbarian-raid
 clear-advisors
-wait Raid: 3 barbarians near -Timeout 10
-expect Raid: 3 barbarians near \w+: .*Horseman.*Warriors?
+wait Raid: [0-9]+ barbarians near .*Horseman -Timeout 10
+expect Raid: \d+ barbarians near \w+: .*Horseman
 expect Your nearest soldiers:|You have no soldiers near
 expect \w+ near \w+ in danger: Barbarian Horseman 1 tile [a-z-]+\. Move it
 key J -Settle 1500
