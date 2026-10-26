@@ -1,11 +1,13 @@
-# Written blind (round 23, G1 "which tech unlocks my resources"). Unverified.
+# G1 "which tech unlocks my resources". Verified in game: the tuner hands the unowned Deer tile 65,32 (needs Animal Husbandry) to Rome.
 # The cursor on an unimproved resource tile of the capital: the tile text names what is missing ("Horses, needs Animal Husbandry")
 # or what is possible now ("Wine, plantation possible"); I adds the full form. The lua step picks the first owned tile whose
 # ResourceTech_Short is not nil and moves the cursor there; it errors when Rome has no such tile (then use another fixture).
+# no-share-load: the tuner changes the owner of a plot
 # covers: **/ResourceTech.lua **/PlotDescription.lua **/HubCursor.lua
 load early-t60
 clear-advisors
-lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); for _, i in ipairs(Map.GetCityPlots():GetPurchasedPlots(c)) do local p = Map.GetPlotByIndex(i); if ResourceTech_Short(p) then HubCursor.SetCursor(p:GetX(), p:GetY(), false); return ResourceTech_Short(p) end end; error("no unimproved resource tile in the capital")
+lua GameCore_Tuner local c = Players[0]:GetCities():GetCapitalCity(); Map.GetPlot(65, 32):SetOwner(0, c:GetID()); return 1
+lua InGameAccess HubCursor.SetCursor(65, 32, true, true); return 1
 expect (?i)(needs [A-Z]|\w+ possible)
 key I -Settle 1500
 expect (?i)(\w+ needs [A-Z][\w ]+|can be built now)

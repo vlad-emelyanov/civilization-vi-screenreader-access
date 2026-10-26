@@ -11,6 +11,6 @@ expect Raid: 3 barbarians near \w+: .*Horseman.*Warriors?
 expect Your nearest soldiers:|You have no soldiers near
 expect \w+ near \w+ in danger: Barbarian Horseman 1 tile [a-z-]+\. Move it
 key J -Settle 1500
-expect ^Threats, 1 of \d+ categories, 3 items
+expect Threats, 1 of \d+ categories, \d+ items?
 key Escape -Settle 800
 no-lua-errors

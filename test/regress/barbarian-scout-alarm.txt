@@ -8,7 +8,7 @@ clear-advisors
 wait Alarm: Barbarian Scout has seen -Timeout 10
 expect Alarm: Barbarian Scout has seen \w+, \d+ tiles? [a-z-]+\. If it gets back to its camp, a raid follows\. Kill it: \S+ targets it
 key J -Settle 1500
-expect ^Threats, 1 of \d+ categories, \d+ items?
+expect Threats, 1 of \d+ categories, \d+ items?
 expect Barbarian Scout, has seen your city
 key Escape -Settle 800
 no-lua-errors
