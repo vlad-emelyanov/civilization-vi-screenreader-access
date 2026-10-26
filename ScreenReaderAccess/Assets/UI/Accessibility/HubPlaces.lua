@@ -789,6 +789,12 @@ local function SendKey()
 		return;
 	end
 	if item.kind == "unit" then
+		-- a settler or builder of ours: send it an escort (a soldier moves onto its tile)
+		local civilian:table = item.unitId ~= nil and LocalPlayer():GetUnits():FindID( item.unitId ) or nil;
+		if civilian ~= nil and HubEnemies ~= nil and HubEnemies.IsCivilian( civilian ) then
+			HubPlaces.OpenSend( HubPlaces.EscortPlace( civilian, "places", item.key ) );
+			return;
+		end
 		OutputMessageToScreenReader( "That is a unit of yours. Enter selects it" );
 		return;
 	end
@@ -981,6 +987,25 @@ local function PartyItem( items:table, place:table )
 	};
 end
 
+-- M on a settler or builder in the places list: the chooser of soldiers that can walk onto its tile.
+function HubPlaces.EscortPlace( civilian:table, back:string, key:string )
+	return { name = Locale.Lookup( civilian:GetName() ), x = civilian:GetX(), y = civilian:GetY(), back = back, key = key,
+		escort = true, escortId = civilian:GetID(), title = "Send an escort to " .. Locale.Lookup( civilian:GetName() ) };
+end
+
+-- "Warrior reaches the Settler this turn. Shift+E forms the escort" / "Warrior arrives in 2 turns" (pure)
+function HubPlaces.EscortOrderText( soldier:string, civilian:string, turns:number, formationKey:string )
+	if turns <= 1 then
+		return soldier .. " reaches the " .. civilian .. " this turn. " .. formationKey .. " forms the escort";
+	end
+	return soldier .. " arrives in " .. HubCore.Plural( turns, "turn", "turns" );
+end
+
+local function InFormationAlready( unit:table )
+	local ok:boolean, count = pcall( function() return unit:GetFormationUnitCount(); end );
+	return ok and count ~= nil and count > 1;
+end
+
 function HubPlaces.BuildSendItems( place:table )
 	local plot:table = Map.GetPlot( place.x, place.y );
 	local items:table = {};
@@ -988,7 +1013,8 @@ function HubPlaces.BuildSendItems( place:table )
 	local candidates:table = {};
 	for _, unit in LocalPlayer():GetUnits():Members() do
 		if unit:GetMaxMoves() > 0 and not ( unit:GetX() == place.x and unit:GetY() == place.y ) and ( not place.capture or HubPlaces.CanCapture( unit ) )
-				and ( not place.soldiers or unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 ) then
+				and ( not place.soldiers or unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 )
+					and ( not place.escort or ( HubPlaces.IsMilitaryLand( unit ) and not InFormationAlready( unit ) ) ) then
 			table.insert( candidates, { unit = unit, distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), place.x, place.y ) } );
 		end
 	end
@@ -1003,7 +1029,7 @@ function HubPlaces.BuildSendItems( place:table )
 		local unit:table = candidates[i].unit;
 		local turns:number = PathTurns( unit, plot, budget );
 		local near:table, ring:number = nil, 0;
-		if turns == nil and candidates[i].distance > 1 and budget.left > 0 then
+		if turns == nil and not place.escort and candidates[i].distance > 1 and budget.left > 0 then
 			if rings == nil then rings = RingPlots( place.x, place.y ); end
 			near, turns, ring = BestNear( unit, rings, budget );
 		end
@@ -1062,14 +1088,14 @@ function HubPlaces.OpenSend( place:table )
 	if not HubTargets.CanOpenMode() then return; end
 	local items:table = HubPlaces.BuildSendItems( place );
 	if #items == 0 then
-		OutputMessageToScreenReader( place.capture and "No military unit can reach it" or "No unit can reach it" );
+		OutputMessageToScreenReader( place.escort and "No soldier can reach it" or ( place.capture and "No military unit can reach it" or "No unit can reach it" ) );
 		return;
 	end
 	m_return = nil;
 	if place.back == "places" and m_data ~= nil then m_return = { cat = m_cat, key = place.key }; end
 	place.items = items;
 	m_send = place;
-	HubCore.OpenMode( "send", m_sendList, "Send a unit to " .. place.name );
+	HubCore.OpenMode( "send", m_sendList, place.title or ( "Send a unit to " .. place.name ) );
 end
 
 -- Escape: back to the list the chooser came from.
@@ -1109,6 +1135,10 @@ local function OrderUnit( unitID:number, place:table, item:table )
 	local turns:string = reachable and ( ", " .. HubCore.Plural( path.turns[ #path.turns ] or 1, "turn", "turns" ) ) or "";
 	if war ~= nil then
 		return name .. " to " .. place.name .. ": the game asks to declare war first";
+	end
+	if place.escort and reachable then
+		local key:string = ( HubEnemies ~= nil and HubEnemies.KeyText ~= nil ) and HubEnemies.KeyText( "ExtraHotkeysEnterFormation", "Shift+E" ) or "Shift+E";
+		return HubPlaces.EscortOrderText( name, place.name, path.turns[ #path.turns ] or 1, key );
 	end
 	return name .. ( enemy and " moving to attack " or ( nearby and " moving next to " or " moving to " ) ) .. place.name .. turns;
 end

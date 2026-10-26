@@ -108,7 +108,7 @@ local m_sections:table = {
 		{ keys = "Tab and Control+Tab",	text = "next and previous category" },
 		{ keys = "Space",				text = "read the tile and where it is" },
 		{ keys = "Enter",				text = "cursor there, a unit of yours is selected" },
-		{ keys = "M",					text = "send one of your units there, fastest first (on a threat: soldiers only; on a barbarian camp the first entry sends an attack party, the two fastest military units); for a civilian to capture only military land units are offered, moving onto it captures it" },
+		{ keys = "M",					text = "send one of your units there, fastest first (on a threat: soldiers only; on a barbarian camp the first entry sends an attack party, the two fastest military units); for a civilian to capture only military land units are offered, moving onto it captures it. On a Settler or Builder in Your units it sends an escort instead: soldiers that can reach it, fastest first; Enter moves one onto its tile, then Shift+E forms the escort" },
 		{ keys = "Control+N then M",	text = "send a unit to the place of a notification" },
 		{ keys = "T",					text = "on a barbarian clan camp in view (Barbarian Clans mode): treat with the clan, opens hire, incite, bribe or ransom; also on the map with the cursor on the camp, instead of the tech tree" },
 		{ keys = "Escape",				text = "close the list" },

@@ -476,6 +476,40 @@ test("the send chooser for a civilian offers only military land units", function
 	for i = #units, 1, -1 do if units[i].id >= 70 then table.remove(units, i) end end
 end)
 
+test("escort chooser: only own soldiers, fastest first, no ring fallback; order text says this turn or N turns", function()
+	addUnit(80, "Settler", 9, 7)
+	addUnit(81, "Warrior", 8, 7)
+	addUnit(82, "Archer", 14, 7)
+	addUnit(83, "Builder", 9, 8)
+	local types = { [80] = 10, [81] = 11, [82] = 11, [83] = 10 }
+	local function withType(u)
+		local o = unitObject(u)
+		o.GetUnitType = function() return types[u.id] or 0 end
+		o.GetCombat = function() return types[u.id] == 11 and 20 or 0 end
+		o.GetRangedCombat = function() return 0 end
+		return o
+	end
+	local oldGetUnits = player.GetUnits
+	player.GetUnits = function() return {
+		Members = function() local l = {}; for _, u in ipairs(units) do l[#l + 1] = withType(u) end; return ipairs(l) end,
+		FindID = function(_, id) for _, u in ipairs(units) do if u.id == id then return withType(u) end end end,
+	} end
+	local place = HubPlaces.EscortPlace(withType(units[#units - 3]), "places", "u:80")
+	eq(place.title, "Send an escort to Settler")
+	local items = HubPlaces.BuildSendItems(place)
+	local list = {}
+	for _, i in ipairs(items) do list[#list + 1] = i.name .. " " .. i.turns end
+	eq(table.concat(list, ","), "Warrior 1,Archer 3")
+	-- not reachable: no "next to" fallback for an escort
+	world.unreachable = { [7 * 30 + 9] = true }
+	eq(#HubPlaces.BuildSendItems(place), 0)
+	world.unreachable = nil
+	eq(HubPlaces.EscortOrderText("Warrior", "Settler", 1, "Shift+E"), "Warrior reaches the Settler this turn. Shift+E forms the escort")
+	eq(HubPlaces.EscortOrderText("Archer", "Settler", 2, "Shift+E"), "Archer arrives in 2 turns")
+	player.GetUnits = oldGetUnits
+	for i = #units, 1, -1 do if units[i].id >= 80 then table.remove(units, i) end end
+end)
+
 test("tech tree key: on a clan camp it treats (in view) or says out of sight; elsewhere it leaves the tech tree alone", function()
 	plotUnits = {}
 	clearWorldUnits()
