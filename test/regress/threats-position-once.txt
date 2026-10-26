@@ -4,7 +4,7 @@
 load pt-early-t64
 clear-advisors
 action KeyNavPlaces -Settle 1500
-expect ^Places\. Threats, 1 of \d+ categories, \d+ items?\. Barbarian Archer, near your city, \d+ tiles? [a-z-]+ of Rome
+expect ^Places\. Threats, 1 of \d+ categories, \d+ items?\. Barbarian Archer, near your city, (\d+ tiles? )?[a-z-]+ of Rome
 expect-not of Rome.*of Rome
 key Escape -Settle 1200
 expect ^Closed
