@@ -29,5 +29,38 @@ class ImpactTests(unittest.TestCase):
         self.assertEqual(cr.removed_literals(diff), ["Old label"])
 
 
+CORE = "ScreenReaderAccess/UI/Additions/InGameAccess.lua"
+
+
+class CoreRegistrationTests(unittest.TestCase):
+    def scripts(self):
+        return [("a", cr.parse_script("# covers: **/HubPlaces.lua\nload x\nkey A")), ("b", cr.parse_script("# covers: **/HubEvents.lua\nload x\nkey B"))]
+
+    def test_registration_only(self):
+        d = ["--- a/x", "+++ b/x", "@@ -1 +1,4 @@", '+include( "HubFoo" );', '+\tHubCore.AddEvent( "UnitMoveComplete",\t\tHubFoo.OnMove );\t-- why',
+             '+\tHubCore.Listen( LuaEvents.SRA_X, HubCore.Safe( "X", HubFoo.X ) );', "+\tLuaEvents.Foo.Add( Bar );", "+", "+-- comment"]
+        self.assertTrue(cr.registration_only(d))
+
+    def test_other_changes_are_core(self):
+        self.assertFalse(cr.registration_only(['+include( "HubFoo" );', "+local x = 1;"]))
+        self.assertFalse(cr.registration_only(['+include( "HubFoo" );', "-local x = 1;"]))
+        self.assertFalse(cr.registration_only(['+\tHubCore.AddEvent( "A",\t\tfunction()']))   # multi-line body
+        self.assertFalse(cr.registration_only([]))
+
+    def test_select_ignores_registration_only_core(self):
+        notes = []
+        sel, unc = cr.select_changed(self.scripts(), [CORE, "ScreenReaderAccess/Assets/UI/Accessibility/HubEvents.lua"],
+                                     lambda p: ['+include( "HubEvents" );'], notes)
+        self.assertEqual(list(sel), ["b"])
+        self.assertEqual(unc, [])
+        self.assertEqual(notes, ["core file %s: registration-only diff, ignored" % CORE])
+
+    def test_select_all_for_real_core_change(self):
+        sel, _ = cr.select_changed(self.scripts(), [CORE], lambda p: ["+local x = 1;"], [])
+        self.assertEqual(list(sel), ["a", "b"])
+        sel, _ = cr.select_changed(self.scripts(), [CORE])   # no diff function: as before
+        self.assertEqual(list(sel), ["a", "b"])
+
+
 if __name__ == "__main__":
     unittest.main()

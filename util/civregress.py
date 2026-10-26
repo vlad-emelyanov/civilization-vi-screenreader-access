@@ -1111,8 +1111,37 @@ def script_scenarios(steps):
     return {s.arg for s in steps if s.kind == "scenario"}
 
 
-def select_changed(scripts, changed):
+# Lines a core file may gain without selecting every script: wiring only (the registrations of InGameAccess.lua / HubCore.lua).
+_REGISTRATION = re.compile(
+    r"^(?:"
+    r"(?:local\s+\w+\s*=\s*)?include\s*\(\s*[\"'][\w.]+[\"']\s*(?:,\s*true\s*)?\)\s*;?"
+    r"|(?:HubCore\.(?:AddEvent|Listen)|Hub\.RegisterAction)\s*\(.*\)\s*;?"
+    r"|(?:LuaEvents|Events)\.\w+\.Add\s*\(.*\)\s*;?"
+    r")\s*(?:--.*)?$")
+
+
+def registration_only(diff_lines):
+    """True when a unified diff (-U0) of one file only adds registration lines (include(...), HubCore.AddEvent / Listen,
+    Hub.RegisterAction, LuaEvents.X.Add / Events.X.Add, one line each), blank lines or comments, and removes only blank /
+    comment lines. An empty diff is not registration-only (unknown change)."""
+    seen = False
+    for l in diff_lines:
+        if l.startswith(("+++", "---", "@@", "diff ", "index ")) or l[:1] not in ("+", "-"):
+            continue
+        body = l[1:].strip()
+        seen = True
+        if not body or body.startswith("--"):
+            continue
+        code = body.split("--")[0]
+        if l[0] == "-" or not _REGISTRATION.match(body) or code.count("(") != code.count(")") or re.search(r"\bfunction\b", code):
+            return False
+    return seen
+
+
+def select_changed(scripts, changed, core_diff=None, notes=None):
     """scripts: [(name, steps)]; changed: repo-relative changed paths.
+    core_diff: optional path -> -U0 diff lines of that core file; a registration-only diff (registration_only) is not a core
+    change and adds "core file X: registration-only diff, ignored" to the notes list.
     Returns (selected {name: reason}, uncovered [mod paths no script covers]). Every script is selected when a core file changed;
     scripts without a `# covers:` header are always selected."""
     paths = [c.replace("\\", "/") for c in changed]
@@ -1120,10 +1149,19 @@ def select_changed(scripts, changed):
     for name, steps in scripts:
         if not getattr(steps, "covers", ()):
             selected[name] = "no '# covers:' header"
+    ignored = set()
     for p in paths:
         if p.startswith(MOD_DIR) and path_matches(p, CORE_GLOBS):
+            d = core_diff(p) if core_diff else None
+            if d is not None and registration_only(d):
+                ignored.add(p)
+                if notes is not None:
+                    notes.append("core file %s: registration-only diff, ignored" % p)
+                continue
             return {name: "core file changed: %s" % p for name, _ in scripts}, []
     for p in paths:
+        if p in ignored:
+            continue
         hit = False
         m = re.match(r"^test/regress/([^/]+)\.txt$", p)
         for name, steps in scripts:
@@ -1315,8 +1353,11 @@ def select_for_changed(scripts, base=None, out=print):
         out("changed: %s -> running ALL %d scripts" % (
             "no recorded green `regress all` (%s)" % last_green_path() if not base else "base %s is unknown to git" % base, len(scripts)))
         return scripts
-    selected, uncovered = select_changed(scripts, changed)
+    notes = []
+    selected, uncovered = select_changed(scripts, changed, lambda p: git_out(["diff", "-U0", base, "--", p]), notes)
     out("changed: base %s (%s), %d changed file(s) -> %d of %d scripts" % (base[:10], base_src, len(changed), len(selected), len(scripts)))
+    for n in notes:
+        out("  " + n)
     for n, why in selected.items():
         out("  select %-40s %s" % (n, why))
     for p in uncovered:
