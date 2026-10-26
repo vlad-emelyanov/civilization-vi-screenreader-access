@@ -94,7 +94,7 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "in a target mode: cancel" },
 	} },
 	{ title = "Settler and builder", entries = {
-		{ keys = "X",					text = "with a settler: browse the best places to found a city, each with its distance to your nearest city and to a rival city within 10 tiles; Space adds Between you and a rival or Behind your city, hills and mountain or water sides. Selecting the settler says Here is good when no spot nearby is clearly better, or Best spot is clearly better" },
+		{ keys = "X",					text = "with a settler: browse the best places to found a city, each with its distance to your nearest city and to a rival city within 10 tiles; Space adds Between you and a rival or Behind your city, hills and mountain or water sides. Selecting the settler says Here is good when no spot nearby is clearly better, or Best spot is clearly better when that spot is within 4 turns; a farther one is said as Best: ..., far away, with barbarians near it when hostile soldiers are close to it" },
 		{ keys = "X",					text = "with a builder: browse the tiles it can improve; after them a Later group lists resource tiles that need a tech or civic first, Enter says what is missing" },
 		{ keys = "Up and Down",			text = "in the browser: next and previous place or tile" },
 		{ keys = "Left and Right",		text = "builder browser: next and previous city" },
@@ -124,7 +124,7 @@ local m_sections:table = {
 		{ keys = "Enter",				text = "in the production panel: produce or buy; districts and wonders start the placement mode" },
 		{ action = "KeyNavCityReport",	default = "Control+I",	text = "city report: yields, growth, amenities, loyalty, defense, districts, citizens, religion" },
 		{ keys = "Space",				text = "in the city report: the breakdown of the entry" },
-		{ keys = "District spots entry",	text = "city report: which districts the city can build and the best adjacency spot for each (Enter repeats it with the best spot of every district, Tab opens production)" },
+		{ keys = "District spots entry",	text = "city report: which districts the city can build and the best adjacency spot for each, or the nearest unmet requirement when none can be built now (Enter repeats it with the best spot of every district, Tab opens production)" },
 		{ keys = "Space",				text = "in the production panel on a district: the description, then Best spot with the adjacency bonus, direction and tile cost" },
 		{ keys = "Resources entry",		text = "city report: the resources on the city's tiles, improved or not, and which tech or civic the missing improvements need" },
 		{ keys = "Enter",				text = "city report: change yield focus, manage tiles, specialists, buy a tile" },
