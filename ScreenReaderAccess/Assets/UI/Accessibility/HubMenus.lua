@@ -218,29 +218,73 @@ m_menu = KeyNavList_Create{
 -- ===========================================================================
 local m_civMenu:table;
 
-local function BuildCivItems()
-	local items:table = {};
+-- The numbers of the game's diplomacy ribbon for one player, with the ribbon's hide rules (DiplomacyRibbon.lua ~180)
+local function StandingValues( playerId:number )
+	local vals:table = {};
+	local player:table = Players[ playerId ];
+	local yields:boolean = GameCapabilities.HasCapability( "CAPABILITY_DISPLAY_TOP_PANEL_YIELDS" );
+	if Game.IsVictoryEnabled( "VICTORY_SCORE" ) and GameCapabilities.HasCapability( "CAPABILITY_DISPLAY_SCORE" ) then
+		vals.score = player:GetScore();
+	end
+	if Game.IsVictoryEnabled( "VICTORY_CONQUEST" ) and yields then
+		vals.military = player:GetStats():GetMilitaryStrengthWithoutTreasury();
+	end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_SCIENCE" ) then vals.science = player:GetTechs():GetScienceYield(); end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_CULTURE" ) then vals.culture = player:GetCulture():GetCultureYield(); end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_GOLD" ) then vals.gold = math.floor( player:GetTreasury():GetGoldBalance() ); end
+	if yields and GameCapabilities.HasCapability( "CAPABILITY_RELIGION" ) then vals.faith = player:GetReligion():GetFaithBalance(); end
+	return vals;
+end
+
+-- Known civs (you first, then the met majors), for the V list and the Control+R standing line
+local function BuildStandingEntries()
+	local entries:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
-	if not HubCore.IsLocalPlayerActive() then return items; end
+	if not HubCore.IsLocalPlayerActive() then return entries; end
 	local diplomacy:table = Players[ localPlayer ]:GetDiplomacy();
+	table.insert( entries, { id = localPlayer, isYou = true, name = PlotDescription_GetCivName( localPlayer ), vals = StandingValues( localPlayer ) } );
 	for _, other in ipairs( PlayerManager.GetAliveMajors() ) do
 		local id:number = other:GetID();
 		if id ~= localPlayer and diplomacy:HasMet( id ) then
-			local config:table = PlayerConfigurations[ id ];
-			local state:string = diplomacy:IsAtWarWith( id ) and "at war" or "at peace";
-			table.insert( items, {
-				key = "civ:" .. id, civ = id,
-				text = Locale.Lookup( config:GetLeaderName() ) .. ", " .. PlotDescription_GetCivName( id ) .. ", " .. state,
-			} );
+			table.insert( entries, { id = id, isYou = false, name = PlotDescription_GetCivName( id ), vals = StandingValues( id ) } );
 		end
 	end
+	return entries;
+end
+
+local function BuildCivItems()
+	local items:table = {};
+	local localPlayer:number = Game.GetLocalPlayer();
+	local diplomacy:table = Players[ localPlayer ] ~= nil and Players[ localPlayer ]:GetDiplomacy() or nil;
+	for _, entry in ipairs( BuildStandingEntries() ) do
+		local head:string;
+		if entry.isYou then
+			head = "You, " .. entry.name;
+		else
+			local config:table = PlayerConfigurations[ entry.id ];
+			local state:string = diplomacy:IsAtWarWith( entry.id ) and "at war" or "at peace";
+			head = Locale.Lookup( config:GetLeaderName() ) .. ", " .. entry.name .. ", " .. state;
+		end
+		table.insert( items, { key = "civ:" .. entry.id, civ = entry.id, isYou = entry.isYou, text = StandingText_ListItem( entry, head ) } );
+	end
 	return items;
+end
+
+-- Control+R: where the player stands among the known civs
+function HubMenus.SpeakStanding()
+	if not HubCore.IsLocalPlayerActive() then return; end
+	local entries:table = BuildStandingEntries();
+	OutputMessageToScreenReader( StandingText_Line( entries, 1 ) );
 end
 
 m_civMenu = KeyNavList_Create{
 	build		= BuildCivItems,
 	isActive	= function() return HubCore.IsModeOpen( "civ" ); end,
 	onActivate	= function( item )
+		if item.isYou then
+			HubCore.SayResult( "That is you" );
+			return;
+		end
 		HubCore.CloseMode( false, false );
 		LuaEvents.DiplomacyRibbon_OpenDiplomacyActionView( item.civ );
 	end,
@@ -251,7 +295,7 @@ function HubMenus.ToggleCivMenu()
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if HubCore.IsModeOpen( "civ" ) then HubCore.CloseMode( true, false ); return; end
 	if not HubTargets.CanOpenMode() then return; end
-	if #BuildCivItems() == 0 then
+	if #BuildCivItems() <= 1 then
 		OutputMessageToScreenReader( "You have not met any other civilization" );
 		return;
 	end

@@ -21,6 +21,7 @@ include( "Civ6Common" );		-- MoveUnitToPlot (war declaration check + the right m
 include( "SettleScan" );		-- settler: can settle here, best spots
 include( "LensText" );		-- map lenses (number keys): on/off and legend, lens value in the cursor text
 include( "PlacementScan" );		-- city: where a district or wonder can go
+include( "StandingText" );		-- standing among the known civs (V list numbers, Control+R)
 include( "TopPanelData" );		-- top panel values as sentences (Control+Y, Control+G)
 -- City report (Control+I): CityReportGather includes the game's CitySupport (GetCityData), which is heavy and may fail in
 -- a ruleset: a failure here only loses the report, never the rest of the hub.
@@ -240,6 +241,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavCycleAllUnits",		HubCursor.CycleAllUnits );
 	Hub.RegisterAction( "KeyNavScanUnits",			HubSettle.ScanKey );
 	Hub.RegisterAction( "KeyNavDiplomacy",			HubMenus.ToggleCivMenu );
+	Hub.RegisterAction( "KeyNavStanding",			HubMenus.SpeakStanding );
 	Hub.RegisterAction( "KeyNavTopPanel",			HubRegions.ToggleTopPanel );
 	Hub.RegisterAction( "KeyNavNotifications",		HubRegions.ToggleNotifications );
 	Hub.RegisterAction( "KeyNavYields",				HubRegions.SpeakYields );

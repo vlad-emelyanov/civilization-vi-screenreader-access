@@ -35,6 +35,8 @@ INSERT INTO "InputActions" VALUES ('KeyNavScanUnits','Scan for units','Move the 
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavScanUnits',0,'KBMouse','LOC_OPTIONS_KEY_X');
 INSERT INTO "InputActions" VALUES ('KeyNavDiplomacy','Diplomacy','List the civilizations you have met and open the diplomacy screen with one','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavDiplomacy',0,'KBMouse','LOC_OPTIONS_KEY_V');
+INSERT INTO "InputActions" VALUES ('KeyNavStanding','Standing','Say where you stand among the civilizations you have met: score, military, science, culture, gold, faith','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavStanding',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_R');
 
 INSERT INTO "InputActions" VALUES ('KeyNavTopPanel','Top panel','Open a keyboard list of the top panel: yields, resources, research, civic, turn, era','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavTopPanel',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_Y');
