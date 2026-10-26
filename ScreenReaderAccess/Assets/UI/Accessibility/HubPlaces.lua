@@ -13,7 +13,7 @@
 --	seen (ImprovementVisibilityChanged, ImprovementAddedToMap / RemovedFromMap, UnitMoveComplete, turn begin): a scout that
 --	passes a village and moves on is remembered. The live state of a fogged plot must not leak (a camp that spawned in the
 --	fog). The memory is lost on a hot reload or a load; the first scan afterwards accepts the tribal villages on revealed
---	plots (they only appear at map creation and vanish when entered; no "last seen" accessor exists), camps are not.
+--	plots (they only appear at map creation and vanish when entered; no "last seen" accessor exists); camps on revealed plots out of view are accepted as well, without guards.
 --	Remembered ones in the fog say "last seen". Natural wonders are read live (revealed is enough, they never change).
 --	"Civilians to capture": visible Builders / Settlers (GameInfo.UnitCaptures) of barbarians and of civs at war with us.
 --	"Blind spots" (after Points of interest): clusters of land 4 to 8 tiles from our cities that are revealed but out of view, and of
@@ -284,8 +284,8 @@ function HubPlaces.RefreshSeen()
 end
 
 -- After a load or a hot reload the memory is empty: the tribal villages on revealed plots in the fog are accepted once (they
--- only exist from the map creation and vanish when entered, so the live state is almost always what was seen). Camps are not
--- (they spawn in the fog). Runs once; the plots in view are remembered by the caller's scan anyway.
+-- only exist from the map creation and vanish when entered, so the live state is almost always what was seen). Camps on revealed plots out of view are accepted too
+-- (one that spawned in the fog after the reveal leaks once: no accessor tells; no guards known). Runs once; the plots in view are remembered by the caller's scan anyway.
 function HubPlaces.Prime()
 	if m_primed then return; end
 	m_primed = true;
@@ -301,6 +301,11 @@ function HubPlaces.Prime()
 				local row:table = ( improvement ~= nil and improvement >= 0 ) and GameInfo.Improvements[ improvement ] or nil;
 				if row ~= nil and row.ImprovementType == "IMPROVEMENT_GOODY_HUT" then
 					m_seen[ index ] = { kind = "point", name = Locale.Lookup( row.Name ), camp = false };
+				elseif row ~= nil and row.ImprovementType == "IMPROVEMENT_BARBARIAN_CAMP" and not vis:IsVisible( index ) then
+					-- No revealed-improvement accessor exists (the UI state's plot reports the live improvement even on unrevealed
+					-- plots, as the fogged cursor text does). A camp on a revealed plot out of view is accepted once as "last seen":
+					-- unknown guards and turn. The plots in view are remembered by the caller's scan with their guards.
+					m_seen[ index ] = { kind = "point", name = Locale.Lookup( row.Name ), camp = true };
 				end
 			end
 		end

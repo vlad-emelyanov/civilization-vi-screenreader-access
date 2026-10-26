@@ -1,0 +1,15 @@
+# bug-camps-not-in-places (pt-early-t68 save): after a load the memory is empty; J > Points of interest must still list the two
+# camps that are revealed but out of view (54,32 and 66,36), as "last seen" (no accessor reports the last seen improvement).
+# covers: **/HubPlaces.lua **/PlotDescription.lua **/BlindSpots.lua
+load bug-camps-not-in-places
+clear-advisors
+action KeyNavPlaces -Settle 1500
+key Control+Tab -Settle 800
+key Control+Tab -Settle 800
+key Control+Tab -Settle 800
+expect ^Points of interest.*3 items.*Barbarian Outpost, last seen
+key Down -Settle 800
+expect Barbarian Outpost, last seen.*2 of 3
+key Space -Settle 800
+expect Barbarian Outpost.*fogged.*Destroying it gives
+key Escape
