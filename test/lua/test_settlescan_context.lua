@@ -99,6 +99,19 @@ test("best clearly better", function()
 	eq(text, "Best spot is clearly better: 1 tile north, coast, silk, 1 turn. X to browse.")
 end)
 
+test("far best spot is not clearly better; hostile near it is said", function()
+	local here, best = cand(10), cand(20, { reasons = { "coast" }, turns = 11, relative = "12 tiles south-west" })
+	here.here = true
+	eq(SettleScan_Sentence({ here = here, best = best }, "B", true),
+		"Can settle here. Best: 12 tiles south-west, 11 turns, far away, coast. X to browse.")
+	best.turns, best.hostileNear, best.barbariansNear = 4, true, true
+	eq(SettleScan_Sentence({ here = here, best = best }, "B", true),
+		"Best spot is clearly better: 12 tiles south-west, coast, 4 turns. X to browse.")
+	best.turns = 6
+	eq(SettleScan_Sentence({ here = here, best = best }, "B", true),
+		"Can settle here. Best: 12 tiles south-west, 6 turns, far away, coast, barbarians near it. X to browse.")
+end)
+
 test("in between keeps the old wording; gap at the thresholds", function()
 	local here, best = cand(10), cand(15, { recommended = true })
 	here.here = true

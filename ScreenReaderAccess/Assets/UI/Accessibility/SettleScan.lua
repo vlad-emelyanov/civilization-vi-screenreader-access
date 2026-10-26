@@ -51,6 +51,7 @@ include( "PlotDescription" );
 local SCAN_RADIUS		:number = 6;
 local RIVAL_RANGE		:number = 10;		-- G6: a foreign major city this close is named with its distance
 local SAME_GAP			:number = 3;		-- G8: the best spot scores less than this above "here": about the same
+local FAR_TURNS			:number = 4;		-- a best spot farther than this many turns is never "clearly better", it is "far away"
 local CLEAR_GAP			:number = 6;		-- G8: more than this above "here": clearly better
 local SIDES_NOTE		:number = 3;		-- G6: this many of the 6 neighbours mountain or water: said in Space
 local MAX_CANDIDATES	:number = 12;
@@ -668,6 +669,8 @@ function SettleScan_Sentence( scan:table, foundKey:string, hasMoves:boolean )
 			.. ( hasMoves and ( ". " .. foundKey .. " to found." ) or ( ". " .. foundKey .. " to found next turn." ) );
 	end
 	local verdict:string = SettleScan_Compare( scan );
+	local far:boolean = ( best.turns or 0 ) > FAR_TURNS;
+	if verdict == "clearly" and far then verdict = "between"; end
 	if verdict == "same" then
 		local list:string = SettleScan_ReasonList( here, 3, 2 );
 		return "Here is good" .. ( list ~= "" and ( ": " .. list ) or "" ) .. ". Best nearby is about the same. " .. foundKey
@@ -678,8 +681,9 @@ function SettleScan_Sentence( scan:table, foundKey:string, hasMoves:boolean )
 		return "Best spot is clearly better: " .. best.relative .. Reasons( best, 3, 2 ) .. ", " .. turns
 			.. SettleScan_DistanceText( best ) .. ". X to browse.";
 	end
-	text = text .. ". Best: " .. best.relative .. ", " .. turns .. Reasons( best, 3, 2 );
+	text = text .. ". Best: " .. best.relative .. ", " .. turns .. ( far and ", far away" or "" ) .. Reasons( best, 3, 2 );
 	if best.recommended then text = text .. ", recommended"; end
+	if best.hostileNear then text = text .. ( best.barbariansNear and ", barbarians near it" or ", enemies near it" ); end
 	return text .. SettleScan_DistanceText( best ) .. ". X to browse.";
 end
 
@@ -899,6 +903,12 @@ function SettleScan_Scan( unit:table, force:boolean )
 				if #c.reasons < 6 then table.insert( c.reasons, item.text ); end
 			elseif item.weight < 0 then
 				if #c.negatives < 3 then table.insert( c.negatives, item.text ); end
+			end
+		end
+		for _, enemy in ipairs( ctx.hostiles ) do
+			if _Dist( c.x, c.y, enemy.x, enemy.y ) <= 3 then
+				c.hostileNear = true;
+				if enemy.barbarian then c.barbariansNear = true; end
 			end
 		end
 		_Context( c, ctx );

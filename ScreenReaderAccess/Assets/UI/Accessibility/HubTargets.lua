@@ -439,6 +439,12 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 			if turns <= 1 then
 				local preview:string = CombatPreviewText( unit, plot, nil );
 				if preview ~= nil then text = text .. ", " .. preview; end
+			elseif enemy then
+				-- out of reach: the strengths do not depend on the distance, so the simulation as if adjacent gives them
+				-- (nothing is said when the engine returns no preview for a far target)
+				local results:table = SimulateAttack( unit, plot, nil );
+				local strength:string = ( results ~= nil ) and StrengthPhrase( results, nil ) or nil;
+				if strength ~= nil then text = text .. ", " .. strength .. " when you reach it"; end
 			end
 		elseif m_attackIntent then
 			return "no enemy";

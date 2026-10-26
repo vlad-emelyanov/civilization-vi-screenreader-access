@@ -28,9 +28,26 @@ local function _Sorted( entries:table )
 	return sorted;
 end
 
+-- The cheapest unmet requirement among districts that cannot be built now: blockers = { { name, reasons = { "Requires Population
+-- of 7 or greater" } } } -> "Campus needs population 7" (a population need ranks by its number, any other reason last).
+function DistrictAdvice_NextRequirement( blockers:table )
+	local best:string, bestRank:number = nil, 1e9;
+	for _, b in ipairs( blockers or {} ) do
+		for _, reason in ipairs( b.reasons or {} ) do
+			local need:string = string.match( string.lower( reason ), "population of (%d+)" );
+			local text:string, rank:number;
+			if need ~= nil then text, rank = b.name .. " needs population " .. need, tonumber( need );
+			else text, rank = b.name .. ": " .. string.gsub( reason, "^[Rr]equires ", "" ), 1000; end
+			if rank < bestRank then best, bestRank = text, rank; end
+		end
+	end
+	return best;
+end
+
 -- withWhere: add the location of every district, not only of the best one
 function DistrictAdvice_Line( entries:table, withWhere:boolean )
 	local sorted:table = _Sorted( entries );
+	local nextReq:string = DistrictAdvice_NextRequirement( entries.blockers );
 	local bonus:table = {};
 	local plain:table = {};
 	for _, e in ipairs( sorted ) do
@@ -42,7 +59,10 @@ function DistrictAdvice_Line( entries:table, withWhere:boolean )
 			table.insert( plain, e.name );
 		end
 	end
-	if #bonus == 0 and #plain == 0 then return "District spots: no district can be built now"; end
+	if #bonus == 0 and #plain == 0 then
+		if nextReq ~= nil then return "District spots: none can be built now. Next: " .. nextReq; end
+		return "District spots: none can be built now";
+	end
 	local text:string = "District spots: ";
 	if #bonus > 0 then text = text .. table.concat( bonus, ", " ); end
 	if #plain > 0 then
@@ -134,6 +154,28 @@ local function _Candidates( city:table )
 	return result;
 end
 
+-- Why the districts in the production list cannot be built now: { { name, reasons = { text } } } (the failure reasons the
+-- production panel shows in the tooltip; "no suitable location" is not a requirement and is left out).
+local function _Blockers( city:table )
+	local list:table = {};
+	local ok:boolean, err = pcall( function()
+		local queue:table = city:GetBuildQueue();
+		for _, row in ipairs( _Candidates( city ) ) do
+			local can, results = queue:CanProduce( row.Hash, false, true );
+			if not can and results ~= nil then
+				local reasons:table = {};
+				for _, text in ipairs( results[ CityOperationResults.FAILURE_REASONS ] or {} ) do
+					local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%.%s]+$", "" );
+					if clean ~= "" and string.find( text, "NO_SUITABLE_LOCATION", 1, true ) == nil then table.insert( reasons, clean ); end
+				end
+				if #reasons > 0 then table.insert( list, { name = Locale.Lookup( row.Name ), reasons = reasons } ); end
+			end
+		end
+	end );
+	if not ok then print( "DistrictAdvice blockers error: " .. tostring( err ) ); end
+	return list;
+end
+
 function DistrictAdvice_Spots( city:table )
 	local slot:table = _Slot( city );
 	if slot.spots ~= nil then return slot.spots; end
@@ -146,6 +188,7 @@ function DistrictAdvice_Spots( city:table )
 	end );
 	if not ok then print( "DistrictAdvice_Spots error: " .. tostring( err ) ); end
 	slot.spots = _Sorted( spots );
+	if #spots == 0 then slot.spots.blockers = _Blockers( city ); end
 	return slot.spots;
 end
 

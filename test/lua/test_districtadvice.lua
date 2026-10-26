@@ -23,7 +23,19 @@ end)
 
 test("line: only no-bonus and none at all", function()
 	eq(DistrictAdvice_Line({ e("Harbor", 0), e("Aqueduct", 0) }), "District spots: Aqueduct, Harbor: no spot with a bonus")
-	eq(DistrictAdvice_Line({}), "District spots: no district can be built now")
+	eq(DistrictAdvice_Line({}), "District spots: none can be built now")
+end)
+
+test("line: nothing buildable names the cheapest unmet requirement", function()
+	local entries = { blockers = {
+		{ name = "Campus", reasons = { "Requires Population of 7 or greater" } },
+		{ name = "Holy Site", reasons = { "Requires Population of 4 or greater" } },
+		{ name = "Harbor", reasons = { "Requires a Coast" } },
+	} }
+	eq(DistrictAdvice_Line(entries), "District spots: none can be built now. Next: Holy Site needs population 4")
+	eq(DistrictAdvice_Line({ blockers = { { name = "Harbor", reasons = { "Requires the Celestial Navigation tech" } } } }),
+		"District spots: none can be built now. Next: Harbor: the Celestial Navigation tech")
+	eq(DistrictAdvice_Line({ blockers = {} }), "District spots: none can be built now")
 end)
 
 test("best spot: adjacency, direction, tile cost, removals", function()
