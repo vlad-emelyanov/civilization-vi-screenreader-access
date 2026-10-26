@@ -61,9 +61,17 @@ function BlindSpots.CampAdvice( gold:number )
 	return "Destroying it " .. reward .. " and stops raids from it. Fighting near it gives your units experience";
 end
 
--- "Barbarian camp destroyed" with the gold when the treasury grew by it.
-function BlindSpots.DestroyedText( gold:number, count:number )
-	local what:string = ( count ~= nil and count > 1 ) and ( count .. " barbarian camps destroyed" ) or "Barbarian camp destroyed";
+-- A camp that went out of view of our units' reach was not necessarily ours to claim: ours = one of our units took part
+-- (on or next to the camp, or moved there this turn). Then "Barbarian camp destroyed, 50 gold" (gold only when the treasury
+-- grew), else "Barbarian camp gone, 2 tiles north of Rome" ("2 barbarian camps gone" for several, no gold either way).
+function BlindSpots.DestroyedText( gold:number, count:number, ours:boolean, position:string )
+	local several:boolean = count ~= nil and count > 1;
+	if ours ~= true then
+		if several then return count .. " barbarian camps gone"; end
+		if position ~= nil and position ~= "" then return "Barbarian camp gone, " .. position; end
+		return "Barbarian camp gone";
+	end
+	local what:string = several and ( count .. " barbarian camps destroyed" ) or "Barbarian camp destroyed";
 	if gold ~= nil and gold > 0 then return what .. ", " .. gold .. " gold"; end
 	return what;
 end

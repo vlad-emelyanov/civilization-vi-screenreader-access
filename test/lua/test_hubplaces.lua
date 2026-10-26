@@ -644,23 +644,41 @@ test("M on a camp offers an attack party of the two fastest military land units 
 	for i = #units, 1, -1 do if units[i].id >= 200 then table.remove(units, i) end end
 end)
 
-test("a camp destroyed in view is announced with the gold gained", function()
+local function campGone(unitAt, goldNow)
 	HubCore.m_ready = true
 	local gold = 100
 	player.GetTreasury = function() return { GetGoldBalance = function() return gold end } end
 	world:set(2, 12, { fogged = false, improvement = 3 })
 	plotUnits = {}
+	local saved = {}
+	for i, u in ipairs(units) do saved[i] = u end
+	for i = #units, 1, -1 do units[i] = nil end
+	if unitAt then addUnit(900, "Warrior", unitAt[1], unitAt[2]) end
 	HubPlaces.RefreshSeen()
 	HubPlaces.Update(1)		-- samples the treasury
 	HubCore.m_delayed = {}
 	world:set(2, 12, { improvement = -1 })
-	gold = 150
+	gold = goldNow
 	HubPlaces.OnImprovementRemovedFromMap(2, 12)
 	for _, d in ipairs(HubCore.m_delayed) do d.fn() end
 	HubCore.m_delayed = {}
 	local spoken = Spoken()
-	eq(spoken[#spoken], "Barbarian camp destroyed, 50 gold")
+	for i = #units, 1, -1 do units[i] = nil end
+	for i, u in ipairs(saved) do units[i] = u end
 	player.GetTreasury = nil
+	return spoken[#spoken]
+end
+
+test("a camp destroyed next to our unit is announced with the gold gained", function()
+	eq(campGone({ 2, 13 }, 150), "Barbarian camp destroyed, 50 gold")
+	eq(campGone({ 2, 13 }, 100), "Barbarian camp destroyed")
+end)
+
+test("a camp that went with none of our units near claims no gold", function()
+	local text = campGone(nil, 150)
+	assert(text:find("^Barbarian camp gone, .+ of Rome$") or text:find("^Barbarian camp gone, .+ Rome$") or text:find("^Barbarian camp gone"), text)
+	assert(not text:find("gold"), text)
+	assert(not campGone({ 20, 20 }, 150):find("gold"))
 end)
 
 test("a village removed (not a camp) says nothing about a camp", function()

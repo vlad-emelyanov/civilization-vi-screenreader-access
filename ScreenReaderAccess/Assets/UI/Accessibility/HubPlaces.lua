@@ -330,6 +330,8 @@ end
 -- Events.ImprovementRemovedFromMap( x, y ... ): a village entered or a camp destroyed in view (the plot is updated a moment later)
 local m_lastGold		:number = nil;		-- the treasury as the last poll saw it: the baseline of the gold a destroyed camp gives
 local m_campsGone		:number = 0;		-- camps removed since the pending announcement was armed
+local m_campsOurs		:boolean = false;	-- one of our units took part in one of them
+local m_campPosition	:string = nil;		-- where the first one was
 local m_goldFrozen		:number = 0;		-- no sampling until this UI time (a camp was just destroyed)
 
 local function ReadGold()
@@ -342,7 +344,26 @@ local function GoldBalance()
 	return nil;
 end
 
--- A remembered camp that was in view and is now gone was destroyed (by us or another unit in view): "Barbarian camp destroyed, 50 gold".
+local m_ourMoves		:table = {};		-- where our units ended a move this turn: { turn = n, spots = { {x, y} ... } }
+
+-- One of our units is on or next to the plot, or ended a move there this turn: it took part in the camp's end.
+local function OurUnitNear( x:number, y:number )
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	if player ~= nil then
+		for _, unit in player:GetUnits():Members() do
+			if Map.GetPlotDistance( unit:GetX(), unit:GetY(), x, y ) <= 1 then return true; end
+		end
+	end
+	if m_ourMoves.turn == Game.GetCurrentGameTurn() then
+		for _, spot in ipairs( m_ourMoves.spots ) do
+			if Map.GetPlotDistance( spot.x, spot.y, x, y ) <= 1 then return true; end
+		end
+	end
+	return false;
+end
+
+-- A remembered camp that was in view and is now gone: "Barbarian camp destroyed, 50 gold" when one of our units took part and the
+-- treasury grew, else "Barbarian camp gone, 2 tiles north of Rome" (no gold claimed for another unit's work, e.g. a city-state's).
 -- The event carries no reward; the gold is the treasury growth since the last poll (the dispersal gold arrives with the removal).
 function HubPlaces.OnImprovementRemovedFromMap( x:number, y:number )
 	local plot:table = Map.GetPlot( x, y );
@@ -352,6 +373,8 @@ function HubPlaces.OnImprovementRemovedFromMap( x:number, y:number )
 		-- Several camps can go at once (a new city's borders disperse every camp inside them): one announcement for all of them,
 		-- with the total gold (each camp's removal event would otherwise repeat the same total).
 		m_campsGone = m_campsGone + 1;
+		if OurUnitNear( x, y ) then m_campsOurs = true; end
+		if m_campsGone == 1 then m_campPosition = HubAnnounce.PositionText( plot ); end
 		m_seen[ plot:GetIndex() ] = nil;
 		if m_campsGone == 1 then
 			local before:number = m_lastGold or GoldBalance();
@@ -359,10 +382,14 @@ function HubPlaces.OnImprovementRemovedFromMap( x:number, y:number )
 			m_goldFrozen = UI.GetElapsedTime() + 1.5;
 			HubCore.After( 1.0, function()
 				local count:number = m_campsGone;
+				local ours:boolean = m_campsOurs;
+				local position:string = m_campPosition;
 				m_campsGone = 0;
+				m_campsOurs = false;
+				m_campPosition = nil;
 				if Game.GetCurrentGameTurn() ~= turn then return; end
 				local now:number = GoldBalance();
-				HubCore.Announce( BlindSpots.DestroyedText( ( now ~= nil and before ~= nil ) and ( now - before ) or nil, count ), true );
+				HubCore.Announce( BlindSpots.DestroyedText( ( now ~= nil and before ~= nil ) and ( now - before ) or nil, count, ours, position ), true );
 			end );
 		end
 	end
@@ -376,6 +403,9 @@ local m_moveScanArmed:boolean = false;
 function HubPlaces.OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:number )
 	if playerID ~= Game.GetLocalPlayer() then return; end
 	m_moved[ unitID ] = { x = x, y = y };
+	local turn:number = Game.GetCurrentGameTurn();
+	if m_ourMoves.turn ~= turn then m_ourMoves = { turn = turn, spots = {} }; end
+	table.insert( m_ourMoves.spots, { x = x, y = y } );
 	if m_moveScanArmed then return; end
 	m_moveScanArmed = true;
 	HubCore.After( 0.2, HubPlaces.ScanMoved );
