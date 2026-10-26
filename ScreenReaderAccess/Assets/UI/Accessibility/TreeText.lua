@@ -2,6 +2,22 @@
 -- No engine calls, tested in test/lua/test_treetext.lua. Names arrive already localized and cleaned for speech.
 --------------------------------------------------------------
 
+-- Total turns of a queue from the per-entry turns the game reports. Those are cumulative (turns until that entry is done),
+-- so they never decrease along the queue and the total is the last one; summing them double counts. Values that do
+-- decrease somewhere are independent estimates and are summed.
+function TreeText_QueueTotal( each:table )
+	local n:number = #each;
+	if n == 0 then return 0; end
+	local cumulative:boolean = true;
+	for i = 2, n do
+		if each[i] < each[i - 1] then cumulative = false; end
+	end
+	if cumulative then return each[n]; end
+	local sum:number = 0;
+	for i = 1, n do sum = sum + each[i]; end
+	return sum;
+end
+
 -- "1 turn" / "5 turns"
 function TreeText_Turns( n:number )
 	if n == 1 then return "1 turn"; end
@@ -60,7 +76,11 @@ function TreeText_Item( info:table )
 	elseif status == "available" then
 		table.insert( parts, "available" );
 	end
-	if info.turns ~= nil and info.turns > 0 then table.insert( parts, TreeText_Turns( info.turns ) ); end
+	if info.turns ~= nil and info.turns > 0 then
+		-- a blocked node's turns are for that node alone (not the way to it): say so (info.alone = "tech" / "civic")
+		local alone:string = ( status == "blocked" and info.alone ~= nil ) and ( " for this " .. info.alone .. " alone" ) or "";
+		table.insert( parts, TreeText_Turns( info.turns ) .. alone );
+	end
 	if status == "available" and info.boosted == true then table.insert( parts, "boosted" ); end
 	if status == "blocked" and info.needs ~= nil and #info.needs > 0 then
 		table.insert( parts, "needs " .. table.concat( info.needs, " and " ) );
@@ -173,11 +193,12 @@ end
 -- Enter on a node that is not researchable yet:
 -- "Political Philosophy set as the target: 3 civics on the way, about 26 turns. Next: Code of Laws, 4 turns."
 -- word "tech" / "civic"; nextName / nextTurns = what the game started on (optional)
-function TreeText_FarTarget( name:string, word:string, count:number, turns:number, nextName, nextTurns )
+function TreeText_FarTarget( name:string, word:string, count:number, turns:number, nextName, nextTurns, replaced )
 	local text:string = name .. " set as the target: " .. PathCount( count, word ) .. " on the way" .. PathTurns( turns ) .. ".";
 	if nextName ~= nil and nextName ~= "" then
 		text = text .. " Next: " .. nextName;
 		if nextTurns ~= nil and nextTurns > 0 then text = text .. ", " .. TreeText_Turns( nextTurns ); end
+		if replaced ~= nil and replaced ~= "" then text = text .. ", replaces " .. replaced; end
 		text = text .. ".";
 	end
 	return text;

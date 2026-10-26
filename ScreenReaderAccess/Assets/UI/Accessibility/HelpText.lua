@@ -66,7 +66,7 @@ local m_sections:table = {
 		{ keys = "Turn start",			text = "after the turn line: what visible enemies near your cities and units did, moved toward or away, new, wounded, out of sight" },
 	} },
 	{ title = "Units", entries = {
-		{ action = "KeyNavUnitActions",			default = "Tab",		text = "menu of everything the selected unit can do: Enter runs, Space reads the tooltip" },
+		{ action = "KeyNavUnitActions",			default = "Tab",		text = "menu of everything the selected unit can do: Enter runs, Space reads the tooltip. Actions that destroy something (Remove Improvement, Harvest, Pillage) come after the normal ones and ask first: Enter again within 5 seconds to confirm" },
 		{ action = "MoveTo",					default = "M",			text = "move to: choose a tile" },
 		{ action = "Attack",					default = "W",			text = "attack: jumps to the nearest enemy and previews it" },
 		{ action = "RangedAttack",				default = "R",			text = "ranged attack, also for a city" },
@@ -82,7 +82,7 @@ local m_sections:table = {
 		{ action = "ExtraHotkeysFormCorps",		default = "Shift+F",	text = "form a corps" },
 		{ action = "ExtraHotkeysFormArmy",		default = "Control+Shift+F", text = "form an army" },
 		{ action = "ExtraHotkeysUpgrade",		default = "U",			text = "upgrade the unit, or activate a great person (a Great Prophet founds its religion); says what happened, or why it cannot" },
-		{ action = "ExtraHotkeysEnterFormation",default = "Shift+E",	text = "create or leave an escort formation; selecting a settler or builder says when a soldier of yours shares its tile or already escorts it" },
+		{ action = "ExtraHotkeysEnterFormation",default = "Shift+E",	text = "create or leave an escort formation (says \"Escort formed: Heavy Chariot with Settler\" or why it could not); selecting a settler or builder says when a soldier of yours shares its tile or already escorts it" },
 		{ keys = "Warnings",			text = "a settler or builder sent off alone near enemies or a barbarian camp is told so, with the key for an escort; a barbarian scout near your city sounds an alarm, a raid of two or more soldiers near a city and an unescorted builder in danger are spoken once and again when they change; N adds Raid expected after a scout escaped" },
 		{ action = "ExtraHotkeysPillageOrRepair",default = "Shift+P",	text = "pillage, coastal raid or repair" },
 		{ action = "DeleteUnit",				default = "Delete",		text = "delete the unit, asks first" },
@@ -140,7 +140,7 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "go back one step, then cancel the placement" },
 	} },
 	{ title = "Screens", entries = {
-		{ action = "ToggleTechTree",	default = "T",			text = "tech tree: Left and Right eras, Up and Down nodes, Enter sets the target (on a node you cannot research yet it says how many nodes and turns lie on the way, and what comes next), Shift+Enter queues" },
+		{ action = "ToggleTechTree",	default = "T",			text = "tech tree: Left and Right eras, Up and Down nodes, Enter sets the target (on a node you cannot research yet it says how many nodes and turns lie on the way, what comes next and which current research it replaces; a blocked node's own turns are for that tech alone), Shift+Enter queues" },
 		{ action = "ToggleCivicsTree",	default = "C",			text = "civics tree: the same keys as the tech tree" },
 		{ keys = "J, Q and F",			text = "in the trees: J current research and the target at the end of the queue, Q the queue, F search by name" },
 		{ keys = "R",					text = "in the trees: lists the techs (civics) that unlock the improvement of resources near your cities, cheapest first; Up and Down, Enter sets the target, Shift+Enter queues, Escape leaves. A node that does so also says \"improves 2 Horses and 1 Sheep near your cities\"" },
