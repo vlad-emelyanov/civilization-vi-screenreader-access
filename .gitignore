@@ -412,3 +412,6 @@ build_errors.txt
 # Offline-check tools and caches
 util/tools/
 .luacheckcache
+
+# per-run output of civregress --record
+test/regress/*.recorded.txt

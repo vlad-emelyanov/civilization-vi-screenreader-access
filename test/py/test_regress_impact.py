@@ -62,5 +62,12 @@ class CoreRegistrationTests(unittest.TestCase):
         self.assertEqual(list(sel), ["a", "b"])
 
 
+class SidecarIgnoreTests(unittest.TestCase):
+    def test_recorded_sidecars_are_ignored(self):
+        root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+        with open(os.path.join(root, "." + "gitignore"), encoding="utf-8") as f:
+            self.assertIn("test/regress/*.recorded.txt", f.read().split())
+
+
 if __name__ == "__main__":
     unittest.main()
