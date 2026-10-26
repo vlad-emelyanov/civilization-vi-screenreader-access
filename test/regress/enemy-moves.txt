@@ -1,0 +1,14 @@
+# BLIND-WRITTEN (not yet run): the verifier should run it with --record and fix the end-turn lua steps if needed.
+# Scenario enemy-at-capital on early-t60 puts a barbarian warrior next to Rome; we end the turn, and the next turn start says what it did.
+# covers: **/HubEnemies.lua **/HubAnnounce.lua
+# no-share-load: scenario enemy-at-capital and an ended turn
+load early-t60
+scenario enemy-at-capital
+clear-advisors
+# (util/civregress.py has no endturn step, hence the lua steps; Turn 61 = early-t60 plus one)
+# end the turn without blockers: finish every unit's moves, then request the end of turn
+lua InGame for _, u in Players[0]:GetUnits():Members() do UnitManager.FinishMoves(u) end
+lua InGame UI.RequestAction(ActionTypes.ACTION_ENDTURN)
+wait Turn 61 -Timeout 60
+expect ^Enemies: .*Barbarian
+no-lua-errors
