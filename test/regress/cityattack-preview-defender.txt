@@ -1,13 +1,14 @@
-# Round 26 (written BLIND, unverified; run `civregress cityattack-preview-defender --record` first): the city ranged attack preview names and computes against the unit the shot really hits (the Man-At-Arms), not the captured Builder ("against no defense, deals 58").
+# Round 26 (verified 2026-10-26): the city ranged attack preview names and computes against the unit the shot really hits (the Man-At-Arms), not the captured Builder ("against no defense, deals 58").
 # Fixture bug-cityattack-preview-wrong-unit: t82 Rome, Barbarian Builder + Man-At-Arms on one tile in range of a city; production chooser of Cumae open on top.
 # covers: **/HubTargets.lua, **/CombatText.lua
 # no-share-load: opens the city attack target mode
+# The fixture Rome already attacked, so the script gives Cumae walls and spawns a Barbarian Man-At-Arms + Builder stack 1 tile away with the tuner.
 load bug-cityattack-preview-wrong-unit
 clear-advisors
-key Escape -Settle 800
-key Control+N -Settle 1500
-key Enter -Settle 1000
-expect City ranged attack
-key X -Settle 1500
-expect Man-At-Arms
+lua GameCore_Tuner for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Cumae" then c:GetBuildQueue():CreateIncompleteBuilding(GameInfo.Buildings["BUILDING_WALLS"].Index, 100) end end local b=Players[63]; b:GetUnits():Create(GameInfo.Units["UNIT_MAN_AT_ARMS"].Index,60,30); b:GetUnits():Create(GameInfo.Units["UNIT_BUILDER"].Index,60,30); return 1
+lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Cumae" then UI.DeselectAllUnits(); UI.SelectCity(c) end end
+key R -Settle 1500
+expect ^City ranged attack
+expect Ranged strength \d+ against \d+.*Barbarian Man-At-Arms, Barbarian Builder
+key Escape -Settle 500
 no-lua-errors

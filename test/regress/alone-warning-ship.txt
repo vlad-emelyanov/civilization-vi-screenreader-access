@@ -1,9 +1,14 @@
-# Round 26 (written BLIND, unverified; run `civregress alone-warning-ship --record` first): a Barbarian Galley must not trigger "moving alone ... Escort first" for a Builder walking on land.
+# Round 26 (verified 2026-10-26; the fixture builders have no moves left, so the script restores them with the tuner): a Barbarian Galley must not trigger "moving alone ... Escort first" for a Builder walking on land.
 # Fixture bug-civ-warning-ship-only: t84 Builder at Antium, Barbarian Galley 4 tiles from the path, Mine 1 tile east.
 # covers: **/HubEnemies.lua
 # no-share-load: orders a move
 load bug-civ-warning-ship-only
 clear-advisors
-key X -Settle 1500
-key Enter -Settle 1500
+lua GameCore_Tuner for _,u in Players[0]:GetUnits():Members() do if u:GetX()==55 and u:GetY()==29 then UnitManager.RestoreMovement(u) end end
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==55 and u:GetY()==29 then UI.SelectUnit(u) end end
+key X -Settle 2000
+expect ^Tiles to improve near
+key Enter -Settle 2500
+expect ^Moving, \d+ turns? left
+expect-not (?i)alone|escort first
 no-lua-errors
