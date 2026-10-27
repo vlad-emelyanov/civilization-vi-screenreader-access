@@ -371,7 +371,7 @@ end
 function HubEnemies.AloneText( unitName:string, turns:number, danger:string, formationKey:string )
 	local text:string = unitName .. " moving alone";
 	if turns ~= nil then text = text .. ", " .. HubCore.Plural( turns, "turn", "turns" ); end
-	return text .. ". " .. danger .. ". Escort first: " .. SRKey( "J", "LB or RB" ) .. " then " .. SRKey( "M", "X" ) .. " sends a soldier, " .. formationKey .. " forms the escort";
+	return text .. ". " .. danger .. ". Escort first: " .. SRKey( "J", "LB" ) .. " then " .. SRKey( "M", "X" ) .. " sends a soldier, " .. formationKey .. " forms the escort";
 end
 
 -- "2 tiles from the path" / "on the path" / "at the target"

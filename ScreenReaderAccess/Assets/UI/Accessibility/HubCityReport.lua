@@ -354,7 +354,7 @@ HubCityReport.m_specList = KeyNavList_Create{
 		if m == nil then return {}; end
 		local items:table = CityManage_DistrictItems( m );
 		for _, item in ipairs( items ) do
-			item.detail = item.text .. ". " .. SRKey( "Enter" ) .. " adds a specialist, " .. SRKey( "Backspace", "X" ) .. " removes one (controller: X)";
+			item.detail = item.text .. ". " .. SRKey( "Enter" ) .. " adds a specialist, " .. SRKey( "Backspace", "X" ) .. " removes one";
 		end
 		return items;
 	end,

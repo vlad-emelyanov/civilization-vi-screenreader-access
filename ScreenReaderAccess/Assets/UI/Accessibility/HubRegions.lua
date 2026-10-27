@@ -242,9 +242,9 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 	if text == "" then return; end
 	-- Founding a religion (U, Tab > Found Religion) opens no screen, only this notification: say how to get to the screen
 	if typeName == "NOTIFICATION_CHOOSE_RELIGION" then
-		text = "Religion founded: choose a name and beliefs. " .. SRKey( "Control+N", "LB or RB" ) .. ", then " .. SRKey( "Enter" ) .. " on '" .. text .. "'";
+		text = "Religion founded: choose a name and beliefs. " .. SRKey( "Control+N", "RB" ) .. ", then " .. SRKey( "Enter" ) .. " on '" .. text .. "'";
 	elseif typeName == "NOTIFICATION_CHOOSE_BELIEF" then
-		text = text .. ". " .. SRKey( "Control+N", "LB or RB" ) .. ", then " .. SRKey( "Enter" ) .. " to choose";
+		text = text .. ". " .. SRKey( "Control+N", "RB" ) .. ", then " .. SRKey( "Enter" ) .. " to choose";
 	end
 	-- "New Barbarian Outpost" alone does not say where: from the nearest city of ours, like the camps in the places list (J)
 	if typeName == "NOTIFICATION_NEW_BARBARIAN_CAMP" then

@@ -856,10 +856,10 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if HubTargets.lastModeLine == newMode and now - HubTargets.lastModeTime < 0.5 then return; end
 	HubTargets.lastModeLine, HubTargets.lastModeTime = newMode, now;
 	if newMode == InterfaceModeTypes.MOVE_TO and m_attackIntent then
-		OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "Shift+Arrows" ) .. " or " .. SRKey( "X", "X" ) .. ", " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
+		OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "Shift+Arrows", "LStick" ) .. " or " .. SRKey( "X", "X" ) .. ", " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
 		return;
 	end
-	OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
+	OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows", "LStick" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
 	if IsCityMode( newMode ) then HubCore.After( 0.3, HubTargets.CursorToNearestCityTarget ); end
 end
 
@@ -1272,7 +1272,7 @@ function HubTargets.AttackKey()
 	if mode ~= nil then
 		if mode == InterfaceModeTypes.MOVE_TO and not m_attackIntent then
 			m_attackIntent = true;
-			OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "Shift+Arrows" ) .. " or " .. SRKey( "X", "X" ) .. ", " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
+			OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "Shift+Arrows", "LStick" ) .. " or " .. SRKey( "X", "X" ) .. ", " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
 			HubCursor.ScanUnits( false );
 		else
 			HubTargets.ConfirmTarget();
