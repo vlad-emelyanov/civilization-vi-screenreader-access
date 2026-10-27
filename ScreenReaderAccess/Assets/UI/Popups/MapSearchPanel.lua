@@ -1037,6 +1037,8 @@ end
 -- ===========================================================================
 function OnSearchCommit()
 
+	if SR_IsEscaping() then return; end	-- ScreenReaderAccess
+
 	ClearSearch(true);
 
 	local szSearchString = Controls.MapSearchBox:GetText();
@@ -1138,7 +1140,14 @@ end
 -- ScreenReaderAccess: speech and keyboard control for the map search panel.
 -- Everything below is mod code; the game code above only calls the SR_* functions.
 -- ===========================================================================
-local m_SR : table = { announce = false, tab = false, last = { search = "", filter = "" } };
+local m_SR : table = { announce = false, tab = false, escaping = false, isOpen = false, last = { search = "", filter = "" } };
+
+-- Keys that start typing: letters and digits. The engine's Keys enum is not Win32, so look the names up.
+local SR_TypingKeys : table = {};
+for _, name in ipairs({ "A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","0","1","2","3","4","5","6","7","8","9" }) do
+	local code = Keys[name] or Keys["VK_"..name];
+	if code ~= nil then SR_TypingKeys[code] = true; end
+end
 
 local function SR_Say( text:string )
 	OutputMessageToScreenReader(text, false);
@@ -1169,12 +1178,16 @@ end
 
 function SR_Reset()
 	m_SR.announce = false;
+	m_SR.escaping = false;
+	m_SR.isOpen = false;
 	m_SR.tab = false;
 	m_SR.last = { search = "", filter = "" };
 end
 
 function SR_OnPanelOpened()
+	if m_SR.isOpen then return; end	-- shown + explicit event for one opening: speak once (PanelClosed resets it)
 	SR_Reset();
+	m_SR.isOpen = true;
 	SR_Say("Map search. Type words such as Iron, Hills or Unclaimed, Enter searches, Escape closes");
 end
 
@@ -1207,6 +1220,11 @@ function SR_OnTextChanged( box:table, kind:string )
 		end
 	end);
 	if not ok then print("MapSearchPanel SR_OnTextChanged error: "..tostring(err)); end
+end
+
+-- Escape in a focused box makes the engine fire the commit callback: that must not search.
+function SR_IsEscaping()
+	return m_SR.escaping;
 end
 
 function SR_OnSearchStarted()
@@ -1285,7 +1303,7 @@ local function SR_ClosePanel()
 		if button ~= nil and button:IsSelected() then button:SetSelected(false); end
 	end);
 	if cursorText ~= nil then
-		SR_Say("Map search closed, cursor on "..cursorText);
+		SR_Say("Map search closed, cursor stays on "..cursorText);
 	else
 		SR_Say("Map search closed");
 	end
@@ -1299,9 +1317,10 @@ local function SR_HandleInputImpl( pInputStruct:table )
 	local down:boolean = (msg == KeyEvents.KeyDown);
 
 	if key == Keys.VK_ESCAPE then
-		if not down then SR_ClosePanel(); end
+		if down then m_SR.escaping = true; else SR_ClosePanel(); end
 		return true;
 	end
+	if down then m_SR.escaping = false; end
 
 	if SR_BoxFocused() then
 		-- the engine feeds most keys to the box; Tab completion is done by OnInputHandler below
@@ -1322,14 +1341,8 @@ local function SR_HandleInputImpl( pInputStruct:table )
 		return true;
 	end
 
-	-- Enter after browsing leaves the cursor on the result and closes (Enter in the box never gets here: the engine commits it)
-	if key == Keys.VK_RETURN and m_FocusedResult > 0 then
-		if not down then SR_ClosePanel(); end
-		return true;
-	end
-
 	-- a letter or digit starts a new search
-	if down and ((key >= 65 and key <= 90) or (key >= 48 and key <= 57)) then
+	if down and SR_TypingKeys[key] then
 		Controls.MapSearchBox:TakeFocus();
 		SR_Say("Search box, type words, Enter searches");
 		return true;

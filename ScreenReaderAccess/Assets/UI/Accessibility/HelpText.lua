@@ -50,7 +50,7 @@ local m_sections:table = {
 		{ action = "KeyNavNotifications",		default = "Control+N",	text = "notifications: Enter activates, Delete dismisses, M sends a unit to its place" },
 		{ action = "KeyNavEraProgress",			default = "Control+E",	text = "era progress: era score, thresholds, other civilizations" },
 		{ action = "KeyNavHelp",				default = "Control+H",	text = "this help list" },
-		{ action = "OpenMapSearch",			default = "Control+F",	text = "map search: type words such as Iron, Hills or Unclaimed, Enter searches, Down and Up step through the matches (the cursor goes there), Enter or Escape closes" },
+		{ action = "OpenMapSearch",			default = "Control+F",	text = "map search: type words such as Iron, Hills or Unclaimed, Enter searches, Down and Up step through the matches (the cursor goes there), Escape closes, the cursor stays on the match" },
 		{ action = "QuickSave",					default = "F5",			text = "quick save" },
 		{ action = "QuickLoad",					default = "F6",			text = "quick load" },
 		{ action = "LensReligion", default = "1", text = "Religion lens, the cursor then also reads followers of your cities" },
