@@ -5,6 +5,7 @@
 include("GameCapabilities");
 include("InstanceManager");
 include("ScreenReader");		-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
 print( "ScreenReaderAccess: PartialScreenHooks override loaded" );		-- ScreenReaderAccess
 
 
@@ -414,6 +415,31 @@ local function SRA_SayUnavailable( actionId:number )
 end
 -- End ScreenReaderAccess mod change
 
+-- Begin ScreenReaderAccess mod change: the hub's Screens list (controller ring) opens the partial screens through the function the hook button runs.
+-- LuaEvents.SRA_OpenScreen( name ) -> LuaEvents.SRA_ScreenOpened( name, ok ), synchronously; ok is false when the hook is not available now.
+-- Reports and Era progress: OnToggleReportsList / OnToggleEraProgress (the latter is defined by the expansion file that includes this one).
+local function SRA_OnOpenScreen( name:string )
+	local opener = nil;
+	if name == "City-States" then
+		if m_isCityStatesUnlocked and HasCapability("CAPABILITY_CITY_STATES_VIEW") then opener = OnToggleCityStates; end
+	elseif name == "Espionage" then
+		if m_isEspionageUnlocked and HasCapability("CAPABILITY_ESPIONAGE_VIEW") then opener = OnToggleEspionage; end
+	elseif name == "Trade routes" then
+		if m_isTradeRoutesUnlocked and HasCapability("CAPABILITY_TRADE_VIEW") then opener = OnToggleTradeOverview; end
+	elseif name == "World rankings" then
+		if HasCapability("CAPABILITY_DISPLAY_HUD_WORLD_RANKINGS") then opener = OnToggleWorldRankings; end
+	elseif name == "Era progress" then
+		if OnToggleEraProgress ~= nil and HasCapability("CAPABILITY_ERAS") then opener = OnToggleEraProgress; end
+	elseif name == "Reports" then
+		if HasCapability("CAPABILITY_REPORTS_LIST") then opener = OnToggleReportsList; end
+	else
+		return;		-- not a partial screen (LaunchBar answers its own)
+	end
+	if opener ~= nil then opener(); end
+	LuaEvents.SRA_ScreenOpened( name, opener ~= nil );
+end
+-- End ScreenReaderAccess mod change
+
 -- ===========================================================================
 --	Input Hotkey Event
 --	actionId,	A number from the engine which represents a hotkey pressed.
@@ -495,5 +521,10 @@ function Initialize()
 	Events.TurnBegin.Add( OnTurnBegin );
 
 	LuaEvents.Tutorial_CloseAllPartialScreens.Add( OnTutorialCloseAll );	
+
+	-- Begin ScreenReaderAccess mod change: see SRA_OnOpenScreen
+	SRListen( LuaEvents.SRA_OpenScreen, SRA_OnOpenScreen );
+	ContextPtr:SetShutdown( function() SRUnlistenAll(); end );
+	-- End ScreenReaderAccess mod change
 end
 Initialize();

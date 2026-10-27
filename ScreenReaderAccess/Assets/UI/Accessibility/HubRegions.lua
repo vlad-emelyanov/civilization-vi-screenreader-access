@@ -34,10 +34,15 @@ m_topList = KeyNavList_Create{
 	onClose		= function() HubCore.CloseMode( true, false ); end,
 };
 
-function HubRegions.ToggleTopPanel()
-	if HubCore.IsModeOpen( "top" ) then HubCore.CloseMode( true, false ); return; end
+-- Always opens (the controller ring, HubPad); the keyboard toggle below closes an open list instead.
+function HubRegions.OpenTopPanel()
 	if not HubTargets.CanOpenMode() then return; end
 	HubCore.OpenMode( "top", m_topList, "Top panel" );
+end
+
+function HubRegions.ToggleTopPanel()
+	if HubCore.IsModeOpen( "top" ) then HubCore.CloseMode( true, false ); return; end
+	HubRegions.OpenTopPanel();
 end
 
 -- Control+G: the basic yields in one sentence, without entering the region.
@@ -206,14 +211,19 @@ m_notifList = KeyNavList_Create{
 	extraKeys	= { [Keys.VK_DELETE] = DismissNotification, [Keys.M] = SendUnitToNotification },
 };
 
-function HubRegions.ToggleNotifications()
-	if HubCore.IsModeOpen( "notifications" ) then HubCore.CloseMode( true, false ); return; end
+-- Always opens (the controller ring, HubPad); the keyboard toggle below closes an open list instead.
+function HubRegions.OpenNotifications()
 	if not HubTargets.CanOpenMode() then return; end
 	if #BuildNotificationItems() == 0 then
 		OutputMessageToScreenReader( m_notifAnswered and "No notifications" or "Notifications are not available" );
 		return;
 	end
 	HubCore.OpenMode( "notifications", m_notifList, "Notifications" );
+end
+
+function HubRegions.ToggleNotifications()
+	if HubCore.IsModeOpen( "notifications" ) then HubCore.CloseMode( true, false ); return; end
+	HubRegions.OpenNotifications();
 end
 
 -- New notifications are announced when they arrive, without interrupting; a burst (turn start) becomes one sentence.

@@ -338,13 +338,19 @@ m_civMenu = KeyNavList_Create{
 	onClose		= function() HubCore.CloseMode( true, false ); end,
 };
 
-function HubMenus.ToggleCivMenu()
+-- Always opens (the controller ring, HubPad); the keyboard toggle below closes an open list instead.
+function HubMenus.OpenCivMenu()
 	if not HubCore.IsLocalPlayerActive() then return; end
-	if HubCore.IsModeOpen( "civ" ) then HubCore.CloseMode( true, false ); return; end
 	if not HubTargets.CanOpenMode() then return; end
 	if #BuildCivItems() <= 1 then
 		OutputMessageToScreenReader( "You have not met any other civilization" );
 		return;
 	end
 	HubCore.OpenMode( "civ", m_civMenu, "Diplomacy, met civilizations" );
+end
+
+function HubMenus.ToggleCivMenu()
+	if not HubCore.IsLocalPlayerActive() then return; end
+	if HubCore.IsModeOpen( "civ" ) then HubCore.CloseMode( true, false ); return; end
+	HubMenus.OpenCivMenu();
 end
