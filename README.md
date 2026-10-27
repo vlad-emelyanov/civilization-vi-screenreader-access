@@ -50,3 +50,9 @@ Some of these are adaptable to personal taste (with the exception of Civ VI and 
 
 Note for screen reader users: Even though Modbuddy features its own mini version of Visual Studio, the code editing windows are not accessible to screen readers. This is why you will need VS or VSCode. You will also need VS or VSCode to do any work on the ScreenReader.Console. However, Modbuddy is a good way to do any changes to the mod itself.
 
+
+## Controller
+
+The console app also turns an Xbox-style controller (XInput) into keyboard input for the game: it injects Enter, Escape, Space, the arrows, Home/End, Tab and F13-F24 (and Control+F13..F16 for the right stick) while Civilization VI is in the foreground; the mod's hub then reads those keys. The button map is in `docs/controller-plan.md`. F22/F23 tell the mod when controller mode switches on or off, and F13-F24 are used as the controller's extra keys, so do not bind them yourself.
+
+Steam Input must be disabled for the game (Steam library, Civilization VI, Properties, Controller, "Disable Steam Input"), otherwise every press arrives twice. Start the console app with `--no-gamepad` to turn the feature off, or `--gamepad-log` to print every key it sends.

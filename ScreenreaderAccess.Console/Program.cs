@@ -17,7 +17,7 @@ public static class Program
         [Keys.Enter] = KeyModifier.None,
     };
 
-    public static async Task<int> Main()
+    public static async Task<int> Main(string[] args)
     {
         Console.WriteLine("Initializing Screen reader...");
         AccessibleOutputOptionReader accessibleOutputOptionReader = new();
@@ -41,6 +41,8 @@ public static class Program
         }; */
 
         // hotKeyManager.RegisterHotKeys(keys);
+
+        using Gamepad.GamepadService? gamepad = StartGamepad(args);
 
         Mediator mediator = new(accessibleOutput, keyboardNavigation, textOutput);
         LogFileWatcher logFileWatcher = new(mediator);
@@ -94,5 +96,25 @@ public static class Program
             // Ignore
         }
     return 0;
+    }
+
+    private static Gamepad.GamepadService? StartGamepad(string[] args)
+    {
+        if (args.Contains("--no-gamepad"))
+        {
+            Console.WriteLine("Gamepad: disabled (--no-gamepad)");
+            return null;
+        }
+        try
+        {
+            Gamepad.GamepadService service = new(args.Contains("--gamepad-log"));
+            service.Start();
+            return service;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Gamepad: could not start: " + ex.Message);
+            return null;
+        }
     }
 }
