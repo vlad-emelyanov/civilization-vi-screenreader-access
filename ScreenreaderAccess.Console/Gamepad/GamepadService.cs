@@ -41,6 +41,7 @@ public sealed class GamepadService : IDisposable
         Stopwatch clock = Stopwatch.StartNew();
         GamepadState prev = default;
         bool connected = false, announcedNone = false;
+        long lastErrorAt = -10000;
         while (!_cts.IsCancellationRequested)
         {
             try
@@ -65,7 +66,10 @@ public sealed class GamepadService : IDisposable
                     Console.WriteLine("Gamepad: no controller found, waiting");
                 }
             }
-            catch (Exception ex) { Console.WriteLine("Gamepad: error: " + ex.Message); }
+            catch (Exception ex)
+            {
+                if (clock.ElapsedMilliseconds - lastErrorAt > 5000) { lastErrorAt = clock.ElapsedMilliseconds; Console.WriteLine("Gamepad: error: " + ex.Message); }
+            }
             Thread.Sleep(16);
         }
     }
@@ -73,24 +77,26 @@ public sealed class GamepadService : IDisposable
     private void Step(GamepadState prev, GamepadState cur, long now)
     {
         bool fg = _guard.IsGameForeground();
-        List<KeyEvent> events;
+        List<KeyEvent> events = new();
+        bool modeOff = false;
         lock (_lock)
         {
-            events = _mapper.Update(prev, cur, now);
-            if (!fg) _mapper.ForceKeyboard();   // events are dropped while away: send ModeOn again on return
-        }
-        if (!fg) return;
-
-        // A down we injected whose release happened while away: release it now, never re-press.
-        foreach (PadButton b in _heldDown.ToArray())
-            if (!IsHeld(b, cur) && !events.Exists(e => e.Button == b && e.Action == KeyAction.Up))
-                Inject(new KeyEvent(b, KeyAction.Up));
-
-        if (_modeOffPending)
-        {
+            modeOff = fg && _modeOffPending;
             _modeOffPending = false;
-            Inject(new KeyEvent(PadButton.ModeOff, KeyAction.Tap));
+            events = _mapper.Update(prev, cur, now);   // always advances (repeat timers, held directions)
+            if (!fg)
+            {
+                events.Clear();
+                _mapper.ForceKeyboard();   // events are dropped while away: send ModeOn again on return
+            }
         }
+        if (!fg)
+        {
+            ReleaseAllHeld();   // lost the foreground: nothing may stay down; never re-pressed on return
+            return;
+        }
+
+        if (modeOff) Inject(new KeyEvent(PadButton.ModeOff, KeyAction.Tap));
         foreach (KeyEvent e in events)
         {
             if (e.Action == KeyAction.Up && !_heldDown.Contains(e.Button)) continue;   // its down was dropped
@@ -98,22 +104,14 @@ public sealed class GamepadService : IDisposable
         }
     }
 
-    private static bool IsHeld(PadButton b, GamepadState s) => b switch
+    private void ReleaseAllHeld()
     {
-        PadButton.A => (s.Buttons & GamepadState.BtnA) != 0,
-        PadButton.B => (s.Buttons & GamepadState.BtnB) != 0,
-        PadButton.X => (s.Buttons & GamepadState.BtnX) != 0,
-        PadButton.Y => (s.Buttons & GamepadState.BtnY) != 0,
-        PadButton.LB => (s.Buttons & GamepadState.LeftShoulder) != 0,
-        PadButton.RB => (s.Buttons & GamepadState.RightShoulder) != 0,
-        PadButton.View => (s.Buttons & GamepadState.Back) != 0,
-        PadButton.Menu => (s.Buttons & GamepadState.Start) != 0,
-        PadButton.LSClick => (s.Buttons & GamepadState.LeftThumb) != 0,
-        PadButton.RSClick => (s.Buttons & GamepadState.RightThumb) != 0,
-        PadButton.LT => s.LeftTrigger >= GamepadMapper.TriggerThreshold,
-        PadButton.RT => s.RightTrigger >= GamepadMapper.TriggerThreshold,
-        _ => false,
-    };
+        foreach (PadButton b in _heldDown.ToArray())
+        {
+            try { _injector.KeyUp(GamepadMap.Get(b)); } catch { }
+        }
+        _heldDown.Clear();
+    }
 
     private void Inject(KeyEvent e)
     {
@@ -131,6 +129,7 @@ public sealed class GamepadService : IDisposable
     {
         _cts.Cancel();
         try { _thread?.Join(500); } catch { }
+        ReleaseAllHeld();
         _tracker?.Dispose();
     }
 }

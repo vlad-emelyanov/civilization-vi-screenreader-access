@@ -25,21 +25,24 @@ public sealed class KeyInjector
 
     public void KeyDown(PadKey k)
     {
-        if (k.Control) { Send(Keys.LControlKey, false); Thread.Sleep(ModifierDelayMs); }
-        Send(k.Key, false);
+        if (!k.Control) { Send(k.Key, false); return; }
+        Send(Keys.LControlKey, false);
+        try { Thread.Sleep(ModifierDelayMs); Send(k.Key, false); }
+        catch { Send(Keys.LControlKey, true); throw; }
     }
 
     public void KeyUp(PadKey k)
     {
-        Send(k.Key, true);
-        if (k.Control) { Thread.Sleep(ModifierDelayMs); Send(Keys.LControlKey, true); }
+        if (!k.Control) { Send(k.Key, true); return; }
+        try { Send(k.Key, true); Thread.Sleep(ModifierDelayMs); }
+        finally { Send(Keys.LControlKey, true); }
     }
 
     public void Tap(PadKey k)
     {
         KeyDown(k);
-        Thread.Sleep(TapHoldMs);
-        KeyUp(k);
+        try { Thread.Sleep(TapHoldMs); }
+        finally { KeyUp(k); }
     }
 
     private static bool IsExtended(uint vk) =>

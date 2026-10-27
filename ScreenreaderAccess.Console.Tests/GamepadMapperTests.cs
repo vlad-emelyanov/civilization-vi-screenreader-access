@@ -119,4 +119,10 @@ public class GamepadMapperTests
         Assert.True(k.Control);
         Assert.Equal(26, GamepadMap.Table.Count);
     }
+
+    [Fact]
+    public void EveryButtonName_IsInTheMap()
+    {
+        foreach (PadButton b in Enum.GetValues<PadButton>()) Assert.True(GamepadMap.Table.ContainsKey(b.ToString()), b.ToString());
+    }
 }
