@@ -2836,15 +2836,18 @@ local function SRA_Announce( keepGuard:boolean )
 		if mode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
 	end
 	if not m_srHintSaid then m_srHintSaid = true; title = title .. ", Space for description"; end
-	-- Start on the first item that can be built (the top of the list). The advisor's recommendation is named in the title, not
-	-- focused: it is often a wonder, and a second Enter would start its placement by accident.
+	-- Start on the advisor's recommended item when it can be built and needs no placement (a unit, building or project: a blind
+	-- Enter-Enter then builds what the title announces); a recommended wonder or district is only named in the title (a second
+	-- Enter would start its placement by accident). Otherwise on the first item that can be built (the top of the list).
 	local firstChoosable = nil;
+	local recommendedKey = nil;
 	local recommendedName = nil;
 	for _, item in ipairs( SRA_GetItems() ) do
 		if item.choosable then
 			if firstChoosable == nil then firstChoosable = item.key; end
 			if item.recommended and recommendedName == nil and item.data ~= nil and item.data.Name ~= nil then
 				recommendedName = Locale.Lookup( item.data.Name );
+				if item.kind ~= "district" and item.kind ~= "wonder" then recommendedKey = item.key; end
 			end
 		end
 	end
@@ -2852,6 +2855,12 @@ local function SRA_Announce( keepGuard:boolean )
 		title = title .. ", Recommended: " .. recommendedName;
 	end
 	m_srList.Reset();
+	local firstIsRepair = false;
+	for _, item in ipairs( SRA_GetItems() ) do
+		if item.choosable then firstIsRepair = item.data ~= nil and item.data.Repair == true; break; end
+	end
+	-- a repair at the top stays focused: it is urgent
+	if recommendedKey ~= nil and not firstIsRepair and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then firstChoosable = recommendedKey; end
 	m_srList.Open( title, firstChoosable, false, keepGuard );
 end
 

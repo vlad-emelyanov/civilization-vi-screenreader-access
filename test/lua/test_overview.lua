@@ -61,3 +61,15 @@ test("sector text", function()
 		"East: plains, your city Rome at 4 tiles")
 	eq(HubOverview.SectorText("West", { e(1, { kind = "desert" }), e(2, { revealed = false }), e(3, { revealed = false }) }), "West: desert, mostly unexplored")
 end)
+
+-- wording helpers
+do
+	eq(HubOverview.Possessive("Ottomans"), "Ottomans'")
+	eq(HubOverview.Possessive("Babylon"), "Babylon's")
+	eq(HubOverview.CityOf("Ur", "Babylon"), "Ur of Babylon")
+	eq(HubOverview.CityOf("Hong Kong", "Hong Kong"), "Hong Kong (city-state)")
+	eq(HubOverview.WaterAreaText("This area", "coast"), "This area: shallow coastal water")
+	eq(HubOverview.WaterAreaText("This area", "ocean"), "This area: open ocean")
+	eq(HubOverview.SectorText("East", { { dist = 3, revealed = true, kind = "plains", owner = "Ottomans" } }), "East: plains, Ottomans' territory after 3 tiles")
+	eq(HubOverview.SectorText("East", { { dist = 3, revealed = true, kind = "plains", city = "Hong Kong", cityOwner = "Hong Kong" } }), "East: plains, Hong Kong (city-state) at 3 tiles")
+end
