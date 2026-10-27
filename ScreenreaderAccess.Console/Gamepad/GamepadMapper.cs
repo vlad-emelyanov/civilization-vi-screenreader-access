@@ -26,6 +26,8 @@ public sealed class GamepadMapper
 
     private readonly Repeater _left = new(350, 110), _dpad = new(350, 110), _right = new(500, 350);
 
+    private bool _rtShiftUsed, _aShift;
+
     public InputSource Source { get; private set; } = InputSource.Keyboard;
 
     /// <summary>Forget the mode without sending anything (used while the game is not in the foreground).</summary>
@@ -43,14 +45,29 @@ public sealed class GamepadMapper
     {
         List<KeyEvent> events = new();
 
-        foreach ((ushort mask, PadButton b) in ToggleButtons)
-            Edge(events, b, (prev.Buttons & mask) != 0, (cur.Buttons & mask) != 0);
-        Edge(events, PadButton.LT, prev.LeftTrigger >= TriggerThreshold, cur.LeftTrigger >= TriggerThreshold);
-        Edge(events, PadButton.RT, prev.RightTrigger >= TriggerThreshold, cur.RightTrigger >= TriggerThreshold);
+        bool rtNow = cur.RightTrigger >= TriggerThreshold;
+        bool rtWas = prev.RightTrigger >= TriggerThreshold;
+        if (rtNow && !rtWas) _rtShiftUsed = false;
 
-        Direction(events, _left, StickDir(cur.LX, cur.LY, PadButton.LUp, PadButton.LDown, PadButton.LLeft, PadButton.LRight), nowMs);
-        Direction(events, _dpad, DPadDir(cur.Buttons), nowMs);
-        Direction(events, _right, StickDir(cur.RX, cur.RY, PadButton.RSUp, PadButton.RSDown, PadButton.RSLeft, PadButton.RSRight), nowMs);
+        foreach ((ushort mask, PadButton b) in ToggleButtons)
+        {
+            bool was = (prev.Buttons & mask) != 0, now = (cur.Buttons & mask) != 0;
+            if (b == PadButton.A)
+            {
+                if (now && !was) _aShift = rtNow;
+                Edge(events, b, was, now, _aShift);
+                if (!now) _aShift = false;
+            }
+            else Edge(events, b, was, now);
+        }
+        Edge(events, PadButton.LT, prev.LeftTrigger >= TriggerThreshold, cur.LeftTrigger >= TriggerThreshold);
+        if (rtNow && !rtWas) events.Add(new KeyEvent(PadButton.RT, KeyAction.Down));
+        else if (!rtNow && rtWas && !_rtShiftUsed) events.Add(new KeyEvent(PadButton.RT, KeyAction.Up));
+
+        Direction(events, _left, StickDir(cur.LX, cur.LY, PadButton.LUp, PadButton.LDown, PadButton.LLeft, PadButton.LRight), nowMs, rtNow);
+        Direction(events, _dpad, DPadDir(cur.Buttons), nowMs, rtNow);
+        Direction(events, _right, StickDir(cur.RX, cur.RY, PadButton.RSUp, PadButton.RSDown, PadButton.RSLeft, PadButton.RSRight), nowMs, false);
+        if (events.Exists(e => e.Shift)) _rtShiftUsed = true;
 
         if (Source == InputSource.Keyboard && events.Exists(e => e.Action != KeyAction.Up))
         {
@@ -60,10 +77,10 @@ public sealed class GamepadMapper
         return events;
     }
 
-    private static void Edge(List<KeyEvent> events, PadButton b, bool was, bool now)
+    private static void Edge(List<KeyEvent> events, PadButton b, bool was, bool now, bool shift = false)
     {
-        if (now && !was) events.Add(new KeyEvent(b, KeyAction.Down));
-        else if (!now && was) events.Add(new KeyEvent(b, KeyAction.Up));
+        if (now && !was) events.Add(new KeyEvent(b, KeyAction.Down, shift));
+        else if (!now && was) events.Add(new KeyEvent(b, KeyAction.Up, shift));
     }
 
     private static PadButton? StickDir(short x, short y, PadButton up, PadButton down, PadButton left, PadButton right)
@@ -83,20 +100,23 @@ public sealed class GamepadMapper
         return null;
     }
 
-    private static void Direction(List<KeyEvent> events, Repeater r, PadButton? dir, long now)
+    // Shift applies to the left stick (all four) and D-pad up/down only; D-pad left/right stay plain (Shift+Tab opens the Steam overlay).
+    private static bool CanShift(PadButton b) => b is PadButton.LUp or PadButton.LDown or PadButton.LLeft or PadButton.LRight or PadButton.DUp or PadButton.DDown;
+
+    private static void Direction(List<KeyEvent> events, Repeater r, PadButton? dir, long now, bool shiftHeld)
     {
         if (dir is null) { r.Current = null; return; }
         if (r.Current != dir)
         {
             r.Current = dir;
             r.NextAt = now + r.FirstMs;
-            events.Add(new KeyEvent(dir.Value, KeyAction.Tap));
+            events.Add(new KeyEvent(dir.Value, KeyAction.Tap, shiftHeld && CanShift(dir.Value)));
         }
         else if (now >= r.NextAt)
         {
             r.NextAt += r.EveryMs;
             if (r.NextAt <= now) r.NextAt = now + r.EveryMs;   // fell behind: no burst
-            events.Add(new KeyEvent(dir.Value, KeyAction.Tap));
+            events.Add(new KeyEvent(dir.Value, KeyAction.Tap, shiftHeld && CanShift(dir.Value)));
         }
     }
 }

@@ -23,26 +23,28 @@ public sealed class KeyInjector
     [DllImport("user32.dll")] private static extern uint SendInput(uint n, INPUT[] inputs, int size);
     [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint mapType);
 
-    public void KeyDown(PadKey k)
+    public void KeyDown(PadKey k, bool shift = false)
     {
-        if (!k.Control) { Send(k.Key, false); return; }
-        Send(Keys.LControlKey, false);
+        Keys? mod = shift ? Keys.LShiftKey : k.Control ? Keys.LControlKey : null;
+        if (mod is null) { Send(k.Key, false); return; }
+        Send(mod.Value, false);
         try { Thread.Sleep(ModifierDelayMs); Send(k.Key, false); }
-        catch { Send(Keys.LControlKey, true); throw; }
+        catch { Send(mod.Value, true); throw; }
     }
 
-    public void KeyUp(PadKey k)
+    public void KeyUp(PadKey k, bool shift = false)
     {
-        if (!k.Control) { Send(k.Key, true); return; }
+        Keys? mod = shift ? Keys.LShiftKey : k.Control ? Keys.LControlKey : null;
+        if (mod is null) { Send(k.Key, true); return; }
         try { Send(k.Key, true); Thread.Sleep(ModifierDelayMs); }
-        finally { Send(Keys.LControlKey, true); }
+        finally { Send(mod.Value, true); }
     }
 
-    public void Tap(PadKey k)
+    public void Tap(PadKey k, bool shift = false)
     {
-        KeyDown(k);
+        KeyDown(k, shift);
         try { Thread.Sleep(TapHoldMs); }
-        finally { KeyUp(k); }
+        finally { KeyUp(k, shift); }
     }
 
     private static bool IsExtended(uint vk) =>

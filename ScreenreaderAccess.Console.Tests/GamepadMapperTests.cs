@@ -125,4 +125,46 @@ public class GamepadMapperTests
     {
         foreach (PadButton b in Enum.GetValues<PadButton>()) Assert.True(GamepadMap.Table.ContainsKey(b.ToString()), b.ToString());
     }
+
+    private static string FmtS(List<KeyEvent> e) => string.Join(",", e.Select(x => $"{x.Button}:{x.Action}{(x.Shift ? "+S" : "")}"));
+
+    [Fact]
+    public void RtHeld_StickRight_IsShiftTap_AndReleaseSuppressesF17Up()
+    {
+        GamepadMapper m = new();
+        GamepadState rt = S(rt: 255), rtRight = S(lx: 30000, rt: 255);
+        Assert.Equal("ModeOn:Tap,RT:Down", FmtS(m.Update(default, rt, 0)));
+        Assert.Equal("LRight:Tap+S", FmtS(m.Update(rt, rtRight, 20)));
+        Assert.Empty(m.Update(rtRight, rt, 40));
+        Assert.Empty(m.Update(rt, default, 60));   // no F17 up
+    }
+
+    [Fact]
+    public void RtTapAlone_IsF17DownAndUp()
+    {
+        GamepadMapper m = new();
+        Assert.Equal("ModeOn:Tap,RT:Down", FmtS(m.Update(default, S(rt: 255), 0)));
+        Assert.Equal("RT:Up", FmtS(m.Update(S(rt: 255), default, 50)));
+    }
+
+    [Fact]
+    public void RtHeld_DPadRight_StaysPlainTab_DPadDownIsShifted()
+    {
+        GamepadMapper m = new();
+        GamepadState rt = S(rt: 255);
+        m.Update(default, rt, 0);
+        GamepadState right = S(rt: 255, buttons: GamepadState.DPadRight);
+        Assert.Equal("DRight:Tap", FmtS(m.Update(rt, right, 20)));
+        Assert.Equal("DDown:Tap+S", FmtS(m.Update(right, S(rt: 255, buttons: GamepadState.DPadDown), 40)));
+    }
+
+    [Fact]
+    public void RtHeld_A_IsShiftEnter_UpKeepsShift()
+    {
+        GamepadMapper m = new();
+        GamepadState rt = S(rt: 255), rtA = S(rt: 255, buttons: GamepadState.BtnA);
+        m.Update(default, rt, 0);
+        Assert.Equal("A:Down+S", FmtS(m.Update(rt, rtA, 20)));
+        Assert.Equal("A:Up+S", FmtS(m.Update(rtA, default, 40)));   // RT released first or together: Up still shifted
+    }
 }

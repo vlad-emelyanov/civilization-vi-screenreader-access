@@ -25,7 +25,7 @@ Civ VI on PC does not react to a gamepad (the engine carries console-port leftov
 | D-pad right / left | Tab / Control+Tab | next / previous section or tab | unit actions menu or city production (what Tab does) / area overview (Shift+J) | next / previous section (places categories, help sections, production tabs) | nothing |
 | LB / RB | F14 / F15 | previous / next list of the ring (below) | opens the last / first ring list | ring previous / next | refused: "Choose a tile, or B to cancel first" |
 | LT | F16 | | Attack (what the W key does for the selected unit or city) | nothing | nothing |
-| RT | F17 | | Move To (what the M key does for the selected unit) | nothing | nothing |
+| RT | F17 | | Move To (what the M key does for the selected unit); held: Shift for the left stick, D-pad up/down and A | nothing | nothing |
 | View (Back) | F18 | accessibility help (Control+H), toggles | | | (opens, like Control+H) |
 | Menu (Start) | F19 | the in-game menu (`LuaEvents.InGame_OpenInGameOptionsMenu()`); closes an open hub list first | | | |
 | Left stick click | F20 | capital city (what Shift+4 / the CapitalCity action does, with the mod's announcement) | | | |
