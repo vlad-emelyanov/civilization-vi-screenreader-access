@@ -23,9 +23,27 @@ local function IsPlacementMode( mode:number )
 	return mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT;
 end
 
+-- "Barbarian Man-At-Arms there" when a visible hostile unit stands on the candidate tile (a district cannot be placed
+-- while it is there, and the tile looks free otherwise); nil when none.
+local function HostileUnitText( c:table )
+	local found:string = nil;
+	pcall( function()
+		local plot:table = Map.GetPlotByIndex( c.plotIndex );
+		if plot == nil then return; end
+		for _, unit in ipairs( Units.GetUnitsInPlot( plot ) ) do
+			if found == nil and HubCore.IsHostile( unit:GetOwner() ) and PlotDescription_IsUnitVisible( unit ) then
+				found = Locale.Lookup( unit:GetName() ) .. " there";
+			end
+		end
+	end );
+	return found;
+end
+
 -- "plus 3 Science, removes Woods and Deer, buy tile 60 gold" (the parts that apply, comma separated; empty when none).
 local function PlacementEffects( c:table, withBuy:boolean )
 	local parts:table = {};
+	local hostile:string = HostileUnitText( c );
+	if hostile ~= nil then table.insert( parts, hostile ); end
 	for _, text in ipairs( c.adjacency ) do table.insert( parts, text ); end
 	if #c.removes > 0 then table.insert( parts, "removes " .. table.concat( c.removes, " and " ) ); end
 	for _, text in ipairs( c.notes ) do table.insert( parts, text ); end

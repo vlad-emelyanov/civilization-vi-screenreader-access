@@ -591,15 +591,23 @@ end
 -- cursor to the capital and says the usual target info for that plot; Enter confirms as usual. Elsewhere it selects the
 -- capital like on the plain map.
 function HubTargets.CapitalKey()
-	if not HubCore.IsLocalPlayerActive() then return; end
+	print( "CapitalKey: pressed, mode " .. tostring( UI.GetInterfaceMode() ) );		-- diagnostic: bug-backslash-target-silent (silent in Move To)
+	if not HubCore.IsLocalPlayerActive() then print( "CapitalKey: no active local player" ); OutputMessageToScreenReader( "No capital" ); return; end
 	local capital:table = Players[ Game.GetLocalPlayer() ]:GetCities():GetCapitalCity();
-	if capital == nil then OutputMessageToScreenReader( "No capital" ); return; end
+	if capital == nil then print( "CapitalKey: no capital" ); OutputMessageToScreenReader( "No capital" ); return; end
 	if HubTargets.GetTargetMode() ~= nil then
-		HubCursor.SetCursor( capital:GetX(), capital:GetY(), true, true, false, true );
+		-- always speak: if describing the plot fails or gives nothing, say at least the capital's name
+		local capitalName:string = Locale.Lookup( capital:GetName() );
+		local ok:boolean, err = pcall( HubCursor.SetCursor, capital:GetX(), capital:GetY(), true, true, false, true );
+		if not ok then
+			print( "CapitalKey: SetCursor failed: " .. tostring( err ) );
+			OutputMessageToScreenReader( "Target moved to the capital, " .. capitalName );
+		end
 		return;
 	end
 	-- a placement or chooser mode (trade route ...): selecting the capital would cancel it
 	if UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION or HubCore.IsModeOpen( "placement" ) then
+		print( "CapitalKey: Escape first, mode " .. tostring( UI.GetInterfaceMode() ) );
 		OutputMessageToScreenReader( "Escape first" );
 		return;
 	end
@@ -741,8 +749,13 @@ function HubTargets.CityAttackReason( city:table )
 		end
 	end );
 	-- a city without walls has no ranged attack, whatever is in range
-	if noWalls then return "it needs walls"; end
-	local targets:table = GetCityAttackTargets( city );
+	if noWalls then
+		local garrison:boolean = false;
+		pcall( function() garrison = #Units.GetUnitsInPlot( Map.GetPlot( city:GetX(), city:GetY() ) ) > 0; end );
+		return garrison and "it needs walls" or "no walls and no garrison";
+	end
+	local targets:table = nil;
+	pcall( function() targets = GetCityAttackTargets( city ); end );		-- may fail for a city without a garrison
 	local hasTargets:boolean = targets ~= nil and next( targets ) ~= nil;
 	-- The engine has no "attacked this turn" query (District:CanAttack stays true, CanStartCommand gives no reason, and the
 	-- target list is EMPTY after the attack). So: our own record of the attack, or a visible enemy in range the engine refuses.
@@ -762,15 +775,24 @@ end
 
 -- R and W with a city selected (UnitPanel is hidden then and says nothing): open the city's ranged attack, or say why not.
 function HubTargets.CityAttackKey()
-	if not HubCore.IsLocalPlayerActive() or HubCore.IsGamePopupOpen() or HubTargets.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then return; end
+	if not HubCore.IsLocalPlayerActive() or HubCore.IsGamePopupOpen() or HubTargets.GetTargetMode() ~= nil or UI.GetHeadSelectedUnit() ~= nil then
+		print( "CityAttackKey: ignored (popup, target mode or a unit selected)" );		-- diagnostic: bug city-r-no-garrison
+		return;
+	end
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then OutputMessageToScreenReader( "No unit selected" ); return; end		-- UnitPanel is hidden without a selection: W would be silent
-	if city:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	if city:GetOwner() ~= Game.GetLocalPlayer() then print( "CityAttackKey: not our city" ); return; end
 	local name:string = Locale.Lookup( city:GetName() );
-	if CityManager.CanStartCommand( city, CityCommandTypes.RANGE_ATTACK ) then
+	local can:boolean = false;
+	local ok:boolean, err = pcall( function() can = CityManager.CanStartCommand( city, CityCommandTypes.RANGE_ATTACK ); end );
+	if not ok then print( "CityAttackKey: CanStartCommand failed: " .. tostring( err ) ); end
+	if can then
 		UI.SetInterfaceMode( InterfaceModeTypes.CITY_RANGE_ATTACK );
 	else
-		OutputMessageToScreenReader( name .. " can't attack: " .. HubTargets.CityAttackReason( city ) );
+		local reason:string = "";
+		local ok2:boolean, err2 = pcall( function() reason = HubTargets.CityAttackReason( city ); end );
+		if not ok2 then print( "CityAttackKey: reason failed: " .. tostring( err2 ) ); end
+		OutputMessageToScreenReader( name .. " can't attack" .. ( reason ~= "" and ( ": " .. reason ) or "" ) );
 	end
 end
 

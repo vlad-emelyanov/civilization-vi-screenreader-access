@@ -1,0 +1,10 @@
+# Written blind 2026-10-27 (round 28, not yet recorded). Backslash in the Move To target mode with a builder selected must say the capital (it was silent at T94). The hub also prints "CapitalKey: ..." diagnostics.
+# covers: **/HubTargets.lua **/HubCursor.lua
+load bug-backslash-target-silent
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) print("selected builder") break end end
+expect-lua ^selected builder
+action MoveTo -Settle 1000
+key Backslash -Settle 1500
+expect (?i)Rome
+no-lua-errors
