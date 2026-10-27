@@ -14,6 +14,7 @@ include( "PopupDialog" );
 include( "CivilizationIcon" );
 include( "ScreenReader" );	-- ScreenReaderAccess
 include( "KeyNavList" );	-- ScreenReaderAccess
+include( "DiplomacyText" );	-- ScreenReaderAccess
 
 -- ScreenReaderAccess: the leader's answers on the conversation page, as a keyboard list (see SRA_* below).
 local m_srSelections	:table = {};
@@ -671,7 +672,9 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 	-- Begin ScreenReaderAccess change: say what the leader says, then offer the answers
 	if m_srList ~= nil and kStatement.FromPlayer ~= Game.GetLocalPlayer() then
 		local civName:string = Locale.Lookup( PlayerConfigurations[kStatement.FromPlayer]:GetCivilizationShortDescription() );
-		local speech:string = Locale.Lookup(leaderDesc) .. " of " .. civName .. " says: " .. CleanTextForSpeech(leaderstr);
+		-- the opening says why the scene opened (statement type of an AI-initiated statement: kudo / warning / deal / denounce ...)
+		local aiInitiated:boolean = (DiplomacyInitiatorTypes ~= nil and kStatement.Initiator == DiplomacyInitiatorTypes.AI);
+		local speech:string = DiplomacyText_Opening( Locale.Lookup(leaderDesc), civName, statementTypeName, statementSubTypeName, aiInitiated ) .. CleanTextForSpeech(leaderstr);
 		if reasonStr ~= nil and reasonStr ~= "" then speech = speech .. " " .. CleanTextForSpeech(reasonStr); end
 		m_srList.Reset();
 		if ms_currentViewMode == DEAL_MODE then

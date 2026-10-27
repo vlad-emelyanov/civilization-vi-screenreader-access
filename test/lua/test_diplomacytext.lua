@@ -1,0 +1,37 @@
+-- DiplomacyText.lua: leader scene opening, notification line, suzerain note
+stub("engine")
+include("DiplomacyText")
+
+test("agenda comment names leader, civ and mood", function()
+	eq(DiplomacyText_Opening("Dido", "Phoenicia", "DIPLOMATIC_HIDDEN_AGENDA_WARNING", "NONE", true), "Dido of Phoenicia, agenda comment (negative): ")
+	eq(DiplomacyText_Opening("Montezuma", "the Aztecs", "DIPLOMATIC_KUDO", "NONE", true), "Montezuma of the Aztecs, compliment (positive): ")
+end)
+
+test("things the leader does", function()
+	eq(DiplomacyText_Opening("Suleiman", "the Ottomans", "MAKE_DEAL", "NONE", true), "Suleiman of the Ottomans proposes a deal: ")
+	eq(DiplomacyText_Opening("Montezuma", "the Aztecs", "DENOUNCE", "NONE", true), "Montezuma of the Aztecs denounces you: ")
+	eq(DiplomacyText_Opening("A", "B", "DECLARE_FRIEND", "NONE", true), "A of B asks for a declaration of friendship: ")
+	eq(DiplomacyText_Opening("A", "B", "DIPLOMATIC_DELEGATION", "NONE", true), "A of B sends a delegation: ")
+	eq(DiplomacyText_Opening("A", "B", "DECLARE_FORMAL_WAR", "NONE", true), "A of B declares war on you: ")
+	eq(DiplomacyText_Opening("A", "B", "DECLARE_JOINT_HOLY_WAR", "NONE", true), "A of B asks you to join a war: ")
+end)
+
+test("unknown type, answers and human-started scenes say 'says'", function()
+	eq(DiplomacyText_Opening("A", "B", "SOMETHING_NEW", "NONE", true), "A of B says: ")
+	eq(DiplomacyText_Opening("A", "B", "MAKE_DEAL", "AI_ACCEPT_DEAL", true), "A of B says: ")
+	eq(DiplomacyText_Opening("A", "B", "MAKE_DEAL", "NONE", false), "A of B says: ")
+	eq(DiplomacyText_Opening("A", "B", nil, nil, true), "A of B says: ")
+end)
+
+test("notification line", function()
+	eq(DiplomacyText_NotificationLine("NOTIFICATION_DECLARE_WAR", "Declaration of War", "Montezuma has declared war on Suleiman."), "Declaration of War: Montezuma has declared war on Suleiman.")
+	eq(DiplomacyText_NotificationLine("NOTIFICATION_DECLARE_WAR", "Declaration of War", ""), "Declaration of War")
+	eq(DiplomacyText_NotificationLine("NOTIFICATION_CITY_BUILT", "City founded", "Rome"), "City founded")
+end)
+
+test("suzerain note", function()
+	eq(DiplomacyText_SuzerainNote(false, 3, 2, 5), ", you become suzerain")
+	eq(DiplomacyText_SuzerainNote(false, 3, 1, 5), "")
+	eq(DiplomacyText_SuzerainNote(true, 3, 2, 5), "")
+	eq(DiplomacyText_SuzerainNote(false, 5, 0, 5), "")
+end)
