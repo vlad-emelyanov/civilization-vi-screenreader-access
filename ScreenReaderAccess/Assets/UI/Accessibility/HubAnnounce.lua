@@ -294,7 +294,8 @@ end
 
 function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hexI:number, hexJ:number, hexK:number, isSelected:boolean, isEditable:boolean )
 	if playerID ~= Game.GetLocalPlayer() then return; end
-	HubCore.CloseMode( false, true );
+	-- (a lens switches the selection off and on: the lenses list stays open for the next toggle)
+	if not HubCore.IsModeOpen( "lenses" ) then HubCore.CloseMode( false, true ); end
 	if not isSelected then
 		HubTargets.ResetStaleMode();
 		return;
@@ -395,7 +396,8 @@ end
 
 function HubAnnounce.OnCitySelectionChanged( owner:number, cityID:number, i:number, j:number, k:number, isSelected:boolean, isEditable:boolean )
 	if owner ~= Game.GetLocalPlayer() then return; end
-	HubCore.CloseMode( false, true );
+	-- (a lens switches the selection off and on: the lenses list stays open for the next toggle)
+	if not HubCore.IsModeOpen( "lenses" ) then HubCore.CloseMode( false, true ); end
 	if not isSelected then return; end
 	HubCore.m_enterWatch = -1;
 	local city:table = Players[owner]:GetCities():FindID( cityID );

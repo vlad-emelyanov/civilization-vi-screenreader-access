@@ -8,20 +8,20 @@ lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.Se
 key F22 -Settle 500
 # left stick down (the arrow key): the cursor moves one tile
 key Down -Settle 800
-expect (?i)[a-z]
+expect (?i)\d tiles? (north|south|east|west)
 # Y (Space): plot details
 key Space -Settle 800
-expect (?i)[a-z]
+expect (?i)coordinates \d+, \d+
 # B (Escape) on the bare map is swallowed: no game menu opens
 key Escape -Settle 800
 lua InGameAccess return tostring(HubCore.TestDirtyReason())
 expect-lua ^nil$
 # D-pad up (Home): what is next
 key Home -Settle 800
-expect (?i)(needs orders|end turn|turn|research|production|choose|move|unit)
+expect (?i)units? needs? orders|end turn|research|production
 # D-pad down (End): cursor to selection
 key End -Settle 800
-expect (?i)[a-z]
+expect (?i)Warrior|Hannibal
 # Menu (Start, F19): the game menu opens
 key F19 -Settle 1500
 lua InGameAccess return tostring(HubCore.TestDirtyReason())
@@ -33,7 +33,7 @@ expect-lua ^nil$
 key F18 -Settle 1000
 expect Accessibility help
 key Escape -Settle 800
-expect ^Closed
+expect (?i)^(Help )?closed
 # ModeOff (console app: F23): the keyboard behaves as before, Escape opens the game menu
 key F23 -Settle 500
 key Escape -Settle 1500

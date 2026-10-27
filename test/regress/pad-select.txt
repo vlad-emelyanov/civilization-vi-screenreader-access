@@ -18,6 +18,8 @@ expect (?i)(warrior|spearman|scout|builder|great general|settler)
 # RSRight (Control+F16): next city
 key Control+F16 -Settle 1500
 expect (?i)rome
+# (one city only: re-selecting the selected city is silent, so select a unit first)
+key Control+F13 -Settle 1500
 # RSLeft (Control+F15): previous city
 key Control+F15 -Settle 1500
 expect (?i)rome
