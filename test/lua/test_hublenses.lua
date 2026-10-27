@@ -43,17 +43,17 @@ local function activate(key)
 	return find(items, key)
 end
 
-test("Enter fires the lens action id through Events.InputActionTriggered.Call", function()
+test("Enter fires the lens action id through LuaEvents.SRA_ToggleLens", function()
 	local called
-	Events = { InputActionTriggered = { Call = function(id) called = id end } }
+	LuaEvents = { SRA_ToggleLens = function(id) called = id end }
 	ClearPrinted()
 	HubLenses.Toggle(activate("LensAppeal"))
 	eq(called, 42)
 	eq(#Spoken(), 0)
 end)
 
-test("a missing .Call says to use the number key", function()
-	Events = { InputActionTriggered = {} }
+test("a missing LuaEvent says to use the number key", function()
+	LuaEvents = { SRA_ToggleLens = nil }
 	ClearPrinted()
 	HubLenses.Toggle(activate("LensAppeal"))
 	local s = Spoken()[1]
@@ -63,7 +63,7 @@ end)
 
 test("an unknown action id says to use the number key", function()
 	local called = false
-	Events = { InputActionTriggered = { Call = function() called = true end } }
+	LuaEvents = { SRA_ToggleLens = function() called = true end }
 	ClearPrinted()
 	HubLenses.Toggle(activate("LensContinent"))		-- the stub returns nil for it
 	eq(called, false)

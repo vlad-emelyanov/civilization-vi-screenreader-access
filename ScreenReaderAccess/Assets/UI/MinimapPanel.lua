@@ -1152,3 +1152,18 @@ function Initialize()
 end
 Initialize();
 
+
+-- ===========================================================================
+-- ScreenReaderAccess: the hub's lenses list (controller ring) toggles a lens like its number key does.
+-- Events.InputActionTriggered.Call does nothing in the engine, so the hub asks this context through a LuaEvent.
+-- (OnInputActionTriggered is looked up when called: with expansions it is the derived version.)
+-- ===========================================================================
+function SRA_OnToggleLens( actionId )
+	OnInputActionTriggered( actionId );
+end
+LuaEvents.SRA_ToggleLens.Add( SRA_OnToggleLens );
+ContextPtr:SetShutdown( function()
+	LuaEvents.SRA_ToggleLens.Remove( SRA_OnToggleLens );
+	OnShutdown();
+end );
+print( "ScreenReaderAccess: MinimapPanel copy loaded" );

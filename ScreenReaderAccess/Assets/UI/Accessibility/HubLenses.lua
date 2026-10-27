@@ -34,10 +34,10 @@ local function BuildItems()
 end
 HubLenses.BuildItems = BuildItems;
 
--- Triggers the lens's input action as the key would (replaceable in tests). Unverified in the game: that
--- Events.InputActionTriggered.Call exists; without it nothing is toggled and the item says so.
+-- Triggers the lens's input action as the key would (replaceable in tests): Events.InputActionTriggered.Call does nothing in
+-- the engine (verified), so our MinimapPanel copy (UI/Replacements/MinimapPanel_SRA.lua) answers LuaEvents.SRA_ToggleLens.
 function HubLenses.Fire( actionId:number )
-	Events.InputActionTriggered.Call( actionId );
+	LuaEvents.SRA_ToggleLens( actionId );
 end
 
 local function Toggle( item:table )
