@@ -592,16 +592,27 @@ end
 -- capital like on the plain map.
 function HubTargets.CapitalKey()
 	print( "CapitalKey: pressed, mode " .. tostring( UI.GetInterfaceMode() ) );		-- diagnostic: bug-backslash-target-silent (silent in Move To)
-	if not HubCore.IsLocalPlayerActive() then print( "CapitalKey: no active local player" ); OutputMessageToScreenReader( "No capital" ); return; end
+	if not HubCore.IsLocalPlayerActive() then print( "CapitalKey: no active local player" ); OutputMessageToScreenReader( "Not your turn" ); return; end
 	local capital:table = Players[ Game.GetLocalPlayer() ]:GetCities():GetCapitalCity();
 	if capital == nil then print( "CapitalKey: no capital" ); OutputMessageToScreenReader( "No capital" ); return; end
 	if HubTargets.GetTargetMode() ~= nil then
 		-- always speak: if describing the plot fails or gives nothing, say at least the capital's name
 		local capitalName:string = Locale.Lookup( capital:GetName() );
+		-- watch the speech: SetCursor must produce a line, else the fallback below does
+		local spoken:boolean = false;
+		local realOutput = OutputMessageToScreenReader;
+		OutputMessageToScreenReader = function( message, nointerrupt ) spoken = true; return realOutput( message, nointerrupt ); end;
 		local ok:boolean, err = pcall( HubCursor.SetCursor, capital:GetX(), capital:GetY(), true, true, false, true );
-		if not ok then
-			print( "CapitalKey: SetCursor failed: " .. tostring( err ) );
-			OutputMessageToScreenReader( "Target moved to the capital, " .. capitalName );
+		OutputMessageToScreenReader = realOutput;
+		if not ok then print( "CapitalKey: SetCursor failed: " .. tostring( err ) ); end
+		if not spoken then
+			print( "CapitalKey: nothing was spoken, fallback" );
+			local info:string = nil;
+			pcall( function()
+				local unit:table = UI.GetHeadSelectedUnit();
+				info = HubTargets.TargetInfo( HubTargets.GetTargetMode(), Map.GetPlot( capital:GetX(), capital:GetY() ), unit );
+			end );
+			OutputMessageToScreenReader( "Target: " .. capitalName .. ( info ~= nil and info ~= "" and ( ", " .. info ) or "" ) );
 		end
 		return;
 	end
@@ -751,7 +762,11 @@ function HubTargets.CityAttackReason( city:table )
 	-- a city without walls has no ranged attack, whatever is in range
 	if noWalls then
 		local garrison:boolean = false;
-		pcall( function() garrison = #Units.GetUnitsInPlot( Map.GetPlot( city:GetX(), city:GetY() ) ) > 0; end );
+		pcall( function() 
+			for _, unit in ipairs( Units.GetUnitsInPlot( Map.GetPlot( city:GetX(), city:GetY() ) ) ) do
+				if unit:GetOwner() == city:GetOwner() and unit:GetCombat() > 0 then garrison = true; end		-- civilians are no garrison
+			end
+		end );
 		return garrison and "it needs walls" or "no walls and no garrison";
 	end
 	local targets:table = nil;

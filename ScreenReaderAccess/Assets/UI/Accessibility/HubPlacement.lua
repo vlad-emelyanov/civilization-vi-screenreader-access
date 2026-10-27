@@ -32,7 +32,7 @@ local function HostileUnitText( c:table )
 		if plot == nil then return; end
 		for _, unit in ipairs( Units.GetUnitsInPlot( plot ) ) do
 			if found == nil and HubCore.IsHostile( unit:GetOwner() ) and PlotDescription_IsUnitVisible( unit ) then
-				found = Locale.Lookup( unit:GetName() ) .. " there";
+				found = PlotDescription_GetUnitName( unit ) .. " there";
 			end
 		end
 	end );
