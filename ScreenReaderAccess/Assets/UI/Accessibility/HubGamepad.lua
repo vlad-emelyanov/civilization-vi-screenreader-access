@@ -131,6 +131,7 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 			if isUp then Say( "Close the screen first" ); end
 			return true;
 		end
+		if suppressed then return true; end		-- a KeyUp after another key (held RT = Shift) is consumed
 		return false;		-- screens may use the other buttons
 	end
 
