@@ -1,0 +1,12 @@
+# NextUnit / PrevUnit with no unit waiting for orders say "No units need orders" (WorldInput.lua SRAnnounceNoReadyUnit). UNVERIFIED, blind-written: run once with civregress --record.
+# The tuner line ends every unit's moves (UnitManager.FinishMoves in GameCore_Tuner is a guess; any way to make all units not ready works).
+# covers: **/WorldInput.lua
+# no-share-load: ends the moves of all units
+load pt-early-t111
+clear-advisors
+lua GameCore_Tuner for _,u in Players[0]:GetUnits():Members() do UnitManager.FinishMoves(u) end
+action NextUnit
+expect ^No units need orders
+action PrevUnit
+expect ^No units need orders
+no-lua-errors
