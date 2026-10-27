@@ -7,6 +7,7 @@ include( "SupportFunctions" );
 -- Begin ScreenReaderAccess mod change
 include( "ScreenReader" );
 include( "KeyNavList" );
+include( "Gamepad" );
 include( "KeyNavEditBox" );
 include( "SRListen" );
 include( "PediaText" );
@@ -1482,7 +1483,7 @@ local function SRA_HandleInput( input:table )
 		if isUp then SRA_BeginSearch(); end
 		return true;
 	end
-	if key == Keys.VK_BACK then
+	if key == Keys.VK_BACK or key == Gamepad.Key( "LT" ) then
 		if isUp then
 			if m_srMode == "page" then SRA_Back();
 			elseif m_srMode == "results" then SRA_EndResults(); end

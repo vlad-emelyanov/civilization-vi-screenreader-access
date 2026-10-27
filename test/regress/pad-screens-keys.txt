@@ -1,0 +1,26 @@
+# Written blind (2026-10-27, not yet verified in game; run with --record first). Controller buttons as aliases of a screen's own
+# extra keys: X queues a tree node like Shift+Enter (F13), LT jumps to the current research like J (F16); in City-States LT = A
+# (actions). The other screens (city report X, government X, religion X/LT, trade B, great works V, rankings H, civilopedia LT,
+# options X) are covered by their key aliases in the code only, no script drives them. City-States are met in early-t60 (3 met).
+# covers: **/TreeNav.lua **/TechTree.lua **/CityStates.lua **/HubCityReport.lua **/GovernmentScreen.lua **/ReligionScreen.lua **/TradeOverview.lua **/GreatWorksOverview.lua **/WorldRankings.lua **/CivilopediaSupport.lua **/Options.lua **/HelpText.lua
+# no-share-load: opens screens
+load early-t60
+clear-advisors
+key F22 -Settle 800
+action ToggleTechTree -Settle 2500
+expect ^Tech tree\.
+key Down -Settle 800
+key F13 -Settle 2500 -NoQuiet
+expect (?i)queue|target|researched|already
+key F16 -Settle 1000
+expect (?i)research|current|target
+key Escape -Settle 1500
+expect ^Tech tree closed
+action ToggleCityStates -Settle 1800
+expect ^City-States, \d+ met
+key F16 -Settle 1500
+expect (?i)action|war|peace|envoy|send|delegation|back
+key Escape -Settle 1200
+key Escape -Settle 1200
+key F23 -Settle 500
+no-lua-errors

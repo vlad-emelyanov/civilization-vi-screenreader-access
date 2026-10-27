@@ -6,6 +6,7 @@ include("GameCapabilities");
 include("GreatWorksSupport");
 include("ScreenReader");		-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
+include("Gamepad");		-- ScreenReaderAccess
 include("GreatWorksText");		-- ScreenReaderAccess
 print("ScreenReaderAccess: GreatWorksOverview copy loaded");		-- ScreenReaderAccess
 
@@ -544,7 +545,7 @@ local function SRA_HandleInput( input:table )
 		return true;
 	end
 	if input:IsControlDown() or input:IsAltDown() then return false; end
-	if key == Keys.V then
+	if key == Keys.V or key == Gamepad.Key( "X" ) then
 		if isUp then SRA_Safe( SRA_View, "view" ); end
 		return true;
 	end

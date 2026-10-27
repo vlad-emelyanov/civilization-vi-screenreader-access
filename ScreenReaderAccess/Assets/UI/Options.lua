@@ -7,6 +7,7 @@ include("PopupDialog");
 include("PlayerSetupLogic");
 
 include("ScreenReader")
+include( "Gamepad" );
 include("KeyboardNavigation")
 include("KeyNavEditBox")
 
@@ -2480,7 +2481,7 @@ local function HandleBindingsKey(key)
 		StartActiveKeyBinding(info.actionId, m_selectedBindingColumn - 1);
 		OutputMessageToScreenReader("Press the new key for "..info.name..", "..((m_selectedBindingColumn == 1) and "primary" or "alternate").." binding. Escape to cancel");
 		return true;
-	elseif Keys.VK_DELETE ~= nil and key == Keys.VK_DELETE then
+	elseif ( Keys.VK_DELETE ~= nil and key == Keys.VK_DELETE ) or key == Gamepad.Key( "X" ) then
 		local info = m_bindingInfo[m_selectedBindingIndex];
 		Controls.ConfirmButton:SetDisabled(false);
 		Input.ClearGesture(info.actionId, m_selectedBindingColumn - 1);

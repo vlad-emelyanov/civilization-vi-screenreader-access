@@ -5,6 +5,9 @@ Keys.J = 74
 Keys.F = 70
 Keys.Q = 81
 Keys.T = 84
+Keys.VK_F13 = 124		-- controller X, LT, RT (Gamepad.lua)
+Keys.VK_F16 = 127
+Keys.VK_F17 = 128
 include("TreeNav")
 
 local function entries()
@@ -189,6 +192,22 @@ test("Shift+Enter appends", function()
 	listeq(s.requests, { "BRONZE+" })
 	s.nav.Update(2)
 	listeq(Spoken(), { "Added to queue: Bronze Working, path: Archery, Bronze Working, 9 turns" })
+end)
+
+test("controller X queues like Shift+Enter, LT is J, RT is Q", function()
+	local s = newNav()
+	s.nav.Open()
+	press(s, Keys.VK_END)		-- Bronze Working
+	s.queueResult = { keys = { "ARCHERY", "BRONZE" }, names = { "Archery", "Bronze Working" }, turns = 9 }
+	ClearPrinted()
+	press(s, Keys.VK_F13)
+	listeq(s.requests, { "BRONZE+" })
+	s.nav.Update(2)
+	listeq(Spoken(), { "Added to queue: Bronze Working, path: Archery, Bronze Working, 9 turns" })
+	press(s, Keys.VK_F17)
+	listeq(Spoken(), { "Queue: Archery, Bronze Working, 9 turns" })
+	press(s, Keys.VK_F16)
+	eq(#Spoken() > 0, true)
 end)
 
 test("Q reads the queue", function()

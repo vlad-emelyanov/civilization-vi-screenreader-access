@@ -5,6 +5,7 @@ include("ModalScreen_PlayerYieldsHelper");
 include("GameCapabilities");
 include("ScreenReader");		-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
+include("Gamepad");		-- ScreenReaderAccess
 include("KeyNavEditBox");	-- ScreenReaderAccess
 include("ReligionText");	-- ScreenReaderAccess
 
@@ -2277,7 +2278,9 @@ m_srList = KeyNavList_Create{
 	extraKeys = {
 		[ Keys.VK_TAB ] = SRA_NextTab,
 		[ Keys.C ] = SRA_KeyContinue,
+		[ Gamepad.Key( "X" ) ] = SRA_KeyContinue,
 		[ Keys.F ] = SRA_KeyFilter,
+		[ Gamepad.Key( "LT" ) ] = SRA_KeyFilter,
 	},
 };
 -- End ScreenReaderAccess change

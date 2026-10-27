@@ -9,6 +9,7 @@ include("ModalScreen_PlayerYieldsHelper");
 include("GameCapabilities");
 include("ScreenReader");	-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
+include("Gamepad");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	DEBUG
@@ -3233,7 +3234,7 @@ function Initialize()
 		isActive = function() return not ContextPtr:IsHidden(); end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
-		extraKeys = { [Keys.VK_DELETE] = SRA_OnDelete, [Keys.VK_TAB] = SRA_OnTab },
+		extraKeys = { [Keys.VK_DELETE] = SRA_OnDelete, [Gamepad.Key("X")] = SRA_OnDelete, [Keys.VK_TAB] = SRA_OnTab },
 		ctrlKeys = { [Keys.VK_TAB] = SRA_OnTabPrev },
 	};
 

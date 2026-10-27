@@ -37,6 +37,7 @@
 include( "ScreenReader" );
 include( "KeyboardNavigation" );
 include( "KeyNavEditBox" );
+include( "Gamepad" );
 include( "TreeText" );
 include( "ResourceTech" );
 
@@ -360,11 +361,11 @@ function TreeNav_Create( a:table )
 			if not isDown then return; end
 			m_resList.index = ( key == Keys.VK_HOME ) and 1 or #m_resList.groups;
 			ResSay();
-		elseif key == Keys.VK_RETURN then
+		elseif key == Keys.VK_RETURN or key == Gamepad.Key( "X" ) then
 			if isDown then return; end
 			local g:table = m_resList.groups[ m_resList.index ];
 			m_resList = nil;
-			Target( shift, g.type );
+			Target( shift or key == Gamepad.Key( "X" ), g.type );		-- controller X = Shift+Enter, queue
 		elseif key == Keys.VK_ESCAPE or key == Keys.R then
 			if isDown then return; end
 			m_resList = nil;
@@ -434,10 +435,11 @@ function TreeNav_Create( a:table )
 		elseif key == Keys.VK_HOME then		if isDown then action = function() MoveItem( 0, "home" ); end end
 		elseif key == Keys.VK_END then		if isDown then action = function() MoveItem( 0, "end" ); end end
 		elseif key == Keys.VK_RETURN then	if not isDown then action = function() Target( shift ); end end
+		elseif key == Gamepad.Key( "X" ) then	if not isDown then action = function() Target( true ); end end		-- controller X queues like Shift+Enter
 		elseif key == Keys.VK_SPACE then	if not isDown then action = ReadDetail; end
-		elseif key == Keys.J then			if not isDown then action = JumpToCurrent; end
+		elseif key == Keys.J or key == Gamepad.Key( "LT" ) then			if not isDown then action = JumpToCurrent; end
 		elseif key == Keys.F then			if not isDown then action = BeginSearch; end
-		elseif key == Keys.Q then			if not isDown then action = ReadQueue; end
+		elseif key == Keys.Q or key == Gamepad.Key( "RT" ) then			if not isDown then action = ReadQueue; end
 		elseif key == Keys.R and a.resourceKind ~= nil then	if not isDown then action = OpenResources; end
 		elseif key == Keys.VK_ESCAPE or ( a.toggleKey ~= nil and key == a.toggleKey ) then
 			if not isDown then action = Close; end

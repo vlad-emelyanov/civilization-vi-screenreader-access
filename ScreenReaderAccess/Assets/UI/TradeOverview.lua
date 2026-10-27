@@ -10,6 +10,7 @@ include("SupportFunctions");
 include("TradeSupport");
 include("ScreenReader");		-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
+include("Gamepad");		-- ScreenReaderAccess
 include("SRListen");		-- ScreenReaderAccess
 include("TradeOverviewText");	-- ScreenReaderAccess
 
@@ -1123,6 +1124,7 @@ function SRA_CreateList()
 			[ Keys.VK_LEFT ] = function() SRA_SwitchTab( -1 ); end,
 			[ Keys.VK_RIGHT ] = function() SRA_SwitchTab( 1 ); end,
 			[ Keys.B ] = SRA_ToggleBenefits,
+			[ Gamepad.Key( "X" ) ] = SRA_ToggleBenefits,
 		},
 	};
 end
