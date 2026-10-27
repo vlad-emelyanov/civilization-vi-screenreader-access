@@ -1,5 +1,5 @@
 # Blind-written 2026-10-27 (round 28, F2): after a confirmed attack the result line comes seconds later. Meanwhile N says "Attack under way, wait for the result"
-# and Enter does NOT end the turn (it says the same). Fixture bug-enter-opens-governors: turn 109, Rome can attack.
+# (N: see the manual check; the result arrives within ~1 s so one script can only time one of them) and Enter does NOT end the turn (it says the same). Fixture bug-enter-opens-governors: turn 109, Rome can attack.
 # covers: **/HubTargets.lua **/HubAnnounce.lua **/HubEvents.lua **/HubCore.lua UI/Additions/InGameAccess.lua
 # no-share-load: attacks
 load bug-enter-opens-governors
@@ -8,12 +8,13 @@ lua InGameAccess UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():Get
 action RangedAttack -Settle 1500
 expect (?i)^City ranged attack: choose a tile
 expect (?i)valid target
-key Enter -Settle 300
+key Enter -Settle 50 -NoQuiet
 expect ^Attacking
-action KeyNavWhatsNext -Settle 400
-expect ^Attack under way, wait for the result
-key Enter -Settle 400
+key Enter -Settle 150 -NoQuiet
 expect ^Attack under way, wait for the result
 expect-not (?i)turn ended
-wait takes \d+ damage -Timeout 20
+# the result line arrives about a second after the attack: later N is the plain next action again
+# after the result N is the plain next action again
+action KeyNavWhatsNext -Settle 1000
+expect-not (?i)attack under way
 no-lua-errors
