@@ -45,8 +45,8 @@ function TreatClanText_Item( spec:table )
 		-- the game disables the button until a target is chosen and while the cost is more than the gold
 		local target:table = incite.target;
 		if target == nil then
-			item.text = label .. ", choose a target with Left and Right";
-			item.reason = "Choose a target first, with Left and Right";
+			item.text = label .. ", choose a target with " .. SRKey( "Left and Right" );
+			item.reason = "Choose a target first, with " .. SRKey( "Left and Right" );
 			item.detail = description;
 			item.choosable = false;
 		else

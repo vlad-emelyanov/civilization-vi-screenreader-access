@@ -185,7 +185,7 @@ function SRA_GetItems()
 		if CanSelectBelief(row) then
 			local text:string = CleanTextForSpeech(Locale.Lookup(row.Name)) .. ": " .. CleanTextForSpeech(Locale.Lookup(row.Description));
 			if m_uiSelectedBeliefInstance ~= nil and m_uiSelectedBeliefInstance[DATA_FIELD_BELIEF_INDEX] == row.Index then
-				text = text .. ", selected, Enter to confirm";
+				text = text .. ", selected, " .. SRKey( "Enter" ) .. " to confirm";
 			end
 			table.insert(items, { key = row.Index, text = text, belief = row });
 		end
@@ -200,7 +200,7 @@ function SRA_OnActivate( item:table )
 		OutputMessageToScreenReader("Pantheon chosen: " .. name);
 	elseif m_srInstances[item.belief.Index] ~= nil then
 		OnBeliefSelected(m_srInstances[item.belief.Index]);
-		OutputMessageToScreenReader(name .. " selected. Enter to confirm, or pick another");
+		OutputMessageToScreenReader(name .. " selected. " .. SRKey( "Enter" ) .. " to confirm, or pick another");
 	end
 end
 

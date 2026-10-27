@@ -225,7 +225,7 @@ local function SRA_Speak()
 	local items:table = SRA_Items();
 	local names:table = {};
 	for _, item in ipairs( items ) do table.insert( names, item.text ); end
-	text = text .. " " .. table.concat( names, ", " ) .. ". Space for details";
+	text = text .. " " .. table.concat( names, ", " ) .. ". " .. SRKey( "Space" ) .. " for details";
 	-- the list was opened when the popup showed; this speaks the line and then the focused (first) option
 	if m_srList ~= nil and #items > 0 then
 		m_srList.Focus( m_srList.GetFocusKey() or items[1].key, text );

@@ -294,7 +294,7 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 	end
 	m_keyNavAnnouncement = table.concat( srParts, ". " );
 	if srSummary ~= "" then
-		m_keyNavSummary = srSummary .. ". Space reads all, Enter closes.";
+		m_keyNavSummary = srSummary .. ". " .. SRKey( "Space" ) .. " reads all, " .. SRKey( "Enter" ) .. " closes.";
 		OutputMessageToScreenReader( m_keyNavSummary, false );
 	end
 

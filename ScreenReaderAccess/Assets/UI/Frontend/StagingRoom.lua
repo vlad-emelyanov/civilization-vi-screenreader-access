@@ -3581,7 +3581,7 @@ local function RowControlItems( pid:number )
 	if KeyNavSetup_IsUsable(slotPulldown) then
 		local slotStatus0:number = cfg:GetSlotStatus();
 		Add({
-			control = slotPulldown, kind = "pulldown", label = "Slot type", focusSuffix = ", dropdown, Enter to change",
+			control = slotPulldown, kind = "pulldown", label = "Slot type", focusSuffix = ", dropdown, " .. SRKey( "Enter" ) .. " to change",
 			getText = function() return "Slot type: "..SlotTypeName(PlayerConfigurations[pid]:GetSlotStatus()); end,
 			-- The slot is still shown and has the status it had when the list was opened (a human may have taken it).
 			validate = function() return RowVisible(pid) and PlayerConfigurations[pid]:GetSlotStatus() == slotStatus0; end,
@@ -3633,7 +3633,7 @@ local function RowControlItems( pid:number )
 	-- Team
 	if RowIsActive(pid) and not entry.TeamPullDown:IsHidden() and KeyNavSetup_IsUsable(entry.TeamPullDown) then
 		local item:table = {
-			control = entry.TeamPullDown, kind = "pulldown", label = "Team", focusSuffix = ", dropdown, Left/Right or Enter to change",
+			control = entry.TeamPullDown, kind = "pulldown", label = "Team", focusSuffix = ", dropdown, " .. SRKey( "Left/Right" ) .. " or " .. SRKey( "Enter" ) .. " to change",
 			getText = function() return "Team: "..TeamLabel(PlayerConfigurations[pid]:GetTeam()); end,
 			validate = function() return RowVisible(pid) and RowIsActive(pid); end,
 			getOptions = function() return TeamOptions(pid); end,
@@ -3647,7 +3647,7 @@ local function RowControlItems( pid:number )
 	if params ~= nil and leader ~= nil and leader.Value ~= nil and not entry.ColorPullDown:IsHidden() and KeyNavSetup_IsUsable(entry.ColorPullDown) then
 		local colorParam:table = params.Parameters["PlayerColorAlternate"];
 		local item:table = {
-			control = entry.ColorPullDown, kind = "pulldown", label = "Color", focusSuffix = ", dropdown, Left/Right or Enter to change",
+			control = entry.ColorPullDown, kind = "pulldown", label = "Color", focusSuffix = ", dropdown, " .. SRKey( "Left/Right" ) .. " or " .. SRKey( "Enter" ) .. " to change",
 			validate = function() return ParamsCurrent(pid, params); end,
 			getOptions = function()
 				local icons:table = GetPlayerIcons(leader.Value.Domain, leader.Value.Value);
@@ -3717,7 +3717,7 @@ local function ReadyText()
 	local label:string = Clean(Controls.StartLabel:GetText());
 	if m_countdownType ~= CountdownTypes.None then
 		local text:string = label..", "..tostring(math.floor(GetCountdownTimeRemaining())).." seconds";
-		if IsLaunchCountdownActive() then text = text..", Enter to cancel"; end
+		if IsLaunchCountdownActive() then text = text..", " .. SRKey( "Enter" ) .. " to cancel"; end
 		return text;
 	end
 	local text:string = "Ready: "..(localConfig:GetReady() and "checked" or "unchecked");
@@ -3772,19 +3772,19 @@ local function TabItems()
 			activate = function() OnGameSetupTabClicked(); end });
 	end
 	table.insert(items, { control = Controls.ParametersScrollPanel, kind = "button", key = "tab:summary",
-		getText = function() return LOC_GAME_SUMMARY..", tab, Enter to read"; end,
+		getText = function() return LOC_GAME_SUMMARY..", tab, " .. SRKey( "Enter" ) .. " to read"; end,
 		activate = function() KeyNavStaging_EnterSummary(); end });
 	if g_KeyNavShowFriendsTab ~= nil then
 		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "tab:friends",
-			getText = function() return LOC_FRIENDS..", tab, Enter to list and invite"; end,
+			getText = function() return LOC_FRIENDS..", tab, " .. SRKey( "Enter" ) .. " to list and invite"; end,
 			activate = function() KeyNavStaging_EnterFriends(); end });
 	end
 	if ChatAvailable() then
 		table.insert(items, { control = Controls.ChatEntry, kind = "button", key = "chat:send",
-			getText = function() return "Send chat message, Enter or C to type"; end,
+			getText = function() return "Send chat message, " .. SRKey( "Enter" ) .. " or C to type"; end,
 			activate = function() KeyNavStaging_StartChat(); end });
 		table.insert(items, { control = Controls.ChatScroll, kind = "button", key = "chat:history",
-			getText = function() return "Chat history, "..tostring(#m_chatHistory)..(#m_chatHistory == 1 and " message" or " messages")..", Enter or H to read"; end,
+			getText = function() return "Chat history, "..tostring(#m_chatHistory)..(#m_chatHistory == 1 and " message" or " messages")..", " .. SRKey( "Enter" ) .. " or H to read"; end,
 			activate = function() KeyNavStaging_EnterChatHistory(); end });
 	end
 	return items;
@@ -4311,7 +4311,7 @@ function KeyNavStaging_OnCountdownStarted( countdownType:string, seconds:number 
 	m_lastCountdown = seconds;
 	if ContextPtr:IsHidden() or seconds <= 0 then return; end
 	if countdownType == CountdownTypes.Launch or countdownType == CountdownTypes.Launch_Instant then
-		Say("Everyone is ready. Game starting in "..tostring(seconds).." seconds. Press Enter on Ready to cancel", true);
+		Say("Everyone is ready. Game starting in "..tostring(seconds).." seconds. Press " .. SRKey( "Enter" ) .. " on Ready to cancel", true);
 	elseif countdownType == CountdownTypes.Ready_MatchMaking or countdownType == CountdownTypes.Ready_PlayByCloud then
 		Say("Ready countdown started, "..tostring(seconds).." seconds", true);
 	elseif countdownType == CountdownTypes.WaitForPlayers then

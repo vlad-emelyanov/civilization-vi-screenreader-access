@@ -558,7 +558,7 @@ local function SRGraphItems()
 		return items;
 	end
 	table.insert( items, { key = "graph:set", section = "Graph", text = "Data set: " .. current, run = SRNextDataSet,
-		detail = "Enter shows the next data set. The numbers are the last turn's values, highest first." } );
+		detail = SRKey( "Enter" ) .. " shows the next data set. The numbers are the last turn's values, highest first." } );
 	for i, row in ipairs( EndGameText_GraphLines( g_PlayerInfos, g_GraphData, SRPlayerName, false ) ) do
 		table.insert( items, { key = "graph:" .. i, section = "Graph", text = row.text } );
 	end
@@ -566,7 +566,7 @@ local function SRGraphItems()
 end
 
 local SR_BUTTONS :table = {
-	{ id = "movie",		control = "ReplayMovieButton",	get = function() return OnReplayMovie; end,			text = "LOC_UI_ENDGAME_REPLAY_MOVIE",	after = "Playing the movie. Escape or Enter stops it" },
+	{ id = "movie",		control = "ReplayMovieButton",	get = function() return OnReplayMovie; end,			text = "LOC_UI_ENDGAME_REPLAY_MOVIE",	after = "Playing the movie. " .. SRKey( "Escape" ) .. " or " .. SRKey( "Enter" ) .. " stops it" },
 	{ id = "historic",	control = "HistoricMoments",	get = function() return OnHistoricMoments; end,		text = "LOC_END_GAME_MENU_HISTORIAN_BUTTON" },
 	{ id = "export",	control = "ExportHistoricMoments", get = function() return OnExportHistoricMoments; end, text = "LOC_END_GAME_MENU_EXPORT_HISTORIAN_BUTTON" },
 	{ id = "next",		control = "NextPlayerButton",	get = function() return OnNextPlayer; end,			text = "LOC_UI_ENDGAME_MP_PLAYER_CHANGE_CONTINUE" },
@@ -664,7 +664,7 @@ end
 local function SRTryOpen()
 	if not m_srOpenPending or not SRIsActive() then return; end
 	m_srOpenPending = false;
-	SREnsureList().Open( "End game menu, Tab switches pages" );
+	SREnsureList().Open( "End game menu, " .. SRKey( "Tab" ) .. " switches pages" );
 end
 
 local function SROnShow()
@@ -672,7 +672,7 @@ local function SROnShow()
 	local d:table = SRSummaryData();
 	local text:string = d ~= nil and EndGameText_Summary( d ) or "End of the game";
 	if SRIsShown( "BackButton" ) and not Controls.BackButton:IsDisabled() then text = text .. ". You can play one more turn"; end
-	if m_movie ~= nil then text = text .. ". Escape skips the movie"; end
+	if m_movie ~= nil then text = text .. ". " .. SRKey( "Escape" ) .. " skips the movie"; end
 	OutputMessageToScreenReader( text );
 	m_srOpenPending = true;
 	SREnsureList().Reset();

@@ -425,9 +425,9 @@ local function KeyNavAnnounceCurrent()
 		local control:table = controls[m_keyNavButtonIndex];
 		local text:string;
 		if control.kind == "count" then
-			text = KeyNavCountValueText()..", Left and Right to change";
+			text = KeyNavCountValueText()..", " .. SRKey( "Left and Right" ) .. " to change";
 		elseif control.kind == "sort" then
-			text = KeyNavSortText()..", Left and Right to change";
+			text = KeyNavSortText()..", " .. SRKey( "Left and Right" ) .. " to change";
 		else
 			text = control.name..", button";
 			if control.activate == OnConfirmChanges and Controls.ConfirmButton:IsDisabled() then
@@ -452,7 +452,7 @@ function OnShow()
 	m_keyNavButtonIndex = 1;
 	if m_kParameter == nil or m_kItemList == nil then return; end
 	local title:string = CleanTextForSpeech(Controls.WindowTitle:GetText());
-	OutputMessageToScreenReader(title..", "..KeyNavCountText()..". "..KeyNavCountValueText()..KeyNavWarningText()..". Up and Down to browse, Space to toggle, I for the suzerain bonus, Tab for the number, sort, Select All, Select None and OK, Escape to cancel", true);
+	OutputMessageToScreenReader(title..", "..KeyNavCountText()..". "..KeyNavCountValueText()..KeyNavWarningText()..". " .. SRKey( "Up and Down" ) .. " to browse, " .. SRKey( "Space" ) .. " to toggle, I for the suzerain bonus, " .. SRKey( "Tab" ) .. " for the number, sort, Select All, Select None and OK, " .. SRKey( "Escape" ) .. " to cancel", true);
 	if #m_kItemList > 0 then
 		OnItemFocus(m_kItemList[1].item);
 		OutputMessageToScreenReader(KeyNavItemText(1), true);

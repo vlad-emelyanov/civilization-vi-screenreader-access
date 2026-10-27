@@ -2080,13 +2080,13 @@ function DescribeItem(item, full)
 	end
 	local disabled = item.control:IsDisabled();
 	if item.kind == "edit" then
-		return item.label..", edit, "..value..(disabled and "" or ", Enter to edit");
+		return item.label..", edit, "..value..(disabled and "" or ", " .. SRKey( "Enter" ) .. " to edit");
 	elseif item.kind == "pulldown" then
-		return item.label..", dropdown: "..value..(disabled and "" or ". Enter to choose, Left or Right to change");
+		return item.label..", dropdown: "..value..(disabled and "" or ". " .. SRKey( "Enter" ) .. " to choose, " .. SRKey( "Left or Right", "left stick left or right" ) .. " to change");
 	elseif item.kind == "checkbox" then
-		return item.label..", checkbox: "..value..(disabled and "" or ". Enter or Space to toggle");
+		return item.label..", checkbox: "..value..(disabled and "" or ". " .. SRKey( "Enter" ) .. " or " .. SRKey( "Space" ) .. " to toggle");
 	else
-		return item.label..", slider: "..value..", minimum "..Txt(item.def.min)..", maximum "..Txt(item.def.max)..(disabled and "" or ". Left or Right to adjust");
+		return item.label..", slider: "..value..", minimum "..Txt(item.def.min)..", maximum "..Txt(item.def.max)..(disabled and "" or ". " .. SRKey( "Left or Right", "left stick left or right" ) .. " to adjust");
 	end
 end
 
@@ -2155,7 +2155,7 @@ local function OpenSelection(item)
 		return;
 	end
 	m_selection = { item = item, state = state, index = state.index, originalIndex = state.index };
-	OutputMessageToScreenReader(item.label..", "..SelectionText()..". Up/Down to choose, Enter to select, Escape to cancel");
+	OutputMessageToScreenReader(item.label..", "..SelectionText()..". " .. SRKey( "Up/Down" ) .. " to choose, " .. SRKey( "Enter" ) .. " to select, " .. SRKey( "Escape" ) .. " to cancel");
 end
 
 local function HandleSelectionKey(key)
@@ -2239,7 +2239,7 @@ function EnterTabContent(tab)
 			OutputMessageToScreenReader(TabName(tab)..", no key bindings");
 			return;
 		end
-		OutputMessageToScreenReader(TabName(tab)..", "..tostring(count).." actions. Up and Down to move, Left and Right for primary or alternate, Enter to rebind, Delete to clear, Tab for next category. "..DescribeBinding(true));
+		OutputMessageToScreenReader(TabName(tab)..", "..tostring(count).." actions. " .. SRKey( "Up and Down" ) .. " to move, " .. SRKey( "Left and Right" ) .. " for primary or alternate, " .. SRKey( "Enter" ) .. " to rebind, " .. SRKey( "Delete", "X" ) .. " to clear, " .. SRKey( "Tab" ) .. " for next category. "..DescribeBinding(true));
 		ParkMouse();
 		return;
 	end
@@ -2479,7 +2479,7 @@ local function HandleBindingsKey(key, ctrl)
 	elseif key == Keys.VK_RETURN or key == Keys.VK_SPACE then
 		local info = m_bindingInfo[m_selectedBindingIndex];
 		StartActiveKeyBinding(info.actionId, m_selectedBindingColumn - 1);
-		OutputMessageToScreenReader("Press the new key for "..info.name..", "..((m_selectedBindingColumn == 1) and "primary" or "alternate").." binding. Escape to cancel");
+		OutputMessageToScreenReader("Press the new key for "..info.name..", "..((m_selectedBindingColumn == 1) and "primary" or "alternate").." binding. " .. SRKey( "Escape" ) .. " to cancel");
 		return true;
 	elseif ( Keys.VK_DELETE ~= nil and key == Keys.VK_DELETE ) or Gamepad.ButtonOf( key, ctrl == true ) == "X" then
 		local info = m_bindingInfo[m_selectedBindingIndex];

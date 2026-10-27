@@ -1,5 +1,6 @@
 -- TreatClanText.lua: wording of the Treat With Clan popup
 stub("engine")
+include("ScreenReader")
 include("TreatClanText")
 
 test("opening: header, subheader, count, first line", function()
@@ -34,7 +35,7 @@ end)
 test("incite: choose a target first, then the cost, then not enough gold", function()
 	local base = { id = "Incite", label = "Incite", description = "Incite the clan", incite = { canStart = true } }
 	local item = TreatClanText_Item(base)
-	eq(item.text, "Incite, choose a target with Left and Right")
+	eq(item.text, "Incite, choose a target with [KEY:Left and Right]")
 	eq(item.choosable, false)
 	base.incite.target = { label = "Rome - Trajan", cost = 120, balance = 200 }
 	item = TreatClanText_Item(base)

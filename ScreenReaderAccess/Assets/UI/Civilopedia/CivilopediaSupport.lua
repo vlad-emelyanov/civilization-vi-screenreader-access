@@ -1289,7 +1289,7 @@ end
 
 local function SRA_FollowLink( item:table )
 	if item.link == nil then
-		SRA_Say( "Not a link. Space reads from here" );
+		SRA_Say( "Not a link. " .. SRKey( "Space" ) .. " reads from here" );
 		return;
 	end
 	local results = CivilopediaSearch( item.link, 1 );

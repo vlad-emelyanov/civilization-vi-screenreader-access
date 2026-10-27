@@ -50,8 +50,8 @@ local function SRAnnounce( unlockables:table, headerKey:string )
 		if #names > 5 then text = text .. " and " .. ( #names - 5 ) .. " more"; end
 		table.insert( parts, text );
 	end
-	local keys:string = "Enter to continue";
-	if m_srGovernmentAction ~= nil then keys = keys .. ", G or F7 for " .. Controls.ChangeGovernmentButton:GetText(); end
+	local keys:string = SRKey( "Enter" ) .. " to continue";
+	if m_srGovernmentAction ~= nil then keys = keys .. ", " .. SRKey( "G or F7", "X" ) .. " for " .. Controls.ChangeGovernmentButton:GetText(); end
 	table.insert( parts, keys );
 	OutputMessageToScreenReader( table.concat( parts, ". " ) );
 end

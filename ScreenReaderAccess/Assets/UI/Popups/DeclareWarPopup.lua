@@ -230,7 +230,7 @@ function OnSRUpdate( deltaTime:number )
 	for _, item in ipairs(g_ConsequenceItemIM.m_AllocatedInstances) do
 		table.insert(parts, item.Text:GetText());
 	end
-	table.insert(parts, "Enter to declare war, Escape to cancel");
+	table.insert(parts, SRKey( "Enter" ) .. " to declare war, " .. SRKey( "Escape" ) .. " to cancel");
 	OutputMessageToScreenReader(table.concat(parts, ". "));
 end
 

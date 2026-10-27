@@ -514,7 +514,7 @@ function OnLoadGameViewStateDone()
 		end
 
 		Controls.StartLabelButton:SetText(strGameButtonName);
-		OutputMessageToScreenReader(strGameButtonName .. ". Press Enter to start.", true);
+		OutputMessageToScreenReader(strGameButtonName .. ". Press " .. SRKey( "Enter" ) .. " to start.", true);
 		Controls.ActivateButton:SetHide(false);
 		Controls.LoadingContainer:SetHide(true);
 		Controls.FadeAnim:SetToBeginning();
