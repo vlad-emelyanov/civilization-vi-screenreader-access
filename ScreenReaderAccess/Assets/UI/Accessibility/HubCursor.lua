@@ -368,7 +368,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		if #found == 0 then
 			local unit:table = UI.GetHeadSelectedUnit();
 			if HubTargets.IsCityMode( targetMode ) or unit == nil then
-				OutputMessageToScreenReader( "No enemy in range. Escape to cancel" );
+				OutputMessageToScreenReader( "No enemy in range. " .. SRKey( "Escape" ) .. " to cancel" );
 			else
 				local enemyName:string, relative:string = PlotDescription_NearestHostile( unit, 30 );
 				OutputMessageToScreenReader( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative, CountHostilePlotsInView( originPlot ) ) );

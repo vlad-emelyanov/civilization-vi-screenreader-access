@@ -2177,7 +2177,7 @@ function OnWMDStrikeEnd( pInputStruct )
 				local pPopupDialog :table = PopupDialogInGame:new("ConfirmWMDStrike");
 				pPopupDialog:AddText(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_ARE_YOU_SURE"));
 				-- Begin ScreenReaderAccess mod change
-				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_CANCEL"), function() OutputMessageToScreenReader("Launch cancelled. Still in nuclear strike mode: choose another target, or Escape to leave"); end);
+				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_CANCEL"), function() OutputMessageToScreenReader("Launch cancelled. Still in nuclear strike mode: choose another target, or " .. SRKey( "Escape" ) .. " to leave"); end);
 				-- End ScreenReaderAccess mod change
 				pPopupDialog:AddConfirmButton(Locale.Lookup("LOC_LAUNCH_WMD_DIALOG_LAUNCH"), strikeFn);
 				pPopupDialog:Open();
@@ -2285,7 +2285,7 @@ function OnICBMStrikeEnd( pInputStruct )
 				local pPopupDialog :table = PopupDialogInGame:new("ConfirmICBMStrike");
 				pPopupDialog:AddText(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_ARE_YOU_SURE"));
 				-- Begin ScreenReaderAccess mod change
-				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_CANCEL"), function() OutputMessageToScreenReader("Launch cancelled. Still in missile strike mode: choose another target, or Escape to leave"); end);
+				pPopupDialog:AddCancelButton(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_CANCEL"), function() OutputMessageToScreenReader("Launch cancelled. Still in missile strike mode: choose another target, or " .. SRKey( "Escape" ) .. " to leave"); end);
 				-- End ScreenReaderAccess mod change
 				pPopupDialog:AddConfirmButton(Locale.Lookup("LOC_LAUNCH_ICBM_DIALOG_LAUNCH"), strikeFn);
 				pPopupDialog:Open();

@@ -679,12 +679,12 @@ function SettleScan_Sentence( scan:table, foundKey:string, hasMoves:boolean )
 	local turns:string = best.turns .. ( best.turns == 1 and " turn" or " turns" );
 	if verdict == "clearly" then
 		return "Best spot is clearly better: " .. best.relative .. Reasons( best, 3, 2 ) .. ", " .. turns
-			.. SettleScan_DistanceText( best ) .. ". X to browse.";
+			.. SettleScan_DistanceText( best ) .. ". " .. SRKey( "X", "X" ) .. " to browse.";
 	end
 	text = text .. ". Best: " .. best.relative .. ", " .. turns .. ( far and ", far away" or "" ) .. Reasons( best, 3, 2 );
 	if best.recommended then text = text .. ", recommended"; end
 	if best.hostileNear and not string.find( text, " nearby", 1, true ) then text = text .. ( best.barbariansNear and ", barbarians near it" or ", enemies near it" ); end
-	return text .. SettleScan_DistanceText( best ) .. ". X to browse.";
+	return text .. SettleScan_DistanceText( best ) .. ". " .. SRKey( "X", "X" ) .. " to browse.";
 end
 
 -- Fills c.context from the cities list.

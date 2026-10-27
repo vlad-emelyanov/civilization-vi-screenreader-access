@@ -81,13 +81,29 @@ local function show(v)
 	if type(v) == "string" then return string.format("%q", v) end
 	return tostring(v)
 end
+-- SRKey for tests that load code blocks without ScreenReader.lua (the real one replaces this when included)
+if SRKey == nil then
+	function SRKey(keyboard, button)
+		if button ~= nil and button ~= "" then return "[KEY:" .. keyboard .. "|" .. button .. "]" end
+		return "[KEY:" .. keyboard .. "]"
+	end
+end
+-- a spoken-text token [KEY:kb|button] in the actual value is compared as its keyboard wording unless the expected text has tokens itself
+local function kbwording(actual, expected)
+	if type(actual) == "string" and type(expected) == "string" and not expected:find("[KEY:", 1, true) then
+		return (actual:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1"))
+	end
+	return actual
+end
 function eq(actual, expected, msg)
+	actual = kbwording(actual, expected)
 	if actual ~= expected then
 		error((msg and (msg .. ": ") or "") .. "expected " .. show(expected) .. ", got " .. show(actual), 2)
 	end
 end
 function istrue(v, msg) if not v then error(msg or "expected true", 2) end end
 function contains(s, sub, msg)
+	s = kbwording(s, sub)
 	if type(s) ~= "string" or not s:find(sub, 1, true) then
 		error((msg and (msg .. ": ") or "") .. show(s) .. " does not contain " .. show(sub), 2)
 	end

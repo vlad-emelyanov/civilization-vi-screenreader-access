@@ -82,8 +82,8 @@ end
 function HubPlacement.NextText()
 	local scan:table = m_placeScan;
 	if scan == nil or not HubCore.IsModeOpen( "placement" ) then return nil; end
-	if HubCore.m_placeConfirm ~= nil then return "Enter places " .. scan.name .. " here, Escape goes back"; end
-	return "Placing " .. scan.name .. ". Enter on a tile asks to place it, Escape cancels";
+	if HubCore.m_placeConfirm ~= nil then return SRKey( "Enter" ) .. " places " .. scan.name .. " here, " .. SRKey( "Escape" ) .. " goes back"; end
+	return "Placing " .. scan.name .. ". " .. SRKey( "Enter" ) .. " on a tile asks to place it, " .. SRKey( "Escape" ) .. " cancels";
 end
 
 local function PlacementDetail( c:table )
@@ -179,7 +179,7 @@ local function PlacementResult( scan:table, before:table, tries:number )
 	if tries < 3 then
 		HubCore.After( 0.5, function() PlacementResult( scan, before, tries + 1 ); end );
 	else
-		SayLocal( "Not placed. Tab to the production panel to check" );
+		SayLocal( "Not placed. " .. SRKey( "Tab" ) .. " to the production panel to check" );
 	end
 end
 
@@ -289,7 +289,7 @@ local function PlacementBuyTile( c:table )
 		local c2:table = fresh.byIndex[ c.plotIndex ];
 		if c2 ~= nil and c2.owned then
 			local effects:string = PlacementEffects( c2, false );
-			HubCore.SayResult( "Tile bought for " .. c.tileCost .. " gold. Valid" .. ( effects ~= "" and ( ", " .. effects ) or "" ) .. ". Enter to place " .. fresh.name .. " here" );
+			HubCore.SayResult( "Tile bought for " .. c.tileCost .. " gold. Valid" .. ( effects ~= "" and ( ", " .. effects ) or "" ) .. ". " .. SRKey( "Enter" ) .. " to place " .. fresh.name .. " here" );
 		else
 			local why:string = PlacementScan_Blockers( fresh, plot );
 			if why == "" then why = PlacementScan_Cannot( fresh, plot ); end
@@ -323,9 +323,9 @@ local function PlacementEnter( item:table )
 	HubCore.m_placeConfirm = c.plotIndex;
 	local effects:string = PlacementEffects( c, false );
 	if c.owned then
-		HubCore.SayResult( "Place " .. scan.name .. " here?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " Enter to confirm, Escape to go back" );
+		HubCore.SayResult( "Place " .. scan.name .. " here?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back" );
 	else
-		HubCore.SayResult( "Buy this tile for " .. c.tileCost .. " gold?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " Enter to confirm, then Enter again to place " .. scan.name .. ". Escape to go back" );
+		HubCore.SayResult( "Buy this tile for " .. c.tileCost .. " gold?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " " .. SRKey( "Enter" ) .. " to confirm, then " .. SRKey( "Enter" ) .. " again to place " .. scan.name .. ". " .. SRKey( "Escape" ) .. " to go back" );
 	end
 end
 
@@ -344,7 +344,7 @@ m_placeList = KeyNavList_Create{
 HubCore.OpenPlacement = function( mode:number )
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil or not HubCore.IsLocalPlayerActive() then
-		OutputMessageToScreenReader( "Placement: nothing to browse, Escape to cancel" );
+		OutputMessageToScreenReader( "Placement: nothing to browse, " .. SRKey( "Escape" ) .. " to cancel" );
 		return;
 	end
 	local kind:string, hash:number;
@@ -365,7 +365,7 @@ HubCore.OpenPlacement = function( mode:number )
 	end
 	local scan:table = PlacementScan_Scan( city, kind, hash, purchaseYield );
 	if scan.name == nil then
-		OutputMessageToScreenReader( "Placement: nothing to browse, Escape to cancel" );
+		OutputMessageToScreenReader( "Placement: nothing to browse, " .. SRKey( "Escape" ) .. " to cancel" );
 		return;
 	end
 	local function Leave()

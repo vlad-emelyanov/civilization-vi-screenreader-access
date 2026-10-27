@@ -132,7 +132,7 @@ end
 function HubPlaces.OrderHint( unit:table )
 	local activity:string = HubPlaces.UnitActivity( unit, false );
 	if activity == nil then return nil; end
-	if activity == "exploring" then return "Any order stops exploring, Tab for actions"; end
+	if activity == "exploring" then return "Any order stops exploring, " .. SRKey( "Tab" ) .. " for actions"; end
 	local function Can( name:string )
 		local command = ( UnitCommandTypes ~= nil ) and UnitCommandTypes[ name ] or nil;
 		if command == nil then return false; end
@@ -145,7 +145,7 @@ function HubPlaces.OrderHint( unit:table )
 		if Can( "WAKE" ) then return "Shift+W wakes it"; end
 		if Can( "CANCEL" ) then return "Shift+C cancels it"; end
 	end
-	return "Any order replaces it, Tab for actions";
+	return "Any order replaces it, " .. SRKey( "Tab" ) .. " for actions";
 end
 
 -- ===========================================================================
@@ -837,7 +837,7 @@ local function SendKey()
 	local item:table = FocusedItem();
 	if item == nil then return; end
 	if HubTargets.GetTargetMode() ~= nil then
-		OutputMessageToScreenReader( "Enter moves the target there. Escape closes the list" );
+		OutputMessageToScreenReader( SRKey( "Enter" ) .. " moves the target there. " .. SRKey( "Escape" ) .. " closes the list" );
 		return;
 	end
 	if item.kind == "unit" then
@@ -847,7 +847,7 @@ local function SendKey()
 			HubPlaces.OpenSend( HubPlaces.EscortPlace( civilian, "places", item.key ) );
 			return;
 		end
-		OutputMessageToScreenReader( "That is a unit of yours. Enter selects it" );
+		OutputMessageToScreenReader( "That is a unit of yours. " .. SRKey( "Enter" ) .. " selects it" );
 		return;
 	end
 	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key, capture = ( item.kind == "capture" ), soldiers = ( item.kind == "threat" ), camp = ( item.camp == true ) } );
@@ -940,7 +940,7 @@ local m_facade:table = {
 		if not found then key = cat.items[1].key; end
 		m_list.Open( title, key, true );
 		SpeakFocus( title .. ". " .. CategoryHead( cat ) .. ". " );
-		if HubTargets.GetTargetMode() ~= nil then OutputMessageToScreenReader( "Enter moves the target there", true ); end
+		if HubTargets.GetTargetMode() ~= nil then OutputMessageToScreenReader( SRKey( "Enter" ) .. " moves the target there", true ); end
 	end,
 	Reset = function() m_list.Reset(); end,
 	HandleInput = function( input:table ) return m_list.HandleInput( input ); end,
