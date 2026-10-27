@@ -18,6 +18,8 @@ M1-M11 were implemented in round 27 (merged 51a14f8..0e9108a, verified in game, 
 
 Known gaps: the blocked-upgrade silence for an unresearched target tech is only unit-tested; archaeologist, naturalist and rock band tiles are untested in game (no fixture); the builder browser refuses at 0 moves while the act browser opens.
 
+M12 (load screen) was reported later and is still open.
+
 The entries below are the original reports.
 
 Findings from the user's own play-testing, researched but not yet worked on. Each entry: what was reported, what the code does today, and the proposed work. Triage these into the next round like play-segment findings.
@@ -219,3 +221,28 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
 - **Avoid spam:** say it on selection only, not on every turn-start unit cycle. Or say it in full once per unit per turn, then just "upgrade available".
 - **Optional:** a J places entry or a turn-start line "3 units can be upgraded", for the moment a new tech makes many units upgradable.
 - **Fixtures:** the round-16 and round-19 upgrade plays (pt-modes chain, "Upgraded to Pikeman") have an upgradable unit. Grep `test/regress/*.txt` for unit selection lines that would gain the new suffix.
+
+## M12. Load screen: do not read the whole text, let the player browse it by paragraph (behaviour change, not started)
+
+**Reported (2026-10-27):** when the load screen comes up, the screen reader reads the whole wall of text while the game's narrator reads the era and leader descriptions aloud at the same time, so the two voices talk over each other. The narrator does not cover the civilization's unique abilities, units and buildings, which are useful. Wanted: no automatic reading, only a short hint that the arrow keys explore the text, and each part of the screen as its own paragraph to move between with the arrow keys.
+
+**Today** (`ScreenReaderAccess/Assets/UI/Frontend/LoadScreen.lua`):
+- `AnnounceLoadScreenContent()` (called at the end of `OnLoadScreenContentReady`) speaks, all queued with `nointerrupt`: "Loading, please wait", `Controls.CivName`, `Controls.LeaderName`, `Controls.EraInfo` (if shown), `Controls.LeaderInfo` (if shown), then every entry of `m_featureTexts`.
+- `m_featureTexts` is filled by `AddFeatureText( header, description )` for the civ and leader abilities, the unique units and the unique buildings. The unit and building headers are `Locale.ToUpper(...)` (the on-screen style); speech should use the normal-case name.
+- `OnLoadGameViewStateDone()` says "<Begin Game / Continue Game>. Press Enter to start." once loading finishes.
+- `OnInput` handles only Escape and Enter on KeyUp (start the game once loaded); the arrow keys are free.
+- The narrator is the game's "Dawn of Man" speech (`UI.PlaySound("STOP_SPEECH_DAWNOFMAN")` in `OnActivateButtonClicked` stops it). It reads the era and leader text, i.e. `EraInfo` and `LeaderInfo`.
+
+**Proposed:**
+1. On open, speak only one short line, e.g. "Loading Rome, Trajan. Up and Down read the civilization details, N paragraphs." Do not read the paragraphs. Keep the "Begin Game. Press Enter to start." line when loading finishes.
+2. Build a paragraph list once the content is ready, in screen order: civ name and leader name (one line), era info, leader info, then one paragraph per ability, unique unit and unique building, as "Name: description" (normal case, `CleanTextForSpeech`). Maybe a kind prefix: "Unique unit, Legion: ...".
+3. Keys while the load screen is up (handle KeyDown in `OnInput`, return true for them, leave Enter and Escape as they are):
+   - Down / Up: next / previous paragraph, "3 of 9" style or just the text; stop at the ends with "Last paragraph" / "First paragraph" (no wrap, or wrap with a word; pick one, use KeyNavList if it fits).
+   - Home / End: first / last paragraph.
+   - Optionally Right / Left as aliases, and a key to repeat the current paragraph.
+   - Speaking a paragraph interrupts the previous speech (normal `OutputMessageToScreenReader`, not nointerrupt), so the player can skim. The narrator is game audio and keeps playing; the player chooses when to listen to which.
+4. The keys must keep working after loading finishes until Enter is pressed (the player may read the unique units before starting).
+5. HelpText.lua entry (`keys = "..."`) for the load screen keys; the Control+H list is in game only, so the hint line on open is the main way to learn them.
+6. Check: does the load screen context receive key input while the game is still loading (it does for Enter/Escape after load; verify KeyDown arrives during loading)? Does the first key after a front-end reload get swallowed (CLAUDE.md: "the first key after a front-end reload may be swallowed")?
+7. Regress: the load screen appears on every `civctl load`; a script with `# own-load: load screen speech` can expect the hint line and then send Down and expect a paragraph, as long as it does so before the harness presses Enter (check how `civctl load` dismisses the load screen first).
+
