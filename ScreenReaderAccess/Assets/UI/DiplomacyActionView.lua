@@ -673,7 +673,9 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 	if m_srList ~= nil and kStatement.FromPlayer ~= Game.GetLocalPlayer() then
 		local civName:string = Locale.Lookup( PlayerConfigurations[kStatement.FromPlayer]:GetCivilizationShortDescription() );
 		-- the opening says why the scene opened (statement type of an AI-initiated statement: kudo / warning / deal / denounce ...)
-		local aiInitiated:boolean = (DiplomacyInitiatorTypes ~= nil and kStatement.Initiator == DiplomacyInitiatorTypes.AI);
+		-- Initiator is a PLAYER ID (DiplomacyStatementSupport: PlayerManager.IsValid(initiator), IsHuman() -> "HUMAN" else "AI"), not a DiplomacyInitiatorTypes value
+		local aiInitiated:boolean = (kStatement.Initiator ~= nil and PlayerManager.IsValid( kStatement.Initiator ) and not PlayerConfigurations[ kStatement.Initiator ]:IsHuman());
+		print( "DiplomacyOpening: " .. tostring(statementTypeName) .. "/" .. tostring(statementSubTypeName) .. "/" .. tostring(aiInitiated) .. " initiator=" .. tostring(kStatement.Initiator) );
 		local speech:string = DiplomacyText_Opening( Locale.Lookup(leaderDesc), civName, statementTypeName, statementSubTypeName, aiInitiated ) .. CleanTextForSpeech(leaderstr);
 		if reasonStr ~= nil and reasonStr ~= "" then speech = speech .. " " .. CleanTextForSpeech(reasonStr); end
 		m_srList.Reset();
