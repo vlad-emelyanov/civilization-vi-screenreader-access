@@ -412,9 +412,17 @@ end
 function HubSettle.OnOtherKey( key:number )
 	local pending:table = HubSettle.m_pending;
 	if pending ~= nil and not pending.keepOnKeys and key ~= Keys.VK_SHIFT and key ~= Keys.VK_CONTROL and key ~= Keys.VK_ALT then
+		HubSettle.m_justCleared = { pending = pending, time = UI.GetElapsedTime() };
 		HubSettle.m_pending = nil;
 	end
 	m_dangerGuard.warnSig = nil;
+end
+
+-- N (the Next Action question) is not an order: the input action fires after the raw key handler above has cleared the arming, so give it back.
+function HubSettle.RestoreJustCleared()
+	local j:table = HubSettle.m_justCleared;
+	HubSettle.m_justCleared = nil;
+	if j ~= nil and HubSettle.m_pending == nil and UI.GetElapsedTime() - j.time < 0.5 then HubSettle.m_pending = j.pending; end
 end
 
 -- Any other operation or command started for the pending unit (HubEvents calls this): the choice is stale.

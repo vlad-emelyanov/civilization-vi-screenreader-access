@@ -38,6 +38,7 @@ function HubAnnounce.SpeakWhatsNext()
 		OutputMessageToScreenReader( "Choosing a tile: " .. targetLabel .. ". Enter confirms, Escape cancels" );
 		return;
 	end
+	HubSettle.RestoreJustCleared();
 	local intentKind:string, intentText:string = HubAnnounce.EnterIntent();
 	if intentText ~= nil then OutputMessageToScreenReader( intentText ); return; end
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
