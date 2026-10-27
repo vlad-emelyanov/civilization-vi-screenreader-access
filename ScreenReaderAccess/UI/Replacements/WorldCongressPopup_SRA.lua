@@ -3125,7 +3125,7 @@ local function SRA_CloseSpoken()
 	m_sraPending = -1;
 	ClosePopup();
 	if blocking then
-		SRA_Say( "Closed. Resume Congress still blocks the turn; " .. SRKey( "Enter" ) .. " or Control+N reopens it." );
+		SRA_Say( "Closed. Resume Congress still blocks the turn; " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " reopens it." );
 	else
 		SRA_Say( "World Congress closed" );
 		LuaEvents.SRA_CongressClosedSpoken();		-- a crisis popup that opened meanwhile was cut off by this line: it speaks again

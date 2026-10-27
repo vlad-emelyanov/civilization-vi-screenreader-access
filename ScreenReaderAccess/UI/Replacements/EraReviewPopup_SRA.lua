@@ -333,7 +333,7 @@ function SRA_HandleKey(key:number)
 			blocked = label ~= nil and string.find(string.lower(label:GetText() or ""), "dedication", 1, true) ~= nil;
 		end);
 		if blocked then
-			OutputMessageToScreenReader("Closed. Make Dedication still blocks the turn; " .. SRKey( "Enter" ) .. " on it in Control N or Next Action reopens it.");
+			OutputMessageToScreenReader("Closed. Make Dedication still blocks the turn; " .. SRKey( "Enter" ) .. " on it in " .. SRKey( "Control N", "RB" ) .. " or Next Action reopens it.");
 		else
 			OutputMessageToScreenReader("Closed");
 		end
