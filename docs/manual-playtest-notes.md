@@ -1,5 +1,25 @@
 # Manual play-test notes (user, 2026-10-26)
 
+## Status (2026-10-27)
+
+M1-M11 were implemented in round 27 (merged 51a14f8..0e9108a, verified in game, `regress all` green at e85d722). Shipped behaviour:
+
+- M1: Shift+J opens an area overview list.
+- M2: Control+F map search speaks the matches; Down/Up step through them, Escape closes.
+- M3: Shift+M sends the selected unit to the cursor tile.
+- M4: the city line starts with "Population N of M housing".
+- M5: X in attack modes walks only attackable targets.
+- M6: X lists activation tiles for great persons, archaeologists, naturalists and rock bands; "Enter activates" on arrival.
+- M7: a religion row after loyalty with followers, pressure and holy city.
+- M8: "may turn to" is spoken only when the city is at risk.
+- M9: a "Transfer to Another City" list for great persons.
+- M10: vote keys and the next-vote cost on World Congress resolution lines.
+- M11: an upgrade hint on unit selection.
+
+Known gaps: the blocked-upgrade silence for an unresearched target tech is only unit-tested; archaeologist, naturalist and rock band tiles are untested in game (no fixture); the builder browser refuses at 0 moves while the act browser opens.
+
+The entries below are the original reports.
+
 Findings from the user's own play-testing, researched but not yet worked on. Each entry: what was reported, what the code does today, and the proposed work. Triage these into the next round like play-segment findings.
 
 ## M1. Macro map overview: where am I on the continent? (feature, design needed)
