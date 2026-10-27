@@ -684,17 +684,14 @@ m_actList = KeyNavList_Create{
 function HubSettle.OpenActBrowser( unit:table )
 	local a:table = HubSettle.ActivationPlots( unit );
 	if a == nil then return false; end
-	if unit:GetMovesRemaining() <= 0 then
-		OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " has no moves left" );
-		return true;
-	end
+	local noMoves:string = ( unit:GetMovesRemaining() <= 0 ) and ( Locale.Lookup( unit:GetName() ) .. " has no moves left. " ) or "";
 	local items:table = BuildActItems( unit, a );
 	if #items == 0 then
 		OutputMessageToScreenReader( #a.plots == 0 and a.empty or "No reachable tile to " .. HubSettle.ActionInfinitive( a ) .. " on" );
 		return true;
 	end
 	m_act = { items = items, unitId = unit:GetID(), act = a };
-	HubCore.OpenMode( "act", m_actList, "Tiles to " .. HubSettle.ActionInfinitive( a ) .. ", " .. HubCore.Plural( #items, "tile", "tiles" ), ActClosed );
+	HubCore.OpenMode( "act", m_actList, noMoves .. "Tiles to " .. HubSettle.ActionInfinitive( a ) .. ", " .. HubCore.Plural( #items, "tile", "tiles" ), ActClosed );
 	return true;
 end
 

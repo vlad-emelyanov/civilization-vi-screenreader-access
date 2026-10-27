@@ -1,13 +1,13 @@
 # Written blind (round 27, M11), NOT yet verified in game: run `python util/civregress.py upgrade-hint-selection --record` first.
 # Fixture pt-modes-t160 (642 gold): the Pikeman can upgrade to Pike and Shot, a Roman Legion is blocked by Niter.
 # Selecting a unit that can upgrade says "Upgrade to Pike and Shot available, <n> gold, U" the first time that turn, "Upgrade available, U" later;
-# a blocked upgrade says "Upgrade to X: <reason>" the first time and nothing later.
+# a blocked upgrade says "Upgrade to X unavailable, U says why" the first time (only when its tech is researched) and nothing later.
 # covers: **/HubAnnounce.lua **/UnitPanel.lua
 # no-share-load: changes the treasury
 load pt-modes-t160
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) break end end
-expect (?i)Upgrade to .+: .*(Niter|Resources)
+expect Upgrade to .+ unavailable, U says why
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_PIKEMAN" then UI.SelectUnit(u) break end end
 expect Upgrade to Pike and Shot available, \d+ gold, U
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) break end end

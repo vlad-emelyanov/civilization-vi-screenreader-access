@@ -193,7 +193,7 @@ function HubAnnounce.PromotionHint( unit:table )
 end
 
 -- Pure wording of the upgrade hint on selection (M11). info: { target = "Pike and Shot", available = bool, cost = gold or nil,
--- resourceCost = number or nil, resource = "Niter" or nil, reason = "Not enough Gold in treasury" or nil }. repeated: the unit
+-- resourceCost = number or nil, resource = "Niter" or nil }. repeated: the unit
 -- already heard the full hint this turn. Returns nil when nothing is to be said.
 function HubAnnounce.UpgradeText( info:table, repeated:boolean )
 	if info == nil or info.target == nil then return nil; end
@@ -207,20 +207,22 @@ function HubAnnounce.UpgradeText( info:table, repeated:boolean )
 		return text .. ", U";
 	end
 	if repeated then return nil; end
-	if info.reason ~= nil and info.reason ~= "" then return "Upgrade to " .. info.target .. ": " .. info.reason; end
-	return "Upgrade to " .. info.target .. " unavailable";
+	return "Upgrade to " .. info.target .. " unavailable, U says why";
 end
 
--- Game refusal text for speech: no [ICON_x] markup, no trailing period.
-local function CleanReason( text:string )
-	local clean:string = CleanTextForSpeech( Locale.Lookup( text ) );
-	clean = string.gsub( clean, "[%.%s]+$", "" );
-	return clean;
+-- Has the local player the tech and civic the unit type needs? (a blocked upgrade to a unit not yet unlocked is not worth a hint)
+local function TargetUnlocked( row:table, ownerID:number )
+	local player:table = Players[ ownerID ];
+	if row.PrereqTech ~= nil and GameInfo.Technologies[ row.PrereqTech ] ~= nil
+			and not player:GetTechs():HasTech( GameInfo.Technologies[ row.PrereqTech ].Index ) then return false; end
+	if row.PrereqCivic ~= nil and GameInfo.Civics[ row.PrereqCivic ] ~= nil
+			and not player:GetCulture():HasCivic( GameInfo.Civics[ row.PrereqCivic ].Index ) then return false; end
+	return true;
 end
 
 local m_upgradeHeard:table = {};		-- unit id -> turn of the last full upgrade hint
 
--- "Upgrade to Pike and Shot available, 75 gold, U" / "Upgrade to Musketman: Insufficient Resources. 10 Niter required ..." for a selected unit
+-- "Upgrade to Pike and Shot available, 75 gold, U" / "Upgrade to Musketman unavailable, U says why" for a selected unit
 -- that has an upgrade; nil without one. The first selection of a unit per turn speaks it in full; later ones "Upgrade available, U"
 -- (available) or nothing (blocked).
 function HubAnnounce.UpgradeHint( unit:table )
@@ -243,9 +245,8 @@ function HubAnnounce.UpgradeHint( unit:table )
 				info.resourceCost = resourceCost;
 				info.resource = Locale.Lookup( GameInfo.Resources[ resourceType ].Name );
 			end
-		else
-			local reasons = ( results ~= nil ) and results[ UnitOperationResults.FAILURE_REASONS ] or nil;
-			if reasons ~= nil and reasons[1] ~= nil then info.reason = CleanReason( reasons[1] ); end
+		elseif not TargetUnlocked( row, unit:GetOwner() ) then
+			return nil;
 		end
 		local turn:number = Game.GetCurrentGameTurn();
 		local repeated:boolean = m_upgradeHeard[ unit:GetID() ] == turn;

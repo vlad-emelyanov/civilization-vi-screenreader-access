@@ -12,9 +12,8 @@ test("upgrade hint wording", function()
 	eq(HubAnnounce.UpgradeText({ target = "Musketman", available = true, cost = 120, resource = "Niter", resourceCost = 0 }, false),
 		"Upgrade to Musketman available, 120 gold, U")
 	eq(HubAnnounce.UpgradeText(pike, true), "Upgrade available, U")
-	local blocked = { target = "Musketman", available = false, reason = "Not enough Gold in treasury" }
-	eq(HubAnnounce.UpgradeText(blocked, false), "Upgrade to Musketman: Not enough Gold in treasury")
+	local blocked = { target = "Musketman", available = false }
+	eq(HubAnnounce.UpgradeText(blocked, false), "Upgrade to Musketman unavailable, U says why")
 	eq(HubAnnounce.UpgradeText(blocked, true), nil)
-	eq(HubAnnounce.UpgradeText({ target = "Musketman", available = false }, false), "Upgrade to Musketman unavailable")
 	eq(HubAnnounce.UpgradeText(nil, false), nil)
 end)
