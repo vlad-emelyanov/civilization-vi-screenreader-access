@@ -2855,7 +2855,12 @@ local function SRA_Announce( keepGuard:boolean )
 		title = title .. ", Recommended: " .. recommendedName;
 	end
 	m_srList.Reset();
-	if recommendedKey ~= nil and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then firstChoosable = recommendedKey; end
+	local firstIsRepair = false;
+	for _, item in ipairs( SRA_GetItems() ) do
+		if item.choosable then firstIsRepair = item.data ~= nil and item.data.Repair == true; break; end
+	end
+	-- a repair at the top stays focused: it is urgent
+	if recommendedKey ~= nil and not firstIsRepair and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then firstChoosable = recommendedKey; end
 	m_srList.Open( title, firstChoosable, false, keepGuard );
 end
 
