@@ -53,6 +53,9 @@ test("sector text", function()
 	}
 	eq(HubOverview.SectorText("North", entries),
 		"North: grassland and plains, Babylon's territory after 5 tiles, ocean from 6 tiles, Ur of Babylon at 7 tiles, partly unexplored")
+	-- a city remembered from when it was in view says so
+	eq(HubOverview.SectorText("South", { e(2, { kind = "plains", city = "Ur", cityOwner = "Babylon", stale = true }) }),
+		"South: plains, Ur of Babylon at 2 tiles (last seen)")
 	-- water that is a minority of the far plots is not "ocean from"
 	eq(HubOverview.SectorText("East", { e(1, { water = true }), e(2, { kind = "plains" }), e(3, { kind = "plains" }), e(4, { kind = "plains", city = "Rome" }) }),
 		"East: plains, your city Rome at 4 tiles")

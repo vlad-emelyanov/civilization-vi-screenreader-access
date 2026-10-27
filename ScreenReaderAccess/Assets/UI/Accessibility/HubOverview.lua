@@ -158,7 +158,7 @@ function HubOverview.SectorText( title:string, entries:table )
 	end
 	if city ~= nil then
 		local who:string = city.cityOwner ~= nil and ( city.city .. " of " .. city.cityOwner ) or ( "your city " .. city.city );
-		table.insert( parts, who .. " at " .. Plural( city.dist, "tile", "tiles" ) );
+		table.insert( parts, who .. " at " .. Plural( city.dist, "tile", "tiles" ) .. ( city.stale and " (last seen)" or "" ) );
 	end
 	if unexplored * 2 > total then
 		table.insert( parts, "mostly unexplored" );
@@ -314,15 +314,43 @@ local function Offset( cx:number, cy:number, x:number, y:number )
 	return { dx, y - cy };
 end
 
+-- A city on a plot as the player may know it: live while the plot is in view, always for our own, else only the foreign city
+-- remembered from when it was in view (HubPlaces.SeenCity, marked stale). Never the live state of a fogged plot.
+-- Returns name, owner id, stale.
+local function KnownCity( plot:table )
+	local localPlayer:number = Game.GetLocalPlayer();
+	local vis:table = PlayersVisibility[ localPlayer ];
+	if vis ~= nil and vis:IsVisible( plot:GetIndex() ) then
+		if not plot:IsCity() then return nil; end
+		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+		if city == nil then return nil; end
+		return Locale.Lookup( city:GetName() ), city:GetOwner(), false;
+	end
+	for _, city in Players[ localPlayer ]:GetCities():Members() do
+		if city:GetX() == plot:GetX() and city:GetY() == plot:GetY() then return Locale.Lookup( city:GetName() ), localPlayer, false; end
+	end
+	local name:string, owner:number = HubPlaces.SeenCity( plot:GetIndex() );
+	if name ~= nil then return name, owner, true; end
+	return nil;
+end
+
+-- The owner of a plot, only while it is in view (the owner of a fogged plot may have changed).
+local function VisibleOwner( plot:table )
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	if vis == nil or not vis:IsVisible( plot:GetIndex() ) then return nil; end
+	local owner:number = plot:GetOwner();
+	if owner ~= nil and owner >= 0 then return owner; end
+	return nil;
+end
+
 local function CityGroups( cityPlots:table )
 	local localPlayer:number = Game.GetLocalPlayer();
 	local mine:table, minors:table = {}, {};
 	local byCiv:table, order:table = {}, {};
 	for _, plot in ipairs( cityPlots ) do
-		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
-		if city ~= nil then
-			local owner:number = city:GetOwner();
-			local name:string = Locale.Lookup( city:GetName() );
+		local name:string, owner:number, stale:boolean = KnownCity( plot );
+		if name ~= nil then
+			if stale then name = name .. " (last seen)"; end
 			if owner == localPlayer then
 				table.insert( mine, name );
 			elseif Players[ owner ] ~= nil and not Players[ owner ]:IsMajor() then
@@ -366,7 +394,7 @@ local function BuildContinent( centre:table, centreName:string )
 		local plot:table = Map.GetPlotByIndex( index );
 		if plot ~= nil and IsRevealed( plot ) then
 			table.insert( offsets, Offset( cx, cy, plot:GetX(), plot:GetY() ) );
-			if plot:IsCity() then table.insert( cityPlots, plot ); end
+			if KnownCity( plot ) ~= nil then table.insert( cityPlots, plot ); end
 			for dir = 0, 5 do
 				local n:table = Map.GetAdjacentPlot( plot:GetX(), plot:GetY(), dir );
 				if n ~= nil and not IsRevealed( n ) then
@@ -404,14 +432,13 @@ local function BuildSectors( centre:table )
 					local kind:string = PlotKind( plot );
 					e.water = ( kind == "ocean" );
 					if kind ~= "ocean" and kind ~= "lake" then e.kind = kind; end
-					local owner:number = plot:GetOwner();
-					if owner ~= nil and owner >= 0 and owner ~= localPlayer then e.owner = PlotDescription_GetCivName( owner ); end
-					if plot:IsCity() then
-						local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
-						if city ~= nil then
-							e.city = Locale.Lookup( city:GetName() );
-							if city:GetOwner() ~= localPlayer then e.cityOwner = PlotDescription_GetCivName( city:GetOwner() ); end
-						end
+					local owner:number = VisibleOwner( plot );
+					if owner ~= nil and owner ~= localPlayer then e.owner = PlotDescription_GetCivName( owner ); end
+					local cityName:string, cityOwner:number, stale:boolean = KnownCity( plot );
+					if cityName ~= nil then
+						e.city = cityName;
+						e.stale = stale;
+						if cityOwner ~= localPlayer then e.cityOwner = PlotDescription_GetCivName( cityOwner ); end
 					end
 				end
 				table.insert( bucket, e );
