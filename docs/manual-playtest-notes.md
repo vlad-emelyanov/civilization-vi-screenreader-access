@@ -59,3 +59,11 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
 - With the cursor on the tile there is no such key. M on the map is the game's Move To, which needs a unit selected first and then a target tile.
 
 **Proposed:** a cursor key (or Shift+M) that opens the same send list for the cursor's plot, with the plot's short description as the place name. It works for any tile, not only listed places. It also needs a `HelpText.lua` entry. Check `keymap.md` for a free key.
+
+## M4. City report population row: put housing first (small tweak)
+
+**Reported:** the population row says the population, then food and growth, and only at the end "housing 6 of 7". The population-out-of-housing number should come first.
+
+**Today:** `CityReportData.lua` `GrowthItem` builds "Population 6, plus 4 food, grows in 11 turns, housing 6 of 14". It is checked in `test/lua/test_cityreport.lua:55`. No regress `.txt` expects this wording; only `.recorded.txt` sidecars contain it.
+
+**Proposed:** "Population 6 of 7 housing, plus 4 food, grows in 11 turns". Drop the trailing "housing X of Y", keep the starving, housing-stopped and slowed states as they are, and update the Lua test. Optionally add "1 free housing" or "housing full" right after it, because that is what decides growth.
