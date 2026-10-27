@@ -706,6 +706,37 @@ local function SRA_OnClanCampUnderCursor( onCamp )
 end
 -- End ScreenReaderAccess mod change
 
+-- Begin ScreenReaderAccess mod change: the hub's Screens list (controller ring) opens the launch bar screens through the function the button runs.
+-- LuaEvents.SRA_OpenScreen( name ) -> LuaEvents.SRA_ScreenOpened( name, ok ), synchronously; ok is false when the hook is not available now.
+-- Governors and Climate come from the expansion launch bar files (they include this one), whose global functions are looked up when called.
+local function SRA_OnOpenScreen( name )
+	local opener = nil;
+	if name == "Tech tree" then
+		if m_isTechTreeAvailable then opener = OnOpenResearch; end
+	elseif name == "Civics tree" then
+		if m_isCivicsTreeAvailable then opener = OnOpenCulture; end
+	elseif name == "Government" then
+		if m_isGovernmentAvailable then opener = OnOpenGovernment; end
+	elseif name == "Religion" then
+		if m_isReligionAvailable then opener = OnOpenReligion; end
+	elseif name == "Great People" then
+		if m_isGreatPeopleAvailable then opener = OnOpenGreatPeople; end
+	elseif name == "Great Works" then
+		if m_isGreatWorksAvailable then opener = OnOpenGreatWorks; end
+	elseif name == "Governors" then
+		-- the only difference from the button's own flag (m_isGovernorsAvailable of the Expansion1 file, a local we cannot see) is observer mode
+		if ToggleGovernors ~= nil and HasCapability("CAPABILITY_GOVERNORS") and Game.GetLocalPlayer() ~= -1 then opener = ToggleGovernors; end
+	elseif name == "Climate" then
+		-- same as Governors: the button shows iff the capability is on; only observer mode differs
+		if OnToggleClimateScreen ~= nil and HasCapability("CAPABILITY_WORLD_CLIMATE_VIEW") and Game.GetLocalPlayer() ~= -1 then opener = OnToggleClimateScreen; end
+	else
+		return;		-- not a launch bar screen (PartialScreenHooks answers its own)
+	end
+	if opener ~= nil then opener(); end
+	LuaEvents.SRA_ScreenOpened( name, opener ~= nil );
+end
+-- End ScreenReaderAccess mod change
+
 -- Begin ScreenReaderAccess mod change: a hotkey for a screen that is not available yet used to do nothing at all; say why.
 local function SRA_SayUnavailable( actionId )
 	if actionId == Input.GetActionId("ToggleGovernment") and not m_isGovernmentAvailable and HasCapability("CAPABILITY_GOVERNMENTS_VIEW") then
@@ -801,6 +832,7 @@ function Unsubscribe()
 	Events.GreatWorkCreated.Remove( OnGreatWorkCreated );
 	Events.InputActionTriggered.Remove( OnInputActionTriggered );
 	LuaEvents.SRA_ClanCampUnderCursor.Remove( SRA_OnClanCampUnderCursor );		-- ScreenReaderAccess
+	LuaEvents.SRA_OpenScreen.Remove( SRA_OnOpenScreen );		-- ScreenReaderAccess
 	Events.InterfaceModeChanged.Remove( OnInterfaceModeChanged );
 	Events.LocalPlayerChanged.Remove( OnLocalPlayerChanged );
 	Events.LocalPlayerTurnBegin.Remove( OnLocalPlayerTurnBegin );
@@ -854,6 +886,7 @@ function Subscribe()
 	Events.GreatWorkCreated.Add( OnGreatWorkCreated );
 	Events.InputActionTriggered.Add( OnInputActionTriggered );
 	LuaEvents.SRA_ClanCampUnderCursor.Add( SRA_OnClanCampUnderCursor );		-- ScreenReaderAccess
+	LuaEvents.SRA_OpenScreen.Add( SRA_OnOpenScreen );		-- ScreenReaderAccess
 	Events.InterfaceModeChanged.Add( OnInterfaceModeChanged );
 	Events.LocalPlayerChanged.Add( OnLocalPlayerChanged );
 	Events.LocalPlayerTurnBegin.Add( OnLocalPlayerTurnBegin );

@@ -1,0 +1,34 @@
+# Written blind (2026-10-27, not yet verified in game; run with --record first). The Screens list of the controller ring opens
+# the game screens through LuaEvents.SRA_OpenScreen (LaunchBar.lua / PartialScreenHooks.lua). Fixture early-t60: City-States are
+# known there (see early-t60-screens-open). From the bare map LB opens Places, a second LB Screens (Diplomacy may be skipped, so RB is not used).
+# Items: Tech tree, Civics tree, Government, Religion, Great People, Great Works, Governors, City-States, ...
+# covers: **/HubScreens.lua **/LaunchBar.lua **/PartialScreenHooks.lua
+# no-share-load: opens game screens
+load early-t60
+clear-advisors
+key F22 -Settle 800
+key F14 -Settle 1500
+key F14 -Settle 1500
+expect (?i)^Screens
+expect (?i)^Tech tree
+key Enter -Settle 2500 -Quiet 800
+expect ^Tech tree\.
+key Escape -Settle 1500
+key F14 -Settle 1500
+key F14 -Settle 1500
+expect (?i)^Screens
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+expect (?i)^City-States
+key Enter -Settle 2000
+expect ^City-States, \d+ met
+key Escape -Settle 1500
+expect ^City-States closed
+key F23 -Settle 500
+expect-not (?i)not available
+no-lua-errors

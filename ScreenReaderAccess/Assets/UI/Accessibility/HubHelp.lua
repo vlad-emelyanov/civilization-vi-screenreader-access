@@ -100,6 +100,16 @@ function HubHelp.Toggle()
 	if HubCore.IsModeOpen( "help" ) then CloseHelp(); return; end
 	if not HubTargets.CanOpenMode( true ) then return; end
 	m_data = HelpText_Build( CurrentBinding );
+	-- Controller mode: the Controller section comes first, otherwise last (Gamepad.lua is written by the controller work: guarded)
+	local pad = _G[ "Gamepad" ];		-- (the global is declared by the other branch)
+	local padActive:boolean = ( pad ~= nil and pad.IsActive ~= nil and pad.IsActive() ) or false;
+	for i, section in ipairs( m_data ) do
+		if section.title == "Controller" then
+			table.remove( m_data, i );
+			if padActive then table.insert( m_data, 1, section ); else table.insert( m_data, section ); end
+			break;
+		end
+	end
 	m_section = 1;
 	HubCore.OpenMode( "help", m_facade, "Accessibility help" );
 end

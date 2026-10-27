@@ -35,7 +35,7 @@ read_globals = {
 
 -- Globals the mod defines in Assets/UI/Accessibility/*.lua (shared via include()). Keep in sync.
 globals = {
-	"Hub", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubPlaces", "HubOverview", "BlindSpots", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp", "HubGamepad", "Gamepad", "Gamepad_CatchKey", "HelpText_Sections", "HelpText_KeyText", "HelpText_Line", "HelpText_Build",
+	"Hub", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubPlaces", "HubOverview", "BlindSpots", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp", "HubGamepad", "HubPad", "HubLenses", "HubScreens", "Gamepad", "Gamepad_CatchKey", "HelpText_Sections", "HelpText_KeyText", "HelpText_Line", "HelpText_Build",
 	"CleanTextForSpeech", "SRDescriptionFirst", "DealSpeech_AvailableText", "DealSpeech_ChangeText", "DealSpeech_DealItemText", "DealSpeech_Intro",
 	"DealSpeech_ItemText", "DealSpeech_Summary", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
 	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",

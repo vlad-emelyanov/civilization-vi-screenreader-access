@@ -245,6 +245,9 @@ include( "HubEvents" );
 include( "HubEnemies" );
 include( "HubHelp" );
 include( "HubGamepad" );
+include( "HubPad" );		-- controller ring (RB / LB)
+include( "HubLenses" );
+include( "HubScreens" );
 
 -- ===========================================================================
 function Initialize()
