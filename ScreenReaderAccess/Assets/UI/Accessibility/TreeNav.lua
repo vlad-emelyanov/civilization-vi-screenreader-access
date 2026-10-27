@@ -347,7 +347,7 @@ function TreeNav_Create( a:table )
 			return;
 		end
 		m_resList = { groups = groups, index = 1 };
-		Say( "Resources to unlock, " .. #groups .. ". Up and Down, Enter sets the target, Escape leaves" );
+		Say( "Resources to unlock, " .. #groups .. ". " .. SRKey( "Up and Down" ) .. ", " .. SRKey( "Enter" ) .. " sets the target, " .. SRKey( "Escape" ) .. " leaves" );
 		ResSay();
 	end
 

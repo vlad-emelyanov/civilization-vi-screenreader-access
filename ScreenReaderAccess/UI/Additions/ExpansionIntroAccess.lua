@@ -146,7 +146,7 @@ end
 
 function KeyNavAnnouncePage( includeTitle:boolean, noInterrupt:boolean )
 	local hint:string = "";
-	if m_PageIndex == 1 then hint = "Escape skips the introduction. "; end
+	if m_PageIndex == 1 then hint = SRKey( "Escape" ) .. " skips the introduction. "; end
 	local text:string = "Page " .. m_PageIndex .. " of " .. NUM_PAGES .. ". " .. hint .. KeyNavPageText();
 	if includeTitle then
 		text = Locale.Lookup(EXPANSION_NAME_KEY) .. ". " .. text;

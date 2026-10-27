@@ -28,7 +28,7 @@ function ShowBoost(queueEntry:table)
 
 	-- ScreenReaderAccess mod change: speak the boost (Enter or Escape continues); the hub holds its own announcements meanwhile
 	LuaEvents.SRA_SpeechHold( "BoostUnlocked", true, "/InGame/WorldPopups/" .. ContextPtr:GetID(), true );		-- silent: turn-start lines spoken just before are not repeated; (the popup may still be hidden for a moment: DelayShow; OnShow takes the hold again)
-	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". Enter to continue", true);		-- nointerrupt
+	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". " .. SRKey( "Enter" ) .. " to continue", true);		-- nointerrupt
 
 	PlayAnimations();
 end

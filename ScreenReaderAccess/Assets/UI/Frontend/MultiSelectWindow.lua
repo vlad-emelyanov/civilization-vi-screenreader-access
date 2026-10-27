@@ -221,7 +221,7 @@ function OnShow()
 	m_keyNavButtonIndex = 1;
 	if m_Parameter == nil or m_ItemList == nil then return; end
 	local title:string = CleanTextForSpeech(Controls.WindowTitle:GetText());
-	OutputMessageToScreenReader(title..", "..KeyNavCountText()..". Up and Down to browse, Space to toggle, Tab for Select All, Select None and OK, Escape to cancel", true);
+	OutputMessageToScreenReader(title..", "..KeyNavCountText()..". " .. SRKey( "Up and Down" ) .. " to browse, " .. SRKey( "Space" ) .. " to toggle, " .. SRKey( "Tab" ) .. " for Select All, Select None and OK, " .. SRKey( "Escape" ) .. " to cancel", true);
 	if #m_ItemList > 0 then
 		OnItemFocus(m_ItemList[1].item);
 		OutputMessageToScreenReader(KeyNavItemText(1, true), true);

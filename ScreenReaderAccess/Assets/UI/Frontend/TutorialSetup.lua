@@ -149,7 +149,7 @@ function OnShow()
 	Controls.IntroMovie:Play();	
 	UI.PlaySound("Play_Cinematic_Tutorial_Intro");
 	m_isMoviePaused = false;
-	OutputMessageToScreenReader(CleanTextForSpeech(Locale.Lookup("LOC_SETUP_TUTORIAL_TITLE")).." introduction movie. Press Enter or Escape to skip it", true);
+	OutputMessageToScreenReader(CleanTextForSpeech(Locale.Lookup("LOC_SETUP_TUTORIAL_TITLE")).." introduction movie. Press " .. SRKey( "Enter" ) .. " or " .. SRKey( "Escape" ) .. " to skip it", true);
 end
 
 -- ===========================================================================

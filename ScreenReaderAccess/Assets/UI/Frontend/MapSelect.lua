@@ -160,10 +160,10 @@ end
 function OnShow()
 	m_keyNavInitialValue = m_selectedMapValue;
 	if #m_keyNavMaps == 0 then
-		OutputMessageToScreenReader(Locale.Lookup("LOC_SETUP_MAP_CREATE_GAME_SELECT_MAP")..". No maps available. Escape to close", true);
+		OutputMessageToScreenReader(Locale.Lookup("LOC_SETUP_MAP_CREATE_GAME_SELECT_MAP")..". No maps available. " .. SRKey( "Escape" ) .. " to close", true);
 		return;
 	end
-	OutputMessageToScreenReader(CleanTextForSpeech(Controls.WindowTitle:GetText())..", "..tostring(#m_keyNavMaps).." maps. Up and Down to browse, Enter to select, Escape to cancel", true);
+	OutputMessageToScreenReader(CleanTextForSpeech(Controls.WindowTitle:GetText())..", "..tostring(#m_keyNavMaps).." maps. " .. SRKey( "Up and Down" ) .. " to browse, " .. SRKey( "Enter" ) .. " to select, " .. SRKey( "Escape" ) .. " to cancel", true);
 	OutputMessageToScreenReader("Current map: "..KeyNavMapText(KeyNavFindSelected()), true);
 end
 

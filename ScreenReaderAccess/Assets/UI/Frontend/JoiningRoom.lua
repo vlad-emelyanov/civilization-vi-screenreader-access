@@ -304,7 +304,7 @@ function OnShow()
 	m_lastStatus = "";
 	m_lastModsRemaining = -1;
 	if not Network.IsNetSessionHost() then
-		OutputMessageToScreenReader("Joining game. Press Escape to cancel", true);
+		OutputMessageToScreenReader("Joining game. Press " .. SRKey( "Escape" ) .. " to cancel", true);
 	end
 	if(Network.IsMatchMaking()) then
 		KeyNavSetStatus(Locale.ToUpper(Locale.Lookup("LOC_MULTIPLAYER_MATCHMAKING")));

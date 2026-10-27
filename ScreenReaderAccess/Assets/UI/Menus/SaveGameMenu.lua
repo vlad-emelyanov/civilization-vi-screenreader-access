@@ -36,7 +36,7 @@ local function SpeakConfirm()
 	if g_iSelectedFileEntry ~= -1 and g_FileList ~= nil and g_FileList[g_iSelectedFileEntry] ~= nil then
 		name = GetDisplayName(g_FileList[g_iSelectedFileEntry])..". ";
 	end
-	OutputMessageToScreenReader(name..(Controls.Message:GetText() or "")..". Enter for yes, Escape for no.", false);
+	OutputMessageToScreenReader(name..(Controls.Message:GetText() or "")..". " .. SRKey( "Enter" ) .. " for yes, " .. SRKey( "Escape" ) .. " for no.", false);
 end
 
 ----------------------------------------------------------------        
@@ -267,7 +267,7 @@ function OnShow()
 	m_savePending = false;
 	m_focus = { ref = "name" };
 	m_pending = { opening = true };
-	OutputMessageToScreenReader(Controls.WindowHeader:GetText()..". Name: "..(Controls.FileName:GetText() or "")..", edit box. Enter edits the name. Down: existing saves. Tab: jump between name, saves, options and buttons.", true);
+	OutputMessageToScreenReader(Controls.WindowHeader:GetText()..". Name: "..(Controls.FileName:GetText() or "")..", edit box. " .. SRKey( "Enter" ) .. " edits the name. " .. SRKey( "Down" ) .. ": existing saves. " .. SRKey( "Tab" ) .. ": jump between name, saves, options and buttons.", true);
 end
 ----------------------------------------------------------------        
 function OnHide()
@@ -372,7 +372,7 @@ local function KeyNavItemText(item:table, items:table)
 		if Controls.CloudCheck:IsDisabled() then t = t..", unavailable"; end
 		return t;
 	elseif item.ref == "sort" then
-		return GetSortOptionText()..", Left or Right to change";
+		return GetSortOptionText()..", " .. SRKey( "Left or Right", "left stick left or right" ) .. " to change";
 	else
 		local t:string = item.control:GetText();
 		if item.control:IsDisabled() then

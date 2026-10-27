@@ -122,7 +122,7 @@ function ShowPopup( kData:table )
 	local quote:string = Locale.Lookup(GameInfo.Buildings[buildingIndex].Quote or "");
 	if quote ~= nil and quote ~= "" then text = text .. " " .. CleanTextForSpeech(quote); end
 	LuaEvents.SRA_SpeechHold( "WonderBuilt", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );		-- the hub's announcements wait until this popup closes
-	OutputMessageToScreenReader(text .. " Enter to continue");
+	OutputMessageToScreenReader(text .. " " .. SRKey( "Enter" ) .. " to continue");
 	-- End ScreenReaderAccess mod change
 end
 

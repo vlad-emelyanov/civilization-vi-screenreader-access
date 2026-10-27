@@ -441,7 +441,7 @@ local function KeyNavItemText(item:table, items:table)
 		if Controls.CloudCheck:IsDisabled() then t = t..", unavailable"; end
 		return t;
 	elseif item.ref == "sort" then
-		return GetSortOptionText()..", Left or Right to change";
+		return GetSortOptionText()..", " .. SRKey( "Left or Right", "left stick left or right" ) .. " to change";
 	else
 		local t:string = item.control:GetText();
 		if item.control:IsDisabled() then t = t..", unavailable"; end
