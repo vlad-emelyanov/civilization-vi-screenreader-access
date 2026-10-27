@@ -13,6 +13,7 @@ include( "ScreenReader" );		-- ScreenReaderAccess
 include( "KeyNavList" );		-- ScreenReaderAccess
 include( "DealSpeech" );		-- ScreenReaderAccess
 include( "SRListen" );		-- ScreenReaderAccess
+include( "Gamepad" );		-- ScreenReaderAccess
 
 
 -- ===========================================================================
@@ -4036,7 +4037,7 @@ local function SRA_HandleKey( input:table, key:number, isUp:boolean )
 		if isUp then SRA_CycleSection( ( input:IsShiftDown() or input:IsControlDown() ) and -1 or 1 ); end
 		return;
 	end
-	if key == Keys.S and not input:IsShiftDown() and not input:IsControlDown() and not input:IsAltDown() then
+	if ( key == Keys.S or key == Gamepad.Key( "X" ) ) and not input:IsShiftDown() and not input:IsControlDown() and not input:IsAltDown() then
 		if isUp then SRA_SpeakStatus(); end
 		return;
 	end
@@ -4073,7 +4074,7 @@ function SRA_CreateLists()
 		end
 	end
 	m_srLists[1] = KeyNavList_Create{ build = SRA_DealItems, isActive = Active( 1 ), onActivate = SRA_RemoveItem, onClose = SRA_Escape,
-		extraKeys = { [ Keys.VK_DELETE ] = SRA_KeyDelete } };
+		extraKeys = { [ Keys.VK_DELETE ] = SRA_KeyDelete, [ Gamepad.Key( "LT" ) or Keys.VK_DELETE ] = SRA_KeyDelete } };
 	m_srLists[2] = KeyNavList_Create{ build = function() return SRA_AvailableItems( LOCAL_PLAYER ); end, isActive = Active( 2 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
 	m_srLists[3] = KeyNavList_Create{ build = function() return SRA_AvailableItems( OTHER_PLAYER ); end, isActive = Active( 3 ), onActivate = SRA_OnAvailableActivate, onClose = SRA_Escape };
 	m_srLists[4] = KeyNavList_Create{ build = SRA_ActionItems, focusLostSafe = true, focusLostText = function() local t = DealSpeech_InvalidItemsText( SRA_InvalidItems() ); if t == nil or t == "" then t = "Nothing was focused yet"; end return t; end, isActive = Active( 4 ), onActivate = SRA_OnActionActivate, onClose = SRA_Escape };

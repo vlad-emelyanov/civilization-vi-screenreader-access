@@ -7,6 +7,7 @@ include("TechAndCivicSupport");			-- (Already includes Civ6Common and InstanceMa
 include("LocalPlayerActionSupport");
 
 include("ScreenReader")
+include("Gamepad")
 
 	
 -- ===========================================================================
@@ -409,7 +410,7 @@ function OnInputHandler( input )
 			return true;
 		end
 		-- ScreenReaderAccess mod change: G opens the government screen (change policies / new government)
-		if ( key == Keys.G or ( Keys.VK_F7 ~= nil and key == Keys.VK_F7 ) ) and m_srGovernmentAction ~= nil then		-- G is Toggle Grid on the map, but this popup consumes all input, so it never reaches the map; F7 is the game's own Government key
+		if ( key == Keys.G or Gamepad.ButtonOf( key, input:IsControlDown() ) == "X" or ( Keys.VK_F7 ~= nil and key == Keys.VK_F7 ) ) and m_srGovernmentAction ~= nil then		-- G is Toggle Grid on the map, but this popup consumes all input, so it never reaches the map; F7 is the game's own Government key
 			m_srGovernmentAction();
 			return true;
 		end

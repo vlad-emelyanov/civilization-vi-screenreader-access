@@ -169,9 +169,11 @@ local m_sections:table = {
 		{ keys = "Delete in options",		text = "options, key bindings: Delete (controller: X) clears the selected binding" },
 		{ action = "KeyNavDiplomacy",	default = "V",			text = "diplomacy: you first, then civilizations met, each with score, military, science, culture, gold and faith; Enter opens the diplomacy screen with that leader" },
 		{ action = "KeyNavStanding",	default = "Control+R",	text = "where you stand among the civilizations you have met: rank in score, military, science, culture, gold and faith, and your weakest category" },
-		{ keys = "Tab and Control+Tab",	text = "deal screen: Deal, your items, their items, actions; S reads the summary" },
+		{ keys = "Tab and Control+Tab",	text = "deal screen: Deal, your items, their items, actions; S reads the summary (controller: X)" },
 		{ keys = "Left and Right",		text = "deal screen: change a gold or resource amount by 1, with Shift by 10" },
-		{ keys = "Left and Right",		text = "world congress: choose option A or B; equals or Shift+Up adds a vote, minus removes" },
+		{ keys = "Delete",				text = "deal screen, your items: remove the focused item from the deal (controller: LT)" },
+		{ keys = "Left and Right",		text = "world congress: choose option A or B; equals or Shift+Up adds a vote (controller: X), minus removes (controller: LT)" },
+		{ keys = "T, N and H",			text = "world congress: T chooses the target of a resolution, N goes forward (controller: RT), H reads the help" },
 	} },
 	{ title = "Controller", entries = {
 		{ keys = "A",					text = "activate or confirm; on the map Next Action; in a target mode confirm the tile" },
@@ -200,6 +202,9 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "close a popup" },
 		{ keys = "Left and Right",		text = "treat with a clan popup: on Incite, choose the civilization to incite the clan against" },
 		{ keys = "Enter",				text = "treat with a clan popup: hire, incite, bribe, ransom or close; Space reads the full description" },
+		{ keys = "G or F7",				text = "completed tech or civic popup: opens the government screen (controller: X)" },
+		{ keys = "R",					text = "espionage mission popup: renews a completed mission (controller: X)" },
+		{ keys = "C",					text = "dedication popup: confirms the chosen dedication (controller: X)" },
 		{ keys = "Any popup",			text = "other announcements wait until it closes, then they follow" },
 	} },
 };
