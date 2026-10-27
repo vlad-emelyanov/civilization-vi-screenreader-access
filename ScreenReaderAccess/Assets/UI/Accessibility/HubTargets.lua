@@ -797,8 +797,8 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	local label:string = TargetLabel( newMode );
 	if label == nil then return; end
 	if IsTeleportMode( newMode ) then
-		-- a delay lets the unit menu close and the mode's parameter settle
-		HubCore.After( 0.2, function() if IsTeleportMode( UI.GetInterfaceMode() ) then HubTargets.OpenTransfer(); end end );
+		-- at once (the unit menu is closed above): Enter in a gap would reach ConfirmTarget on the cursor plot
+		HubTargets.OpenTransfer();
 		return;
 	end
 	-- the cursor starts at the acting unit or city, and the tiles are chosen from there
@@ -865,7 +865,7 @@ local function CancelTransfer()
 	HubCore.SayResult( "Cancelled" );
 end
 
--- What WorldInput TeleportToCity() does for the plot of the chosen city, then tells where the unit ended up.
+-- Mirrors WorldInput.lua TeleportToCity() exactly (same CanStartOperation / RequestOperation / SetInterfaceMode), then tells where the unit ended up.
 function HubTargets.ConfirmTeleport( unit:table, plot:table, operation )
 	if operation == nil then operation = UnitOperationTypes.TELEPORT_TO_CITY; end
 	local parameters:table = {};
@@ -892,7 +892,7 @@ function HubTargets.ConfirmTeleport( unit:table, plot:table, operation )
 		elseif attempt < 3 then
 			HubCore.After( 0.6, function() Check( attempt + 1 ); end );
 		else
-			HubCore.SayResult( unitName + " did not arrive in " .. cityName );
+			HubCore.SayResult( unitName .. " did not arrive in " .. cityName );
 		end
 	end
 	HubCore.After( 0.4, function() Check( 1 ); end );
