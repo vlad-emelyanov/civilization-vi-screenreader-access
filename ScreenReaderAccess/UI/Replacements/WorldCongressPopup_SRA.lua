@@ -2,6 +2,7 @@
 -- World Congress Popup
 -- ===========================================================================
 include("PopupDialog");
+include("Gamepad");
 include("LeaderIcon");
 include("CivilizationIcon");
 include("InstanceManager");
@@ -3322,6 +3323,9 @@ function SRA_CreateLists()
 	Bind( Keys.VK_LEFT, function() SRA_KeyHorizontal( -1 ); end );
 	Bind( Keys.VK_RIGHT, function() SRA_KeyHorizontal( 1 ); end );
 	Bind( Keys.VK_OEM_PLUS, function() SRA_KeyVote( 1 ); end );
+	Bind( Gamepad.Key( "X" ), function() SRA_KeyVote( 1 ); end );		-- controller: X adds a vote, LT removes one, RT = N
+	Bind( Gamepad.Key( "LT" ), function() SRA_KeyVote( -1 ); end );
+	Bind( Gamepad.Key( "RT" ), SRA_Forward );
 	Bind( Keys.VK_OEM_MINUS, function() SRA_KeyVote( -1 ); end );
 	Bind( Keys.VK_TAB, function() if SRA_Mode() == "review" then SRA_SwitchTab( 1 ); end end );
 	Bind( Keys.T, function()

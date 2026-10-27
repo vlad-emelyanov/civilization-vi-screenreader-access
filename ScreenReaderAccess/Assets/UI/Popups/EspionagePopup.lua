@@ -3,6 +3,7 @@
 include("InstanceManager");
 include("EspionageSupport");
 include("ScreenReader");	-- ScreenReaderAccess mod change
+include("Gamepad");
 include("SRListen");	-- ScreenReaderAccess mod change
 
 -- ===========================================================================
@@ -659,11 +660,11 @@ function OnInputHandler( pInputStruct:table )
 	-- Begin ScreenReaderAccess mod change: Enter does what the visible main button does; R renews a completed mission
 	if not ContextPtr:IsHidden() and ( uiMsg == KeyEvents.KeyUp or uiMsg == KeyEvents.KeyDown ) then
 		local key:number = pInputStruct:GetKey();
-		if key == Keys.VK_RETURN or key == Keys.VK_ESCAPE or ( key == Keys.R and m_srRenew ~= nil ) then
+		if key == Keys.VK_RETURN or key == Keys.VK_ESCAPE or ( ( key == Keys.R or key == Gamepad.Key( "X" ) ) and m_srRenew ~= nil ) then
 			if uiMsg == KeyEvents.KeyUp then
 				if key == Keys.VK_ESCAPE then
 					Close();
-				elseif key == Keys.R then
+				elseif key == Keys.R or key == Gamepad.Key( "X" ) then
 					m_srRenew();
 				elseif m_currentPopupState == EspionagePopupStates.MISSION_BRIEFING then
 					OnAccept();

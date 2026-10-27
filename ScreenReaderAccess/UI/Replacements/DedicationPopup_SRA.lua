@@ -2,6 +2,7 @@
 
 include("InstanceManager");
 include("ScreenReader");		-- ScreenReaderAccess
+include("Gamepad");
 include("SRListen");		-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
 
@@ -471,7 +472,7 @@ function Initialize()
 		isActive = function() return not ContextPtr:IsHidden(); end,
 		onActivate = SRA_Activate,
 		onClose = SRA_Close,
-		extraKeys = { [Keys.C] = SRA_Confirm },
+		extraKeys = { [Keys.C] = SRA_Confirm, [Gamepad.Key( "X" ) or Keys.C] = SRA_Confirm },
 	};
 
 	Controls.CloseButton:RegisterCallback(Mouse.eLClick, OnClose);
