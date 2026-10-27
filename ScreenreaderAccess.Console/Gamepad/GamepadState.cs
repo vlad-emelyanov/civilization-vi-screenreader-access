@@ -10,7 +10,8 @@ public enum PadButton
 
 public enum KeyAction { Down, Up, Tap }
 
-public readonly record struct KeyEvent(PadButton Button, KeyAction Action)
+/// <summary>Shift: inject with Left Shift held (RT-held modifier; the Up of a Shift Down carries the same flag).</summary>
+public readonly record struct KeyEvent(PadButton Button, KeyAction Action, bool Shift = false)
 {
     public bool Down => Action == KeyAction.Down;
 }

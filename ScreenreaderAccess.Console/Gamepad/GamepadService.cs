@@ -118,11 +118,11 @@ public sealed class GamepadService : IDisposable
         PadKey key = GamepadMap.Get(e.Button);
         switch (e.Action)
         {
-            case KeyAction.Down: _injector.KeyDown(key); _heldDown.Add(e.Button); break;
-            case KeyAction.Up: _injector.KeyUp(key); _heldDown.Remove(e.Button); break;
-            default: _injector.Tap(key); break;
+            case KeyAction.Down: _injector.KeyDown(key, e.Shift); _heldDown.Add(e.Button); break;
+            case KeyAction.Up: _injector.KeyUp(key, e.Shift); _heldDown.Remove(e.Button); break;
+            default: _injector.Tap(key, e.Shift); break;
         }
-        if (_log) Console.WriteLine($"Gamepad: {e.Button} -> {key.Key} {(e.Action == KeyAction.Tap ? "tap" : e.Down ? "down" : "up")}");
+        if (_log) Console.WriteLine($"Gamepad: {e.Button} -> {(e.Shift ? "Shift+" : "")}{key.Key} {(e.Action == KeyAction.Tap ? "tap" : e.Down ? "down" : "up")}");
     }
 
     public void Dispose()

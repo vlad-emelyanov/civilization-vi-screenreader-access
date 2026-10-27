@@ -53,6 +53,6 @@ Note for screen reader users: Even though Modbuddy features its own mini version
 
 ## Controller
 
-The console app also turns an Xbox-style controller (XInput) into keyboard input for the game: it injects Enter, Escape, Space, the arrows, Home/End, Tab and F13-F24 (and Control+F13..F16 for the right stick) while Civilization VI is in the foreground; the mod's hub then reads those keys. The button map is in `docs/controller-plan.md`. F22/F23 tell the mod when controller mode switches on or off, and F13-F24 are used as the controller's extra keys, so do not bind them yourself.
+The console app also turns an Xbox-style controller (XInput) into keyboard input for the game: it injects Enter, Escape, Space, the arrows, Home/End, Tab and F13-F24 (and Control+F13..F16 for the right stick) while Civilization VI is in the foreground; the mod's hub then reads those keys. The button map is in `docs/controller-plan.md`. Hold RT to use the left stick, D-pad and A with Shift (Shift+Arrows, Shift+Home/End, Shift+Enter; D-pad left/right stay Tab / Control+Tab); if RT was used that way, releasing it does not send its own key. F22/F23 tell the mod when controller mode switches on or off, and F13-F24 are used as the controller's extra keys, so do not bind them yourself.
 
 Steam Input must be disabled for the game (Steam library, Civilization VI, Properties, Controller, "Disable Steam Input"), otherwise every press arrives twice. Start the console app with `--no-gamepad` to turn the feature off, or `--gamepad-log` to print every key it sends.
