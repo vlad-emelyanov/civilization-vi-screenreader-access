@@ -12,6 +12,7 @@ include("SupportFunctions");
 include("GameCapabilities");
 include("TeamSupport");
 include("ScreenReader");		-- ScreenReaderAccess
+include("DiplomacyText");
 include("KeyNavList");		-- ScreenReaderAccess
 
 -- ===========================================================================
@@ -1795,6 +1796,7 @@ local function SRA_PendingText( kCityState:table )
 	local pending:number = SRA_Pending( kCityState.iPlayer );
 	local left:number = SRA_EnvoysLeft();
 	local text:string = Locale.Lookup( kCityState.Name ) .. ", " .. SRA_Envoys( kCityState.Tokens + pending ) .. ", " .. pending .. " pending, " .. left .. " left to give";
+	text = text .. DiplomacyText_SuzerainNote( kCityState.isBonusSuzerain, kCityState.Tokens, pending, kCityState.SuzerainTokensNeeded );
 	if left <= 0 then text = text .. ". All envoys placed, C to confirm"; end
 	return text;
 end

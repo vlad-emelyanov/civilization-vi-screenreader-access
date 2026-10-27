@@ -2,7 +2,7 @@
 #  - t60-envoys-to-give (verified 2026-10-22): F2 opens the city-states screen with the envoys; Escape closes it.
 #  - envoys-escape-twostep (BLIND, the verifier records it): Escape in envoy send mode with pending envoys: first Escape warns, second discards.
 # The plain open/close part runs first; the discard part last reopens the screen (discarding leaves the 3 envoys to give).
-# covers: **/CityStates.lua **/HelpText.lua
+# covers: **/CityStates.lua **/HelpText.lua **/DiplomacyText.lua
 # no-share-load: scenario envoys-to-give
 load early-t60
 scenario envoys-to-give
@@ -17,6 +17,8 @@ key F2 -Settle 2500
 expect ^Send envoys: 3 to give\. .*, \d+ of \d+
 key Enter -Settle 1000
 expect pending
+# BLIND (round 28): Hong Kong has 2 envoys and no suzerain, so the first pending envoy reaches the 3 the suzerain needs
+expect (?i)Hong Kong, 3 envoys, 1 pending, 2 left to give, you become suzerain
 key Escape -Settle 1000
 expect ^1 envoy not sent: C confirms them\. Escape again to discard\.
 key Escape -Settle 1500

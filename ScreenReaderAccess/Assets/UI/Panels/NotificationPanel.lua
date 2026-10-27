@@ -4,6 +4,7 @@ include( "ToolTipHelper" );
 include( "InstanceManager" );
 
 include("ScreenReader");
+include("DiplomacyText");
 
 
 -- ===========================================================================
@@ -1924,6 +1925,10 @@ local function SRA_NotificationTexts( pNotification:table )
 			end
 		end
 	end
+	-- "Declaration of War" alone does not say who declared on whom: the summary does, put it into the main line
+	local merged:string = DiplomacyText_NotificationLine( pNotification:GetTypeName(), message, summary );
+	if merged ~= message then message = merged; summary = ""; end	-- the summary is in the main line now: do not speak it twice
+	if pNotification:GetTypeName() == "NOTIFICATION_CITYSTATE_USURPED" then summary = summary .. ". F2 to send envoys"; end
 	return message, summary;
 end
 

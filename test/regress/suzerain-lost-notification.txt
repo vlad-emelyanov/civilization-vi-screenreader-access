@@ -1,5 +1,5 @@
 # BLIND (written without running the game). "Suzerain Status Lost" names the city-state and the new suzerain, in the list and on Enter.
-# covers: **/NotificationPanel.lua **/HubRegions.lua
+# covers: **/NotificationPanel.lua **/HubRegions.lua **/DiplomacyText.lua
 # no-share-load: Enter on a notification acts in the game
 load bug-suzerain-lost-nameless
 clear-advisors
