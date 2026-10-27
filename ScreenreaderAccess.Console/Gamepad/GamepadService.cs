@@ -102,6 +102,7 @@ public sealed class GamepadService : IDisposable
             if (e.Action == KeyAction.Up && !_heldDown.Contains(e.Button)) continue;   // its down was dropped
             Inject(e);
         }
+        if (cur.RightTrigger < GamepadMapper.TriggerThreshold) _heldDown.Remove(PadButton.RT);   // a suppressed F17 up (RT used as Shift) leaves nothing to release later
     }
 
     private void ReleaseAllHeld()

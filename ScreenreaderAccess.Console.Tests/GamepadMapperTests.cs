@@ -1,4 +1,4 @@
-﻿using System.Windows.Forms;
+using System.Windows.Forms;
 using ScreenreaderAccess.Console.Gamepad;
 
 namespace ScreenreaderAccess.Console.Tests;
@@ -129,14 +129,14 @@ public class GamepadMapperTests
     private static string FmtS(List<KeyEvent> e) => string.Join(",", e.Select(x => $"{x.Button}:{x.Action}{(x.Shift ? "+S" : "")}"));
 
     [Fact]
-    public void RtHeld_StickRight_IsShiftTap_ThenF17UpOnRelease()
+    public void RtHeld_StickRight_IsShiftTap_AndReleaseSuppressesF17Up()
     {
         GamepadMapper m = new();
         GamepadState rt = S(rt: 255), rtRight = S(lx: 30000, rt: 255);
         Assert.Equal("ModeOn:Tap,RT:Down", FmtS(m.Update(default, rt, 0)));
         Assert.Equal("LRight:Tap+S", FmtS(m.Update(rt, rtRight, 20)));
         Assert.Empty(m.Update(rtRight, rt, 40));
-        Assert.Equal("RT:Up", FmtS(m.Update(rt, default, 60)));
+        Assert.Empty(m.Update(rt, default, 60));   // no F17 up
     }
 
     [Fact]
@@ -165,6 +165,6 @@ public class GamepadMapperTests
         GamepadState rt = S(rt: 255), rtA = S(rt: 255, buttons: GamepadState.BtnA);
         m.Update(default, rt, 0);
         Assert.Equal("A:Down+S", FmtS(m.Update(rt, rtA, 20)));
-        Assert.Equal("A:Up+S,RT:Up", FmtS(m.Update(rtA, default, 40)));   // RT released first or together: Up still shifted
+        Assert.Equal("A:Up+S", FmtS(m.Update(rtA, default, 40)));   // RT released first or together: Up still shifted
     }
 }

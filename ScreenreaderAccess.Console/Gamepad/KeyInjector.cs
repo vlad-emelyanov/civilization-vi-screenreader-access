@@ -1,4 +1,4 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace ScreenreaderAccess.Console.Gamepad;
