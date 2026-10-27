@@ -92,3 +92,32 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
 - For melee, is there an operation-targets call for `UnitOperationTypes.MOVE_TO`, or must the per-plot check stay? It costs one `TargetInfo` per candidate.
 
 **Regress impact:** these scripts use X and must be rechecked in attack modes: `attack-x-hostile-first`, `t128-attack-targets`, `city-x-order`, `attack-far-strength`, `air-units`, `carrier`, `nuke-ready`, `t60-enemy-at-capital`. `attack-x-hostile-first` checks the current order on purpose and will need its expectations rewritten. Update the X entry in `HelpText.lua` ("in an attack mode: only what you can attack").
+
+## M6. X browser for units that act on highlighted tiles (feature)
+
+**Asked:** great prophets, some great scientists, other great people and archaeologists act on specific tiles that the game highlights on the map. These units should get an X list of those tiles, and Enter should send the unit there, as for builders and settlers.
+
+**Today:** X (`HubSettle.ScanKey`) opens a browser only for settlers (settle spots) and builders (`BuildScan_Improvements`). Every other unit falls through to the foreign-unit scan (`HubCursor.ScanUnits`), which is useless for these units. The only help is in U and the Tab menu: a great person that needs a district says "must stand on a completed Campus district. Nearest: Rome's Campus, 1 tile north-west" (`UnitPanel.lua` `SRNearestDistrict`, `PlotDescription_DistrictReason`).
+
+**Where the game gets the tiles** (`DLC/Expansion2/UI/Replacements/SelectedUnit_Expansion2.lua`, `RealizeGreatPersonLens`):
+- Great people whose `GreatPersonIndividuals.ActionEffectTileHighlighting` is set: `unit:GetGreatPerson():GetActivationHighlightPlots()`. Some also have an `AreaHighlightRadius`, the area their effect covers (`GetAreaHighlightPlots()`).
+- Archaeologists (`Units.ExtractsArtifacts`): `unit:GetArchaeology():GetActivationHighlightPlots()`, the antiquity sites and shipwrecks they can excavate.
+- Naturalists (`ParkCharges > 0`): `Game.GetNationalParks():GetPossibleParkTiles( playerID )`.
+- Rock bands: `unit:GetRockBand():GetActivationHighlightPlots()`.
+- `Units_XP2.CanCauseDisasters` units: `GameClimate.GetLocationsForPossibleTriggerableEvents`. This is probably not owned content; check `docs/game-content.md`.
+- Not highlighted by the game, but the same need: great people that must stand on a completed district (prophet on a Holy Site, scientist on a Campus, ...). For them the list would be the completed districts of that type, from the same search `SRNearestDistrict` does.
+
+**Proposed:** X with such a unit selected opens a tile browser modelled on the builder browser (`HubSettle.lua` `OpenBuildBrowser`).
+- Each entry: what the tile is (e.g. "Antiquity site, Classical era", "Rome's Campus", a park spot naming its 4 tiles), turns to reach it, and the position relative to the nearest city. Nearest first.
+- Space reads the tile. For an area-of-effect great person it also says what the effect would touch, if the game exposes that.
+- Enter sends the unit (the builder's Move To path, with the danger guard). On arrival, say "Arrived. Enter activates <action>" and run the unit's own action button, like build on arrival (`HubSettle.OnArrived`, `SRA_RunUnitAction`).
+- An empty list says why: "No antiquity sites revealed", or "You have no completed Holy Site".
+- Escape closes the browser. Update the X entry in `HelpText.lua`.
+
+**Engine probe first:**
+- Which `GetActivationHighlightPlots` calls exist on the owned build?
+- What do they return for a great person whose ability works anywhere?
+- Do they include tiles in the fog or foreign territory?
+- Can the antiquity site's era or type be read for the entry text (`plot:GetResourceType()` is `RESOURCE_ANTIQUITY_SITE` or `RESOURCE_SHIPWRECK`)?
+
+**Fixtures:** none of the current chains is known to have an archaeologist or naturalist. The great person case can use the prophet and great person fixtures the round-21 scripts use. Archaeology needs a scenario that spawns an archaeologist after Natural History, with revealed antiquity sites.
