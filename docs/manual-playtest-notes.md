@@ -121,3 +121,27 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
 - Can the antiquity site's era or type be read for the entry text (`plot:GetResourceType()` is `RESOURCE_ANTIQUITY_SITE` or `RESOURCE_SHIPWRECK`)?
 
 **Fixtures:** none of the current chains is known to have an archaeologist or naturalist. The great person case can use the prophet and great person fixtures the round-21 scripts use. Archaeology needs a scenario that spawns an archaeologist after Natural History, with revealed antiquity sites.
+
+## M7. City report: the religion row is hard to find and thin (tweak + small feature)
+
+**Reported:** no section about the city's religious status in the city report.
+
+**Today:** the row exists (`CityReportData.lua` `ReligionItem`, data from `CityReportGather.lua` `GatherReligion`), but it is the 13th or 14th of about 16 items. It comes after Focus, Tiles, Specialists and Resources, and the user's log shows them stopping at item 7 (Districts).
+- With no majority religion it says only "Religion: none". The log has "Religion: none, 12 of 13" in a game where the user had founded Eastern Orthodoxy, the majority in 0 cities.
+- Space adds the majority's beliefs, the pantheon, and "Other religions: <name> <followers>".
+- It says nothing about where the city is heading: the pressure per religion, or how many citizens follow which religion out of the population.
+
+**Proposed:**
+1. Move Religion up, right after Loyalty (the other "who influences this city" row), before Defense. The order is set by the `Guard( Add(...) )` calls at the end of `CityReport_BuildItems`. Grep `test/regress/*.txt` for "of 15" or "of 16" and for item positions in city report scripts; the order change shifts them.
+2. Main line: "Religion: Eastern Orthodoxy majority, 6 of 11 citizens" or "Religion: no majority. Eastern Orthodoxy 2, Buddhism 1 of 8 citizens". Name your own religion first. Say "pantheon <name>" only when it is the only thing there.
+3. Space adds:
+   - the pressure per turn per religion, if the engine exposes it (probe: `pCity:GetReligion():GetPressure` or similar; the game's CityPanel religion tab and `CityPanelOverview.lua` show "pressure");
+   - the holy city, if it is one;
+   - the beliefs.
+4. Optionally, a letter key in the report that jumps to a row (R for religion), if the report has no letter jump yet. Add a `HelpText.lua` entry for it.
+
+## M8. City report: "may turn to Free Cities" at full loyalty (minor bug)
+
+**Seen in the user's log:** "Loyalty 100, plus 34 per turn, Loyal, may turn to Free Cities". `LoyaltyItem` appends "may turn to <rival>" whenever the data names a rival civ. At full loyalty and positive pressure that is misleading.
+
+**Proposed:** say "may turn to X" only when loyalty is falling (perTurn < 0) or the level is below Loyal. Otherwise keep it in the Space detail as "would turn to X if loyalty ran out".
