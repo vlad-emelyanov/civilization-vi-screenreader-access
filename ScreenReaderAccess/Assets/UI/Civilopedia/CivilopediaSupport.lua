@@ -1483,7 +1483,7 @@ local function SRA_HandleInput( input:table )
 		if isUp then SRA_BeginSearch(); end
 		return true;
 	end
-	if key == Keys.VK_BACK or key == Gamepad.Key( "LT" ) then
+	if key == Keys.VK_BACK or Gamepad.ButtonOf( key, input:IsControlDown() ) == "LT" then
 		if isUp then
 			if m_srMode == "page" then SRA_Back();
 			elseif m_srMode == "results" then SRA_EndResults(); end

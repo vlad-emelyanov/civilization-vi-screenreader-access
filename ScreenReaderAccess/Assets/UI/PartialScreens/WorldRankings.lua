@@ -641,7 +641,7 @@ function SRA_HandleInput( input:table )
 	elseif key == Keys.VK_ESCAPE then
 		if isUp then SRA_Safe( Close, "close" ); end
 		return true;
-	elseif key == Keys.H or key == Gamepad.Key( "X" ) then
+	elseif key == Keys.H or Gamepad.ButtonOf( key, input:IsControlDown() ) == "X" then
 		if isUp then SRA_Safe( SRA_ReadHeader, "header" ); end
 		return true;
 	end
