@@ -59,7 +59,7 @@ function HubAnnounce.SpeakWhatsNext()
 	if okWait and isWait then
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if okCongress and inSession then
-			OutputMessageToScreenReader( "World Congress in session. " .. SRKey( "Enter" ) .. " or Control+N resumes it" );
+			OutputMessageToScreenReader( "World Congress in session. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it" );
 			return;
 		end
 	end
@@ -522,7 +522,7 @@ local function TurnNotEnded( turn:number )
 		-- (the panel says "Please wait" for the whole session: the congress screen is what needs the player)
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if text == "" and okCongress and inSession then
-			OutputMessageToScreenReader( "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or Control+N resumes it", true );
+			OutputMessageToScreenReader( "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it", true );
 			return;
 		end
 		if text == "" and waited < 6 then
