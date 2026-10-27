@@ -59,6 +59,7 @@ param(
     [int]$Settle = 600,     # key/action: MAXIMUM ms to wait for the screen reader lines (the fixed wait with -NoQuiet)
     [int]$Quiet = -1,       # key/action: return once an SR line has arrived and this many ms passed without another one (or at -Settle). Default 150, or 700 when -Settle >= 1500 (screen opens speak a second line late); an explicit value always wins
     [switch]$NoQuiet,       # key/action: old behaviour, always sleep the full -Settle
+    [switch]$Trace,         # key/action: print every input event sent (vk, scan, flags, ms, foreground window) as '@@trace' lines, to debug a chord the game did not see
     [int]$Hold = 40,        # ms the key stays down (raise for things the game polls, e.g. key rebinding)
     [switch]$All,
     [switch]$Fast,          # key -Count n: press back to back (only -Settle ms between presses; the log is read after the last one). For timing tests such as a double Enter
@@ -193,6 +194,15 @@ public static class Native {
         return GetForegroundWindow() == h;
     }
 
+    public static bool Trace = false;
+    public static System.Collections.Generic.List<string> TraceLog = new System.Collections.Generic.List<string>();
+    static System.Diagnostics.Stopwatch traceClock = System.Diagnostics.Stopwatch.StartNew();
+    static void Send(INPUT inp) {
+        if (Trace) TraceLog.Add(string.Format("t={0}ms {1} vk=0x{2:X2} scan=0x{3:X2} flags=0x{4:X} fg=0x{5:X}", traceClock.ElapsedMilliseconds,
+            (inp.u.ki.dwFlags & KEYEVENTF_KEYUP) != 0 ? "up  " : "down", inp.u.ki.wVk, inp.u.ki.wScan, inp.u.ki.dwFlags, GetForegroundWindow().ToInt64()));
+        SendInput(1, new[] { inp }, Marshal.SizeOf(typeof(INPUT)));
+    }
+
     static bool IsExtended(uint vk) {
         // arrows, ins/del, home/end, pgup/pgdn, numpad divide, right ctrl/alt
         return (vk >= 0x21 && vk <= 0x28) || vk == 0x2D || vk == 0x2E || vk == 0x6F || vk == 0xA3 || vk == 0xA5;
@@ -200,12 +210,13 @@ public static class Native {
 
     // Holds the modifier keys (VK codes) down around a Tap, e.g. Shift+E.
     public static void Chord(uint[] mods, uint vk, int holdMs) {
-        int size = Marshal.SizeOf(typeof(INPUT));
         try {
-            foreach (uint m in mods) { INPUT d = Make(m, 0); SendInput(1, new[] { d }, size); System.Threading.Thread.Sleep(30); }
+            // The game samples the modifier state when the key event arrives: give a modifier time to register before and after the key.
+            foreach (uint m in mods) { Send(Make(m, 0)); System.Threading.Thread.Sleep(60); }
             Tap(vk, holdMs);
+            if (mods.Length > 0) System.Threading.Thread.Sleep(30);
         } finally {
-            for (int i = mods.Length - 1; i >= 0; i--) { INPUT u = Make(mods[i], KEYEVENTF_KEYUP); SendInput(1, new[] { u }, size); }
+            for (int i = mods.Length - 1; i >= 0; i--) Send(Make(mods[i], KEYEVENTF_KEYUP));
             if (mods.Length > 0) ReleaseModifiers();
         }
     }
@@ -213,8 +224,7 @@ public static class Native {
     // Explicit key-up for both sides of Shift/Control/Alt. A lost key-up (Shift+Tab opens the Steam overlay, which eats it) leaves the
     // game believing Shift is held: Down does nothing, Tab goes backwards.
     public static void ReleaseModifiers() {
-        int size = Marshal.SizeOf(typeof(INPUT));
-        foreach (uint m in new uint[] { 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 }) { INPUT u = Make(m, KEYEVENTF_KEYUP); SendInput(1, new[] { u }, size); }
+        foreach (uint m in new uint[] { 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5 }) Send(Make(m, KEYEVENTF_KEYUP));
     }
 
     static INPUT Make(uint vk, uint extraFlags) {
@@ -231,10 +241,9 @@ public static class Native {
         down.u.ki = new KEYBDINPUT { wVk = (ushort)vk, wScan = scan, dwFlags = flags };
         INPUT up = down;
         up.u.ki.dwFlags = flags | KEYEVENTF_KEYUP;
-        int size = Marshal.SizeOf(typeof(INPUT));
-        SendInput(1, new[] { down }, size);
+        Send(down);
         System.Threading.Thread.Sleep(holdMs);
-        SendInput(1, new[] { up }, size);
+        Send(up);
     }
 }
 }
@@ -576,7 +585,9 @@ function Invoke-Key([string]$KeyArg = $Arg, [int]$Count = $Count, [int]$Settle =
         for ($i = 0; $i -lt $Count; $i++) {
             $logPos = Get-LogLength
             Prof 'pre'
+            [CivCtl.Native]::Trace = [bool]$Trace
             [CivCtl.Native]::Chord($mods, $vk, $Hold)
+            if ($Trace) { Write-Output "@@trace key=$KeyArg"; [CivCtl.Native]::TraceLog | ForEach-Object { Write-Output "@@trace $_" }; [CivCtl.Native]::TraceLog.Clear() }
             Prof 'send'
             if ($NoQuiet -or $Fast) { Start-Sleep -Milliseconds $Settle; $waited += $Settle }
             else { $waited += Wait-Quiet $logPos $Settle $Quiet }
