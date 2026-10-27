@@ -11,15 +11,15 @@ action ToggleTechTree -Settle 2500
 expect ^Tech tree\.
 key Down -Settle 800
 key F13 -Settle 2500 -NoQuiet
-expect (?i)queue|target|researched|already
+expect ^Queued 
 key F16 -Settle 1000
-expect (?i)research|current|target
+expect ^Current: 
 key Escape -Settle 1500
 expect ^Tech tree closed
 action ToggleCityStates -Settle 1800
 expect ^City-States, \d+ met
 key F16 -Settle 1500
-expect (?i)action|war|peace|envoy|send|delegation|back
+expect ^Actions for 
 key Escape -Settle 1200
 key Escape -Settle 1200
 key F23 -Settle 500

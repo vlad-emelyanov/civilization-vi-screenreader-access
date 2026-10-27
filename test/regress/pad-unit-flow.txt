@@ -21,7 +21,7 @@ action MoveTo -Settle 1500
 expect ^Move to
 # X (F13): the nearest foreign unit
 key F13 -Settle 1500
-expect (?i)(archer|swordsman|barbarian|no foreign unit)
+expect (?i)barbarian (archer|swordsman)|no foreign unit
 # RB (F15): the places list opens (Enter there would only move the target)
 key F15 -Settle 1500
 expect ^Places\.

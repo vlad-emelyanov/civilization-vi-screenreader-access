@@ -132,6 +132,9 @@ The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goe
 
 ## Misc engine facts (verified 2026-10-22)
 
+- `_G` does not exist in the game's UI Lua: use the direct global names (round 1 of controller support, verified in game).
+- `Events.InputActionTriggered.Call( id )` exists but does nothing (verified). Fire an input action through a LuaEvent that the owning context answers (e.g. the lenses list uses `LuaEvents.SRA_ToggleLens`, handled by an `ImportFiles` copy of `MinimapPanel.lua`).
+- The base `MinimapPanel.lua` CAN be overridden with `ImportFiles` even with Gathering Storm (the Expansion2 replacement `include`s the base file), while a `ReplaceUIScript` of the Expansion2 file (`MinimapPanel_SRA`) never loaded (the DLC's wins).
 - `local x:table = value` is a RUNTIME type check in Civ's Lua: assigning a number gives "Type check failed: (expected 'table', but got 'number')". `Game.GetWorldCongress():GetResolutions(pid)` (and `GetReview(pid).Resolutions`) contain a numeric `Stage` key next to the resolution tables, so loop variables over them must not be annotated `:table` (the game's own loops test `type(v) == "table"`).
 - `CityBuildQueue:CanProduce` is "Not Implemented" in GameCore_Tuner; `CityBuildQueue:CreateIncompleteDistrict(districtIndex, plotIndex, 100)` (GameCore_Tuner) places a finished district (used by the prophet-ready scenario to make a Holy Site).
 - A unit created by the tuner and given `UnitManager.RestoreMovement` has its moves in the UI at once (the trader-in-capital scenario works without ending the turn).
