@@ -26,7 +26,7 @@ public sealed class GamepadMapper
 
     private readonly Repeater _left = new(350, 110), _dpad = new(350, 110), _right = new(500, 350);
 
-    private bool _rtHeld, _rtShiftUsed, _aShift;
+    private bool _rtHeld, _aShift;
 
     public InputSource Source { get; private set; } = InputSource.Keyboard;
 
@@ -47,7 +47,6 @@ public sealed class GamepadMapper
 
         bool rtNow = cur.RightTrigger >= TriggerThreshold;
         bool rtWas = prev.RightTrigger >= TriggerThreshold;
-        if (rtNow && !rtWas) _rtShiftUsed = false;
         _rtHeld = rtNow;
 
         foreach ((ushort mask, PadButton b) in ToggleButtons)
@@ -55,21 +54,19 @@ public sealed class GamepadMapper
             bool was = (prev.Buttons & mask) != 0, now = (cur.Buttons & mask) != 0;
             if (b == PadButton.A)
             {
-                if (now && !was) { _aShift = rtNow; if (rtNow) _rtShiftUsed = true; }
+                if (now && !was) _aShift = rtNow;
                 Edge(events, b, was, now, _aShift);
                 if (!now) _aShift = false;
             }
             else Edge(events, b, was, now);
         }
         Edge(events, PadButton.LT, prev.LeftTrigger >= TriggerThreshold, cur.LeftTrigger >= TriggerThreshold);
-        // RT held + any Shift-modified event: the F17 Down already went out, the KeyUp is suppressed (the mod acts on KeyUp only).
         if (rtNow && !rtWas) events.Add(new KeyEvent(PadButton.RT, KeyAction.Down));
-        else if (!rtNow && rtWas && !_rtShiftUsed) events.Add(new KeyEvent(PadButton.RT, KeyAction.Up));
+        else if (!rtNow && rtWas) events.Add(new KeyEvent(PadButton.RT, KeyAction.Up));
 
         Direction(events, _left, StickDir(cur.LX, cur.LY, PadButton.LUp, PadButton.LDown, PadButton.LLeft, PadButton.LRight), nowMs, rtNow);
         Direction(events, _dpad, DPadDir(cur.Buttons), nowMs, rtNow);
         Direction(events, _right, StickDir(cur.RX, cur.RY, PadButton.RSUp, PadButton.RSDown, PadButton.RSLeft, PadButton.RSRight), nowMs, false);
-        if (events.Exists(e => e.Shift)) _rtShiftUsed = true;
 
         if (Source == InputSource.Keyboard && events.Exists(e => e.Action != KeyAction.Up))
         {

@@ -129,14 +129,14 @@ public class GamepadMapperTests
     private static string FmtS(List<KeyEvent> e) => string.Join(",", e.Select(x => $"{x.Button}:{x.Action}{(x.Shift ? "+S" : "")}"));
 
     [Fact]
-    public void RtHeld_StickRight_IsShiftTap_AndReleaseSuppressesF17Up()
+    public void RtHeld_StickRight_IsShiftTap_ThenF17UpOnRelease()
     {
         GamepadMapper m = new();
         GamepadState rt = S(rt: 255), rtRight = S(lx: 30000, rt: 255);
         Assert.Equal("ModeOn:Tap,RT:Down", FmtS(m.Update(default, rt, 0)));
         Assert.Equal("LRight:Tap+S", FmtS(m.Update(rt, rtRight, 20)));
         Assert.Empty(m.Update(rtRight, rt, 40));
-        Assert.Empty(m.Update(rt, default, 60));   // no F17 up
+        Assert.Equal("RT:Up", FmtS(m.Update(rt, default, 60)));
     }
 
     [Fact]
