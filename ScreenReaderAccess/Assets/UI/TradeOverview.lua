@@ -1008,7 +1008,7 @@ function SRA_BuildItems()
 		else
 			local unit:table, where:string = SRA_SlotTrader( rec );
 			item = { key = "slot:" .. rec.n, section = rec.section, rec = rec, text = TradeOverviewText_Slot{ trader = where },
-				detail = unit ~= nil and "Enter selects the trader so you can choose a route" or "Build a trader in one of your cities, then choose its route" };
+				detail = unit ~= nil and SRKey( "Enter" ) .. " selects the trader so you can choose a route" or "Build a trader in one of your cities, then choose its route" };
 		end
 		table.insert( items, item );
 	end
@@ -1088,7 +1088,7 @@ local function SRA_OnActivate( item:table )
 		SelectUnit( unit );
 		SRA_CloseQuiet();
 	else
-		SRA_Say( "A route of another civilization. Space reads the details" );
+		SRA_Say( "A route of another civilization. " .. SRKey( "Space" ) .. " reads the details" );
 	end
 end
 

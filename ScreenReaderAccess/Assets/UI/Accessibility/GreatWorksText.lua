@@ -109,7 +109,7 @@ end
 
 function GreatWorksText_Pickup( name:string, numTargets:number )
 	return "Picked up " .. name .. ". " .. GreatWorksText_Plural( numTargets, "slot", "slots" )
-		.. " available. Enter to place, Escape to cancel";
+		.. " available. " .. SRKey( "Enter" ) .. " to place, " .. SRKey( "Escape" ) .. " to cancel";
 end
 
 function GreatWorksText_Moved( name:string, cityName:string, buildingName:string, otherName:string )
@@ -131,12 +131,12 @@ function GreatWorksText_Showcase( fields:table )
 	end
 	if fields.quote ~= nil and fields.quote ~= "" then text = text .. ". " .. fields.quote; end
 	if fields.gallery and fields.count ~= nil and fields.count > 1 then
-		text = text .. ". " .. fields.position .. " of " .. fields.count .. ". Left and Right for the next work";
+		text = text .. ". " .. fields.position .. " of " .. fields.count .. ". " .. SRKey( "Left and Right" ) .. " for the next work";
 	end
 	if fields.gallery then
-		text = text .. ". Escape to close";
+		text = text .. ". " .. SRKey( "Escape" ) .. " to close";
 	else
-		text = text .. ". Enter to view your great works, Escape to close";
+		text = text .. ". " .. SRKey( "Enter" ) .. " to view your great works, " .. SRKey( "Escape" ) .. " to close";
 	end
 	return text;
 end

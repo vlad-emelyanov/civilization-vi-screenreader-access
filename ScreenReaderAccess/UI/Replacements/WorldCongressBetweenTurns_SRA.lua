@@ -116,9 +116,9 @@ function OnShow(stageNum:number)
 		end
 	end
 	if #waiting > 0 then
-		OutputMessageToScreenReader("World Congress votes submitted. Waiting for " .. table.concat(waiting, ", ") .. ". Enter to close this screen.", true);
+		OutputMessageToScreenReader("World Congress votes submitted. Waiting for " .. table.concat(waiting, ", ") .. ". " .. SRKey( "Enter" ) .. " to close this screen.", true);
 	else
-		OutputMessageToScreenReader("World Congress votes submitted. Everyone is ready. Enter to close this screen.", true);
+		OutputMessageToScreenReader("World Congress votes submitted. Everyone is ready. " .. SRKey( "Enter" ) .. " to close this screen.", true);
 	end
 	-- End ScreenReaderAccess mod change
 end

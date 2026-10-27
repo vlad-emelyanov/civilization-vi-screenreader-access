@@ -166,7 +166,7 @@ function SRA_Announce( kData:table )
 	if kData.UnitsLost ~= nil and kData.UnitsLost > 0 then table.insert(effects, kData.UnitsLost .. " units lost"); end
 	if kData.PopLost ~= nil and kData.PopLost > 0 then table.insert(effects, kData.PopLost .. " population lost"); end
 	if #effects > 0 then text = text .. " " .. table.concat(effects, ", ") .. "."; end
-	OutputMessageToScreenReader(text .. " Enter or Escape to continue");
+	OutputMessageToScreenReader(text .. " " .. SRKey( "Enter" ) .. " or " .. SRKey( "Escape" ) .. " to continue");
 end
 
 -- ===========================================================================

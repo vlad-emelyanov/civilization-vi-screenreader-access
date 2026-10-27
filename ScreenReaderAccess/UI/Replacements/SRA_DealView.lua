@@ -1288,7 +1288,7 @@ function PopulateAvailableGold(player : table, iconList : table)
 					uiIcon.Icon:SetColor(1,1,1);
 					availableItemCount = availableItemCount + 1;
 					SRA_AddAvail( player, { key = "gold:0", kind = "gold", amount = goldBalance, duration = 0,		-- ScreenReaderAccess
-						hint = "Enter adds " .. ms_DefaultOneTimeGoldAmount .. " gold. Change the amount in the Deal section with Left and Right",
+						hint = SRKey( "Enter" ) .. " adds " .. ms_DefaultOneTimeGoldAmount .. " gold. Change the amount in the Deal section with " .. SRKey( "Left and Right" ),
 						callback = function() OnClickAvailableOneTimeGold(player, ms_DefaultOneTimeGoldAmount); end } );
 				end
 			else
@@ -1307,7 +1307,7 @@ function PopulateAvailableGold(player : table, iconList : table)
 
 				availableItemCount = availableItemCount + 1;
 				SRA_AddAvail( player, { key = "gold:" .. tostring( entry.Duration ), kind = "gold", amount = ( ( entry.MaxAmount or 0 ) > 0 ) and entry.MaxAmount or nil, duration = entry.Duration,		-- ScreenReaderAccess
-					hint = "Enter adds " .. ms_DefaultMultiTurnGoldAmount .. " gold per turn for " .. ms_DefaultMultiTurnGoldDuration .. " turns. Change the amount in the Deal section with Left and Right",
+					hint = SRKey( "Enter" ) .. " adds " .. ms_DefaultMultiTurnGoldAmount .. " gold per turn for " .. ms_DefaultMultiTurnGoldDuration .. " turns. Change the amount in the Deal section with " .. SRKey( "Left and Right" ),
 					callback = function() OnClickAvailableMultiTurnGold(player, ms_DefaultMultiTurnGoldAmount, ms_DefaultMultiTurnGoldDuration); end } );
 			end
 		end
@@ -3495,9 +3495,9 @@ local function SRA_DealItemDetail( rec:table, mine:boolean )
 		table.insert( parts, "Part of the demand made to you, you can't change it" );
 	else
 		if rec.editable then
-			table.insert( parts, "Left and Right change the amount by 1, with Shift by 10" .. ( rec.max ~= nil and ( ", up to " .. rec.max ) or "" ) );
+			table.insert( parts, SRKey( "Left and Right" ) .. " change the amount by 1, with Shift by 10" .. ( rec.max ~= nil and ( ", up to " .. rec.max ) or "" ) );
 		end
-		table.insert( parts, "Enter or Delete removes it" );
+		table.insert( parts, SRKey( "Enter" ) .. " or " .. SRKey( "Delete", "LT" ) .. " removes it" );
 	end
 	if rec.unacceptable then table.insert( parts, "The other side has marked this unacceptable" ); end
 	return table.concat( parts, ". " );
@@ -3517,7 +3517,7 @@ local function SRA_DealItems()
 	for _, rec in ipairs( get ) do Add( rec, false ); end
 	if #items == 0 then
 		items[1] = { key = "empty", empty = true, text = "Deal is empty", choosable = false, reason = "Deal is empty. Add items from Your items or Their items",
-			detail = "Tab switches to Your items and Their items, Enter on an item adds it to the deal" };
+			detail = SRKey( "Tab" ) .. " switches to Your items and Their items, " .. SRKey( "Enter" ) .. " on an item adds it to the deal" };
 	end
 	return items;
 end
@@ -3745,7 +3745,7 @@ local function SRA_EnterSection( n:number )
 	if n == 1 and count == 1 and items[1].empty then count = 0; end
 	local name:string = SRA_SECTIONS[ n ];
 	if n == 1 and count == 0 then
-		SRA_Say( "Deal, empty. Tab to Your items or Their items to add something" );
+		SRA_Say( "Deal, empty. " .. SRKey( "Tab" ) .. " to Your items or Their items to add something" );
 		return;
 	end
 	if count == 0 then
@@ -3818,7 +3818,7 @@ local function SRA_Announce()
 		local actions:string = SRA_ActionNames();
 		if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
 	end
-	table.insert( parts, "Tab switches sections: Deal, Your items, Their items, Actions. S reads the summary. Control+Tab goes back a section." );
+	table.insert( parts, SRKey( "Tab" ) .. " switches sections: Deal, Your items, Their items, Actions. " .. SRKey( "S", "X" ) .. " reads the summary. " .. SRKey( "Control+Tab" ) .. " goes back a section." );
 	local focusText:string, focusItem:table = SRA_OpenFocusText();
 	table.insert( parts, focusText );
 	-- the list's focus must equal the spoken one: without it Down jumped to the first item (Accept Deal, "1 of 2") and Enter said
@@ -3893,7 +3893,7 @@ function SRA_RefocusAfterRefresh()
 	m_srSection = 4;
 	m_srLists[4].Open( "Actions", items[ index ].key, true );
 	m_srNeedAnnounce = false;
-	return "Focus: " .. items[ index ].text .. ", " .. index .. " of " .. #items .. ". Up and Down to move, Enter to choose.";
+	return "Focus: " .. items[ index ].text .. ", " .. index .. " of " .. #items .. ". " .. SRKey( "Up and Down" ) .. " to move, " .. SRKey( "Enter" ) .. " to choose.";
 end
 
 -- The focused item of the current section vanished in a refresh that did not rebuild the focus: forget it, so the
@@ -3923,7 +3923,7 @@ local function SRA_AnnounceFocusInsteadOfActing()
 	list.Focus( items[ index ].key, nil );
 	local item:table = items[ index ];
 	if item.choosable ~= false and not item.empty then
-		SRA_Say( "Enter again to choose it", true );
+		SRA_Say( SRKey( "Enter" ) .. " again to choose it", true );
 	end
 end
 
@@ -3986,7 +3986,7 @@ function SRA_OnHide()
 			sceneOpen = ( ctl ~= nil and not ctl:IsHidden() );
 		end );
 	end
-	SRA_Say( ( accepted and "Deal accepted" or "Deal closed" ) .. ( sceneOpen and ". The leader screen is open, Enter says goodbye." or "." ), true );
+	SRA_Say( ( accepted and "Deal accepted" or "Deal closed" ) .. ( sceneOpen and ". The leader screen is open, " .. SRKey( "Enter" ) .. " says goodbye." or "." ), true );
 end
 
 function SRA_OnUpdate( deltaTime:number )
@@ -4090,7 +4090,7 @@ if PopulateAvailableFavor ~= nil and OnClickAvailableOneTimeFavor ~= nil then
 		local count:number = SRA_PopulateAvailableFavor( player, iconList );
 		if count > 0 then
 			SRA_AddAvail( player, { key = "favor", kind = "favor", amount = player:GetFavor(),
-				hint = "Enter adds 1 diplomatic favor. Change the amount in the Deal section with Left and Right",
+				hint = SRKey( "Enter" ) .. " adds 1 diplomatic favor. Change the amount in the Deal section with " .. SRKey( "Left and Right" ),
 				callback = function() OnClickAvailableOneTimeFavor( player, 1 ); end } );
 		end
 		return count;

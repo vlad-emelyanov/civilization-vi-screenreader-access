@@ -1067,7 +1067,7 @@ local function SRA_AnnounceList()
 	local noun:string = SRA_IsDestinationList() and "cities" or "missions";
 	local single:string = SRA_IsDestinationList() and "city" or "mission";
 	if #items == 0 then
-		SRA_Say( SRA_Head() .. ": no " .. noun .. ". Escape to cancel", true );
+		SRA_Say( SRA_Head() .. ": no " .. noun .. ". " .. SRKey( "Escape" ) .. " to cancel", true );
 		return;
 	end
 	m_srList.Open( "", nil, true );
@@ -1091,13 +1091,13 @@ local function SRA_AskTravel()
 	local city:table = CityManager.GetCity( pending.owner, pending.id );
 	if city == nil then return; end
 	if pending.counter then
-		SRA_Say( SRA_CityName( city ) .. " is your city where " .. SRA_SpyName() .. " is. Enter to choose a counterspy mission, Escape to go back" );
+		SRA_Say( SRA_CityName( city ) .. " is your city where " .. SRA_SpyName() .. " is. " .. SRKey( "Enter" ) .. " to choose a counterspy mission, " .. SRKey( "Escape" ) .. " to go back" );
 		return;
 	end
 	local travel:number, establish:number = SRA_TravelTimes( city );
 	local missions:number = #SRA_MissionItems();
 	SRA_Say( "Send " .. SRA_SpyName() .. " to " .. SRA_CityName( city ) .. "? Arrives in " .. SRA_Plural( travel + establish, "turn", "turns" )
-		.. ". " .. SRA_Plural( missions, "mission", "missions" ) .. " possible there, Space lists them. Enter to confirm, Escape to go back" );
+		.. ". " .. SRA_Plural( missions, "mission", "missions" ) .. " possible there, " .. SRKey( "Space" ) .. " lists them. " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back" );
 end
 
 local function SRA_AskMission()
@@ -1105,7 +1105,7 @@ local function SRA_AskMission()
 	local data:table = SRA_MissionData( pending.entry );
 	if data == nil then return; end
 	SRA_Say( "Start " .. EspionageText_Mission{ name = data.name, district = data.district, chance = data.chance, turns = data.turns }
-		.. " in " .. SRA_CityName( m_city ) .. "? Enter to confirm, Escape to go back, Space for details" );
+		.. " in " .. SRA_CityName( m_city ) .. "? " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back, " .. SRKey( "Space" ) .. " for details" );
 end
 
 local function SRA_SelectDestination( item:table )
@@ -1142,7 +1142,7 @@ local function SRA_ConfirmTravel()
 	params[ UnitOperationTypes.PARAM_X ] = city:GetX();
 	params[ UnitOperationTypes.PARAM_Y ] = city:GetY();
 	if not UnitManager.CanStartOperation( m_spy, UnitOperationTypes.SPY_TRAVEL_NEW_CITY, plot, params ) then
-		SRA_Say( "Can't send " .. SRA_SpyName() .. " to " .. SRA_CityName( city ) .. ". Escape to go back" );
+		SRA_Say( "Can't send " .. SRA_SpyName() .. " to " .. SRA_CityName( city ) .. ". " .. SRKey( "Escape" ) .. " to go back" );
 		return;
 	end
 	local travel:number, establish:number = SRA_TravelTimes( city );

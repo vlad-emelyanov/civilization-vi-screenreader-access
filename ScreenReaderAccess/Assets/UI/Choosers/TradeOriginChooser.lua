@@ -221,7 +221,7 @@ function SRA_Announce()
 	local items:table = SRA_BuildItems();
 	local head:string = "Move trader to which city?";
 	if #items == 0 then
-		OutputMessageToScreenReader( head .. " No cities available. Escape to cancel", true );
+		OutputMessageToScreenReader( head .. " No cities available. " .. SRKey( "Escape" ) .. " to cancel", true );
 		return;
 	end
 	m_srList.Open( head, nil, true );

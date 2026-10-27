@@ -1,6 +1,11 @@
 -- EspionageText.lua: espionage overview and chooser text
 stub("engine")
 include("EspionageText")
+include("ScreenReader")
+
+-- the module returns [KEY:..] tokens; compare the keyboard wording (the console app expands them at speech time)
+local eqRaw = eq
+local function eq(actual, expected) if type(actual) == "string" then actual = actual:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1") end eqRaw(actual, expected) end
 
 test("header", function()
 	eq(EspionageText_Header{ spies = 2, capacity = 3, idle = 1 }, "Espionage: 2 of 3 spies, 1 awaiting orders")

@@ -687,7 +687,7 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 		elseif #m_srSelections > 0 then
 			m_srList.Open( speech );
 		else
-			OutputMessageToScreenReader( speech .. " Escape to close.", true );
+			OutputMessageToScreenReader( speech .. " " .. SRKey( "Escape" ) .. " to close.", true );
 		end
 	end
 	-- End ScreenReaderAccess change

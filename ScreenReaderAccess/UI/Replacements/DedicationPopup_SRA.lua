@@ -389,7 +389,7 @@ function SRA_Activate(item:table)
 		local text:string = "Selected " .. name;
 		if replaced ~= nil then text = text .. " instead of " .. replaced; end
 		text = text .. ". " .. left .. " left to choose";
-		if left == 0 then text = text .. ". Press C to confirm"; end
+		if left == 0 then text = text .. ". Press " .. SRKey( "C", "X" ) .. " to confirm"; end
 		OutputMessageToScreenReader(text);
 	else
 		OutputMessageToScreenReader("Deselected " .. name .. ". " .. left .. " left to choose");

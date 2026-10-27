@@ -2681,7 +2681,7 @@ local function SRA_ProposalVoteItem( voteKey, kVote:table )
 		detail = function()
 			local extra:string = SRA_EmergencyText( kVote.data );
 			return title .. ". " .. desc .. ( extra ~= "" and ( ". " .. extra ) or "" ) ..
-				". Equals votes for it, minus votes against it";
+				". " .. SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it";
 		end };
 end
 
@@ -2729,7 +2729,7 @@ local function SRA_VoteItems()
 	end
 	local canNext:boolean = CanMoveToNextPhase();
 	table.insert( items, { key = "next", kind = "next", text = "Next: review your votes before submitting", choosable = canNext,
-		reason = SRA_NextBlockedReason(), detail = function() return canNext and "All votes and targets are set. Enter or N goes on" or SRA_NextBlockedReason(); end } );
+		reason = SRA_NextBlockedReason(), detail = function() return canNext and "All votes and targets are set. " .. SRKey( "Enter" ) .. " or " .. SRKey( "N", "RT" ) .. " goes on" or SRA_NextBlockedReason(); end } );
 	return items;
 end
 
@@ -2889,7 +2889,7 @@ local function SRA_AvailableItems()
 				table.insert( items, { key = "eprop:" .. voteKey, kind = "eprop", voteKey = voteKey, text = text,
 					detail = function()
 						local extra:string = SRA_EmergencyText( kProposal );
-						return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ". Enter selects or unselects it";
+						return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ". " .. SRKey( "Enter" ) .. " selects or unselects it";
 					end } );
 			end
 		end
@@ -3125,7 +3125,7 @@ local function SRA_CloseSpoken()
 	m_sraPending = -1;
 	ClosePopup();
 	if blocking then
-		SRA_Say( "Closed. Resume Congress still blocks the turn; Enter or Control+N reopens it." );
+		SRA_Say( "Closed. Resume Congress still blocks the turn; " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " reopens it." );
 	else
 		SRA_Say( "World Congress closed" );
 		LuaEvents.SRA_CongressClosedSpoken();		-- a crisis popup that opened meanwhile was cut off by this line: it speaks again
@@ -3209,13 +3209,13 @@ end
 local function SRA_Help()
 	local mode:string = SRA_Mode();
 	if mode == "vote" then
-		SRA_Say( "Up and Down move between resolutions and proposals. Left and Right choose option A or B. Equals or Shift Up adds a vote, minus or Shift Down removes one. T or Enter chooses the target. Space reads the whole resolution. N or the last item reviews your votes. Escape closes the screen; Resume Congress reopens it." );
+		SRA_Say( SRKey( "Up and Down" ) .. " move between resolutions and proposals. " .. SRKey( "Left and Right" ) .. " choose option A or B. " .. SRKey( "Equals or Shift Up", "X" ) .. " adds a vote, " .. SRKey( "minus or Shift Down", "LT" ) .. " removes one. T or " .. SRKey( "Enter" ) .. " chooses the target. " .. SRKey( "Space" ) .. " reads the whole resolution. " .. SRKey( "N", "RT" ) .. " or the last item reviews your votes. " .. SRKey( "Escape" ) .. " closes the screen; Resume Congress reopens it." );
 	elseif mode == "summary" then
-		SRA_Say( "Up and Down read your choices. Enter on Submit votes, or N, sends them and ends your turn. Back to voting, just before Submit, returns. End jumps to Submit votes. Escape closes the screen." );
+		SRA_Say( SRKey( "Up and Down" ) .. " read your choices. " .. SRKey( "Enter" ) .. " on Submit votes, or " .. SRKey( "N", "RT" ) .. ", sends them and ends your turn. Back to voting, just before Submit, returns. " .. SRKey( "End" ) .. " jumps to Submit votes. " .. SRKey( "Escape" ) .. " closes the screen." );
 	elseif m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
-		SRA_Say( "Up and Down move. Enter selects or unselects a proposal. Space reads details. N or the Submit item sends them. Left and Right switch tabs. Escape closes." );
+		SRA_Say( SRKey( "Up and Down" ) .. " move. " .. SRKey( "Enter" ) .. " selects or unselects a proposal. " .. SRKey( "Space" ) .. " reads details. " .. SRKey( "N", "RT" ) .. " or the Submit item sends them. " .. SRKey( "Left and Right" ) .. " switch tabs. " .. SRKey( "Escape" ) .. " closes." );
 	else
-		SRA_Say( "Up and Down read the results. Space reads who voted how. Left and Right switch tabs. Enter, N or Escape closes the screen." );
+		SRA_Say( SRKey( "Up and Down" ) .. " read the results. " .. SRKey( "Space" ) .. " reads who voted how. " .. SRKey( "Left and Right" ) .. " switch tabs. " .. SRKey( "Enter" ) .. ", " .. SRKey( "N", "RT" ) .. " or " .. SRKey( "Escape" ) .. " closes the screen." );
 	end
 end
 
@@ -3259,18 +3259,18 @@ local function SRA_Announce()
 		hint = "H for keys";
 	elseif mode == "summary" then
 		head = "Review your votes. " .. ( m_StartingFavor - m_WorkingFavor ) .. " favor spent, " .. m_WorkingFavor .. " left";
-		hint = "Enter on Submit votes sends them";
+		hint = SRKey( "Enter" ) .. " on Submit votes sends them";
 	else
 		head = SRA_TabName();
 		if #items == 0 then
 			local empty:string = Controls.EmptyLabel:IsHidden() and "" or SRA_Clean( Controls.EmptyLabel:GetText() );
-			SRA_Say( head .. ". " .. ( empty ~= "" and empty or "Nothing to show" ) .. ". Escape closes", false );
+			SRA_Say( head .. ". " .. ( empty ~= "" and empty or "Nothing to show" ) .. ". " .. SRKey( "Escape" ) .. " closes", false );
 			return;
 		end
 		if m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
-			hint = "Enter selects, Left or Right switches tab, Escape closes";
+			hint = SRKey( "Enter" ) .. " selects, " .. SRKey( "Left or Right", "left stick left or right" ) .. " switches tab, " .. SRKey( "Escape" ) .. " closes";
 		else
-			hint = "Enter to continue, Space for details, Left or Right for other tabs";
+			hint = SRKey( "Enter" ) .. " to continue, " .. SRKey( "Space" ) .. " for details, " .. SRKey( "Left or Right", "left stick left or right" ) .. " for other tabs";
 		end
 	end
 	if #items == 0 then

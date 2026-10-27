@@ -1134,10 +1134,10 @@ local function SRA_SpyItem( spy:table )
 		end
 		local total:number = UnitManager.GetTimeToComplete( operationType, spy );
 		if total ~= nil and total > 0 then table.insert( parts, ( total - data.turns ) .. " of " .. total .. " turns done" ); end
-		table.insert( parts, "Enter selects the spy" );
+		table.insert( parts, SRKey( "Enter" ) .. " selects the spy" );
 		detail = table.concat( parts, ". " );
 	else
-		detail = "Awaiting orders. Enter selects the spy to choose a destination or mission";
+		detail = "Awaiting orders. " .. SRKey( "Enter" ) .. " selects the spy to choose a destination or mission";
 	end
 	return { key = "spy:" .. spy:GetID(), text = EspionageText_Spy( data ), detail = detail, kind = "spy", id = spy:GetID() };
 end
@@ -1171,7 +1171,7 @@ local function SRA_OperativeItems()
 				table.insert( items, { key = "captured:" .. byID .. ":" .. tostring( nameIndex ), kind = "captured", byID = byID, nameIndex = nameIndex,
 					atWar = atWar, pending = pending,
 					text = EspionageText_Spy{ name = Locale.Lookup( spyInfo.Name ), rank = Locale.Lookup( GetSpyRankNameByLevel( spyInfo.Level ) ), state = "captured", capturedBy = SRA_CivName( byID ) },
-					detail = atWar and "At war, no trade possible" or ( pending and "Another deal with them is pending" or "Enter asks for a trade to get the spy back" ) } );
+					detail = atWar and "At war, no trade possible" or ( pending and "Another deal with them is pending" or SRKey( "Enter" ) .. " asks for a trade to get the spy back" ) } );
 			end
 		end
 	end
@@ -1223,7 +1223,7 @@ local function SRA_CityItem( city:table )
 	return { key = "city:" .. owner .. ":" .. city:GetID(), kind = "city", owner = owner, id = city:GetID(),
 		text = EspionageText_City{ name = Locale.Lookup( city:GetName() ), owner = SRA_OwnerText( owner ),
 			capital = city:IsCapital() and Players[ owner ]:IsMajor(), districts = districts, spies = spies, boostTurns = boost },
-		detail = "Enter shows the city on the map" };
+		detail = SRKey( "Enter" ) .. " shows the city on the map" };
 end
 
 local function SRA_CityItems()
@@ -1268,7 +1268,7 @@ local function SRA_HistoryItems()
 			table.insert( items, { key = "enemy:" .. owning .. ":" .. tostring( spyInfo.NameIndex ), kind = "enemy", owning = owning, nameIndex = spyInfo.NameIndex,
 				canTrade = canTrade, section = "Captured enemy spies",
 				text = EspionageText_EnemySpy{ name = Locale.Lookup( spyInfo.Name ), civ = SRA_CivName( owning ), canTrade = canTrade },
-				detail = canTrade and "Enter offers a trade for this spy" or "At war, no trade possible" } );
+				detail = canTrade and SRKey( "Enter" ) .. " offers a trade for this spy" or "At war, no trade possible" } );
 		end
 	end
 	local recent:table = diplomacy:GetRecentMissions( localID, 10, 0 );
