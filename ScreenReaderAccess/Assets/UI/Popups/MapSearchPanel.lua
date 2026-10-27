@@ -1,4 +1,6 @@
 include( "InstanceManager" );
+include( "ScreenReader" );		-- ScreenReaderAccess
+include( "PlotDescription" );	-- ScreenReaderAccess
 
 -- ===========================================================================
 -- Global constants
@@ -745,6 +747,7 @@ function IncrementalSearch()
 
 	Controls.ProgressBar:SetPercent(1.0);
 	Controls.ResultsLabel:SetText( Locale.Lookup("LOC_HUD_MAP_SEARCH_RESULTS", #m_ResultPlots) );
+	SR_OnSearchDone();	-- ScreenReaderAccess
 
 	local bDisableButtons = not (#m_ResultPlots > 0);
 	Controls.NextResultButton:SetDisabled(bDisableButtons);
@@ -1052,6 +1055,7 @@ function OnSearchCommit()
 		Controls.ResultsLabel:SetText( Locale.Lookup("LOC_HUD_MAP_SEARCH_IN_PROGRESS") );
 		UI.MapSearch_LogBegin(m_Search.Whitelist, m_Search.Blacklist);
 		ContextPtr:SetUpdate(IncrementalSearch);
+		SR_OnSearchStarted();	-- ScreenReaderAccess
 
 		local pOverlay:object = UILens.GetOverlay("MapSearch");
 		if (pOverlay ~= nil) then
@@ -1060,6 +1064,8 @@ function OnSearchCommit()
 			pOverlay:SetBorderColors(0, COLOR_WHITE, COLOR_WHITE);
 			pOverlay:SetHighlightColor(0, COLOR_GREEN);
 		end
+	else
+		SR_OnSearchRejected();	-- ScreenReaderAccess
 	end
 end
 
@@ -1102,11 +1108,13 @@ function OnMapSearchPanelOpened()
 	Controls.MapSearchBox:ClearString();
 	Controls.MapSearchBox:TakeFocus();
 	Controls.MapSearchFilterBox:ClearString();
+	SR_OnPanelOpened();	-- ScreenReaderAccess
 end
 
 -- ===========================================================================
 -- ===========================================================================
 function OnMapSearchPanelClosed()
+	SR_Reset();	-- ScreenReaderAccess
 	ClearSearch(true);
 	Controls.ResultsLabel:SetText("");
 end
@@ -1127,8 +1135,223 @@ function RefreshMapSearchResults()
 end
 
 -- ===========================================================================
+-- ScreenReaderAccess: speech and keyboard control for the map search panel.
+-- Everything below is mod code; the game code above only calls the SR_* functions.
+-- ===========================================================================
+local m_SR : table = { announce = false, tab = false, last = { search = "", filter = "" } };
+
+local function SR_Say( text:string )
+	OutputMessageToScreenReader(text, false);
+end
+
+local function SR_Plural( n:number, one:string, many:string )
+	if n == 1 then return "1 "..one; end
+	return tostring(n).." "..many;
+end
+
+-- The panel's container (in MinimapPanel) is our own parent control. Hidden = closed.
+local function SR_GetPanelControl()
+	local panel = ContextPtr:GetParent();
+	if panel ~= nil and panel.SetHide ~= nil then return panel; end
+	-- NEEDS IN-GAME VERIFICATION: fallback path. MinimapPanel is a LuaContext under HUD in InGame.xml, MapSearchPanel its Container.
+	return ContextPtr:LookUpControl( "/InGame/HUD/MinimapPanel/MapSearchPanel" );
+end
+
+local function SR_IsPanelOpen()
+	local panel = SR_GetPanelControl();
+	if panel == nil then return false; end
+	return not panel:IsHidden();
+end
+
+local function SR_BoxFocused()
+	return Controls.MapSearchBox:HasFocus() or Controls.MapSearchFilterBox:HasFocus();
+end
+
+function SR_Reset()
+	m_SR.announce = false;
+	m_SR.tab = false;
+	m_SR.last = { search = "", filter = "" };
+end
+
+function SR_OnPanelOpened()
+	SR_Reset();
+	SR_Say("Map search. Type words such as Iron, Hills or Unclaimed, Enter searches, Escape closes");
+end
+
+-- Typed / deleted characters and Tab completion. kind: "search" or "filter".
+function SR_OnTextChanged( box:table, kind:string )
+	local ok, err = pcall(function()
+		local old:string = m_SR.last[kind] or "";
+		local new:string = box:GetText() or "";
+		if new == old then return; end
+		m_SR.last[kind] = new;
+		if m_SR.tab then
+			m_SR.tab = false;
+			SR_Say("completed, "..new);
+			return;
+		end
+		local p:number = 0;
+		local maxp:number = math.min(#old, #new);
+		while p < maxp and string.sub(old, p + 1, p + 1) == string.sub(new, p + 1, p + 1) do p = p + 1; end
+		local s:number = 0;
+		local maxs:number = math.min(#old, #new) - p;
+		while s < maxs and string.sub(old, #old - s, #old - s) == string.sub(new, #new - s, #new - s) do s = s + 1; end
+		local added:string = string.sub(new, p + 1, #new - s);
+		local removed:string = string.sub(old, p + 1, #old - s);
+		if added == " " then added = "space"; end
+		if removed == " " then removed = "space"; end
+		if added ~= "" then
+			SR_Say(added);
+		elseif removed ~= "" then
+			if new == "" then SR_Say("blank"); else SR_Say("deleted "..removed); end
+		end
+	end);
+	if not ok then print("MapSearchPanel SR_OnTextChanged error: "..tostring(err)); end
+end
+
+function SR_OnSearchStarted()
+	m_SR.announce = true;
+	SR_Say("Searching");
+end
+
+function SR_OnSearchRejected()
+	SR_Say("Nothing to search for. Type words, then Enter");
+end
+
+function SR_OnSearchDone()
+	if not m_SR.announce then return; end	-- a refresh at turn start is not announced
+	m_SR.announce = false;
+	local ok, err = pcall(function()
+		local matches:number = #m_ResultPlots;
+		if matches == 0 then
+			SR_Say("No matches for "..table.concat(m_Search.Whitelist, " "));
+		else
+			SR_Say(SR_Plural(matches, "match", "matches").." in "..SR_Plural(#m_ResultGroups, "place", "places")..". Down for the first");
+		end
+	end);
+	if not ok then print("MapSearchPanel SR_OnSearchDone error: "..tostring(err)); end
+end
+
+-- The plot of the group closest to the group's average position (a representative tile that really is a match).
+local function SR_GroupPlot( pGroup:table )
+	local plots:table = pGroup.Plots;
+	if plots == nil or #plots == 0 then return nil; end
+	local sx:number, sy:number = 0, 0;
+	for _, id in ipairs(plots) do
+		local plot = Map.GetPlotByIndex(id);
+		sx = sx + plot:GetX();
+		sy = sy + plot:GetY();
+	end
+	sx = sx / #plots;
+	sy = sy / #plots;
+	local best, bestDist = nil, nil;
+	for _, id in ipairs(plots) do
+		local plot = Map.GetPlotByIndex(id);
+		local d:number = (plot:GetX() - sx) * (plot:GetX() - sx) + (plot:GetY() - sy) * (plot:GetY() - sy);
+		if bestDist == nil or d < bestDist then best, bestDist = plot, d; end
+	end
+	return best;
+end
+
+-- Moves to result group number index (wraps), moves the hub's map cursor there and describes it.
+local function SR_GoToGroup( index:number )
+	local count:number = #m_ResultGroups;
+	if count == 0 then return; end
+	if index > count then index = 1; end
+	if index < 1 then index = count; end
+	m_FocusedResult = index;
+	local pGroup:table = m_ResultGroups[index];
+	local plot = SR_GroupPlot(pGroup);
+	if plot == nil then return; end
+	LuaEvents.SRA_CursorTo(plot:GetX(), plot:GetY());
+	SR_Say(tostring(index).." of "..tostring(count)..": "..PlotDescription_GetShort(plot).." ("..SR_Plural(#pGroup.Plots, "tile", "tiles")..")");
+end
+
+-- Closes the panel: hiding the container fires MinimapPanel's RegisterWhenHidden, which sends MapSearch_PanelClosed.
+-- NEEDS IN-GAME VERIFICATION (the container as hide target, and that the Escape reaches this handler).
+local function SR_ClosePanel()
+	local cursorText:string = nil;
+	if m_FocusedResult > 0 and m_ResultGroups[m_FocusedResult] ~= nil then
+		local plot = SR_GroupPlot(m_ResultGroups[m_FocusedResult]);
+		if plot ~= nil then cursorText = PlotDescription_GetShort(plot); end
+	end
+	pcall(function() Controls.MapSearchBox:DropFocus(); end);
+	pcall(function() Controls.MapSearchFilterBox:DropFocus(); end);
+	local panel = SR_GetPanelControl();
+	if panel ~= nil then panel:SetHide(true); end
+	-- the minimap button stays "selected" otherwise
+	pcall(function()
+		local button = ContextPtr:LookUpControl( "/InGame/HUD/MinimapPanel/MapSearchButton" );
+		if button ~= nil and button:IsSelected() then button:SetSelected(false); end
+	end);
+	if cursorText ~= nil then
+		SR_Say("Map search closed, cursor on "..cursorText);
+	else
+		SR_Say("Map search closed");
+	end
+end
+
+local function SR_HandleInputImpl( pInputStruct:table )
+	if not SR_IsPanelOpen() then return false; end
+	local msg = pInputStruct:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	local key:number = pInputStruct:GetKey();
+	local down:boolean = (msg == KeyEvents.KeyDown);
+
+	if key == Keys.VK_ESCAPE then
+		if not down then SR_ClosePanel(); end
+		return true;
+	end
+
+	if SR_BoxFocused() then
+		-- the engine feeds most keys to the box; Tab completion is done by OnInputHandler below
+		if down and key == Keys.VK_TAB and m_TabCompleteString ~= nil then m_SR.tab = true; end
+		return false;
+	end
+
+	if pInputStruct:IsControlDown() or pInputStruct:IsAltDown() then return false; end
+
+	local hasResults:boolean = #m_ResultGroups > 0;
+	if hasResults and (key == Keys.VK_DOWN or key == Keys.VK_UP or key == Keys.VK_HOME or key == Keys.VK_END) then
+		if down then
+			if key == Keys.VK_DOWN then SR_GoToGroup(m_FocusedResult + 1);
+			elseif key == Keys.VK_UP then SR_GoToGroup(m_FocusedResult <= 0 and #m_ResultGroups or m_FocusedResult - 1);
+			elseif key == Keys.VK_HOME then SR_GoToGroup(1);
+			else SR_GoToGroup(#m_ResultGroups); end
+		end
+		return true;
+	end
+
+	-- Enter after browsing leaves the cursor on the result and closes (Enter in the box never gets here: the engine commits it)
+	if key == Keys.VK_RETURN and m_FocusedResult > 0 then
+		if not down then SR_ClosePanel(); end
+		return true;
+	end
+
+	-- a letter or digit starts a new search
+	if down and ((key >= 65 and key <= 90) or (key >= 48 and key <= 57)) then
+		Controls.MapSearchBox:TakeFocus();
+		SR_Say("Search box, type words, Enter searches");
+		return true;
+	end
+	return false;
+end
+
+function SR_HandleInput( pInputStruct:table )
+	local ok, result = pcall(SR_HandleInputImpl, pInputStruct);
+	if not ok then
+		print("MapSearchPanel SR_HandleInput error: "..tostring(result));
+		return false;
+	end
+	return result == true;
+end
+
+-- ===========================================================================
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
+
+	-- ScreenReaderAccess: Tab completion note, result browsing, Escape closes the panel
+	if SR_HandleInput(pInputStruct) then return true; end
 
 	if pInputStruct:GetKey() == Keys.VK_TAB and m_TabCompleteString ~= nil then
 		if Controls.MapSearchBox:HasFocus() then
@@ -1249,11 +1472,11 @@ function Initialize()
 	ContextPtr:SetShutdown( OnShutdown );
 	ContextPtr:SetInputHandler( OnInputHandler, true );	
 	Controls.MapSearchBox:RegisterCommitCallback( OnSearchCommit );
-	Controls.MapSearchBox:RegisterStringChangedCallback( function() UpdateEnabledButtons(); UpdateSuggestions(Controls.MapSearchBox, Controls.SearchSuggestions, m_SearchSuggestionIM, m_SearchHistory); end );
+	Controls.MapSearchBox:RegisterStringChangedCallback( function() SR_OnTextChanged(Controls.MapSearchBox, "search"); UpdateEnabledButtons(); UpdateSuggestions(Controls.MapSearchBox, Controls.SearchSuggestions, m_SearchSuggestionIM, m_SearchHistory); end );
 	Controls.MapSearchBox:RegisterHasFocusCallback( OnEditBoxFocusGained );
 	Controls.MapSearchBox:RegisterLostFocusCallback( OnEditBoxFocusLost );
 	Controls.MapSearchFilterBox:RegisterCommitCallback( OnSearchCommit );
-	Controls.MapSearchFilterBox:RegisterStringChangedCallback( function() UpdateSuggestions(Controls.MapSearchFilterBox, Controls.FilterSuggestions, m_FilterSuggestionIM, m_FilterHistory); end );
+	Controls.MapSearchFilterBox:RegisterStringChangedCallback( function() SR_OnTextChanged(Controls.MapSearchFilterBox, "filter"); UpdateSuggestions(Controls.MapSearchFilterBox, Controls.FilterSuggestions, m_FilterSuggestionIM, m_FilterHistory); end );
 	Controls.MapSearchFilterBox:RegisterHasFocusCallback( OnEditBoxFocusGained );
 	Controls.MapSearchFilterBox:RegisterLostFocusCallback( OnEditBoxFocusLost );
 	Controls.NextResultButton:RegisterCallback( Mouse.eLClick, OnNextResult );
