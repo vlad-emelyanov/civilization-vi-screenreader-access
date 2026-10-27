@@ -29,6 +29,7 @@ public static class KeyHints
         ["Arrows"] = "left stick", ["arrow keys"] = "left stick",
         ["Up and Down"] = "left stick up and down", ["Up/Down"] = "left stick up and down",
         ["Left and Right"] = "left stick left and right", ["Left/Right"] = "left stick left and right",
+        ["Left or Right"] = "left stick left or right", ["Up or Down"] = "left stick up or down",
         ["F13"] = "X", ["F14"] = "left bumper", ["F15"] = "right bumper", ["F16"] = "left trigger", ["F17"] = "right trigger",
         ["F18"] = "View button", ["F19"] = "Menu button", ["F20"] = "left stick click", ["F21"] = "right stick click",
     };

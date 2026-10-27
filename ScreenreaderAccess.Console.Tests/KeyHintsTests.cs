@@ -22,6 +22,8 @@ public class KeyHintsTests
     [InlineData("[KEY:arrow keys]", "left stick")]
     [InlineData("[KEY:Up and Down]", "left stick up and down")]
     [InlineData("[KEY:Left/Right]", "left stick left and right")]
+    [InlineData("[KEY:Left or Right]", "left stick left or right")]
+    [InlineData("[KEY:up or down]", "left stick up or down")]
     [InlineData("[KEY:F17]", "right trigger")]
     [InlineData("[KEY:F21]", "right stick click")]
     public void Pad_DefaultButtons(string input, string expected)
