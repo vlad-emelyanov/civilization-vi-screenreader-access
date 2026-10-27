@@ -185,3 +185,17 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
 2. On a resolution that holds votes, add the next step: "equals adds a vote for 20 favor, minus removes one". The cost is the difference between the next two entries of `GetVotesandFavorCost()`, the same numbers `WCText_VoteBlock` uses. At the maximum: "maximum votes".
 3. Use the real binding names if these keys are rebindable; they are plain keys inside the screen, so probably fixed.
 4. Regress impact: grep `test/regress/*congress*.txt` for the resolution and vote lines and update the expectations. `WCText_*` has Lua tests (`test/lua/test_worldcongress*.lua`, if present) to extend.
+
+## M11. Say "upgrade available" when a unit is selected (small feature)
+
+**Asked:** when switching to a unit that can be upgraded, say so clearly.
+
+**Today:** U upgrades and says what happened or why it can't (`HelpText.lua`, `ExtraHotkeysUpgrade`). The Tab menu lists "Upgrade" with its tooltip (`UnitPanel.lua`, around line 491: target unit, gold cost, resource cost). The selection line (`HubAnnounce.OnUnitSelectionChanged`) says nothing about upgrades. It already appends a promotion hint the same way: `HubAnnounce.PromotionHint` gives "Promotion available, Shift+U".
+
+**Proposed:** an `HubAnnounce.UpgradeHint( unit )` next to `PromotionHint`, appended in the same place.
+- **Can upgrade now:** "Upgrade to Pikeman available, 120 gold, U". Use `UnitManager.CanStartCommand( unit, UnitCommandTypes.UPGRADE, true, true )`, which gives the target from `results[UnitCommandResults.UNIT_TYPE]`, and `unit:GetUpgradeCost()`. Add the resource cost when it is above 0 (`GetUpgradeResourceCost`).
+- **Possible but blocked:** for example not enough gold, outside your territory, or moves already used. The test is: `CanStartCommand( ..., true, false )` true (the command exists for the unit), `( ..., true, true )` false. Then say it shorter, "Upgrade to Pikeman: needs 120 gold, you have 42", or only the target name. One phrase only; U gives the full reason.
+- **No upgrade:** silent.
+- **Avoid spam:** say it on selection only, not on every turn-start unit cycle. Or say it in full once per unit per turn, then just "upgrade available".
+- **Optional:** a J places entry or a turn-start line "3 units can be upgraded", for the moment a new tech makes many units upgradable.
+- **Fixtures:** the round-16 and round-19 upgrade plays (pt-modes chain, "Upgraded to Pikeman") have an upgradable unit. Grep `test/regress/*.txt` for unit selection lines that would gain the new suffix.
