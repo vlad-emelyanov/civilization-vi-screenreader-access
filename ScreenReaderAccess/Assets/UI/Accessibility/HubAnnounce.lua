@@ -192,6 +192,71 @@ function HubAnnounce.PromotionHint( unit:table )
 	return nil;
 end
 
+-- Pure wording of the upgrade hint on selection (M11). info: { target = "Pike and Shot", available = bool, cost = gold or nil,
+-- resourceCost = number or nil, resource = "Niter" or nil }. repeated: the unit
+-- already heard the full hint this turn. Returns nil when nothing is to be said.
+function HubAnnounce.UpgradeText( info:table, repeated:boolean )
+	if info == nil or info.target == nil then return nil; end
+	if info.available then
+		if repeated then return "Upgrade available, U"; end
+		local text:string = "Upgrade to " .. info.target .. " available";
+		if info.cost ~= nil and info.cost > 0 then text = text .. ", " .. info.cost .. " gold"; end
+		if info.resourceCost ~= nil and info.resourceCost > 0 and info.resource ~= nil then
+			text = text .. ", " .. info.resourceCost .. " " .. info.resource;
+		end
+		return text .. ", U";
+	end
+	if repeated then return nil; end
+	return "Upgrade to " .. info.target .. " unavailable, U says why";
+end
+
+-- Has the local player the tech and civic the unit type needs? (a blocked upgrade to a unit not yet unlocked is not worth a hint)
+local function TargetUnlocked( row:table, ownerID:number )
+	local player:table = Players[ ownerID ];
+	if row.PrereqTech ~= nil and GameInfo.Technologies[ row.PrereqTech ] ~= nil
+			and not player:GetTechs():HasTech( GameInfo.Technologies[ row.PrereqTech ].Index ) then return false; end
+	if row.PrereqCivic ~= nil and GameInfo.Civics[ row.PrereqCivic ] ~= nil
+			and not player:GetCulture():HasCivic( GameInfo.Civics[ row.PrereqCivic ].Index ) then return false; end
+	return true;
+end
+
+local m_upgradeHeard:table = {};		-- unit id -> turn of the last full upgrade hint
+
+-- "Upgrade to Pike and Shot available, 75 gold, U" / "Upgrade to Musketman unavailable, U says why" for a selected unit
+-- that has an upgrade; nil without one. The first selection of a unit per turn speaks it in full; later ones "Upgrade available, U"
+-- (available) or nothing (blocked).
+function HubAnnounce.UpgradeHint( unit:table )
+	local ok:boolean, text = pcall( function()
+		if not UnitManager.CanStartCommand( unit, UnitCommandTypes.UPGRADE, true ) then return nil; end
+		local can, results = UnitManager.CanStartCommand( unit, UnitCommandTypes.UPGRADE, false, true );
+		local info:table = { available = can == true };
+		if results == nil or results[ UnitCommandResults.UNIT_TYPE ] == nil then
+			local _, loose = UnitManager.CanStartCommand( unit, UnitCommandTypes.UPGRADE, true, true );
+			results = loose;
+		end
+		local row:table = ( results ~= nil and results[ UnitCommandResults.UNIT_TYPE ] ~= nil ) and GameInfo.Units[ results[ UnitCommandResults.UNIT_TYPE ] ] or nil;
+		if row == nil then return nil; end
+		info.target = Locale.Lookup( row.Name );
+		if info.available then
+			info.cost = unit:GetUpgradeCost();
+			local resourceType, resourceCost = nil, nil;
+			pcall( function() resourceType, resourceCost = unit:GetUpgradeResourceCost(); end );
+			if resourceCost ~= nil and resourceCost > 0 and resourceType ~= nil and GameInfo.Resources[ resourceType ] ~= nil then
+				info.resourceCost = resourceCost;
+				info.resource = Locale.Lookup( GameInfo.Resources[ resourceType ].Name );
+			end
+		elseif not TargetUnlocked( row, unit:GetOwner() ) then
+			return nil;
+		end
+		local turn:number = Game.GetCurrentGameTurn();
+		local repeated:boolean = m_upgradeHeard[ unit:GetID() ] == turn;
+		m_upgradeHeard[ unit:GetID() ] = turn;
+		return HubAnnounce.UpgradeText( info, repeated );
+	end );
+	if ok then return text; end
+	return nil;
+end
+
 -- The settle sentence for a selected settler (after the unit announcement, so it does not interrupt it).
 local m_lastSettleSpoken:string = nil;	-- unit, plot, turn and moves of the last settle sentence
 
@@ -229,6 +294,8 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 	if position ~= nil then text = text .. ", " .. position; end
 	local promotion:string = HubAnnounce.PromotionHint( unit );
 	if promotion ~= nil then text = text .. ". " .. promotion; end
+	local upgrade:string = HubAnnounce.UpgradeHint( unit );
+	if upgrade ~= nil then text = text .. ". " .. upgrade; end
 	local builderHint:string = HubSettle.BuilderHint( unit );
 	if builderHint ~= nil then text = text .. ". " .. builderHint; end
 	if HubEnemies ~= nil then
