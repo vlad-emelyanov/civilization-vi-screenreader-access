@@ -386,7 +386,7 @@ end
 
 local function SRA_PickUp( item:table )
 	if item.workIndex == nil or item.workIndex == -1 then
-		SRA_Say( "This slot is empty, nothing to pick up. Space for what it accepts" );
+		SRA_Say( "This slot is empty, nothing to pick up. " .. SRKey( "Space" ) .. " for what it accepts" );
 		return;
 	end
 	if not m_isLocalPlayerTurn then

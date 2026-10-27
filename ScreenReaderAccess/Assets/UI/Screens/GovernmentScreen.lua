@@ -1553,7 +1553,7 @@ function Close( srKeyboard:boolean )
 	elseif srKeyboard and not m_srDiscardArmed and SRA_UnfilledRows() ~= nil then
 		-- ScreenReaderAccess: Confirm is disabled while a slot is empty, so the game drops the cards silently: warn once
 		m_srDiscardArmed = true;
-		OutputMessageToScreenReader( "Policy changes not confirmed: fill the empty " .. SRA_UnfilledRows() .. " first, then confirm. Escape again to discard them." );
+		OutputMessageToScreenReader( "Policy changes not confirmed: fill the empty " .. SRA_UnfilledRows() .. " first, then confirm. " .. SRKey( "Escape" ) .. " again to discard them." );
 	else
 		-- Actual close
 		local srDiscarded:boolean = m_srDiscardArmed and SRA_UnfilledRows() ~= nil;		-- ScreenReaderAccess
@@ -2915,7 +2915,7 @@ local function SRA_SlotItems()
 			if tSlot.GC_PolicyType ~= EMPTY_POLICY_TYPE then policy = m_kPolicyCatalogData[ tSlot.GC_PolicyType ]; end
 			local label:string = SRA_SlotLabel( nRowIndex, tSlot );
 			local text:string = label .. ": ";
-			local detail:string = "Empty. Enter to choose a policy.";
+			local detail:string = "Empty. " .. SRKey( "Enter" ) .. " to choose a policy.";
 			if policy ~= nil then
 				text = text .. policy.Name .. ", " .. CleanTextForSpeech( policy.Description );
 				detail = policy.Name .. ". " .. CleanTextForSpeech( policy.Description );
@@ -2984,7 +2984,7 @@ local function SRA_GovernmentItems()
 		if government.NumSlotDiplomatic > 0 then table.insert( slots, government.NumSlotDiplomatic .. " diplomatic" ); end
 		if government.NumSlotWildcard > 0 then table.insert( slots, government.NumSlotWildcard .. " wildcard" ); end
 		table.insert( parts, "slots: " .. table.concat( slots, ", " ) );
-		if unlocked and not isCurrent and IsAbleToChangeGovernment() then table.insert( parts, "Enter to switch to it" ); end
+		if unlocked and not isCurrent and IsAbleToChangeGovernment() then table.insert( parts, SRKey( "Enter" ) .. " to switch to it" ); end
 		local inherent:string = SRA_Clean( government.BonusInherentText );
 		if inherent ~= "" then table.insert( parts, inherent ); end
 		local accumulated:string = SRA_Clean( government.BonusAccumulatedText );
@@ -3064,7 +3064,7 @@ local function SRA_OnActivate( item:table )
 			return;
 		end
 		if SRA_CurrentTab() ~= "policies" then
-			OutputMessageToScreenReader( "Policies are changed on the Policies tab. Tab to switch." );
+			OutputMessageToScreenReader( "Policies are changed on the Policies tab. " .. SRKey( "Tab" ) .. " to switch." );
 			return;
 		end
 		m_srCatalogSlotIndex = item.slot.GC_SlotIndex;

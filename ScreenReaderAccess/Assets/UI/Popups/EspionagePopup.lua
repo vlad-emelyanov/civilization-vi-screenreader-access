@@ -74,15 +74,15 @@ local function SRAnnounce()
 			SRAdd( parts, Controls.RelationshipDamageTitle );
 			SRAdd( parts, Controls.RelationshipDamageDescription );
 		end
-		table.insert( parts, ( m_srRenew ~= nil ) and "Enter to continue, R to renew the mission" or "Enter to continue" );
+		table.insert( parts, ( m_srRenew ~= nil ) and SRKey( "Enter" ) .. " to continue, " .. SRKey( "R", "X" ) .. " to renew the mission" or SRKey( "Enter" ) .. " to continue" );
 	else
 		SRAdd( parts, Controls.MissionObjectiveLabel );
 		if not Controls.MissionDurationContainer:IsHidden() then SRAdd( parts, Controls.MissionDurationLabel ); end
 		for _, line in ipairs( m_srOutcomes ) do table.insert( parts, line ); end
 		if m_currentPopupState == EspionagePopupStates.ABORT_MISSION then
-			table.insert( parts, "Enter to abort the mission, Escape to keep it" );
+			table.insert( parts, SRKey( "Enter" ) .. " to abort the mission, " .. SRKey( "Escape" ) .. " to keep it" );
 		else
-			table.insert( parts, "Enter to start the mission, Escape to cancel" );
+			table.insert( parts, SRKey( "Enter" ) .. " to start the mission, " .. SRKey( "Escape" ) .. " to cancel" );
 		end
 	end
 	OutputMessageToScreenReader( table.concat( parts, ". " ) );

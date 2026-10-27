@@ -1830,7 +1830,7 @@ local function SRA_ItemsReligion()
 	if selectedCustom ~= nil then
 		local typed:string = Controls.ChooseReligionName:GetText();
 		if typed == nil or typed == "" then typed = "blank"; end
-		table.insert( items, { key = "name", text = "Religion name: " .. SRA_Clean( typed ) .. ", Enter to edit" } );
+		table.insert( items, { key = "name", text = "Religion name: " .. SRA_Clean( typed ) .. ", " .. SRKey( "Enter" ) .. " to edit" } );
 	end
 	return items;
 end
@@ -1845,7 +1845,7 @@ local function SRA_ItemsBeliefs()
 			if not pantheon then section = SRA_BeliefClass( row ); end
 			table.insert( items, {
 				key = "belief:" .. index, text = SRA_BeliefText( row ), section = section, belief = row,
-				detail = SRA_BeliefText( row ) .. ". " .. SRA_BeliefClass( row ) .. ". Enter to choose",
+				detail = SRA_BeliefText( row ) .. ". " .. SRA_BeliefClass( row ) .. ". " .. SRKey( "Enter" ) .. " to choose",
 			} );
 		end
 	end
@@ -1875,7 +1875,7 @@ local function SRA_ItemsConfirm()
 	local buttons:table = SRA_ConfirmButtons();
 	table.insert( items, {
 		key = "confirm", text = SRA_Clean( buttons.confirm:GetText() ),
-		detail = SRA_ConfirmSummary() .. ". " .. SRA_BeliefTexts( SRA_Selected() ) .. ". Enter or C to confirm",
+		detail = SRA_ConfirmSummary() .. ". " .. SRA_BeliefTexts( SRA_Selected() ) .. ". " .. SRKey( "Enter" ) .. " or " .. SRKey( "C", "X" ) .. " to confirm",
 	} );
 	table.insert( items, { key = "reselect", text = SRA_Clean( buttons.reselect:GetText() ) } );
 	if not buttons.reselectReligion:IsHidden() then
@@ -1928,9 +1928,9 @@ local function SRA_ItemsView()
 	table.sort( cities, function( a, b ) return SortCitiesByFollowers( a:GetReligion(), b:GetReligion(), religionType ); end );
 	local name:string = SRA_ReligionName( religionType );
 	if m_CitiesFilter == CITIES_FILTER.FOLLOWING_RELIGION then
-		table.insert( items, { key = "filter", section = "Cities", text = ReligionText_Count( #cities, "city follows", "cities follow" ) .. " " .. name .. ". Enter shows cities where it is only present" } );
+		table.insert( items, { key = "filter", section = "Cities", text = ReligionText_Count( #cities, "city follows", "cities follow" ) .. " " .. name .. ". " .. SRKey( "Enter" ) .. " shows cities where it is only present" } );
 	else
-		table.insert( items, { key = "filter", section = "Cities", text = name .. " is present in " .. ReligionText_Count( #cities, "city", "cities" ) .. ". Enter shows only cities that follow it" } );
+		table.insert( items, { key = "filter", section = "Cities", text = name .. " is present in " .. ReligionText_Count( #cities, "city", "cities" ) .. ". " .. SRKey( "Enter" ) .. " shows only cities that follow it" } );
 	end
 	for _, city in ipairs( cities ) do
 		local pantheonHere:number = city:GetReligion():GetActivePantheon();
@@ -2094,7 +2094,7 @@ local function SRA_Continue()
 		if m_SelectedReligion == nil or m_SelectedReligion.Instance == nil then
 			SRA_Say( "Choose a religion first" );
 		else
-			SRA_Say( "Give the religion a name first, Enter on the name to edit" );
+			SRA_Say( "Give the religion a name first, " .. SRKey( "Enter" ) .. " on the name to edit" );
 		end
 		return;
 	end
@@ -2113,7 +2113,7 @@ local function SRA_ActivateReligion( item:table )
 	if SRA_IsCustom( row ) then
 		SRA_EditName();
 	else
-		SRA_Say( SRA_Clean( Locale.Lookup( row.Name ) ) .. " selected. Enter to continue, or choose another" );
+		SRA_Say( SRA_Clean( Locale.Lookup( row.Name ) ) .. " selected. " .. SRKey( "Enter" ) .. " to continue, or choose another" );
 	end
 end
 

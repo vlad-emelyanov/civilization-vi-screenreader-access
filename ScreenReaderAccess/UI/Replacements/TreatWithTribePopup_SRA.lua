@@ -436,7 +436,7 @@ local function SRA_OnActivate( item : table )
 	end
 	local result : string = TreatClanText_Result(item.id, m_srClanName, m_srTargetLabel, item.description);
 	if item.id == "Incite" and m_SelectedInciteTargetID == -1 then
-		OutputMessageToScreenReader("Choose a target first, with Left and Right");
+		OutputMessageToScreenReader("Choose a target first, with " .. SRKey( "Left and Right" ));
 		return;
 	end
 	OutputMessageToScreenReader(result);
@@ -456,7 +456,7 @@ end
 -- Left / Right on the Incite option: the next or previous target, chosen through the game's SelectInciteTarget
 local function SRA_CycleTarget( delta : number )
 	if m_srList == nil or m_srList.GetFocusKey() ~= "Incite" then
-		OutputMessageToScreenReader("Left and Right choose the incite target on the Incite option");
+		OutputMessageToScreenReader(SRKey( "Left and Right" ) .. " choose the incite target on the Incite option");
 		return;
 	end
 	local items : table = SRA_Items();

@@ -146,10 +146,10 @@ function ShowNewTimelineMoment(popupData:table)
 	if momentInfo ~= nil then
 		local srText:string = "Historic moment: " .. Locale.Lookup(momentInfo.Name) .. ". " .. string.gsub(CleanTextForSpeech(Locale.Lookup(momentData.InstanceDescription)), "[%.%s]+$", "");
 		if momentData.EraScore ~= nil and momentData.EraScore ~= 0 then srText = srText .. ", plus " .. tostring(momentData.EraScore) .. " era score"; end
-		OutputMessageToScreenReader(srText .. ". Enter to continue");
+		OutputMessageToScreenReader(srText .. ". " .. SRKey( "Enter" ) .. " to continue");
 		m_srIndex = #m_srEntries;
 	else
-		OutputMessageToScreenReader("Historic moment. Enter to continue");
+		OutputMessageToScreenReader("Historic moment. " .. SRKey( "Enter" ) .. " to continue");
 	end
 end
 
@@ -536,11 +536,11 @@ end
 -- ===========================================================================
 function SRA_AnnounceTimeline()
 	if #m_srEntries == 0 then
-		OutputMessageToScreenReader("Historic moments timeline. No moments yet. Enter or Escape to close");
+		OutputMessageToScreenReader("Historic moments timeline. No moments yet. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Escape" ) .. " to close");
 		return;
 	end
 	m_srIndex = #m_srEntries;
-	OutputMessageToScreenReader("Historic moments timeline, " .. #m_srEntries .. " moments. Up and Down read them, Enter or Escape to close. Latest: " .. m_srEntries[m_srIndex] .. ", " .. m_srIndex .. " of " .. #m_srEntries);
+	OutputMessageToScreenReader("Historic moments timeline, " .. #m_srEntries .. " moments. " .. SRKey( "Up and Down" ) .. " read them, " .. SRKey( "Enter" ) .. " or " .. SRKey( "Escape" ) .. " to close. Latest: " .. m_srEntries[m_srIndex] .. ", " .. m_srIndex .. " of " .. #m_srEntries);
 end
 
 function SRA_ReadEntry(step:number)

@@ -294,7 +294,7 @@ end
 function SRA_Announce()
 	local text:string = "New era: The world has entered the " .. SRA_EraName() .. ". You are in a " .. m_srAgeName .. ".";
 	if m_srEffects ~= "" then text = text .. " " .. string.gsub(m_srEffects, "[%.%s]+$", "") .. "."; end
-	OutputMessageToScreenReader(text .. " Enter to continue, Space for details.");
+	OutputMessageToScreenReader(text .. " " .. SRKey( "Enter" ) .. " to continue, " .. SRKey( "Space" ) .. " for details.");
 end
 
 -- Space: the ages of the other civilizations and the effects again
@@ -307,7 +307,7 @@ function SRA_Details()
 	end
 	if m_srUnmet > 0 then table.insert(parts, m_srUnmet .. " unmet"); end
 	if m_srEffects ~= "" then table.insert(parts, "Effects active this age: " .. m_srEffects); end
-	OutputMessageToScreenReader(table.concat(parts, ". ") .. ". Enter to continue.");
+	OutputMessageToScreenReader(table.concat(parts, ". ") .. ". " .. SRKey( "Enter" ) .. " to continue.");
 end
 
 function SRA_OnUpdate(deltaTime:number)
@@ -333,7 +333,7 @@ function SRA_HandleKey(key:number)
 			blocked = label ~= nil and string.find(string.lower(label:GetText() or ""), "dedication", 1, true) ~= nil;
 		end);
 		if blocked then
-			OutputMessageToScreenReader("Closed. Make Dedication still blocks the turn; Enter on it in Control N or Next Action reopens it.");
+			OutputMessageToScreenReader("Closed. Make Dedication still blocks the turn; " .. SRKey( "Enter" ) .. " on it in Control N or Next Action reopens it.");
 		else
 			OutputMessageToScreenReader("Closed");
 		end

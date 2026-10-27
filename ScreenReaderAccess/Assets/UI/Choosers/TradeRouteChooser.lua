@@ -1351,7 +1351,7 @@ function SRA_Announce()
 	local items:table = SRA_BuildItems();
 	local head:string = "Trade route from " .. Locale.Lookup( originCity:GetName() );
 	if #items == 0 then
-		OutputMessageToScreenReader( head .. ": no destinations. Escape to cancel", true );
+		OutputMessageToScreenReader( head .. ": no destinations. " .. SRKey( "Escape" ) .. " to cancel", true );
 		return;
 	end
 	m_srList.Open( head, m_srPrevKey, true );
@@ -1386,7 +1386,7 @@ function SRA_OnUpdate( deltaTime:number )
 end
 
 local function SRA_Ask( name:string )
-	OutputMessageToScreenReader( "Start trade route to " .. name .. "? Enter to confirm, Escape to go back" );
+	OutputMessageToScreenReader( "Start trade route to " .. name .. "? " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back" );
 end
 
 -- Enter on a route: select it like the button does, then ask.
@@ -1411,7 +1411,7 @@ local function SRA_Confirm()
 		return;
 	end
 	if not CheckTradeRoute( unit, destination ) then
-		OutputMessageToScreenReader( "Can't start the trade route to " .. pending.name .. ". Escape to go back" );
+		OutputMessageToScreenReader( "Can't start the trade route to " .. pending.name .. ". " .. SRKey( "Escape" ) .. " to go back" );
 		return;
 	end
 	m_srConfirm = nil;

@@ -304,9 +304,9 @@ function SRA_BuildText( kData:table )
 	local text:string = table.concat(head, ". ") .. ".";
 	if #lines > 0 then text = text .. " " .. table.concat(lines, ". ") .. "."; end
 	if kData.inputRequired then
-		text = text .. " Join: Enter. Down for Reject.";
+		text = text .. " Join: " .. SRKey( "Enter" ) .. ". " .. SRKey( "Down" ) .. " for Reject.";
 	else
-		text = text .. " Enter to close.";
+		text = text .. " " .. SRKey( "Enter" ) .. " to close.";
 	end
 	m_srOpening = text;
 end
@@ -475,7 +475,7 @@ function OnInputHandler( pInputStruct:table )
 	local msg = pInputStruct:GetMessageType();
 	if msg == KeyEvents.KeyUp and key == Keys.VK_ESCAPE then 
 		if m_isAnswerRequired then		-- ScreenReaderAccess mod change: Escape must not decide the answer
-			OutputMessageToScreenReader("Not answered yet, Up and Down choose Join or Reject, Enter confirms");
+			OutputMessageToScreenReader("Not answered yet, " .. SRKey( "Up and Down" ) .. " choose Join or Reject, " .. SRKey( "Enter" ) .. " confirms");
 		elseif not Controls.SlideOnShow:IsReversing() then Close(); end
 	-- Begin ScreenReaderAccess mod change: Enter closes (or answers), Up/Down read the details or choose Join / Reject
 	elseif msg == KeyEvents.KeyUp and not Controls.SlideOnShow:IsReversing() then

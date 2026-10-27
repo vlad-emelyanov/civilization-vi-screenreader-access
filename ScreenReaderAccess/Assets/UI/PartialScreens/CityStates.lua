@@ -1780,7 +1780,7 @@ function SRA_ListItems()
 	local sum:number = SumEnvoyChanges();
 	if #items > 0 and SRA_IsSendMode() and sum > 0 then
 		table.insert( items, { key = "confirm", text = "Confirm envoys, " .. SRA_Envoys( sum ) .. " to send",
-			detail = function() return "Sends " .. SRA_PendingSummary() .. ". " .. SRA_Envoys( SRA_EnvoysLeft() ) .. " left to give. Enter or C to confirm"; end } );
+			detail = function() return "Sends " .. SRA_PendingSummary() .. ". " .. SRA_Envoys( SRA_EnvoysLeft() ) .. " left to give. " .. SRKey( "Enter" ) .. " or " .. SRKey( "C", "X" ) .. " to confirm"; end } );
 	end
 	return items;
 end
@@ -1798,7 +1798,7 @@ local function SRA_PendingText( kCityState:table )
 	local left:number = SRA_EnvoysLeft();
 	local text:string = Locale.Lookup( kCityState.Name ) .. ", " .. SRA_Envoys( kCityState.Tokens + pending ) .. ", " .. pending .. " pending, " .. left .. " left to give";
 	text = text .. DiplomacyText_SuzerainNote( kCityState.isBonusSuzerain, kCityState.Tokens, pending, kCityState.SuzerainTokensNeeded );
-	if left <= 0 then text = text .. ". All envoys placed, C to confirm"; end
+	if left <= 0 then text = text .. ". All envoys placed, " .. SRKey( "C", "X" ) .. " to confirm"; end
 	return text;
 end
 
@@ -1881,7 +1881,7 @@ local function SRA_OnListClose()
 		-- two-step like the government screen: unconfirmed envoys are not dropped by a single stray Escape
 		m_srDiscardArmed = true;
 		local n:number = SumEnvoyChanges();
-		SRA_Say( n .. ( n == 1 and " envoy" or " envoys" ) .. " not sent: C confirms them. Escape again to discard." );
+		SRA_Say( n .. ( n == 1 and " envoy" or " envoys" ) .. " not sent: " .. SRKey( "C", "X" ) .. " confirms them. " .. SRKey( "Escape" ) .. " again to discard." );
 		return;
 	end
 	m_srDiscardArmed = false;
@@ -1892,13 +1892,13 @@ end
 
 -- Keys that act on the focused city-state in send envoys mode.
 local function SRA_KeyAdd()
-	if not SRA_IsSendMode() then SRA_Say( "Not sending envoys. Enter opens the actions" ); return; end
+	if not SRA_IsSendMode() then SRA_Say( "Not sending envoys. " .. SRKey( "Enter" ) .. " opens the actions" ); return; end
 	local iPlayer = SRA_FocusedPlayer();
 	if iPlayer ~= nil then SRA_AddEnvoy( iPlayer ); else SRA_Say( "No city-state selected" ); end
 end
 
 local function SRA_KeyRemove()
-	if not SRA_IsSendMode() then SRA_Say( "Not sending envoys. Enter opens the actions" ); return; end
+	if not SRA_IsSendMode() then SRA_Say( "Not sending envoys. " .. SRKey( "Enter" ) .. " opens the actions" ); return; end
 	local iPlayer = SRA_FocusedPlayer();
 	if iPlayer ~= nil then SRA_RemoveEnvoy( iPlayer ); else SRA_Say( "No city-state selected" ); end
 end

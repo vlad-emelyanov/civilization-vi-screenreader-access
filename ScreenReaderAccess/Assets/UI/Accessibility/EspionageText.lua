@@ -76,7 +76,7 @@ end
 function EspionageText_EnemySpy( e:table )
 	local text:string = "Captured enemy spy " .. e.name;
 	if e.civ ~= nil and e.civ ~= "" then text = text .. ", " .. e.civ; end
-	if e.canTrade then text = text .. ", Enter to offer a trade"; end
+	if e.canTrade then text = text .. ", " .. SRKey( "Enter" ) .. " to offer a trade"; end
 	return text;
 end
 

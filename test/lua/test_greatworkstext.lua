@@ -1,6 +1,11 @@
 -- GreatWorksText.lua: wording of the Great Works screen lines
 stub("engine")
 include("GreatWorksText")
+include("ScreenReader")
+
+-- the module returns [KEY:..] tokens; compare the keyboard wording (the console app expands them at speech time)
+local eqRaw = eq
+local function eq(actual, expected) if type(actual) == "string" then actual = actual:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1") end eqRaw(actual, expected) end
 
 local odyssey = { name = "The Odyssey", creator = "Homer", typeName = "Writing",
 	yields = { { label = "culture", value = 2 }, { label = "tourism", value = 2 }, { label = "faith", value = 0 } } }
@@ -52,4 +57,8 @@ test("showcase", function()
 		"New great work: The Odyssey. Created by Homer. Ancient Era Writing. Sing, Muse. Enter to view your great works, Escape to close")
 	eq(GreatWorksText_Showcase({ name = "Mona Lisa", lines = {}, gallery = true, position = 2, count = 5 }),
 		"Great work: Mona Lisa. 2 of 5. Left and Right for the next work. Escape to close")
+end)
+
+test("key hints are SRKey tokens", function()
+	eqRaw(GreatWorksText_Pickup("The Odyssey", 4), "Picked up The Odyssey. 4 slots available. [KEY:Enter] to place, [KEY:Escape] to cancel")
 end)
