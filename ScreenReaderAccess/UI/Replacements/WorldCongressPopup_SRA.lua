@@ -2520,6 +2520,7 @@ end
 --	at key time; the target chooser is a second list. Every action calls the screen's own function (OnVoteResolution,
 --	OnVoteProposal, the pulldown selection callback, OnNext, OnAccept, ...), nothing is requested from the engine here.
 -- ===========================================================================
+local m_sraHintCount:number = 0;			-- resolution lines spoken since the popup opened (the key hint is said for the first 3)
 local m_sraFocusOption:table = {};		-- resolution hash -> 1 or 2: the option the cursor looks at
 local m_sraTargetHash = nil;			-- resolution hash while the target chooser is open
 local m_sraPending:number = -1;			-- seconds until the opening announcement (< 0: none pending)
@@ -2637,7 +2638,9 @@ local function SRA_ResolutionItem( index )
 		effect = SRA_Clean( ( f.focus == 1 ) and f.res.Effect1Description or f.res.Effect2Description ),
 		votes = f.held and f.held.votes or 0, cost = f.held and f.held.cost or 0,
 		target = f.target, needsTarget = SRA_HasTargets( f.rd ),
+		hint = m_sraHintCount < 3,
 	};
+	pcall( function() d.costData = Game.GetWorldCongress():GetVotesandFavorCost( Game.GetLocalPlayer() ); end );
 	return { key = "res:" .. f.hash, kind = "res", index = index, text = WCText_ResolutionLine( d ),
 		detail = function() return SRA_ResolutionDetail( f ); end };
 end
@@ -2664,11 +2667,16 @@ local function SRA_EmergencyText( kProposal:table )
 	return ok and text or "";
 end
 
+local function SRA_PcallCostData()
+	local ok:boolean, costData = pcall( function() return Game.GetWorldCongress():GetVotesandFavorCost( Game.GetLocalPlayer() ); end );
+	return ok and costData or nil;
+end
+
 local function SRA_ProposalVoteItem( voteKey, kVote:table )
 	local title:string, desc:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
 	local signed:number = ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 );
 	return { key = "prop:" .. voteKey, kind = "prop", voteKey = voteKey,
-		text = WCText_ProposalLine( title, desc, signed, kVote.cost ),
+		text = WCText_ProposalLine( title, desc, signed, kVote.cost, kVote.sraCostData or SRA_PcallCostData(), m_sraHintCount < 3 ),
 		detail = function()
 			local extra:string = SRA_EmergencyText( kVote.data );
 			return title .. ". " .. desc .. ( extra ~= "" and ( ". " .. extra ) or "" ) ..
@@ -2972,6 +2980,8 @@ local function SRA_VoteResolution( item:table, direction:number )
 	if f.chosen ~= 0 and f.chosen ~= f.focus then table.insert( parts, "Switched to option " .. letter ); end
 	table.insert( parts, WCText_VotesPhrase( kData.votes, letter, kData.cost ) );
 	table.insert( parts, m_WorkingFavor .. " favor left" );
+	local nextCost:string = WCText_NextCostPhrase( kData.votes, kCost );
+	if nextCost ~= "" then table.insert( parts, nextCost ); end
 	local after:table = SRA_ResolutionFacts( item.index );
 	if after ~= nil and after.target == nil and SRA_HasTargets( after.rd ) then table.insert( parts, "target needed, T to choose" ); end
 	SRA_Say( table.concat( parts, ", " ) );
@@ -3223,6 +3233,7 @@ local function SRA_Announce()
 	if m_sraResetFocus then
 		m_sraMainList.Reset();
 		m_sraFocusOption = {};
+		m_sraHintCount = 0;
 		m_sraResetFocus = false;
 	end
 	m_sraTargetHash = nil;
@@ -3321,6 +3332,7 @@ function SRA_CreateLists()
 	Bind( Keys.H, SRA_Help );
 	m_sraMainList = KeyNavList_Create{
 		build = SRA_BuildItems,
+		onFocus = function( item:table ) if item.kind == "res" or item.kind == "prop" then m_sraHintCount = m_sraHintCount + 1; end end,
 		isActive = function() return not ContextPtr:IsHidden() and m_sraTargetHash == nil; end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_CloseSpoken,

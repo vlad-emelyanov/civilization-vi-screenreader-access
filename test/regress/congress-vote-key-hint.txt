@@ -1,0 +1,13 @@
+# Written blind 2026-10-27 (round 27, not yet recorded). Fixture bug-world-congress-silent (turn 110, congress): the first resolution line says how to add a vote; after a vote the next cost is spoken.
+# covers: **/WorldCongress*_SRA.lua **/WorldCongressText.lua
+# no-share-load: votes in the congress
+# own-load: the first expect checks the congress intro the load itself speaks
+load bug-world-congress-silent
+expect (?i)enter to begin voting
+key Enter -Settle 2500
+expect Resolutions: \d+ to vote on
+expect no votes yet, equals adds a vote, Left and Right switch option
+key OemPlus -Settle 600
+expect (?i)vote for A.*favor left
+expect (?i)next vote|maximum votes
+no-lua-errors

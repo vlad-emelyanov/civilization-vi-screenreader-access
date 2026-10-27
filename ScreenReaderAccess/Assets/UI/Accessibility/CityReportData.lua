@@ -112,7 +112,12 @@ end
 
 local function GrowthItem( d:table )
 	local g:table = d.growth;
-	local text:string = "Population " .. d.population;
+	local text:string = "Population " .. d.population .. " of " .. Num( g.housing ) .. " housing";
+	if d.population >= g.housing then
+		text = text .. ", housing full";
+	elseif g.housing - d.population == 1 then
+		text = text .. ", 1 free housing";
+	end
 	local surplus:number = d.foodSurplus;
 	local state:string;
 	if g.occupied then
@@ -133,7 +138,7 @@ local function GrowthItem( d:table )
 		text = text .. ", " .. Signed( surplus ) .. " food";
 		state = "not growing";
 	end
-	text = text .. ", " .. state .. ", housing " .. d.population .. " of " .. Num( g.housing );
+	text = text .. ", " .. state;
 
 	local detail:table = {};
 	local eaten:number = g.foodPerTurn - surplus;
@@ -195,7 +200,9 @@ local function LoyaltyItem( d:table )
 	if l == nil then return nil; end
 	local text:string = "Loyalty " .. Num( l.current ) .. ", " .. Signed( l.perTurn ) .. " per turn";
 	if l.level ~= nil and l.level ~= "" then text = text .. ", " .. l.level; end
-	if l.rival ~= nil and l.rival ~= "" then text = text .. ", may turn to " .. l.rival; end
+	-- only a city that is falling or below the top level is in danger of turning (levelIndex: LoyaltyLevels row, 3 = Loyal)
+	local atRisk:boolean = l.perTurn < 0 or ( l.levelIndex ~= nil and l.levelIndex < ( l.topLevel or 3 ) );
+	if atRisk and l.rival ~= nil and l.rival ~= "" then text = text .. ", may turn to " .. l.rival; end
 
 	local detail:table = {};
 	table.insert( detail, "Loyalty " .. Num( l.current ) .. " of " .. Num( l.max ) .. ", " .. Signed( l.perTurn ) .. " per turn" );
@@ -361,7 +368,37 @@ local function ReligionItem( d:table )
 	local r:table = d.religion;
 	local text:string;
 	local detail:table = {};
-	if r.majorityName ~= nil then
+	local rows:table = r.rows;		-- { { name, followers, pressure, own } } from GetReligionsInCity, nil: use the older fields
+	local pantheonText:string = ( r.pantheon ~= nil and r.pantheon ~= "" ) and ( ", pantheon " .. r.pantheon ) or "";
+	local total:number = r.citizens or d.population;
+	if rows ~= nil then
+		if r.majority ~= nil then
+			text = "Religion: " .. r.majority.name .. " majority, " .. r.majority.followers .. " of " .. Plural( total, "citizen", "citizens" );
+		elseif #rows > 0 then
+			local parts:table = {};
+			for _, o in ipairs( rows ) do table.insert( parts, o.name .. " " .. o.followers ); end
+			text = "Religion: no majority. " .. Join( parts ) .. ", of " .. Plural( total, "citizen", "citizens" );
+		else
+			text = "Religion: none" .. pantheonText;
+		end
+		if r.majority == nil and #rows > 0 and pantheonText ~= "" then text = text .. pantheonText; end
+		if r.majority ~= nil and #rows > 1 then
+			local parts:table = {};
+			for _, o in ipairs( rows ) do
+				if o.name ~= r.majority.name then table.insert( parts, o.name .. " " .. o.followers ); end
+			end
+			if #parts > 0 then text = text .. ", others " .. Join( parts ); end
+		end
+		if r.nextName ~= nil and r.nextTurns ~= nil and r.nextTurns > 0 and ( r.majority == nil or r.nextName ~= r.majority.name ) then
+			text = text .. ", turns to " .. r.nextName .. " in " .. Turns( r.nextTurns );
+		end
+		if r.holyCityOf ~= nil then text = text .. ", holy city of " .. r.holyCityOf; end
+		local pressure:table = {};
+		for _, o in ipairs( rows ) do
+			if o.pressure ~= nil and o.pressure ~= 0 then table.insert( pressure, o.name .. " " .. Num( o.pressure ) ); end
+		end
+		if #pressure > 0 then table.insert( detail, "Pressure per turn: " .. Join( pressure ) ); end
+	elseif r.majorityName ~= nil then
 		text = "Religion: " .. r.majorityName .. ", " .. Plural( r.majorityFollowers, "follower", "followers" );
 	elseif r.pantheon ~= nil and r.pantheon ~= "" then
 		text = "Religion: pantheon " .. r.pantheon .. ", no majority religion";
@@ -370,9 +407,11 @@ local function ReligionItem( d:table )
 	end
 	if r.majorityName ~= nil and #r.beliefs > 0 then table.insert( detail, r.majorityName .. " beliefs: " .. Join( r.beliefs ) ); end
 	if r.pantheon ~= nil and r.pantheon ~= "" then table.insert( detail, "Pantheon: " .. r.pantheon ); end
-	local others:table = {};
-	for _, o in ipairs( r.others ) do table.insert( others, o.name .. " " .. o.followers ); end
-	if #others > 0 then table.insert( detail, "Other religions: " .. Join( others ) ); end
+	if rows == nil then
+		local others:table = {};
+		for _, o in ipairs( r.others ) do table.insert( others, o.name .. " " .. o.followers ); end
+		if #others > 0 then table.insert( detail, "Other religions: " .. Join( others ) ); end
+	end
 	if #detail == 0 then table.insert( detail, "No religion has followers here" ); end
 	return { key = "religion", text = text, detail = Join( detail, ". " ) };
 end
@@ -542,6 +581,7 @@ function CityReport_BuildItems( d:table )
 	Guard( function() Add( GrowthItem( d ) ); end );
 	Guard( function() Add( AmenitiesItem( d ) ); end );
 	Guard( function() Add( LoyaltyItem( d ) ); end );
+	Guard( function() Add( ReligionItem( d ) ); end );
 	Guard( function() Add( DefenseItem( d ) ); end );
 	Guard( function() Add( ProductionItem( d ) ); end );
 	Guard( function() Add( DistrictsItem( d ) ); end );
@@ -551,7 +591,6 @@ function CityReport_BuildItems( d:table )
 	Guard( function() Add( TilesItem( d ) ); end );
 	Guard( function() Add( SpecialistsItem( d ) ); end );
 	Guard( function() Add( ResourcesItem( d ) ); end );
-	Guard( function() Add( ReligionItem( d ) ); end );
 	Guard( function() Add( GreatWorksItem( d ) ); end );
 	Guard( function() Add( TradingPostsItem( d ) ); end );
 	return items;

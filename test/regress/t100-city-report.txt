@@ -8,7 +8,7 @@ key Control+I -Settle 2500
 expect ^.+ report, \d+ options
 expect Yields: food (plus|minus)? ?\d+.*production \d+.*gold.*science.*culture.*faith.*, 1 of \d+
 key Down -Settle 800
-expect ^Population \d+.*housing \d+ of \d+.*, 2 of \d+
+expect ^Population \d+ of \d+ housing.*, 2 of \d+
 key Down -Settle 800
 expect ^Amenities \d+ of \d+.*, 3 of \d+
 key Down -Settle 800

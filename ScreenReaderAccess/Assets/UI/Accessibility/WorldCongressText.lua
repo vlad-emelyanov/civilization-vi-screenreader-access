@@ -84,9 +84,46 @@ function WCText_VotesPhrase( votes, letter, cost )
 	return text;
 end
 
+-- Cost of the next vote after `votes` votes: returns favor (number, 0 = free) or nil when no more votes can be added.
+local function NextVoteCost( votes, costData )
+	if costData == nil then return nil; end
+	local count:number = CostCount( costData );
+	local maxVotes:number = costData.MaxVotes or count;
+	if votes + 1 > count or votes + 1 > maxVotes then return nil; end
+	local current:number = ( votes > 0 ) and costData[ votes - 1 ] or 0;
+	return costData[ votes ] - current;
+end
+
+-- "next vote 20 favor" / "next vote free" / "maximum votes" (spoken after a vote changed); "" without cost data or votes.
+function WCText_NextCostPhrase( votes, costData )
+	if costData == nil or votes == nil or votes <= 0 then return ""; end
+	local cost = NextVoteCost( votes, costData );
+	if cost == nil then return "maximum votes"; end
+	if cost == 0 then return "next vote free"; end
+	return "next vote " .. cost .. " favor";
+end
+
+-- What the equals / minus keys do next on a held vote: "equals adds a vote for 20 favor, minus removes one".
+-- addKey / removeKey / what: for a resolution "equals", "minus", "a vote"; for a proposal against: "minus", "equals", "a vote against".
+local function NextStep( votes, costData, addKey, removeKey, what )
+	if costData == nil or votes <= 0 then return ""; end
+	local cost = NextVoteCost( votes, costData );
+	local text:string;
+	if cost == nil then
+		text = "maximum votes";
+	elseif cost == 0 then
+		text = addKey .. " adds " .. what .. ", free";
+	else
+		text = addKey .. " adds " .. what .. " for " .. cost .. " favor";
+	end
+	if votes > 1 then text = text .. ", " .. removeKey .. " removes one"; end
+	return text;
+end
+
 -- One resolution while voting.
 -- d: name, focus (1/2, the option being looked at), effect (text of the focused option), chosen (0/1/2, the option
--- holding the votes), votes, cost, target (text or nil), needsTarget (bool)
+-- holding the votes), votes, cost, target (text or nil), needsTarget (bool);
+-- optional: costData (GetVotesandFavorCost, adds "equals adds a vote for N favor"), hint (bool, adds the key hint when no votes)
 function WCText_ResolutionLine( d )
 	local letter:string = WCText_Letter( d.focus );
 	local parts:table = { d.name .. ", option " .. letter .. ": " .. WCText_Strip( d.effect ) };
@@ -95,23 +132,35 @@ function WCText_ResolutionLine( d )
 		if d.needsTarget then
 			table.insert( parts, "target: " .. ( d.target or "none" ) );
 		end
+		local step:string = NextStep( d.votes, d.costData, "equals", "minus", "a vote" );
+		if step ~= "" then table.insert( parts, step ); end
 	elseif d.chosen ~= 0 and d.votes > 0 then
 		table.insert( parts, "your votes are on option " .. WCText_Letter( d.chosen ) );
 	else
 		table.insert( parts, "no votes yet" );
+		if d.hint then table.insert( parts, "equals adds a vote, Left and Right switch option" ); end
 	end
 	return table.concat( parts, ", " );
 end
 
 -- A proposal (discussion / emergency) while voting. votes is signed: > 0 for, < 0 against, 0 none.
-function WCText_ProposalLine( title, description, votes, cost )
+-- Optional costData / hint as for WCText_ResolutionLine.
+function WCText_ProposalLine( title, description, votes, cost, costData, hint )
 	local text:string = WCText_Strip( title );
 	if description ~= nil and WCText_Strip( description ) ~= "" then text = text .. ": " .. WCText_Strip( description ); end
 	if votes == nil or votes == 0 then
 		text = text .. ", no votes yet";
+		if hint then text = text .. ", equals votes for, minus votes against"; end
 	else
 		text = text .. ", your votes: " .. WCText_Plural( math.abs( votes ), "vote" ) .. ( votes > 0 and " for" or " against" );
 		if cost ~= nil and cost > 0 then text = text .. ", costs " .. cost .. " favor"; end
+		local step:string;
+		if votes > 0 then
+			step = NextStep( votes, costData, "equals", "minus", "a vote" );
+		else
+			step = NextStep( -votes, costData, "minus", "equals", "a vote against" );
+		end
+		if step ~= "" then text = text .. ", " .. step; end
 	end
 	return text;
 end

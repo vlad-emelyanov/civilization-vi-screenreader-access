@@ -37,7 +37,7 @@ test("a base game city gives 8 items in order", function()
 	local items = CityReport_BuildItems(city())
 	local keys = {}
 	for i, item in ipairs(items) do keys[i] = item.key end
-	eq(table.concat(keys, ","), "yields,growth,amenities,defense,production,districts,citizens,religion")
+	eq(table.concat(keys, ","), "yields,growth,amenities,religion,defense,production,districts,citizens")
 	for _, item in ipairs(items) do
 		istrue(item.text ~= nil and item.text ~= "", item.key .. " has text")
 		istrue(item.detail ~= nil and item.detail ~= "", item.key .. " has detail")
@@ -52,7 +52,12 @@ end)
 
 test("growth: normal, starving, stopped by housing, occupied", function()
 	local d = city()
-	eq(find(CityReport_BuildItems(d), "growth").text, "Population 6, plus 4 food, grows in 11 turns, housing 6 of 14")
+	eq(find(CityReport_BuildItems(d), "growth").text, "Population 6 of 14 housing, plus 4 food, grows in 11 turns")
+	d.growth.housing = 6
+	eq(find(CityReport_BuildItems(d), "growth").text, "Population 6 of 6 housing, housing full, plus 4 food, grows in 11 turns")
+	d.growth.housing = 7
+	eq(find(CityReport_BuildItems(d), "growth").text, "Population 6 of 7 housing, 1 free housing, plus 4 food, grows in 11 turns")
+	d = city()
 	d.growth.turnsUntilGrowth = -3; d.foodSurplus = -2
 	contains(find(CityReport_BuildItems(d), "growth").text, "starving, loses a citizen in 3 turns")
 	d = city(); d.growth.turnsUntilGrowth = 0; d.growth.housingMultiplier = 0
@@ -79,7 +84,14 @@ test("loyalty only when present", function()
 	d.loyalty = { current = 100, max = 100, perTurn = 8, level = "Loyal", sources = { { label = "Governor", value = 8 } },
 		influence = { { name = "Rome", value = 20 } }, rival = "Greece" }
 	local item = find(CityReport_BuildItems(d), "loyalty")
-	eq(item.text, "Loyalty 100, plus 8 per turn, Loyal, may turn to Greece")
+	eq(item.text, "Loyalty 100, plus 8 per turn, Loyal")
+	contains(item.detail, "The city would turn to Greece if loyalty ran out")
+	d.loyalty.levelIndex = 3
+	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, plus 8 per turn, Loyal")
+	d.loyalty.levelIndex = 2; d.loyalty.level = "Content"
+	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, plus 8 per turn, Content, may turn to Greece")
+	d.loyalty.levelIndex = 3; d.loyalty.level = "Loyal"; d.loyalty.perTurn = -2
+	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, minus 2 per turn, Loyal, may turn to Greece")
 	contains(item.detail, "Governor plus 8")
 	contains(item.detail, "Rome 20")
 end)
@@ -117,6 +129,36 @@ test("religion", function()
 	d.religion = { majorityName = "Judaism", majorityFollowers = 3, beliefs = { "Tithe" }, others = { { name = "Islam", followers = 1 } } }
 	eq(find(CityReport_BuildItems(d), "religion").text, "Religion: Judaism, 3 followers")
 	contains(find(CityReport_BuildItems(d), "religion").detail, "Islam 1")
+end)
+
+test("religion rows: majority, no majority, none, pantheon, next, holy city", function()
+	local d = city()
+	d.population = 11
+	d.religion = { beliefs = { "Tithe" }, others = {}, citizens = 11, pantheon = "Fertility Rites",
+		majority = { name = "Eastern Orthodoxy", followers = 6 },
+		rows = { { name = "Eastern Orthodoxy", followers = 6, pressure = 4 }, { name = "Buddhism", followers = 1, pressure = 1 } },
+		majorityName = "Eastern Orthodoxy", holyCityOf = "Eastern Orthodoxy" }
+	local item = find(CityReport_BuildItems(d), "religion")
+	eq(item.text, "Religion: Eastern Orthodoxy majority, 6 of 11 citizens, others Buddhism 1, holy city of Eastern Orthodoxy")
+	contains(item.detail, "Pressure per turn: Eastern Orthodoxy 4, Buddhism 1")
+	contains(item.detail, "Pantheon: Fertility Rites")
+	d.religion.nextName = "Buddhism"; d.religion.nextTurns = 5; d.religion.holyCityOf = nil
+	contains(find(CityReport_BuildItems(d), "religion").text, ", turns to Buddhism in 5 turns")
+	d.population = 8
+	d.religion = { beliefs = {}, others = {}, citizens = 8, rows = { { name = "Eastern Orthodoxy", followers = 2 }, { name = "Buddhism", followers = 1 } } }
+	eq(find(CityReport_BuildItems(d), "religion").text, "Religion: no majority. Eastern Orthodoxy 2, Buddhism 1, of 8 citizens")
+	d.religion = { beliefs = {}, others = {}, citizens = 8, rows = {}, pantheon = "Fertility Rites" }
+	eq(find(CityReport_BuildItems(d), "religion").text, "Religion: none, pantheon Fertility Rites")
+	d.religion = { beliefs = {}, others = {}, citizens = 8, rows = {} }
+	eq(find(CityReport_BuildItems(d), "religion").text, "Religion: none")
+end)
+
+test("religion comes right after loyalty", function()
+	local d = city()
+	d.loyalty = { current = 100, max = 100, perTurn = 8, level = "Loyal", sources = {}, influence = {} }
+	local keys = {}
+	for i, item in ipairs(CityReport_BuildItems(d)) do keys[i] = item.key end
+	eq(table.concat(keys, ","), "yields,growth,amenities,loyalty,religion,defense,production,districts,citizens")
 end)
 
 test("great works and trading posts are optional items", function()
