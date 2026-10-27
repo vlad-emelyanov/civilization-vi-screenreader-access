@@ -67,3 +67,28 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
 **Today:** `CityReportData.lua` `GrowthItem` builds "Population 6, plus 4 food, grows in 11 turns, housing 6 of 14". It is checked in `test/lua/test_cityreport.lua:55`. No regress `.txt` expects this wording; only `.recorded.txt` sidecars contain it.
 
 **Proposed:** "Population 6 of 7 housing, plus 4 food, grows in 11 turns". Drop the trailing "housing X of Y", keep the starving, housing-stopped and slowed states as they are, and update the Lua test. Optionally add "1 free housing" or "housing full" right after it, because that is what decides growth.
+
+## M5. X in attack modes cycles through targets you cannot attack (behaviour change)
+
+**Reported:** in a ranged attack, probably in a melee attack, and in a city ranged attack, X walks through many units that cannot actually be attacked. This gets worse in later eras, when more units are on the map.
+
+**Today:** `HubCursor.ScanUnits` (X) collects every visible foreign unit within 10 tiles, and the same list is used in target modes.
+- In an attack mode it only sorts the list: valid targets first, then hostile ones, then "would declare war", then the rest (`ScanEntryRank`, from `HubTargets.IsAttackTarget`). Every entry is still visited, and "Last target, X wraps" comes only after all of them.
+- Modes that list their own plots (deploy, rebase, form corps, ...) already walk only valid plots (`HubTargets.ModeTargetPlots`). Attack modes don't, because `ModeTargetPlots` returns nil for them.
+- City and district ranged attacks: when the mode opens, the cursor goes to the nearest target (`HubTargets.CursorToNearestCityTarget`, from `GetCityAttackTargets`). X then falls back to the all-units scan.
+- The scan only finds plots with units. An enemy city or district with no unit in it is never an X stop, even when it can be attacked.
+
+**Proposed:** in attack modes, X walks only plots the attack can hit this turn.
+- **Ranged, air and strikes:** the plots from `GetAttackTargets( unit, operation )` (already in `HubTargets.lua`, `UnitManager.GetOperationTargets` with `MODIFIER_IS_TARGET`).
+- **City and district ranged attacks:** `GetCityAttackTargets( city )`.
+- **Melee (Move To with the Attack key):** hostile plots the unit can reach and attack this turn. Filter the current candidates with `HubTargets.IsAttackTarget`, and also add enemy cities and districts.
+- **Declare war:** a target that would declare war is listed only if the game lists it as a target, and it keeps the "would declare war" warning.
+- **No targets:** keep the current "No enemy in range of the X. Nearest enemy: ..." line. Optionally add how many hostile units are in view but out of reach.
+- **Wrap line:** "Last target, X wraps" stays.
+
+**Engine probe first:**
+- Does `GetOperationTargets` return the plots of attackable cities and districts?
+- In a war-declaring case, does it return plots of a civ you are at peace with?
+- For melee, is there an operation-targets call for `UnitOperationTypes.MOVE_TO`, or must the per-plot check stay? It costs one `TargetInfo` per candidate.
+
+**Regress impact:** these scripts use X and must be rechecked in attack modes: `attack-x-hostile-first`, `t128-attack-targets`, `city-x-order`, `attack-far-strength`, `air-units`, `carrier`, `nuke-ready`, `t60-enemy-at-capital`. `attack-x-hostile-first` checks the current order on purpose and will need its expectations rewritten. Update the X entry in `HelpText.lua` ("in an attack mode: only what you can attack").
