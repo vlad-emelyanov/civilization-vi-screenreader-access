@@ -7,9 +7,9 @@ local fired, listener, reply
 local opened = nil
 HubCore = {
 	Listen = function(event, fn) listener = fn end,
-	IsModeOpen = function() return false end,
-	CloseMode = function() end,
-	OpenMode = function(name) opened = name end,
+	IsModeOpen = function() return opened ~= nil end,
+	CloseMode = function() opened = nil end,
+	OpenMode = function(name, list, title) opened = name; HubCore.list = list; list.Open(title) end,
 }
 HubTargets = { CanOpenMode = function() return true end }
 LuaEvents = {
@@ -46,15 +46,31 @@ test("a hook that answers not ok, or nobody answers: not available", function()
 	eq(HubScreens.OpenScreen(HubScreens.SCREENS[8]), false)
 end)
 
-test("Enter on an unavailable screen closes the list and says so", function()
-	reply = false
-	HubScreens.Open()
-	local list = nil
-	-- activate through the item the list builds
-	local item = HubScreens.BuildItems()[12]
+local function press(list, key)
 	ClearPrinted()
-	local ok = HubScreens.OpenScreen(item.screen)
-	eq(ok, false)
+	list.HandleInput(Input{ key = key })
+	return list.HandleInput(Input{ key = key, up = true })
+end
+
+test("Enter on an unavailable screen closes the list and says so (real activation path)", function()
+	for _, answer in ipairs({ "notok", "silent" }) do
+		reply = (answer == "notok") and false or nil
+		opened = nil
+		HubScreens.Open()
+		eq(opened, "screens")
+		for _ = 1, 20 do
+			press(HubCore.list, Keys.VK_DOWN)
+			if (Spoken()[1] or ""):find("^Climate") then break end
+		end
+		assert((Spoken()[1] or ""):find("^Climate"), "focus on Climate: " .. tostring(Spoken()[1]))
+		fired = nil
+		press(HubCore.list, Keys.VK_RETURN)
+		eq(fired, "Climate")
+		eq(opened, nil, "list closed")
+		local found = false
+		for _, s in ipairs(Spoken()) do if s == "Climate not available" then found = true end end
+		assert(found, "Climate not available spoken: " .. table.concat(Spoken(), " | "))
+	end
 end)
 
 test("civilopedia opens by its own event", function()

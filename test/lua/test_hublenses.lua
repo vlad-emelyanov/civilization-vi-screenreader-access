@@ -2,6 +2,8 @@
 stub("engine")
 include("LensText")
 include("KeyNavList")
+HubCore = { IsModeOpen = function() return true end, CloseMode = function() end }
+Input = { GetActionId = function(name) return name == "LensAppeal" and 42 or nil end }
 include("HubLenses")
 
 local active = nil
@@ -34,4 +36,36 @@ test("detail is the legend, or No legend", function()
 	local items = HubLenses.BuildItems()
 	eq(find(items, "LensAppeal").detail, "Appeal legend")
 	eq(find(items, "LensPower").detail, "No legend")
+end)
+
+local function activate(key)
+	local items = HubLenses.BuildItems()
+	return find(items, key)
+end
+
+test("Enter fires the lens action id through Events.InputActionTriggered.Call", function()
+	local called
+	Events = { InputActionTriggered = { Call = function(id) called = id end } }
+	ClearPrinted()
+	HubLenses.Toggle(activate("LensAppeal"))
+	eq(called, 42)
+	eq(#Spoken(), 0)
+end)
+
+test("a missing .Call says to use the number key", function()
+	Events = { InputActionTriggered = {} }
+	ClearPrinted()
+	HubLenses.Toggle(activate("LensAppeal"))
+	local s = Spoken()[1]
+	assert(s and s:find("number key"), tostring(s))
+	assert(s:find("^Appeal lens"), tostring(s))
+end)
+
+test("an unknown action id says to use the number key", function()
+	local called = false
+	Events = { InputActionTriggered = { Call = function() called = true end } }
+	ClearPrinted()
+	HubLenses.Toggle(activate("LensContinent"))		-- the stub returns nil for it
+	eq(called, false)
+	assert(Spoken()[1]:find("number key"))
 end)

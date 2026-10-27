@@ -724,8 +724,10 @@ local function SRA_OnOpenScreen( name )
 	elseif name == "Great Works" then
 		if m_isGreatWorksAvailable then opener = OnOpenGreatWorks; end
 	elseif name == "Governors" then
+		-- the only difference from the button's own flag (m_isGovernorsAvailable of the Expansion1 file, a local we cannot see) is observer mode
 		if ToggleGovernors ~= nil and HasCapability("CAPABILITY_GOVERNORS") and Game.GetLocalPlayer() ~= -1 then opener = ToggleGovernors; end
 	elseif name == "Climate" then
+		-- same as Governors: the button shows iff the capability is on; only observer mode differs
 		if OnToggleClimateScreen ~= nil and HasCapability("CAPABILITY_WORLD_CLIMATE_VIEW") and Game.GetLocalPlayer() ~= -1 then opener = OnToggleClimateScreen; end
 	else
 		return;		-- not a launch bar screen (PartialScreenHooks answers its own)

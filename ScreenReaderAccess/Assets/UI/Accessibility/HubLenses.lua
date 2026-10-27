@@ -48,6 +48,8 @@ local function Toggle( item:table )
 	end
 end
 
+HubLenses.Toggle = Toggle;		-- (tests)
+
 m_list = KeyNavList_Create{
 	build		= BuildItems,
 	isActive	= function() return HubCore.IsModeOpen( "lenses" ); end,
