@@ -299,6 +299,8 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 		return;
 	end
 	HubCore.m_enterWatch = -1;
+	local pendingAttack:table = HubCore.m_attackPending;
+	if pendingAttack ~= nil and pendingAttack.id ~= unitID then HubCore.ClearAttackPending(); end		-- the player moved on
 	local unit:table = Players[playerID]:GetUnits():FindID( unitID );
 	if unit == nil then return; end
 	-- a move order that is no longer under way is forgotten
@@ -568,12 +570,14 @@ function HubAnnounce.OnLocalPlayerTurnEnd()
 	local player:table = Players[ Game.GetLocalPlayer() ];
 	if player == nil or not player:IsTurnActive() then
 		-- the turn is back active within 0.1 s when it was refused (a unit that finished its move during the end-of-turn
-		-- processing): do not wait for the (late) engine event, and do not say "Turn ended" first
+		-- processing): do not wait for the (late) engine event, and do not say "Turn ended" first. If the game is already
+		-- in a new turn the new turn's own line covers it: "Turn ended" would land after "Turn N".
 		HubCore.After( 0.3, function()
+			if Game.GetCurrentGameTurn() ~= turn then return; end
 			local current:table = Players[ Game.GetLocalPlayer() ];
-			if m_endedTurn == turn and Game.GetCurrentGameTurn() == turn and current ~= nil and current:IsTurnActive() then
+			if m_endedTurn == turn and current ~= nil and current:IsTurnActive() then
 				TurnNotEnded( turn );
-			elseif m_endedTurn == turn or Game.GetCurrentGameTurn() ~= turn then
+			elseif m_endedTurn == turn then
 				OutputMessageToScreenReader( "Turn ended", true );
 			end
 		end );

@@ -131,10 +131,13 @@ function Hub.HandleInput( input:table )
 	-- Enter while an attack's result is still on its way: it would end the turn by accident (N says the same)
 	local intentKind:string, intentText:string = nil, nil;
 	if key == Keys.VK_RETURN and not HubCore.IsGamePopupOpen() then intentKind, intentText = HubAnnounce.EnterIntent(); end
-	if intentKind == "attack" then
-		if msg == KeyEvents.KeyUp then HubCore.SayResult( intentText ); end
-		return true;
+	if key == Keys.VK_RETURN and msg == KeyEvents.KeyDown and intentKind == "attack" then HubCore.m_enterSwallowed = true; end
+	if key == Keys.VK_RETURN and msg == KeyEvents.KeyUp and HubCore.m_enterSwallowed then
+		-- the KeyUp of a swallowed KeyDown is swallowed too, even when the hold cleared in between
+		HubCore.m_enterSwallowed = false;
+		if intentKind ~= "build" then HubCore.SayResult( intentText or "Attack under way, wait for the result" ); return true; end
 	end
+	if intentKind == "attack" then return true; end
 	-- Enter right after a builder arrived on the tile it was sent to: it builds the improvement chosen in the X list
 	if intentKind == "build" then
 		if msg == KeyEvents.KeyUp then HubCore.Safe( "ArmedBuild", HubSettle.RunArmedBuild )(); end

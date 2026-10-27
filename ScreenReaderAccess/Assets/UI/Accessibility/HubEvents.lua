@@ -225,6 +225,7 @@ end
 
 function HubEvents.OnUnitDamageChanged( playerID:number, unitID:number, newDamage:number, oldDamage:number )
 	if not HubCore.m_ready or newDamage <= oldDamage then return; end
+	HubCore.ClearAttackPending();		-- a result of the fight (units and cities report their damage as unit damage; the line below tells it)
 	local player:table = Players[ playerID ];
 	if player == nil then return; end
 	local unit:table = player:GetUnits():FindID( unitID );
