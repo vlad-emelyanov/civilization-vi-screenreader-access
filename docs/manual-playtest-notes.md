@@ -170,3 +170,18 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
   - Which cities does `GetOperationTargets` return?
   - Is the transfer instant, and does it cost the unit's moves?
 - **Fixture:** any save with an unactivated great person and two or more cities. The user's game had Isaac Newton in Ottawa at turn 103. pt-modes fixtures from rounds 20-21 have great people.
+
+## M10. World Congress: how to add votes is never said on the resolution (tweak)
+
+**Reported:** it was not clear how to put more votes on an option. The resolution line should say it.
+
+**Today:** the keys exist: equals or Shift+Up adds a vote, minus removes one, and Left/Right switch between A and B (`HelpText.lua`, world congress entry; `WorldCongressPopup_SRA.lua`). But they are only reachable through the help list. In the user's session (turn ~110):
+- Opening line: "World Congress. Resolutions: 2 to vote on. You have 410 diplomatic favor, 1 free vote each. Migration Treaty, option A: ..., no votes yet, 1 of 3. H for keys".
+- Resolution line: "Migration Treaty, option A: <effect>, no votes yet, 1 of 3" (`WorldCongressText.lua` `WCText_ResolutionLine`). No key names.
+- After a vote: "1 vote for A, free, 410 favor left, target needed, T to choose". It doesn't say that another vote can be bought, or what it costs.
+
+**Proposed:**
+1. On a resolution or proposal with no votes yet, append "equals adds a vote, Left and Right switch option". To keep later lines short, say it on the first focus only, or until the player has used the key once in the session.
+2. On a resolution that holds votes, add the next step: "equals adds a vote for 20 favor, minus removes one". The cost is the difference between the next two entries of `GetVotesandFavorCost()`, the same numbers `WCText_VoteBlock` uses. At the maximum: "maximum votes".
+3. Use the real binding names if these keys are rebindable; they are plain keys inside the screen, so probably fixed.
+4. Regress impact: grep `test/regress/*congress*.txt` for the resolution and vote lines and update the expectations. `WCText_*` has Lua tests (`test/lua/test_worldcongress*.lua`, if present) to extend.
