@@ -18,7 +18,7 @@ public sealed class XInputReader
 
     private bool _use910;
     private int _slot = -1;
-    private long _lastScan = long.MinValue;
+    private long _lastScan = -RecheckMs;   // not long.MinValue: nowMs - MinValue overflows negative and the first scan never happens
 
     public int Slot => _slot;
 
