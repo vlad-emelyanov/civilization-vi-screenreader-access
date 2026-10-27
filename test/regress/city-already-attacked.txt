@@ -6,14 +6,14 @@ clear-advisors
 scenario city-already-attacked
 lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Ostia" then UI.SelectCity(c) end end
 wait Ostia -Timeout 8
-key R -Settle 1500
+action RangedAttack -Settle 1500
 expect Ostia can't attack: (no enemy it can target in range, or )?it already attacked this turn
 lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Mediolanum" then UI.SelectCity(c) end end
 wait Mediolanum -Timeout 8
-key R -Settle 1500
+action RangedAttack -Settle 1500
 expect ^City ranged attack
 key Enter -Settle 4000
 expect ^Attacking
-key R -Settle 2000
+action RangedAttack -Settle 2000
 expect Mediolanum can't attack: it already attacked this turn
 no-lua-errors

@@ -16,6 +16,7 @@ key Down -Settle 400
 key Down -Settle 400
 key Down -Settle 400
 key Down -Settle 400
+key Down -Settle 400
 expect ^Focus: .*\. Enter to change, \d+ of \d+
 key Enter -Settle 1500
 expect ^Focus, \d+ options

@@ -6,7 +6,7 @@ load bug-escort-rome-unreachable
 clear-advisors
 lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(1638401)) return 1
 key M -Settle 1200
-key Backslash -Settle 1500
+action CapitalCity -Settle 1500
 expect unreachable, Boudica is already there, only one civilian fits on a tile
 key Enter -Settle 1200
 expect ^Unreachable: Boudica is already there

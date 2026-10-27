@@ -8,14 +8,14 @@ expect-lua ^selected
 action KeyNavCursorToSelection -Settle 1000
 expect (?i)^Legion\.
 action MoveTo -Settle 1000
-key Shift+Down
+action KeyNavMoveCellDown
 expect (?i)Lake
 key Enter -Settle 2000
 expect (?i)^Arrived, embarked, \d of \d moves
 action KeyNavCursorToSelection -Settle 1000
 expect (?i)^Legion, embarked\. Lake
 action MoveTo -Settle 1000
-key Shift+Up
+action KeyNavMoveCellUp
 key Enter -Settle 2000
 expect (?i)^Arrived, disembarked, \d of \d moves
 no-lua-errors

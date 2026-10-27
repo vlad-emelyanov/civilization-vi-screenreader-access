@@ -12,9 +12,9 @@ expect-lua ^Builder exposed: Barbarian Archer 3 tiles east\. Enter again ends th
 key Enter -Settle 1500
 key Enter -Settle 1500
 key Enter -Settle 1500
-key Space -Settle 1200
-key Space -Settle 1200
-key Space -Settle 1200
+action SkipTurn -Settle 1200
+action SkipTurn -Settle 1200
+action SkipTurn -Settle 1200
 key Enter -Settle 1500
 key Enter -Settle 2000
 key Enter -Settle 2000

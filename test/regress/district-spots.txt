@@ -15,6 +15,7 @@ key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
+key Down -Settle 800
 expect ^District spots: .*, \d+ of \d+
 key Space -Settle 3000
 # medieval-t100 Rome (pop 6) can only offer the Bath (the others need pop 7), so the Space text has no 'Best spot' (the wording is in test_districtadvice.lua)

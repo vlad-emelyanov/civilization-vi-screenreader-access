@@ -15,6 +15,6 @@ expect ^No
 key Enter -Settle 1500
 expect-not (?i)deleted
 # the settler is still selected: Space says it cannot skip
-key Space -Settle 1000
+action SkipTurn -Settle 1000
 expect (?i)skip turn
 no-lua-errors

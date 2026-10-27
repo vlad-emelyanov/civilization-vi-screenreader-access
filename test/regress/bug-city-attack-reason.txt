@@ -4,12 +4,12 @@
 # no-share-load: target-mode keys (R, Backslash); unique fixture
 load bug-city-ranged-nothing
 clear-advisors
-key Backslash -Settle 1500
+action CapitalCity -Settle 1500
 expect ^Rome, Population
-key R -Settle 1500
+action RangedAttack -Settle 1500
 expect Rome can't attack: .*walls
-key Backslash -Settle 1500
+action CapitalCity -Settle 1500
 expect ^Capital: Rome
-key Backslash -Settle 1500
+action CapitalCity -Settle 1500
 expect ^Capital: Rome
 no-lua-errors

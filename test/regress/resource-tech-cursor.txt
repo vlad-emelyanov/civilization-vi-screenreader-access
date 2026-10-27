@@ -9,6 +9,6 @@ clear-advisors
 lua GameCore_Tuner local c = Players[0]:GetCities():GetCapitalCity(); Map.GetPlot(65, 32):SetOwner(0, c:GetID()); return 1
 lua InGameAccess HubCursor.SetCursor(65, 32, true, true); return 1
 wait Deer .*needs Animal Husbandry -Timeout 5
-key I -Settle 1500
+action KeyNavPlotDetails -Settle 1500
 expect (?i)(\w+ needs [A-Z][\w ]+|can be built now)
 no-lua-errors

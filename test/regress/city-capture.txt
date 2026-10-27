@@ -10,8 +10,8 @@ wait Man-At-Arms -Timeout 8
 key W -Settle 1500
 expect ^Attack: choose a target
 action KeyNavCursorToSelection -Settle 800
-key Shift+Down -Settle 800
-key Shift+Left -Settle 900
+action KeyNavMoveCellDown -Settle 800
+action KeyNavMoveCellLeft -Settle 900
 expect ^attack, 1 turn.* Free Cities city
 key Enter -Settle 4000 -Quiet 1500
 expect Attacking

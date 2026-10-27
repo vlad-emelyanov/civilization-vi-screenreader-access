@@ -13,6 +13,7 @@ key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
-expect ^District spots: none can be built now\. Next: .+ needs population 7, 8 of 16$
+key Down -Settle 800
+expect ^District spots: none can be built now\. Next: .+ needs population 7, 9 of 16$
 key Escape -Settle 1500
 no-lua-errors

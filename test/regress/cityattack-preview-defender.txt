@@ -7,7 +7,7 @@ load bug-cityattack-preview-wrong-unit
 clear-advisors
 lua GameCore_Tuner for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Cumae" then c:GetBuildQueue():CreateIncompleteBuilding(GameInfo.Buildings["BUILDING_WALLS"].Index, 100) end end local b=Players[63]; b:GetUnits():Create(GameInfo.Units["UNIT_MAN_AT_ARMS"].Index,60,30); b:GetUnits():Create(GameInfo.Units["UNIT_BUILDER"].Index,60,30); return 1
 lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Cumae" then UI.DeselectAllUnits(); UI.SelectCity(c) end end
-key R -Settle 1500
+action RangedAttack -Settle 1500
 expect ^City ranged attack
 expect Ranged strength \d+ against \d+.*Barbarian Man-At-Arms, Barbarian Builder
 key Escape -Settle 500

@@ -10,6 +10,7 @@ key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
+key Down -Settle 800
 expect ^Production: .*Tab opens production
 key Tab -Settle 2000
 expect-not (?i)actions

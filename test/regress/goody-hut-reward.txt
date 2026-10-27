@@ -7,7 +7,7 @@ scenario goody-hut
 lua InGameAccess UI.SelectUnit(Players[0]:GetUnits():FindID(589831))
 wait Scout -Timeout 8
 action MoveTo -Settle 1500
-key Shift+Up -Settle 1500
+action KeyNavMoveCellUp -Settle 1500
 key Enter -Settle 3500
 expect ^Arrived
 expect ^Tribal village: \S

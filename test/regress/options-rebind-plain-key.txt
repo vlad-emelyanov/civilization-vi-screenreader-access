@@ -1,3 +1,4 @@
+# manual: needs the DEFAULT key bindings (Move cell down on Shift+Down, Camera Pan on the arrows) and rewrites the user's InputSettings.json (its last step binds Move cell down to Shift+Down); with the user's own scheme (plain arrows for the cursor) it fails halfway and leaves bindings changed. Round 27: not run in regress all any more, run by name on a clean profile.
 # Options > Key Bindings: rebinding an action to a plain navigation key (Down/Up) used to leave the capture active: the in-game menu below consumed the KeyUp the engine needs, so the key went to the menu (RESTART/RETIRE spoken) and the capture state survived.
 # covers: **/Options.lua **/InGameTopOptionsMenu.lua
 # no-share-load: rebinds keys (restored at the end, but the reset check cannot see it)
@@ -12,8 +13,8 @@ expect Game Options, tab 1 of 7
 key Down -Count 6 -Quiet 100
 expect Key Bindings, tab 7 of 7
 key Enter -Settle 1500
-expect Key Bindings, 90 actions
-key Down -Count 13 -Quiet 100
+expect Key Bindings, 92 actions
+key Down -Count 14 -Quiet 100
 expect ^Move cell down, primary binding: Shift\+Down Arrow
 key Enter -Settle 800
 expect ^Press the new key for Move cell down
