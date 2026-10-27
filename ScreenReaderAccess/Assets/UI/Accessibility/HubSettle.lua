@@ -767,6 +767,18 @@ function HubSettle.BuilderHint( unit:table )
 	return "X lists tiles to improve";
 end
 
+-- The browser X opens for this unit, as { text, open } for the unit actions menu (the controller has no X on the map), or nil
+-- when X would not open one (the scan for foreign units). Same order and tests as ScanKey; open() is ScanKey itself.
+function HubSettle.BrowserFor( unit:table )
+	if unit == nil then return nil; end
+	local text:string = nil;
+	if HubCore.IsSettler( unit ) then text = "Browse settle spots";
+	elseif BuildScan_Improvements( unit ) ~= nil then text = "Browse tiles to improve";
+	elseif HubSettle.ActivationPlots( unit ) ~= nil then text = "Browse tiles to act on"; end
+	if text == nil then return nil; end
+	return { text = text, open = function() HubSettle.ScanKey(); end };
+end
+
 -- X: with a settler selected the spot browser, with a builder the tile browser, otherwise the scan for foreign units.
 function HubSettle.ScanKey()
 	if not HubCore.IsLocalPlayerActive() then return; end

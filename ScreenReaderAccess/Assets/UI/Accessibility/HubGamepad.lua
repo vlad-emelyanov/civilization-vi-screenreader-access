@@ -7,7 +7,7 @@
 --	The console app sends buttons without a keyboard equivalent as F13..F24 (Gamepad.lua has the table). Here:
 --	  - ModeOn / ModeOff (F22 / F23) set the controller mode flag,
 --	  - global buttons (Menu, View, LB, RB, stick clicks, right stick) act on KeyUp, both events are consumed,
---	  - mode-dependent buttons (X, LT, RT) go to the open hub list first, are silent in a target mode, and act on the bare map,
+--	  - mode-dependent buttons (X, LT, RT) go to the open hub list first, in a target mode X scans for foreign units and LT / RT are silent, and act on the bare map,
 --	  - while a game screen or popup is open every button but LB / RB passes through (LB / RB say "Close the screen first").
 --	Keys that no screen wanted reach WorldInput's catcher (Gamepad_CatchKey), which fires LuaEvents.SRA_PadCursor / SRA_PadDetails /
 --	SRA_PadInfo; the listeners are here.
@@ -26,7 +26,14 @@ local function OpenGameMenu()
 	LuaEvents.InGame_OpenInGameOptionsMenu();
 end
 
+-- LB / RB in a target mode: the places list (J), Enter there only moves the target; refuses only where CanOpenMode( true ) does
+local function TargetPlaces()
+	if not HubTargets.CanOpenMode( true ) then return; end
+	HubPlaces.TogglePlaces();
+end
+
 local function Ring( step:number )
+	if HubTargets.GetTargetMode() ~= nil then TargetPlaces(); return; end
 	if not HubTargets.CanOpenMode() then return; end		-- target mode / placement: says why (with "B" in controller mode)
 	local fn = nil;
 	if HubPad ~= nil then
@@ -37,6 +44,7 @@ local function Ring( step:number )
 end
 
 local function Capital()
+	if HubTargets.GetTargetMode() ~= nil then HubTargets.CapitalKey(); return; end		-- Backslash: only moves the target
 	if Players[ Game.GetLocalPlayer() ]:GetCities():GetCapitalCity() == nil then Say( "No capital" ); return; end
 	LuaEvents.SRA_PadCapital();
 end
@@ -113,7 +121,10 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 			if not ok then print( "InGameAccess Pad" .. button .. " list error: " .. tostring( consumed ) ); end
 			return true;
 		end
-		if HubTargets.GetTargetMode() ~= nil then return true; end
+		if HubTargets.GetTargetMode() ~= nil then
+			if button == "X" and isUp then HubCore.Safe( "PadX", HubSettle.ScanKey )(); end		-- X key in a target mode: the nearest foreign unit
+			return true;		-- LT / RT: silent
+		end
 		if isUp then HubCore.Safe( "Pad" .. button, MAP_ACTIONS[ button ] )(); end
 		return true;
 	end

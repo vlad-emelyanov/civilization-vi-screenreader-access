@@ -89,3 +89,22 @@ test("armed Enter: needs the builder selected, on the tile, with moves; other ke
 	assert(not HubSettle.BuildEnterArmed())
 	assert(HubSettle.m_pending == nil)
 end)
+
+test("BrowserFor: settler, builder, action unit, anything else", function()
+	local saved = { settler = HubCore.IsSettler, scan = BuildScan_Improvements, act = HubSettle.ActivationPlots }
+	local unit = {}
+	local kind = { settler = false, builder = false, act = false }
+	HubCore.IsSettler = function() return kind.settler end
+	BuildScan_Improvements = function() if kind.builder then return {} end end
+	HubSettle.ActivationPlots = function() if kind.act then return {} end end
+	eq(HubSettle.BrowserFor(nil), nil)
+	eq(HubSettle.BrowserFor(unit), nil)
+	kind.act = true
+	eq(HubSettle.BrowserFor(unit).text, "Browse tiles to act on")
+	kind.builder = true
+	eq(HubSettle.BrowserFor(unit).text, "Browse tiles to improve")
+	kind.settler = true
+	eq(HubSettle.BrowserFor(unit).text, "Browse settle spots")
+	eq(type(HubSettle.BrowserFor(unit).open), "function")
+	HubCore.IsSettler, BuildScan_Improvements, HubSettle.ActivationPlots = saved.settler, saved.scan, saved.act
+end)

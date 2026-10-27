@@ -1,0 +1,36 @@
+# Controller unit flow: the builder's tile browser is the first entry of the Tab menu (the controller has no X on the map), and in a target mode X = nearest foreign unit, RB = places list (J), left stick click = target to the capital (Backslash). UNVERIFIED, blind-written: run once with civregress --record.
+# covers: **/HubMenus.lua **/HubSettle.lua **/HubGamepad.lua
+# no-share-load: moves a unit
+load early-t60
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+# ModeOn (console app: F22)
+key F22 -Settle 500
+key Tab -Settle 1500
+expect ^Builder actions, \d+ options
+expect Browse tiles to improve, 1 of
+key Space -Settle 800
+expect Opens the same browser as the X key
+key Enter -Settle 2000
+expect ^(Tiles to improve|.*Tiles to improve)
+key Escape -Settle 800
+expect ^Closed
+# a target mode: Move To
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+action MoveTo -Settle 1500
+expect ^Move to
+# X (F13): the nearest foreign unit
+key F13 -Settle 1500
+expect (?i)(archer|swordsman|barbarian|no foreign unit)
+# RB (F15): the places list opens (Enter there would only move the target)
+key F15 -Settle 1500
+expect ^Places\.
+key Escape -Settle 800
+# LSClick (F20): the target moves to the capital instead of selecting it
+key F20 -Settle 1500
+expect (?i)rome
+# B: cancel the target mode
+key Escape -Settle 800
+# ModeOff (console app: F23)
+key F23 -Settle 500
+no-lua-errors

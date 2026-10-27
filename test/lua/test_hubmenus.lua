@@ -64,3 +64,46 @@ test("SRActionResultText is the shared wording (Tab menu and U key)", function()
 	eq(SRActionResultText("Activate Jakob Fugger: Gives gold"), "Jakob Fugger activated: Gives gold")
 	eq(SRActionResultText("Found Religion"), "Found Religion")
 end)
+
+-- The Tab menu starts with the browser X opens (HubSettle.BrowserFor); a unit without one gets only its actions
+local function openMenuFor(browser)
+	local saved = { le = LuaEvents, ui = UI, players = Players, targets = HubTargets, settle = HubSettle }
+	local opened = { browser = 0 }
+	LuaEvents = { SRA_RequestUnitActions = function() HubMenus.OnUnitActionsReceived(1, { { id = 1, tag = 1, name = "Fortify", disabled = false, reason = "", detail = "" } }) end,
+		SRA_RunUnitAction = function() end }
+	local unit = { GetOwner = function() return 0 end, GetName = function() return "Settler" end, GetID = function() return 1 end }
+	UI = setmetatable({ GetHeadSelectedUnit = function() return unit end, GetHeadSelectedCity = function() return nil end, GetInterfaceMode = function() return 0 end }, { __index = saved.ui })
+	Players = Players or {}
+	if Players[0] == nil then Players[0] = {} end
+	HubTargets = { CanOpenMode = function() return true end }
+	HubSettle = { BrowserFor = function() if browser then return { text = "Browse settle spots", open = function() opened.browser = opened.browser + 1 end } end end }
+	local savedFormation = PlotDescription_FormationName
+	PlotDescription_FormationName = function(_, name) return name end
+	ClearPrinted()
+	HubMenus.ToggleUnitMenu()
+	local restore = function() PlotDescription_FormationName = savedFormation; LuaEvents, UI, Players, HubTargets, HubSettle = saved.le, saved.ui, saved.players, saved.targets, saved.settle end
+	return opened, restore
+end
+
+test("a settler's menu starts with Browse settle spots; Space explains; Enter opens the browser", function()
+	local opened, restore = openMenuFor(true)
+	local said = table.concat(Spoken(), " | ")
+	assert(said:find("Browse settle spots", 1, true), said)
+	local list = HubCore.m_mode.list
+	ClearPrinted()
+	list.HandleInput(Input{ key = Keys.VK_SPACE, up = true })
+	assert(table.concat(Spoken(), " "):find("Opens the same browser as the X key", 1, true))
+	list.HandleInput(Input{ key = Keys.VK_RETURN, up = true })
+	eq(opened.browser, 1)
+	eq(HubCore.m_mode, nil)
+	restore()
+end)
+
+test("a unit without a browser gets no browse entry", function()
+	local opened, restore = openMenuFor(false)
+	local said = table.concat(Spoken(), " | ")
+	assert(not said:find("Browse", 1, true), said)
+	assert(said:find("Fortify", 1, true), said)
+	HubCore.CloseMode(false, false)
+	restore()
+end)
