@@ -225,6 +225,7 @@ end
 
 function HubEvents.OnUnitDamageChanged( playerID:number, unitID:number, newDamage:number, oldDamage:number )
 	if not HubCore.m_ready or newDamage <= oldDamage then return; end
+	HubCore.ClearAttackPending();		-- a result of the fight (units and cities report their damage as unit damage; the line below tells it)
 	local player:table = Players[ playerID ];
 	if player == nil then return; end
 	local unit:table = player:GetUnits():FindID( unitID );
@@ -243,6 +244,7 @@ function HubEvents.OnUnitDamageChanged( playerID:number, unitID:number, newDamag
 	if fight ~= nil and not fight.told and UI.GetElapsedTime() - fight.time < 10
 			and ( ( fight.attacker.player == playerID and fight.attacker.id == unitID ) or ( fight.defender.player == playerID and fight.defender.id == unitID ) ) then
 		fight.told = true;
+		HubCore.ClearAttackPending();
 		local localPlayer:number = Game.GetLocalPlayer();
 		local ours:boolean = fight.attacker.player == localPlayer or fight.defender.player == localPlayer;
 		local victim:table = ( fight.defender.player == playerID and fight.defender.id == unitID ) and fight.defender or fight.attacker;
@@ -268,6 +270,7 @@ function HubEvents.OnUnitKilledInCombat( killedPlayer:number, killedId:number, k
 		killerPlayer, killerId = fight0.attacker.player, fight0.attacker.id;
 	end
 	if killedPlayer ~= localPlayer and killerPlayer ~= localPlayer then return; end
+	HubCore.ClearAttackPending();
 	local function NameOf( playerID:number, unitID:number )
 		local player:table = Players[ playerID ];
 		local unit:table = ( player ~= nil ) and player:GetUnits():FindID( unitID ) or nil;

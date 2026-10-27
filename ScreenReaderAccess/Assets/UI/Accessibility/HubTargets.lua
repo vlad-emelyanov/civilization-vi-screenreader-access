@@ -341,6 +341,16 @@ end
 
 HubTargets.EnemyVisibleAt = EnemyVisibleAt;
 
+-- A hostile city, or a hostile unit that fights back, on the plot (a lone civilian is captured: no combat result).
+function HubTargets.HoldsEnemyFighter( plot:table )
+	if plot:IsCity() then return true; end
+	for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+		if HubCore.IsForeignUnitVisible( other ) and HubCore.IsHostile( other:GetOwner() )
+				and ( other:GetCombat() > 0 or other:GetRangedCombat() > 0 ) then return true; end
+	end
+	return false;
+end
+
 -- City and district ranged attacks (no unit): the plot indexes the selected city may hit.
 local function GetCityAttackTargets( city:table )
 	local set:table = {};
@@ -1124,6 +1134,7 @@ function HubTargets.ConfirmTarget()
 		end
 		local attackName:string = ( enemy or war ~= nil ) and TargetName( plot ) or nil;
 		if war ~= nil then RememberWarReturn( mode ); end
+		local couldMove:boolean = unit:GetMovesRemaining() > 0;
 		HubTargets.IssueMoveOrder( unit, plot, war, enemy );
 		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 		-- an attack move from afar is a move order first (the settler's "Moving, N turns" has its own line in HubEvents)
@@ -1132,6 +1143,8 @@ function HubTargets.ConfirmTarget()
 			if turns > 1 or #path.plots > 2 then
 				HubCore.SayResult( "Moving to attack" .. ( attackName ~= nil and ( " " .. attackName ) or "" ) .. ", " .. HubCore.Plural( turns, "turn", "turns" ) );
 			else
+				-- only a fight has a result line to wait for (not a capture of a civilian)
+				if couldMove and HubTargets.HoldsEnemyFighter( plot ) then HubCore.MarkAttackPending( unit:GetID() ); end
 				HubCore.SayResult( AttackingText( plot, "Attacking" ) );
 			end
 		end
@@ -1146,6 +1159,7 @@ function HubTargets.ConfirmTarget()
 		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.RANGE_ATTACK, nil, parameters ) then
 			UnitManager.RequestOperation( unit, UnitOperationTypes.RANGE_ATTACK, parameters );
 			HubTargets.attackTime = UI.GetElapsedTime();
+			HubCore.MarkAttackPending( unit:GetID() );
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 			HubCore.SayResult( AttackingText( plot, "Ranged attack" ) );		-- the combat line arrives seconds later
 		else
@@ -1161,6 +1175,7 @@ function HubTargets.ConfirmTarget()
 			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
 		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.AIR_ATTACK, nil, parameters ) then
 			UnitManager.RequestOperation( unit, UnitOperationTypes.AIR_ATTACK, parameters );
+			HubCore.MarkAttackPending( unit:GetID() );
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 			HubCore.SayResult( AttackingText( plot, "Air attack" ) );
 		else
@@ -1184,6 +1199,7 @@ function HubTargets.ConfirmTarget()
 		local attacker:table = ( mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK ) and UI.GetHeadSelectedDistrict() or city;
 		if attacker ~= nil and CityManager.CanStartCommand( attacker, CityCommandTypes.RANGE_ATTACK, params ) then
 			CityManager.RequestCommand( attacker, CityCommandTypes.RANGE_ATTACK, params );
+			HubCore.MarkAttackPending( attacker:GetID() );
 			if mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK then
 				HubTargets.districtAttackTurn[ AttackKey( attacker ) ] = Game.GetCurrentGameTurn();
 			else

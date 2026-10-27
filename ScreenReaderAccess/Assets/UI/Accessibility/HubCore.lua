@@ -22,10 +22,34 @@ HubCore.m_spotted = {};		-- "player:unit" -> turn the enemy was last announced
 HubCore.m_arrivals = {};		-- texts of notifications that arrived and are not yet announced
 HubCore.m_arrivalTimer = -1;		-- >= 0: seconds until the arrivals are announced together
 HubCore.m_lastSelectionSpeech = -100;		-- UI.GetElapsedTime() of the last unit/city selection announcement
+HubCore.m_attackPending = nil;		-- { time, id } an attack was confirmed and its combat line has not been spoken yet (N and Enter wait, see AttackPendingActive)
+HubCore.m_lastAnnouncedUnit = nil;		-- id of the unit whose selection the hub announced last (Enter's armed build needs it to be the armed unit)
 HubCore.m_placeConfirm = nil;		-- plot index the placement browser asked "Enter to confirm" for
 HubCore.m_placeReplaced = false;	-- the placement mode is closing because another placement mode replaced it
 HubCore.m_speech = { holds = {}, queue = {}, recent = {}, releaseTimer = -1, watch = 0 };		-- speech hold, see HubCore.Announce
 -- PlacementPlotText: defined with the placement browser: what the cursor plot means there
+
+local ATTACK_PENDING_SECONDS:number = 8;
+
+-- Pure: is an attack confirmed less than 8 s before now still waiting for its result line?
+function HubCore.AttackPendingIsActive( pending:table, now:number )
+	return pending ~= nil and pending.time ~= nil and now - pending.time >= 0 and now - pending.time < ATTACK_PENDING_SECONDS;
+end
+
+function HubCore.MarkAttackPending( id:number )
+	HubCore.m_attackPending = { time = UI.GetElapsedTime(), id = id };
+end
+
+function HubCore.ClearAttackPending()
+	HubCore.m_attackPending = nil;
+end
+
+function HubCore.AttackPendingActive()
+	if HubCore.m_attackPending ~= nil and not HubCore.AttackPendingIsActive( HubCore.m_attackPending, UI.GetElapsedTime() ) then
+		HubCore.m_attackPending = nil;
+	end
+	return HubCore.m_attackPending ~= nil;
+end
 
 -- ===========================================================================
 --	HELPERS
