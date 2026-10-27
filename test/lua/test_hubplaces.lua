@@ -83,6 +83,7 @@ Map.GetPlotCount = nil
 
 HubCursor.GetCursor = function() return 5, 5 end
 dofile = nil
+include("Gamepad")		-- HubPlaces declares the controller X key
 include("HubPlaces")
 
 local function names(items) local l = {}; for _, i in ipairs(items) do l[#l + 1] = i.text end; return l end

@@ -201,7 +201,9 @@ local function SelectUnitObject( unit:table )
 end
 
 -- Control+K: select the next of all the local player's units (also fortified, sleeping and automated ones), by unit id.
-function HubCursor.CycleAllUnits()
+-- step: 1 = next (default), -1 = previous (the controller's right stick).
+function HubCursor.CycleAllUnits( step:number )
+	if step ~= -1 then step = 1; end
 	if not HubCore.IsLocalPlayerActive() then return; end
 	local units:table = {};
 	for _, unit in Players[ Game.GetLocalPlayer() ]:GetUnits():Members() do table.insert( units, unit ); end
@@ -216,6 +218,10 @@ function HubCursor.CycleAllUnits()
 		for i, unit in ipairs( units ) do
 			if unit:GetID() == selected:GetID() then current = i; end
 		end
+	end
+	if step < 0 then
+		SelectUnitObject( units[ current <= 1 and #units or current - 1 ] );
+		return;
 	end
 	SelectUnitObject( units[ current % #units + 1 ] );
 end

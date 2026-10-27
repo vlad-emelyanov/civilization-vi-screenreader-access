@@ -96,6 +96,7 @@ function Hub.HandleInput( input:table )
 		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
 		if HubSettle ~= nil and HubSettle.OnOtherKey ~= nil then HubSettle.OnOtherKey( input:GetKey() ); end
 	end
+	if HubGamepad.HandleInput( input, msg, input:GetKey(), input:IsControlDown() ) then return true; end		-- controller buttons (F-keys)
 	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
@@ -227,6 +228,7 @@ function Hub.RegisterAction( name:string, handler )
 end
 
 -- Hub modules (Accessibility/Hub*.lua), see docs/ingame-plan.md
+include( "Gamepad" );		-- the controller key table (HubRegions / HubPlaces use it for X)
 include( "HubCore" );
 include( "HubCursor" );
 include( "HubTargets" );
@@ -241,6 +243,7 @@ include( "HubCityReport" );
 include( "HubEvents" );
 include( "HubEnemies" );
 include( "HubHelp" );
+include( "HubGamepad" );
 
 -- ===========================================================================
 function Initialize()
@@ -344,6 +347,7 @@ function Initialize()
 		if player ~= nil then HubCore.RememberUnit( player:GetUnits():FindID( unitID ) ); end
 	end );
 
+	HubGamepad.Init();
 	ContextPtr:SetInputHandler( Hub.OnInput, true );
 	ContextPtr:SetUpdate( HubCore.Safe( "Update", Hub.OnUpdate ) );
 	ContextPtr:SetShutdown( function() pcall( HubPlaces.ResetCampState ); HubCore.OnShutdown(); end );

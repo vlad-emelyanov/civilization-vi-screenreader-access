@@ -1,0 +1,43 @@
+# Controller mode on the bare map (Gamepad.lua catcher in WorldInput + HubGamepad): arrows move the cursor, Space reads details, Escape opens nothing, Home / End are What is next / cursor to selection, Menu opens the game menu, View opens the help; with the mode off Escape opens the menu again. UNVERIFIED, blind-written: run once with civregress --record.
+# covers: **/Gamepad.lua **/HubGamepad.lua **/WorldInput.lua
+# no-share-load: toggles controller mode and opens the game menu
+load early-t60
+clear-advisors
+lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(), c:GetY(), true, true); UI.SelectNextReadyUnit(); return 1
+# ModeOn (console app: F22)
+key F22 -Settle 500
+# left stick down (the arrow key): the cursor moves one tile
+key Down -Settle 800
+expect (?i)[a-z]
+# Y (Space): plot details
+key Space -Settle 800
+expect (?i)[a-z]
+# B (Escape) on the bare map is swallowed: no game menu opens
+key Escape -Settle 800
+lua InGameAccess return tostring(HubCore.TestDirtyReason())
+expect-lua ^nil$
+# D-pad up (Home): what is next
+key Home -Settle 800
+expect (?i)(needs orders|end turn|turn|research|production|choose|move|unit)
+# D-pad down (End): cursor to selection
+key End -Settle 800
+expect (?i)[a-z]
+# Menu (Start, F19): the game menu opens
+key F19 -Settle 1500
+lua InGameAccess return tostring(HubCore.TestDirtyReason())
+expect-lua ^open: 
+key Escape -Settle 1000
+lua InGameAccess return tostring(HubCore.TestDirtyReason())
+expect-lua ^nil$
+# View (Back, F18): the accessibility help, Escape closes it
+key F18 -Settle 1000
+expect Accessibility help
+key Escape -Settle 800
+expect ^Closed
+# ModeOff (console app: F23): the keyboard behaves as before, Escape opens the game menu
+key F23 -Settle 500
+key Escape -Settle 1500
+lua InGameAccess return tostring(HubCore.TestDirtyReason())
+expect-lua ^open: 
+key Escape -Settle 1000
+no-lua-errors

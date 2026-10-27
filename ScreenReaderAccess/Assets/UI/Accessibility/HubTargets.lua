@@ -81,7 +81,7 @@ end
 function HubTargets.CanOpenMode( allowTarget:boolean )
 	if not HubCore.IsLocalPlayerActive() then return false; end
 	if not allowTarget and HubTargets.GetTargetMode() ~= nil then
-		OutputMessageToScreenReader( "Choose a tile, or Escape to cancel first" );
+		OutputMessageToScreenReader( "Choose a tile, or " .. ( ( Gamepad ~= nil and Gamepad.IsActive() ) and "B" or "Escape" ) .. " to cancel first" );
 		return false;
 	end
 	if HubCore.IsModeOpen( "placement" ) then

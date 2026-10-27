@@ -5023,6 +5023,12 @@ function SRUnitPanelUpdate()
 	end
 end
 
+-- Controller (HubGamepad): LT / RT run the selected unit's Attack / MoveTo hotkey, as if the key had been pressed
+function OnSRPadHotkey( name:string )
+	local actionId = Input.GetActionId( name );
+	if actionId ~= nil then OnInputActionTriggered( actionId ); end
+end
+
 function OnSRRunUnitAction( index:number, unitId:number )
 	local unit:table = UI.GetHeadSelectedUnit();
 	local entry:table = m_srActions[index];
@@ -5106,6 +5112,7 @@ function Initialize()
 	SRListen( LuaEvents.PlayerChange_Close, OnPlayerChangeClose );
 	SRListen( LuaEvents.SRA_RequestUnitActions, OnSRRequestUnitActions );	-- ScreenReaderAccess mod change
 	SRListen( LuaEvents.SRA_RunUnitAction, OnSRRunUnitAction );
+	SRListen( LuaEvents.SRA_PadHotkey, OnSRPadHotkey );
 	ContextPtr:SetShutdown( SRA_OnShutdown );			-- ScreenReaderAccess mod change
 
 	-- Setup settlement water guide colors

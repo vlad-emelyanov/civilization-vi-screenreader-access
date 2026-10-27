@@ -198,12 +198,16 @@ local function SendUnitToNotification()
 	OutputMessageToScreenReader( "Nothing selected" );
 end
 
+-- X on the controller dismisses (what Delete does)
+local m_notifKeys:table = { [Keys.VK_DELETE] = DismissNotification, [Keys.M] = SendUnitToNotification };
+if Gamepad.Key( "X" ) ~= nil then m_notifKeys[ Gamepad.Key( "X" ) ] = DismissNotification; end
+
 m_notifList = KeyNavList_Create{
 	build		= BuildNotificationItems,
 	isActive	= function() return HubCore.IsModeOpen( "notifications" ); end,
 	onActivate	= ActivateNotification,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
-	extraKeys	= { [Keys.VK_DELETE] = DismissNotification, [Keys.M] = SendUnitToNotification },
+	extraKeys	= m_notifKeys,
 };
 
 function HubRegions.ToggleNotifications()

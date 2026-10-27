@@ -1,0 +1,32 @@
+# Controller selection buttons: right stick click = next ready unit, right stick up / down = previous / next of all units, right stick left / right = city, left stick click = capital, X = select at cursor. UNVERIFIED, blind-written: run once with civregress --record.
+# covers: **/Gamepad.lua **/HubGamepad.lua **/WorldInput.lua **/HubCursor.lua
+# no-share-load: changes the selection and the controller mode
+load early-t60
+clear-advisors
+lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(), c:GetY(), true, true); return 1
+# ModeOn (console app: F22)
+key F22 -Settle 500
+# RSClick (F21): next unit that needs orders
+key F21 -Settle 1500
+expect (?i)(warrior|spearman|scout|builder|great general|settler|no units need orders)
+# RSDown (Control+F14): next of all units
+key Control+F14 -Settle 1500
+expect (?i)(warrior|spearman|scout|builder|great general|settler)
+# RSUp (Control+F13): previous of all units
+key Control+F13 -Settle 1500
+expect (?i)(warrior|spearman|scout|builder|great general|settler)
+# RSRight (Control+F16): next city
+key Control+F16 -Settle 1500
+expect (?i)rome
+# RSLeft (Control+F15): previous city
+key Control+F15 -Settle 1500
+expect (?i)rome
+# LSClick (F20): the capital
+key F20 -Settle 1500
+expect (?i)rome
+# X (F13): select your unit or city on the cursor tile
+key F13 -Settle 1500
+expect (?i)(rome|selected|nothing of yours)
+# ModeOff (console app: F23)
+key F23 -Settle 500
+no-lua-errors

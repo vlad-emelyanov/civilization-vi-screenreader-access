@@ -13,6 +13,10 @@
 -- ===========================================================================
 
 include("PopupDialog.lua");
+-- Begin ScreenReaderAccess mod change
+include( "Gamepad" );		-- controller catcher (Gamepad_CatchKey)
+local m_sraPadActive	:boolean = false;		-- controller mode, kept by LuaEvents.SRA_GamepadMode (the hub owns the flag)
+-- End ScreenReaderAccess mod change
 -- More interface-specific includes before the initialization
 
 
@@ -1171,9 +1175,27 @@ function OnUnitSelectionChanged( playerID:number, unitID:number, hexI:number, he
 	end
 end
 
+-- Begin ScreenReaderAccess mod change
+-- Controller mode on the bare map: keys nobody wanted (arrows, Escape, Space, Home/End, Control+Tab) move the map cursor, read
+-- details and so on through the hub (InGameAccess); Gamepad_CatchKey (Accessibility/Gamepad.lua) decides. Returns true when caught.
+function SRAPadCatch( msg:number, uiKey:number, isControl:boolean )
+	local caught:table = Gamepad_CatchKey( msg, uiKey, isControl == true, m_sraPadActive );
+	if caught == nil then return false; end
+	if caught.event == "cursor" then LuaEvents.SRA_PadCursor( caught.dx, caught.dy );
+	elseif caught.event == "details" then LuaEvents.SRA_PadDetails();
+	elseif caught.event == "info" then LuaEvents.SRA_PadInfo( caught.info );
+	end
+	return caught.consume == true;
+end
+-- End ScreenReaderAccess mod change
+
 -- ===========================================================================
 -- ===========================================================================
-function DefaultKeyDownHandler( uiKey:number )
+function DefaultKeyDownHandler( uiKey:number, isControl:boolean )
+
+	-- Begin ScreenReaderAccess mod change
+	if SRAPadCatch( KeyEvents.KeyDown, uiKey, isControl ) then return true; end
+	-- End ScreenReaderAccess mod change
 
 	if uiKey == Keys.VK_ALT then
 		if m_isALTDown == false then
@@ -1188,8 +1210,12 @@ end
 
 -- ===========================================================================
 -- ===========================================================================
-function DefaultKeyUpHandler( uiKey:number )
+function DefaultKeyUpHandler( uiKey:number, isControl:boolean )
 	
+	-- Begin ScreenReaderAccess mod change
+	if SRAPadCatch( KeyEvents.KeyUp, uiKey, isControl ) then return true; end
+	-- End ScreenReaderAccess mod change
+
 	if uiKey == Keys.VK_ALT then
 		if m_isALTDown == true then
 			m_isALTDown = false;
@@ -1224,13 +1250,13 @@ end
 -- ===========================================================================
 function OnDefaultKeyDown( pInputStruct:table )
 	local uiKey			:number = pInputStruct:GetKey();
-	return DefaultKeyDownHandler( uiKey );	
+	return DefaultKeyDownHandler( uiKey, pInputStruct:IsControlDown() );	-- ScreenReaderAccess mod change: control state for the controller catcher
 end
 
 -- ===========================================================================
 function OnDefaultKeyUp( pInputStruct:table )
 	local uiKey			:number = pInputStruct:GetKey();
-	return DefaultKeyUpHandler( uiKey );	
+	return DefaultKeyUpHandler( uiKey, pInputStruct:IsControlDown() );	-- ScreenReaderAccess mod change: control state for the controller catcher
 end
 
 -- ===========================================================================
@@ -4213,6 +4239,19 @@ function OnSRAExitPlacement( isCancelled:boolean )
 end
 -- End ScreenReaderAccess mod change
 
+-- Begin ScreenReaderAccess mod change
+-- Controller buttons (HubGamepad): the capital and next-unit keys run the game's own hotkey code from here.
+function OnSRAGamepadMode( active:boolean )
+	m_sraPadActive = ( active == true );
+end
+function OnSRAPadCapital()
+	OnInputActionTriggered( m_actionHotkeyCapitalCity );
+end
+function OnSRAPadNextUnit()
+	OnInputActionTriggered( m_actionHotkeyNextUnit );
+end
+-- End ScreenReaderAccess mod change
+
 -- ===========================================================================
 function Subscribe()
 	Events.UserRequestClose.Add( OnUserRequestClose );
@@ -4244,6 +4283,9 @@ function Subscribe()
 	LuaEvents.Tutorial_AddUnitMoveRestriction.Add( OnTutorial_AddUnitMoveRestriction );
 	LuaEvents.Tutorial_RemoveUnitMoveRestrictions.Add( OnTutorial_RemoveUnitMoveRestrictions );
 	LuaEvents.SRA_ExitPlacement.Add( OnSRAExitPlacement );		-- ScreenReaderAccess
+	LuaEvents.SRA_GamepadMode.Add( OnSRAGamepadMode );		-- ScreenReaderAccess
+	LuaEvents.SRA_PadCapital.Add( OnSRAPadCapital );		-- ScreenReaderAccess
+	LuaEvents.SRA_PadNextUnit.Add( OnSRAPadNextUnit );		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
@@ -4277,6 +4319,9 @@ function Unsubscribe()
 	LuaEvents.Tutorial_AddUnitMoveRestriction.Remove( OnTutorial_AddUnitMoveRestriction );
 	LuaEvents.Tutorial_RemoveUnitMoveRestrictions.Remove( OnTutorial_RemoveUnitMoveRestrictions );
 	LuaEvents.SRA_ExitPlacement.Remove( OnSRAExitPlacement );		-- ScreenReaderAccess
+	LuaEvents.SRA_GamepadMode.Remove( OnSRAGamepadMode );		-- ScreenReaderAccess
+	LuaEvents.SRA_PadCapital.Remove( OnSRAPadCapital );		-- ScreenReaderAccess
+	LuaEvents.SRA_PadNextUnit.Remove( OnSRAPadNextUnit );		-- ScreenReaderAccess
 end
 
 -- ===========================================================================
