@@ -370,6 +370,11 @@ end
 -- Why the improvement chosen with the order cannot be built now (nil: it can, or the check is not possible). A selected unit
 -- is asked the way RunArmedBuild asks (its unit actions menu), else the build scan.
 function HubSettle.ArmedBuildProblem( unit:table, plot:table, b:table, selected:boolean )
+	-- A water tile (Fishing Boats, Offshore Platform) or an embarked builder: at the moment of arrival the unit actions and the build
+	-- scan have not caught up with the embark state (the play-test saw "no longer possible" and then Tab offered and built it).
+	-- Unknown counts as possible; the Enter path reports a real failure.
+	local okWater:boolean, water = pcall( function() return plot:IsWater() or unit:IsEmbarked() == true; end );
+	if okWater and water then return nil; end
 	if selected and b.type ~= nil then
 		local okMenu:boolean, items = pcall( HubMenus.FetchMenuItems, true );
 		if okMenu and items ~= nil then

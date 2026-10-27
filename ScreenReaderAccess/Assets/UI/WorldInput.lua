@@ -4021,6 +4021,13 @@ function OnShutdown()
 	Unsubscribe();
 end
 
+-- ScreenReaderAccess mod change: NextUnit / PrevUnit with no unit waiting for orders used to be silent
+local function SRAnnounceNoReadyUnit()
+	local head:table = UI.GetHeadSelectedUnit();
+	local ok:boolean, ready = pcall( function() return head ~= nil and head:IsReadyToSelect(); end );
+	if not ( ok and ready ) then OutputMessageToScreenReader("No units need orders"); end
+end
+
 -- ===========================================================================
 --	Hotkey Event
 -- ===========================================================================
@@ -4053,10 +4060,12 @@ function OnInputActionTriggered( actionId:number )
 
 	elseif actionId == m_actionHotkeyPrevUnit then
 		UI.SelectPrevReadyUnit();
+		SRAnnounceNoReadyUnit();	-- ScreenReaderAccess mod change
 		UI.PlaySound("Play_UI_Click");
 
 	elseif actionId == m_actionHotkeyNextUnit then
 		UI.SelectNextReadyUnit();
+		SRAnnounceNoReadyUnit();	-- ScreenReaderAccess mod change
 		UI.PlaySound("Play_UI_Click");
 
 	elseif actionId == m_actionHotkeyPrevCity then

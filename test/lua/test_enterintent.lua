@@ -13,6 +13,7 @@ extract("HubAnnounce.lua", "HubAnnounce.EnterIntentKind")
 extract("HubCore.lua", "HubCore.AttackPendingIsActive")
 extract("HubSettle.lua", "HubSettle.ArmedTextFor")
 extract("HubSettle.lua", "HubSettle.ArrivalStaleText")
+extract("HubSettle.lua", "HubSettle.ArmedBuildProblem")
 HubSettle.ActionPhrase = function(a) return "activates " .. a.what end
 ATTACK_PENDING_SECONDS = 8
 
@@ -40,4 +41,13 @@ end)
 test("Stale arrival text", function()
 	eq(HubSettle.ArrivalStaleText("Mine", "a district stands there"), "Mine is no longer possible here: a district stands there. X lists other tiles", "reason")
 	eq(HubSettle.ArrivalStaleText("Mine", ""), "Mine is no longer possible here. X lists other tiles", "no reason")
+end)
+
+test("Water tile or embarked builder: never judged stale", function()
+	local unit = setmetatable({}, { __call = function() return true end })
+	local plot = setmetatable({}, { __call = function() return false end })
+	eq(HubSettle.ArmedBuildProblem(unit, plot, { type = "IMPROVEMENT_FISHING_BOATS", hash = 1 }, true), nil, "embarked")
+	unit = setmetatable({}, { __call = function() return false end })
+	plot = setmetatable({}, { __call = function() return true end })
+	eq(HubSettle.ArmedBuildProblem(unit, plot, { type = "IMPROVEMENT_FISHING_BOATS", hash = 1 }, true), nil, "water")
 end)
