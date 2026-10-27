@@ -14,9 +14,10 @@ action SkipTurn -Settle 1000
 expect (?i)^(cannot skip|skip)
 action Sleep -Settle 1000
 expect (?i)^(cannot sleep|sleep)
-# the Tab menu lists Skip Turn as unavailable with the reason
+# the Tab menu (Browse settle spots first, then the actions) lists Skip Turn as unavailable with the reason
 key Tab -Settle 1000
 expect (?i)actions
+key Down -Settle 300
 key Down -Settle 300
 key Down -Settle 300
 key Down -Settle 300

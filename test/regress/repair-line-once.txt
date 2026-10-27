@@ -6,6 +6,8 @@ clear-advisors
 lua GameCore_Tuner Players[0]:GetUnits():Create(GameInfo.Units["UNIT_BUILDER"].Index, 70, 29)
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==70 and u:GetY()==29 and GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
 key Tab -Settle 1500
+expect ^Browse tiles to improve
+key Down -Settle 600
 expect ^Repair, key
 key Enter -Settle 2500 -Quiet 700
 expect ^Repairing Farm, done next turn

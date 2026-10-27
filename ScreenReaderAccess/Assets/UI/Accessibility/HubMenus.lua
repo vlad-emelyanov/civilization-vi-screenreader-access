@@ -166,6 +166,11 @@ end
 local function RunMenuItem( item:table )
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil then return; end
+	if item.browse ~= nil then
+		HubCore.CloseMode( false, false );
+		item.browse.open();
+		return;
+	end
 	-- the state may have changed since the menu was opened: look the action up again, with a refresh
 	local fresh:table = nil;
 	for _, candidate in ipairs( HubMenus.FetchMenuItems( true ) ) do
@@ -234,6 +239,11 @@ function HubMenus.ToggleUnitMenu()
 	end
 	if not HubTargets.CanOpenMode() then return; end
 	m_menuItems = HubMenus.FetchMenuItems( true );
+	local browser:table = ( HubSettle ~= nil ) and HubSettle.BrowserFor( unit ) or nil;
+	if browser ~= nil then
+		-- the mod's own browser (X on the map): first entry, so the controller reaches it too
+		table.insert( m_menuItems, 1, { key = "browse|" .. browser.text, text = browser.text, detail = "Opens the same browser as the X key", browse = browser } );
+	end
 	if #m_menuItems == 0 then
 		OutputMessageToScreenReader( PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " has no actions" );
 		return;

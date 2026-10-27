@@ -6,7 +6,8 @@ load pt-early-t64
 clear-advisors
 lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) UI.LookAtPlot(u:GetX(),u:GetY()) return u:GetID() end end
 key Tab -Settle 1500
-expect Builder actions, 9 options
+expect Builder actions, 10 options
+expect ^Browse tiles to improve
 key Down -Settle 600
 key Down -Settle 600
 key Down -Settle 600
@@ -14,7 +15,8 @@ key Down -Settle 600
 key Down -Settle 600
 key Down -Settle 600
 key Down -Settle 600
-expect Remove Improvement, 8 of 9
+key Down -Settle 600
+expect Remove Improvement, 9 of 10
 key Enter -Settle 1500
 expect Remove Improvement destroys the Mine on this tile\. Enter again to confirm
 key Enter -Settle 4000 -NoQuiet

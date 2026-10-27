@@ -7,7 +7,7 @@
 --	The console app sends buttons without a keyboard equivalent as F13..F24 (Gamepad.lua has the table). Here:
 --	  - ModeOn / ModeOff (F22 / F23) set the controller mode flag,
 --	  - global buttons (Menu, View, LB, RB, stick clicks, right stick) act on KeyUp, both events are consumed,
---	  - mode-dependent buttons (X, LT, RT) go to the open hub list first, are silent in a target mode, and act on the bare map,
+--	  - mode-dependent buttons (X, LT, RT) go to the open hub list first, in a target mode X scans for foreign units and LT / RT are silent, and act on the bare map,
 --	  - while a game screen or popup is open every button but LB / RB passes through (LB / RB say "Close the screen first").
 --	Keys that no screen wanted reach WorldInput's catcher (Gamepad_CatchKey), which fires LuaEvents.SRA_PadCursor / SRA_PadDetails /
 --	SRA_PadInfo; the listeners are here.
@@ -26,7 +26,14 @@ local function OpenGameMenu()
 	LuaEvents.InGame_OpenInGameOptionsMenu();
 end
 
+-- LB / RB in a target mode: the places list (J), Enter there only moves the target; refuses only where CanOpenMode( true ) does
+local function TargetPlaces()
+	if not HubTargets.CanOpenMode( true ) then return; end
+	HubPlaces.TogglePlaces();
+end
+
 local function Ring( step:number )
+	if HubTargets.GetTargetMode() ~= nil then TargetPlaces(); return; end
 	if not HubTargets.CanOpenMode() then return; end		-- target mode / placement: says why (with "B" in controller mode)
 	local fn = nil;
 	if HubPad ~= nil then
@@ -37,6 +44,7 @@ local function Ring( step:number )
 end
 
 local function Capital()
+	if HubTargets.GetTargetMode() ~= nil then HubTargets.CapitalKey(); return; end		-- Backslash: only moves the target
 	if Players[ Game.GetLocalPlayer() ]:GetCities():GetCapitalCity() == nil then Say( "No capital" ); return; end
 	LuaEvents.SRA_PadCapital();
 end
@@ -83,20 +91,47 @@ local MAP_ACTIONS:table = {
 -- ===========================================================================
 --	INPUT (called first in Hub.HandleInput; true = consumed)
 -- ===========================================================================
+-- A held button (RT is Shift for the console app) acts on its KeyUp only if no other key event came between its KeyDown and KeyUp
+-- (modifier keys and the mode keys do not count). m_held[ button ] = true once tainted. A KeyUp with no known KeyDown acts.
+local m_held:table = {};
+
+local function TaintHeld()
+	for held, _ in pairs( m_held ) do m_held[ held ] = true; end
+end
+
+-- Records the event; true = a KeyUp whose button must not act
+local function TrackEvent( button:string, msg:number, key:number )
+	if button == "ModeOn" or button == "ModeOff" then return false; end
+	if button == nil then
+		if key ~= Keys.VK_SHIFT and key ~= Keys.VK_CONTROL and key ~= Keys.VK_ALT then TaintHeld(); end
+		return false;
+	end
+	if msg == KeyEvents.KeyDown then
+		TaintHeld();
+		m_held[ button ] = false;
+		return false;
+	end
+	local tainted:boolean = ( m_held[ button ] == true );
+	m_held[ button ] = nil;
+	return tainted;
+end
+
 function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:boolean )
 	local button:string = Gamepad.ButtonOf( key, isControl );
+	local suppressed:boolean = TrackEvent( button, msg, key );
 	if button == nil then return false; end
 	if button == "ModeOn" then Gamepad.SetActive( true ); return true; end
 	if button == "ModeOff" then Gamepad.SetActive( false ); return true; end
 	if not HubCore.IsLocalPlayerActive() then return false; end
 	Gamepad.SetActive( true );
-	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+	local isUp:boolean = ( msg == KeyEvents.KeyUp ) and not suppressed;
 
 	if HubCore.IsGamePopupOpen() then
 		if button == "LB" or button == "RB" then
 			if isUp then Say( "Close the screen first" ); end
 			return true;
 		end
+		if suppressed then return true; end		-- a KeyUp after another key (held RT = Shift) is consumed
 		return false;		-- screens may use the other buttons
 	end
 
@@ -108,12 +143,16 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 
 	if MAP_ACTIONS[ button ] ~= nil then
 		if HubCore.m_mode ~= nil then
+			if suppressed then return true; end
 			-- the open list may have an action for the button (extraKeys[ Gamepad.Key( "X" ) ])
 			local ok:boolean, consumed = xpcall( function() return HubCore.m_mode.list.HandleInput( input ); end, KeyNavErrorHandler );
 			if not ok then print( "InGameAccess Pad" .. button .. " list error: " .. tostring( consumed ) ); end
 			return true;
 		end
-		if HubTargets.GetTargetMode() ~= nil then return true; end
+		if HubTargets.GetTargetMode() ~= nil then
+			if button == "X" and isUp then HubCore.Safe( "PadX", HubSettle.ScanKey )(); end		-- X key in a target mode: the nearest foreign unit
+			return true;		-- LT / RT: silent
+		end
 		if isUp then HubCore.Safe( "Pad" .. button, MAP_ACTIONS[ button ] )(); end
 		return true;
 	end
