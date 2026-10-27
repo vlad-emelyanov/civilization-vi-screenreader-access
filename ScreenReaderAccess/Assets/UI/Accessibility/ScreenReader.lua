@@ -96,6 +96,14 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 	end
 end
 
+-- A key name in spoken text. The console app speaks `keyboard` when the player last used the keyboard, and the controller
+-- button when they last used the pad: `button` (a Gamepad.Map name such as "X", "LT", "RSClick", or a literal phrase),
+-- else the default button of `keyboard` (Enter = A, Escape = B, Tab = D-pad right ...), else `keyboard`.
+function SRKey( keyboard:string, button:string )
+	if button ~= nil and button ~= "" then return "[KEY:" .. keyboard .. "|" .. button .. "]"; end
+	return "[KEY:" .. keyboard .. "]";
+end
+
 -- Prepares game text (with [NEWLINE] and [ICON_x] style markup) for speech.
 function CleanTextForSpeech(text: string)
 	if text == nil then return ""; end

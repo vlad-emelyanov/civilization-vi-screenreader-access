@@ -41,6 +41,10 @@ The in-game hub (`UI/Additions/InGameAccess.lua`) is split into `Accessibility/H
 
 **New shortcuts need a help entry.** Add every new or changed shortcut (input action, or a key inside a screen or list) to `Accessibility/HelpText.lua`: it is the one place that describes the shortcuts, shown by Control+H (`HubHelp.lua`, action `KeyNavHelp`). Entries with `action = "<Id>"` show the current binding (so rebinding is reflected), entries with `keys = "..."` are for keys inside our own lists. `test/py/test_helptext.py` fails when a `KeyNav*` input action has no entry. The help list exists in game only, not in the front end (the front-end screens announce their keys themselves).
 
+## Key names in spoken text
+
+Any key name in spoken text goes through `SRKey( keyboard[, button] )` (`ScreenReader.lua`), never as a literal: `"Choose a tile, or " .. SRKey( "Escape" ) .. " to cancel"`. The console app speaks the keyboard or the controller button, depending on the device last used (see `docs/controller-plan.md`, "Spoken key hints"). Give the button when the screen has a pad alias for that key (`SRKey( "C", "X" )` in the religion screen, where X is the alias of C); the common keys (Enter, Escape, Space, Tab, Home, End, arrows) have a default button. Keys without any pad equivalent stay unwrapped. Tests: `Spoken()` returns the keyboard text, `SpokenRaw()` the tokens.
+
 ## Traps
 
 - **Mouse resting on a slider eats arrow keys.** The engine gives the slider all arrow input and the context stops receiving keys. Park the mouse on the slider's label instead.

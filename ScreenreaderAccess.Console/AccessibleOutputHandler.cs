@@ -48,7 +48,7 @@ public sealed class AccessibleOutputHandler
             interrupt = DateTime.UtcNow >= this.lastNonInterruptableMessage.Add(nonInterruptTime);
         }
 
-        var sanitized = SanitizeLine(line);
+        var sanitized = KeyHints.Expand(SanitizeLine(line), Gamepad.InputDevice.PadIsCurrent);
         this.screenReader.Speak(sanitized, interrupt);
     }
 

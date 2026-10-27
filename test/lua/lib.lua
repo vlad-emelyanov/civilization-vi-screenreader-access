@@ -12,11 +12,19 @@ print = function(...)
 end
 function ClearPrinted() Printed = {} end
 -- the text part of every "#SCREENREADER - x" / "#SCREENREADER[NOINTERRUPT] - x" line printed so far
-function Spoken()
+-- Spoken(): keyboard wording ([KEY:kb] / [KEY:kb|button] tokens expanded to kb, like util/civctl.ps1); SpokenRaw(): unexpanded
+function SpokenRaw()
 	local out = {}
 	for _, line in ipairs(Printed) do
 		local text = line:match("^#SCREENREADER%[?[%u]*%]? %- (.*)$")
 		if text then table.insert(out, text) end
+	end
+	return out
+end
+function Spoken()
+	local out = {}
+	for i, text in ipairs(SpokenRaw()) do
+		out[i] = text:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1")
 	end
 	return out
 end

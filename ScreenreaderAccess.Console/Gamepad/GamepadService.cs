@@ -33,6 +33,7 @@ public sealed class GamepadService : IDisposable
     {
         bool off;
         lock (_lock) off = _mapper.OnPhysicalKeyboardKey();
+        if (InputDevice.Set(false) && _log) Console.WriteLine("Gamepad: input device -> keyboard");
         if (off) _modeOffPending = true;
     }
 
@@ -96,6 +97,7 @@ public sealed class GamepadService : IDisposable
             return;
         }
 
+        if ((modeOff || events.Count > 0) && InputDevice.Set(true) && _log) Console.WriteLine("Gamepad: input device -> controller");
         if (modeOff) Inject(new KeyEvent(PadButton.ModeOff, KeyAction.Tap));
         foreach (KeyEvent e in events)
         {

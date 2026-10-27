@@ -429,11 +429,15 @@ function Read-NewLogLines {
     return $new
 }
 
+# The mod marks key names in speech as [KEY:keyboard] / [KEY:keyboard|button] (SRKey); the console app picks one at speech time.
+# The harness and the regress scripts always see the keyboard wording.
+function Expand-KeyHints([string]$text) { return [regex]::Replace($text, '\[KEY:([^\]|]+)(?:\|[^\]]*)?\]', '$1') }
+
 function Format-Lines($lines) {
     foreach ($l in $lines) {
         if ($All) { $l; continue }
         $i = $l.IndexOf($ScreenReaderMarker)
-        if ($i -ge 0) { 'SR> ' + $l.Substring($i + $ScreenReaderMarker.Length).TrimStart(' ', '-').Replace('[NOINTERRUPT] - ', '[NOINTERRUPT] ') }
+        if ($i -ge 0) { 'SR> ' + (Expand-KeyHints $l.Substring($i + $ScreenReaderMarker.Length).TrimStart(' ', '-').Replace('[NOINTERRUPT] - ', '[NOINTERRUPT] ')) }
     }
 }
 
@@ -450,7 +454,7 @@ function Wait-ForScreenReader([string]$pattern, [int]$timeoutSec, [bool]$check =
             $f = Format-Lines @($l)
             # Write-Host: plain output would be swallowed into this function's return value.
             if ($f) { Write-Host $f }
-            if ($l.Contains($ScreenReaderMarker) -and $l -match $pattern) { $matched = $true }
+            if ($l.Contains($ScreenReaderMarker) -and (Expand-KeyHints $l) -match $pattern) { $matched = $true }
         }
         if ($matched) { return $true }
         Start-Sleep -Milliseconds 250
