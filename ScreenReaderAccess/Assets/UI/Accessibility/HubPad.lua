@@ -35,6 +35,16 @@ end
 
 -- Opens the next entry in the direction. An entry that cannot open (no civilization met, no notifications: the module
 -- says why) is skipped, so RB / LB never stay stuck on it; a missing module says "not available" and is skipped too.
+-- (_G does not exist in the game's UI Lua: look the global up by name explicitly.)
+local function ModuleExists( name:string )
+	if name == "HubRegions" then return HubRegions ~= nil; end
+	if name == "HubLenses" then return HubLenses ~= nil; end
+	if name == "HubMenus" then return HubMenus ~= nil; end
+	if name == "HubScreens" then return HubScreens ~= nil; end
+	if name == "HubPlaces" then return HubPlaces ~= nil; end
+	return false;
+end
+
 local function Move( step:number )
 	if not HubTargets.CanOpenMode() then return; end		-- speaks the refusal
 	local current = nil;
@@ -42,7 +52,7 @@ local function Move( step:number )
 	local index:number = HubPad.RingStep( current, step );
 	for _ = 1, #HubPad.RING do
 		local entry:table = HubPad.RING[ index ];
-		if _G[ entry.module ] == nil then
+		if not ModuleExists( entry.module ) then
 			OutputMessageToScreenReader( entry.name .. " not available" );
 		else
 			HubCore.Safe( "ring " .. entry.name, entry.open )();

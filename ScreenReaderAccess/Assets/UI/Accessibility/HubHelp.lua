@@ -101,7 +101,7 @@ function HubHelp.Toggle()
 	if not HubTargets.CanOpenMode( true ) then return; end
 	m_data = HelpText_Build( CurrentBinding );
 	-- Controller mode: the Controller section comes first, otherwise last (Gamepad.lua is written by the controller work: guarded)
-	local pad = _G[ "Gamepad" ];		-- (the global is declared by the other branch)
+	local pad = Gamepad;
 	local padActive:boolean = ( pad ~= nil and pad.IsActive ~= nil and pad.IsActive() ) or false;
 	for i, section in ipairs( m_data ) do
 		if section.title == "Controller" then
