@@ -88,15 +88,16 @@ end
 --	INPUT HANDLER: runs before WorldInput and ActionPanel (see docs/ingame-plan.md, Input order)
 -- ===========================================================================
 function Hub.HandleInput( input:table )
-	if not HubCore.IsLocalPlayerActive() then return false; end
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	-- controller buttons (F-keys) first: they must not reset the end-turn guard or the settle prompt; the mode keys work on AI turns too
+	if HubGamepad.HandleInput( input, msg, input:GetKey(), input:IsControlDown() ) then return true; end
+	if not HubCore.IsLocalPlayerActive() then return false; end
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
 	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN then
 		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
 		if HubSettle ~= nil and HubSettle.OnOtherKey ~= nil then HubSettle.OnOtherKey( input:GetKey() ); end
 	end
-	if HubGamepad.HandleInput( input, msg, input:GetKey(), input:IsControlDown() ) then return true; end		-- controller buttons (F-keys)
 	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();

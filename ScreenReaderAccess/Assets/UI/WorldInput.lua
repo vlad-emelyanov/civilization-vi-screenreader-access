@@ -4029,6 +4029,7 @@ function LateInitialize()
 	end
 
 	Subscribe();
+	LuaEvents.SRA_GamepadModeRequest();		-- ScreenReaderAccess: after Subscribe: ask the hub for the controller mode flag (it answers with SRA_GamepadMode)
 end
 
 -- ===========================================================================

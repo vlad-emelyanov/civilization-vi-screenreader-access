@@ -28,11 +28,12 @@ end
 
 local function Ring( step:number )
 	if not HubTargets.CanOpenMode() then return; end		-- target mode / placement: says why (with "B" in controller mode)
-	if step > 0 then
-		if HubPad ~= nil and HubPad.RingNext ~= nil then HubPad.RingNext(); else Say( "Ring not available" ); end
-	else
-		if HubPad ~= nil and HubPad.RingPrev ~= nil then HubPad.RingPrev(); else Say( "Ring not available" ); end
+	local fn = nil;
+	if HubPad ~= nil then
+		if step > 0 then fn = HubPad.RingNext; else fn = HubPad.RingPrev; end
 	end
+	if fn == nil then Say( "Ring not available" ); return; end
+	fn();
 end
 
 local function Capital()
@@ -87,6 +88,7 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 	if button == nil then return false; end
 	if button == "ModeOn" then Gamepad.SetActive( true ); return true; end
 	if button == "ModeOff" then Gamepad.SetActive( false ); return true; end
+	if not HubCore.IsLocalPlayerActive() then return false; end
 	Gamepad.SetActive( true );
 	local isUp:boolean = ( msg == KeyEvents.KeyUp );
 
@@ -146,6 +148,9 @@ local function OnPadInfo( info:string )
 end
 
 function HubGamepad.Init()
+	-- WorldInput keeps a copy of the mode flag: answer its request (it may load after the hub or be hot reloaded) and tell it once now
+	HubCore.Listen( LuaEvents.SRA_GamepadModeRequest, HubCore.Safe( "GamepadModeRequest", function() LuaEvents.SRA_GamepadMode( Gamepad.IsActive() ); end ) );
+	LuaEvents.SRA_GamepadMode( Gamepad.IsActive() );
 	HubCore.Listen( LuaEvents.SRA_PadCursor, HubCore.Safe( "PadCursor", function( dx:number, dy:number ) if not HubCore.IsGamePopupOpen() then HubCursor.MoveCursor( dx, dy ); end end ) );
 	HubCore.Listen( LuaEvents.SRA_PadDetails, HubCore.Safe( "PadDetails", OnPadDetails ) );
 	HubCore.Listen( LuaEvents.SRA_PadInfo, HubCore.Safe( "PadInfo", OnPadInfo ) );
