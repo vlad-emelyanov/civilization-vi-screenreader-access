@@ -354,7 +354,7 @@ HubCityReport.m_specList = KeyNavList_Create{
 		if m == nil then return {}; end
 		local items:table = CityManage_DistrictItems( m );
 		for _, item in ipairs( items ) do
-			item.detail = item.text .. ". Enter adds a specialist, Backspace removes one";
+			item.detail = item.text .. ". Enter adds a specialist, Backspace removes one (controller: X)";
 		end
 		return items;
 	end,
@@ -362,7 +362,7 @@ HubCityReport.m_specList = KeyNavList_Create{
 	onActivate	= HubCityReport.SpecialistsEnter,
 	onClose		= HubCityReport.LeaveManageView,
 	onFocus		= function( item ) HubCityReport.CursorToPlotIndex( item.district.plotIndex ); end,
-	extraKeys	= { [Keys.VK_BACK] = HubCityReport.SpecialistsRemove, [Keys.VK_DELETE] = HubCityReport.SpecialistsRemove },
+	extraKeys	= { [Keys.VK_BACK] = HubCityReport.SpecialistsRemove, [Keys.VK_DELETE] = HubCityReport.SpecialistsRemove, [Gamepad.Key( "X" )] = HubCityReport.SpecialistsRemove },
 };
 
 -- What the mode holds: the report list and its sub-lists (each handles keys only while it is the active view).

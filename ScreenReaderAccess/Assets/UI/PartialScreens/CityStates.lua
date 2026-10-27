@@ -14,6 +14,7 @@ include("TeamSupport");
 include("ScreenReader");		-- ScreenReaderAccess
 include("DiplomacyText");
 include("KeyNavList");		-- ScreenReaderAccess
+include("Gamepad");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -1988,7 +1989,9 @@ function SRA_CreateLists()
 		[ Keys.VK_OEM_MINUS ] = SRA_KeyRemove,	-- main keyboard - key
 		[ Keys.VK_BACK ] = SRA_KeyRemove,		-- Backspace
 		[ Keys.C ] = SRA_Confirm,
+		[ Gamepad.Key( "X" ) ] = SRA_Confirm,
 		[ Keys.A ] = SRA_KeyActions,
+		[ Gamepad.Key( "LT" ) ] = SRA_KeyActions,
 	};
 	m_srList = KeyNavList_Create{ build = SRA_ListItems, isActive = Active( false ), onActivate = SRA_OnListActivate, onClose = SRA_OnListClose, extraKeys = extra };
 	m_srActions = KeyNavList_Create{ build = SRA_ActionItems, isActive = Active( true ), onActivate = SRA_OnActionActivate, onClose = function() SRA_BackToList( "Back" ); end };

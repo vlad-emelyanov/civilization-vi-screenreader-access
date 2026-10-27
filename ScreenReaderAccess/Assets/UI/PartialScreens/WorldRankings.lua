@@ -12,6 +12,7 @@ include("CivilizationIcon");
 include("Colors");
 include("ScreenReader");		-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
+include("Gamepad");		-- ScreenReaderAccess
 include("SRListen");		-- ScreenReaderAccess
 include("RankingsText");	-- ScreenReaderAccess
 print("ScreenReaderAccess: WorldRankings copy loaded");		-- ScreenReaderAccess
@@ -640,7 +641,7 @@ function SRA_HandleInput( input:table )
 	elseif key == Keys.VK_ESCAPE then
 		if isUp then SRA_Safe( Close, "close" ); end
 		return true;
-	elseif key == Keys.H then
+	elseif key == Keys.H or Gamepad.ButtonOf( key, input:IsControlDown() ) == "X" then
 		if isUp then SRA_Safe( SRA_ReadHeader, "header" ); end
 		return true;
 	end

@@ -37,6 +37,7 @@
 include( "ScreenReader" );
 include( "KeyboardNavigation" );
 include( "KeyNavEditBox" );
+include( "Gamepad" );
 include( "TreeText" );
 include( "ResourceTech" );
 
@@ -350,7 +351,7 @@ function TreeNav_Create( a:table )
 		ResSay();
 	end
 
-	local function ResKey( key:number, isDown:boolean, shift:boolean )
+	local function ResKey( key:number, isDown:boolean, shift:boolean, padX:boolean )
 		if key == Keys.VK_UP or key == Keys.VK_DOWN then
 			if not isDown then return; end
 			local n:number = #m_resList.groups;
@@ -360,11 +361,11 @@ function TreeNav_Create( a:table )
 			if not isDown then return; end
 			m_resList.index = ( key == Keys.VK_HOME ) and 1 or #m_resList.groups;
 			ResSay();
-		elseif key == Keys.VK_RETURN then
+		elseif key == Keys.VK_RETURN or padX then
 			if isDown then return; end
 			local g:table = m_resList.groups[ m_resList.index ];
 			m_resList = nil;
-			Target( shift, g.type );
+			Target( shift or padX, g.type );		-- controller X = Shift+Enter, queue
 		elseif key == Keys.VK_ESCAPE or key == Keys.R then
 			if isDown then return; end
 			m_resList = nil;
@@ -420,10 +421,11 @@ function TreeNav_Create( a:table )
 		local isDown:boolean = ( msg == KeyEvents.KeyDown );
 		local ctrl:boolean = input:IsControlDown();
 		local shift:boolean = input:IsShiftDown();
+		local pad = Gamepad.ButtonOf( key, ctrl );		-- X, LT, RT; the right stick is the same F-keys with Control
 
 		local action = nil;
 		if m_resList ~= nil then
-			Guarded( function() ResKey( key, isDown, shift ); end, "resources" );
+			Guarded( function() ResKey( key, isDown, shift, pad == "X" ); end, "resources" );
 			return true;
 		end
 		if key == Keys.VK_UP then			if isDown then action = function() MoveItem( -1 ); end end
@@ -434,10 +436,11 @@ function TreeNav_Create( a:table )
 		elseif key == Keys.VK_HOME then		if isDown then action = function() MoveItem( 0, "home" ); end end
 		elseif key == Keys.VK_END then		if isDown then action = function() MoveItem( 0, "end" ); end end
 		elseif key == Keys.VK_RETURN then	if not isDown then action = function() Target( shift ); end end
+		elseif pad == "X" then	if not isDown then action = function() Target( true ); end end		-- controller X queues like Shift+Enter
 		elseif key == Keys.VK_SPACE then	if not isDown then action = ReadDetail; end
-		elseif key == Keys.J then			if not isDown then action = JumpToCurrent; end
+		elseif key == Keys.J or pad == "LT" then			if not isDown then action = JumpToCurrent; end
 		elseif key == Keys.F then			if not isDown then action = BeginSearch; end
-		elseif key == Keys.Q then			if not isDown then action = ReadQueue; end
+		elseif key == Keys.Q or pad == "RT" then			if not isDown then action = ReadQueue; end
 		elseif key == Keys.R and a.resourceKind ~= nil then	if not isDown then action = OpenResources; end
 		elseif key == Keys.VK_ESCAPE or ( a.toggleKey ~= nil and key == a.toggleKey ) then
 			if not isDown then action = Close; end
