@@ -165,6 +165,6 @@ public class GamepadMapperTests
         GamepadState rt = S(rt: 255), rtA = S(rt: 255, buttons: GamepadState.BtnA);
         m.Update(default, rt, 0);
         Assert.Equal("A:Down+S", FmtS(m.Update(rt, rtA, 20)));
-        Assert.Equal("A:Up+S", FmtS(m.Update(rtA, default, 40)));   // RT released first or together: Up still shifted
+        Assert.Equal("A:Up+S,RT:Up", FmtS(m.Update(rtA, default, 40)));   // RT released first or together: Up still shifted
     }
 }
