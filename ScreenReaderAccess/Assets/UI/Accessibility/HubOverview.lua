@@ -40,6 +40,25 @@ function HubOverview.Join( list:table )
 	return table.concat( list, ", ", 1, n - 1 ) .. " and " .. list[n];
 end
 
+-- "Ottomans" -> "Ottomans'", "Rome" -> "Rome's"
+function HubOverview.Possessive( name:string )
+	if string.sub( name, -1 ) == "s" then return name .. "'"; end
+	return name .. "'s";
+end
+
+-- "Ur of Babylon"; a city named like its owner (a city-state's only city) is "Hong Kong (city-state)", never "Hong Kong of Hong Kong".
+function HubOverview.CityOf( city:string, owner:string )
+	if city == owner then return city .. " (city-state)"; end
+	return city .. " of " .. owner;
+end
+
+-- Water area line, instead of the land summary of the shores around: kind = "lake" | "coast" | "ocean".
+function HubOverview.WaterAreaText( name:string, kind:string )
+	if kind == "lake" then return name .. ": a lake"; end
+	if kind == "coast" then return name .. ": shallow coastal water"; end
+	return name .. ": open ocean";
+end
+
 -- The n words with the highest counts (ties: alphabetical). counts: word -> number.
 function HubOverview.TopTerrains( counts:table, n:number )
 	local words:table = {};
@@ -145,7 +164,7 @@ function HubOverview.SectorText( title:string, entries:table )
 	local parts:table = {};
 	local top:table = HubOverview.TopTerrains( counts, 2 );
 	if #top > 0 then table.insert( parts, HubOverview.Join( top ) ); end
-	if owner ~= nil then table.insert( parts, owner.owner .. "'s territory after " .. Plural( owner.dist, "tile", "tiles" ) ); end
+	if owner ~= nil then table.insert( parts, HubOverview.Possessive( owner.owner ) .. " territory after " .. Plural( owner.dist, "tile", "tiles" ) ); end
 	if waterDist ~= nil then
 		local far:number, farWater:number = 0, 0;
 		for _, e in ipairs( entries ) do
@@ -157,7 +176,7 @@ function HubOverview.SectorText( title:string, entries:table )
 		if farWater * 2 > far then table.insert( parts, "ocean from " .. Plural( waterDist, "tile", "tiles" ) ); end
 	end
 	if city ~= nil then
-		local who:string = city.cityOwner ~= nil and ( city.city .. " of " .. city.cityOwner ) or ( "your city " .. city.city );
+		local who:string = city.cityOwner ~= nil and HubOverview.CityOf( city.city, city.cityOwner ) or ( "your city " .. city.city );
 		table.insert( parts, who .. " at " .. Plural( city.dist, "tile", "tiles" ) .. ( city.stale and " (last seen)" or "" ) );
 	end
 	if unexplored * 2 > total then
@@ -473,8 +492,21 @@ function HubOverview.BuildItems()
 	if not IsRevealed( centre ) then
 		Add( "area", "This area: unexplored tile" );
 	else
-		Add( "area", BuildArea( name, cx, cy ) );
-		Add( "continent", BuildContinent( centre, name ) );
+		if centre:IsWater() then
+			-- At sea: the water line first, the land summary of the shores around is not "this area"
+			Add( "continent", BuildContinent( centre, name ) );
+			local kind:string = "ocean";
+			if centre:IsLake() then
+				kind = "lake";
+			else
+				local row:table = GameInfo.Terrains[ centre:GetTerrainType() ];
+				if row ~= nil and row.TerrainType == "TERRAIN_COAST" then kind = "coast"; end
+			end
+			Add( "area", HubOverview.WaterAreaText( name, kind ) );
+		else
+			Add( "area", BuildArea( name, cx, cy ) );
+			Add( "continent", BuildContinent( centre, name ) );
+		end
 	end
 	for i, text in ipairs( BuildSectors( centre ) ) do Add( "sector" .. i, text ); end
 	return items;

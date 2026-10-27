@@ -6,6 +6,7 @@
 # 2026-10-26: the list now opens on its FIRST item (the recommendation is named in the opening line), so the "Enter picks ... ^Place" steps
 # need a re-record: Enter now builds/queues the first item (a district still asks for a spot, a unit or building does not).
 # Between parts the chooser / placement is closed with Escape (neutral map state again).
+# 2026-10-27: the list opens on the RECOMMENDED item when it needs no placement (unit, building, project), else the first; the Place steps below depend on the fixture: verifier --record.
 # covers: **/ProductionPanel.lua **/KeyNavList.lua **/HubAnnounce.lua **/HubPlacement.lua
 # no-share-load: Enter picks the next unit / production
 load medieval-t100
