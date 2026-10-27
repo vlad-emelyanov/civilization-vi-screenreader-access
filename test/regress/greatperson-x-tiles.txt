@@ -1,7 +1,6 @@
-# Written blind (round 27, M6), NOT yet verified in game: run `python util/civregress.py greatperson-x-tiles --record` first.
 # Fixture pt-modes-t160: a granted Euclid (needs a completed Campus). X lists the Campus tiles ("Tiles to activate Euclid, N tiles", "here, Rome's Campus ..." or
 # "Rome's Campus, 2 tiles north-east, 1 turn"), Enter sends him there or, standing on it, activates; on arrival "Enter activates Euclid".
-# The GrantPerson call (individual, class, era, 0, 0, false) is from the engine probe and needs verification.
+# The GrantPerson call (individual, class, era, 0, 0, false) is verified. The fixture has a barbarian Field Cannon by the Campus: the first Enter only warns (Danger), the second sends.
 # covers: **/HubSettle.lua **/HubEvents.lua **/UnitPanel.lua **/HelpText.lua
 # no-share-load: grants a great person and uses him
 load pt-modes-t160
@@ -12,5 +11,7 @@ key X -Settle 2500
 expect ^Tiles to activate .+, \d+ tiles?
 expect Campus
 key Enter -Settle 4000
-expect (?i)(Arrived.*Enter activates|activated|moving to)
+expect ^Danger: .*Enter again sends it anyway
+key Enter -Settle 4000
+expect (?i)(Arrived.*Enter activates|activated|moving to|Euclid)
 no-lua-errors

@@ -294,7 +294,8 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 	if position ~= nil then text = text .. ", " .. position; end
 	local promotion:string = HubAnnounce.PromotionHint( unit );
 	if promotion ~= nil then text = text .. ". " .. promotion; end
-	local upgrade:string = HubAnnounce.UpgradeHint( unit );
+	local upgrade:string = nil;
+	if HubCore.m_ready then upgrade = HubAnnounce.UpgradeHint( unit ); end		-- while loading, AnnouncePendingUnit says it
 	if upgrade ~= nil then text = text .. ". " .. upgrade; end
 	local builderHint:string = HubSettle.BuilderHint( unit );
 	if builderHint ~= nil then text = text .. ". " .. builderHint; end
@@ -416,7 +417,10 @@ local function AnnouncePendingUnit()
 	if unit == nil or unit:GetID() ~= unitID or unit:GetOwner() ~= Game.GetLocalPlayer() then return; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil then return; end
-	HubCore.Announce( HubAnnounce.UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } ), true, "selection" );
+	local pendingText:string = HubAnnounce.UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } );
+	local upgrade:string = HubAnnounce.UpgradeHint( unit );
+	if upgrade ~= nil then pendingText = pendingText .. ". " .. upgrade; end
+	HubCore.Announce( pendingText, true, "selection" );
 	SpeakSettleSentence( unit );
 end
 

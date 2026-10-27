@@ -1,4 +1,4 @@
-# Written blind 2026-10-27 (not yet recorded). pt-early-t88, Shift+J: area overview of the cursor on the capital: "Area" names Rome and reads only explored plots, "Continent" says tiles known, then one item per direction; Space repeats, Escape closes.
+# Recorded in game round 27. pt-early-t88, Shift+J: area overview of the cursor on the capital: "Area" names Rome and reads only explored plots, "Continent" says tiles known, then one item per direction; Space repeats, Escape closes.
 # covers: **/HubOverview.lua UI/Additions/InGameAccess.lua **/HubCursor.lua **/PlotDescription.lua
 load pt-early-t88
 clear-advisors

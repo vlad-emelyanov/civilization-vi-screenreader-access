@@ -1,4 +1,4 @@
-# Verified 2026-10-24; attack-mode part rewritten round 27 (M5), NOT yet run in game. X in the attack mode walks only what the Legion can attack (hostile Catapult from W, Ram, Crossbowman, Musketman, Musketman: the multi-turn reachable ones count; Hong Kong (peace) and the unreachable Ottomans are no stops any more), the last one says "X wraps to the first"; W X Enter on a far enemy says "Moving to attack X, N turns"; the cursor moved by hand onto a non-hostile civ opens the war dialog on Enter and Escape returns to choosing ("War not declared. Still choosing a target").
+# Verified 2026-10-24; attack-mode part rewritten round 27 (M5),. X in the attack mode walks only what the Legion can attack (hostile Catapult from W, Ram, Crossbowman, Musketman, Musketman: the multi-turn reachable ones count; Hong Kong (peace) and the unreachable Ottomans are no stops any more), the last one says "X wraps to the first"; W X Enter on a far enemy says "Moving to attack X, N turns"; the cursor moved by hand onto a non-hostile civ opens the war dialog on Enter and Escape returns to choosing ("War not declared. Still choosing a target").
 # covers: **/HubTargets.lua **/HubCursor.lua **/HubEvents.lua
 # options: animations
 # Setup: end turn 128 (barbarians approach), select the Legion with the tuner.
@@ -28,7 +28,7 @@ expect Last target, X wraps
 expect-not would declare war
 # a peaceful civ is no stop but stays attackable by hand: put the cursor on a Hong Kong city
 lua InGameAccess for id=0,63 do local p=Players[id]; if p~=nil and p:IsAlive() and id~=Game.GetLocalPlayer() and PlotDescription_GetCivName(id)=="Hong Kong" then for _,c in p:GetCities():Members() do HubCursor.SetCursor(c:GetX(),c:GetY(),true,true,false,true) return 1 end end end
-expect would declare war on Hong Kong
+wait would declare war on Hong Kong -Timeout 8
 key Enter -Settle 2500
 expect ^DECLARE WAR
 key Escape -Settle 3000
