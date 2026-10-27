@@ -47,3 +47,15 @@ Findings from the user's own play-testing, researched but not yet worked on. Eac
 6. Escape closes it and speaks "Closed".
 
 Alternative if the override is too costly: a mod-side search list (type a word, list the matching revealed plots) built on `GetPlotSearchTerms`-like matching. Overlap: J already covers resources and points of interest, so check what Map Search adds (terrain, districts, improvements, "unclaimed").
+
+## M3. Send a unit to the cursor's tile (small feature)
+
+**Asked:** after jumping the cursor to a tribal village from a notification, is there a menu that lists nearby units and sends one to it?
+
+**Today:** yes, but not from the cursor itself.
+- Control+N, then M on the notification opens the send list.
+- J, then M on the village under points of interest, opens the same list.
+- The list (`HubPlaces.BuildSendItems`) gives each unit with the turns it needs, fastest first, plus what it is doing and whether it is escorting someone. Enter sends the unit.
+- With the cursor on the tile there is no such key. M on the map is the game's Move To, which needs a unit selected first and then a target tile.
+
+**Proposed:** a cursor key (or Shift+M) that opens the same send list for the cursor's plot, with the plot's short description as the place name. It works for any tile, not only listed places. It also needs a `HelpText.lua` entry. Check `keymap.md` for a free key.
