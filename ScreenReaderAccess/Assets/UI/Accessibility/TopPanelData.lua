@@ -127,8 +127,8 @@ local function CurrentResearchItem( items:table, player:table )
 			Add( items, { key = "research", text = "Research: all researched", detail = "Every technology is researched." } );
 			return;
 		end
-		Add( items, { key = "research", text = "Research: none chosen, Enter to choose", open = "research",
-			detail = "No technology is being researched. Enter opens the research chooser." } );
+		Add( items, { key = "research", text = "Research: none chosen, " .. SRKey( "Enter" ) .. " to choose", open = "research",
+			detail = "No technology is being researched. " .. SRKey( "Enter" ) .. " opens the research chooser." } );
 		return;
 	end
 	local name:string = Locale.Lookup( row.Name );
@@ -139,7 +139,7 @@ local function CurrentResearchItem( items:table, player:table )
 	local detail:string = name .. ". " .. math.floor( techs:GetResearchProgress( id ) ) .. " of " .. cost .. " science";
 	if turns ~= nil and turns > 0 then detail = detail .. ", " .. turns .. ( turns == 1 and " turn" or " turns" ) .. " left"; end
 	if techs:HasBoostBeenTriggered( id ) then detail = detail .. ". Eureka triggered"; end
-	Add( items, { key = "research", text = text, detail = detail .. ". Enter opens the research chooser.", open = "research" } );
+	Add( items, { key = "research", text = text, detail = detail .. ". " .. SRKey( "Enter" ) .. " opens the research chooser.", open = "research" } );
 end
 
 local function CurrentCivicItem( items:table, player:table )
@@ -156,8 +156,8 @@ local function CurrentCivicItem( items:table, player:table )
 			Add( items, { key = "civic", text = "Civic: all researched", detail = "Every civic is researched." } );
 			return;
 		end
-		Add( items, { key = "civic", text = "Civic: none chosen, Enter to choose", open = "civic",
-			detail = "No civic is being researched. Enter opens the civics chooser." } );
+		Add( items, { key = "civic", text = "Civic: none chosen, " .. SRKey( "Enter" ) .. " to choose", open = "civic",
+			detail = "No civic is being researched. " .. SRKey( "Enter" ) .. " opens the civics chooser." } );
 		return;
 	end
 	local name:string = Locale.Lookup( row.Name );
@@ -168,7 +168,7 @@ local function CurrentCivicItem( items:table, player:table )
 	local detail:string = name .. ". " .. math.floor( culture:GetCulturalProgress( id ) ) .. " of " .. cost .. " culture";
 	if turns ~= nil and turns > 0 then detail = detail .. ", " .. turns .. ( turns == 1 and " turn" or " turns" ) .. " left"; end
 	if culture:HasBoostBeenTriggered( id ) then detail = detail .. ". Inspiration triggered"; end
-	Add( items, { key = "civic", text = text, detail = detail .. ". Enter opens the civics chooser.", open = "civic" } );
+	Add( items, { key = "civic", text = text, detail = detail .. ". " .. SRKey( "Enter" ) .. " opens the civics chooser.", open = "civic" } );
 end
 
 -- The turn counter as the TopPanel shows it (RefreshTurnsRemaining), with the date.

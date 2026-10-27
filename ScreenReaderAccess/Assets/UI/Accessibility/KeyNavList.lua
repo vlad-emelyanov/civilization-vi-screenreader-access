@@ -171,7 +171,7 @@ function KeyNavList_Create( config:table )
 		local item:table = items[ index ];
 		if m_lostGuard then
 			m_lostGuard = false;
-			OutputMessageToScreenReader( item.text .. ". Enter again to choose it" );
+			OutputMessageToScreenReader( item.text .. ". " .. SRKey( "Enter" ) .. " again to choose it" );
 			return;
 		end
 		if item.choosable == false then

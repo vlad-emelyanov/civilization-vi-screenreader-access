@@ -6,6 +6,12 @@ include("ScreenReader")
 include("PlotDescription")
 include("HubCore")
 include("HubEnemies")
+-- strings carry [KEY:kb|button] tokens (SRKey): compare the keyboard wording
+local rawEq = eq
+local function eq(actual, expected, msg)
+	if type(actual) == "string" then actual = actual:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1") end
+	rawEq(actual, expected, msg)
+end
 
 local function dist(x1, y1, x2, y2) return Map.GetPlotDistance(x1, y1, x2, y2) end
 local function e(name, x, y, extra)
@@ -163,6 +169,7 @@ test("raid decision: full once, silent while unchanged, short every 3 turns, ful
 end)
 
 test("exposed civilians wording", function()
+	rawEq(HubEnemies.ExposedText({ { name = "Settler", enemy = "Barbarian Archer", relative = "x" } }):find("[KEY:Enter] again ends the turn anyway", 1, true) ~= nil, true)
 	eq(HubEnemies.ExposedText({ { name = "Settler", enemy = "Barbarian Archer", relative = "2 tiles north-east" } }),
 		"Settler exposed: Barbarian Archer 2 tiles north-east. Enter again ends the turn anyway")
 	eq(HubEnemies.ExposedText({ { name = "Settler", enemy = "Barbarian Archer", relative = "2 tiles north-east" },

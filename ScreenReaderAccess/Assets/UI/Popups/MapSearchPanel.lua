@@ -1188,7 +1188,7 @@ function SR_OnPanelOpened()
 	if m_SR.isOpen then return; end	-- shown + explicit event for one opening: speak once (PanelClosed resets it)
 	SR_Reset();
 	m_SR.isOpen = true;
-	SR_Say("Map search. Type words such as Iron, Hills or Unclaimed, Enter searches, Escape closes");
+	SR_Say("Map search. Type words such as Iron, Hills or Unclaimed, " .. SRKey("Enter") .. " searches, " .. SRKey("Escape") .. " closes");
 end
 
 -- Typed / deleted characters and Tab completion. kind: "search" or "filter".
@@ -1233,7 +1233,7 @@ function SR_OnSearchStarted()
 end
 
 function SR_OnSearchRejected()
-	SR_Say("Nothing to search for. Type words, then Enter");
+	SR_Say("Nothing to search for. Type words, then " .. SRKey("Enter"));
 end
 
 function SR_OnSearchDone()
@@ -1244,7 +1244,7 @@ function SR_OnSearchDone()
 		if matches == 0 then
 			SR_Say("No matches for "..table.concat(m_Search.Whitelist, " "));
 		else
-			SR_Say(SR_Plural(matches, "match", "matches").." in "..SR_Plural(#m_ResultGroups, "place", "places")..". Down for the first");
+			SR_Say(SR_Plural(matches, "match", "matches").." in "..SR_Plural(#m_ResultGroups, "place", "places")..". " .. SRKey("Down") .. " for the first");
 		end
 	end);
 	if not ok then print("MapSearchPanel SR_OnSearchDone error: "..tostring(err)); end
@@ -1344,7 +1344,7 @@ local function SR_HandleInputImpl( pInputStruct:table )
 	-- a letter or digit starts a new search
 	if down and SR_TypingKeys[key] then
 		Controls.MapSearchBox:TakeFocus();
-		SR_Say("Search box, type words, Enter searches");
+		SR_Say("Search box, type words, " .. SRKey("Enter") .. " searches");
 		return true;
 	end
 	return false;
