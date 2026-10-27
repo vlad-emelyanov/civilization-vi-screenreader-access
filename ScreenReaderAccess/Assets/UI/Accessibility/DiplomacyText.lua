@@ -27,18 +27,34 @@ DIPLOMACY_TEXT_REASONS = {
 	MAKE_ALLIANCE = "proposes an alliance",
 	OPEN_BORDERS = "proposes open borders",
 	MAKE_DEMAND = "makes a demand",
+	RENEW_ALLIANCE = "proposes to renew the alliance",
+	NO_TARGET = "has something to say",
 	DEFEAT = "admits defeat",
 	GREETING = "greets you",
 	FIRST_MEET_NEAR_INITIATOR = "meets you", FIRST_MEET_NEAR_RECIPIENT = "meets you", FIRST_MEET_NO_MANS = "meets you",
 	FIRST_MEET_NO_MANS_INFO_EXCHANGE = "meets you", FIRST_MEET_VISIT_RECIPIENT = "meets you",
 };
 
+-- "Ottomans" -> "the Ottomans", "Netherlands" -> "the Netherlands", "Phoenicia" stays (plural names end in s)
+function DiplomacyText_CivWithArticle( civ:string )
+	if civ ~= nil and string.find( civ, "s$" ) and not string.find( civ, "^[Tt]he " ) then return "the " .. civ; end
+	return civ;
+end
+
+-- "DECLARE_FOO_WAR" -> "declare foo war"
+function DiplomacyText_HumanizeType( statementType:string )
+	local words:string = string.gsub( statementType, "_", " " );
+	return string.lower( words );
+end
+
 -- Returns the opening, ending with ": ": "Dido of Phoenicia, agenda comment (negative): ", "Suleiman of the Ottomans proposes a deal: ",
--- or "Dido of Phoenicia says: " when the type is unknown or the AI is only answering (aiInitiated false / subType not "NONE").
+-- or "Dido of Phoenicia says: " when the AI is only answering (aiInitiated false / subType is a deal answer) or the type is nil.
+-- A known-unmapped type is humanized: "Suleiman of the Ottomans, some type words: ".
 -- Wars (DECLARE_*_WAR): "declares war on you"; JOINT wars: "asks you to join a war".
 function DiplomacyText_Opening( leader:string, civ:string, statementType:string, subType:string, aiInitiated:boolean )
-	local who:string = leader .. " of " .. civ;
-	if aiInitiated and (subType == nil or subType == "NONE") and statementType ~= nil then
+	local who:string = leader .. " of " .. DiplomacyText_CivWithArticle( civ );
+	local firstWords:boolean = (subType == nil or subType == "NONE" or subType == "POSITIVE" or subType == "NEGATIVE");
+	if aiInitiated and firstWords and statementType ~= nil then
 		local reason:string = DIPLOMACY_TEXT_REASONS[ statementType ];
 		if reason == nil and string.find( statementType, "^DECLARE_JOINT_" ) then
 			reason = "asks you to join a war";
@@ -49,13 +65,14 @@ function DiplomacyText_Opening( leader:string, civ:string, statementType:string,
 			if string.find( reason, "(", 1, true ) then return who .. ", " .. reason .. ": "; end
 			return who .. " " .. reason .. ": ";
 		end
+		return who .. ", " .. DiplomacyText_HumanizeType( statementType ) .. ": ";
 	end
 	return who .. " says: ";
 end
 
 -- Notification types whose title ("Declaration of War") alone does not say who: the summary names the parties
 DIPLOMACY_TEXT_PARTY_NOTIFICATIONS = {
-	NOTIFICATION_DECLARE_WAR = true, NOTIFICATION_DECLARE_WAR_CITY_STATE = true, NOTIFICATION_MAKE_PEACE = true,
+	NOTIFICATION_DECLARE_WAR = true, NOTIFICATION_DECLARE_WAR_CITY_STATE = true, NOTIFICATION_MAKE_PEACE = true, NOTIFICATION_MAKE_PEACE_CITY_STATE = true,
 };
 
 -- "Declaration of War: Montezuma (Aztecs) has declared war on Suleiman (Ottomans)." or the plain title
