@@ -1,0 +1,7 @@
+turn: 94
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Move-to target mode with builder selected: Backslash and I give no speech; also stale N/Enter orders mismatch (builder Mine order on a tile now holding a Holy Site)
+mod commit: 4fe1cd3
+created: 2026-10-27
+size: 1234 KB
