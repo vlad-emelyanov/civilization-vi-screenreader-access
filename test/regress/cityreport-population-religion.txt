@@ -1,0 +1,22 @@
+# Written blind 2026-10-27 (round 27, not yet recorded). pt-modes-t160 (Rome, religion founded): capital city report. Population row starts with the housing, the religion row comes right after loyalty, and a loyal rising city does not say "may turn to".
+# covers: **/CityReportData.lua **/CityReportGather.lua
+load pt-modes-t160
+clear-advisors
+action CapitalCity -Settle 1500
+key Control+I -Settle 2500
+expect ^.+ report, \d+ options
+key Down -Settle 800
+expect ^Population \d+ of \d+ housing
+expect-not housing \d+ of \d+, \d+ of \d+$
+key Down -Settle 800
+expect ^Amenities \d+ of \d+
+key Down -Settle 800
+expect ^Loyalty \d+
+expect-not may turn to
+key Down -Settle 800
+expect ^Religion: .*
+key Space -Settle 1500
+expect .{10,}
+key Escape -Settle 1500
+expect ^Closed
+no-lua-errors

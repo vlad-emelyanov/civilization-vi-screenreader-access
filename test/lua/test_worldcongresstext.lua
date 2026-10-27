@@ -46,6 +46,36 @@ test("ResolutionLine: focus on the other option, and no votes", function()
 	eq(WCText_ResolutionLine(d), "Arms Control, option B: No nukes, no votes yet")
 end)
 
+test("ResolutionLine: key hint and next vote cost", function()
+	local costs = { [0] = 0, [1] = 10, [2] = 30, MaxVotes = 3 }
+	local d = { name = "Arms Control", focus = 1, effect = "No nukes", chosen = 0, votes = 0, cost = 0, needsTarget = false, costData = costs, hint = true }
+	eq(WCText_ResolutionLine(d), "Arms Control, option A: No nukes, no votes yet, equals adds a vote, Left and Right switch option")
+	d.hint = false
+	eq(WCText_ResolutionLine(d), "Arms Control, option A: No nukes, no votes yet")
+	d.chosen = 1; d.votes = 1; d.cost = 0
+	eq(WCText_ResolutionLine(d), "Arms Control, option A: No nukes, your votes: 1 vote for A, free, equals adds a vote for 10 favor")
+	d.votes = 2; d.cost = 10
+	eq(WCText_ResolutionLine(d), "Arms Control, option A: No nukes, your votes: 2 votes for A, costs 10 favor, equals adds a vote for 20 favor, minus removes one")
+	d.votes = 3; d.cost = 30
+	eq(WCText_ResolutionLine(d), "Arms Control, option A: No nukes, your votes: 3 votes for A, costs 30 favor, maximum votes, minus removes one")
+end)
+
+test("NextCostPhrase", function()
+	local costs = { [0] = 0, [1] = 10, [2] = 30, MaxVotes = 3 }
+	eq(WCText_NextCostPhrase(1, costs), "next vote 10 favor")
+	eq(WCText_NextCostPhrase(2, costs), "next vote 20 favor")
+	eq(WCText_NextCostPhrase(3, costs), "maximum votes")
+	eq(WCText_NextCostPhrase(0, costs), "")
+	eq(WCText_NextCostPhrase(1, nil), "")
+end)
+
+test("ProposalLine: hint and next step", function()
+	local costs = { [0] = 0, [1] = 10, [2] = 30, MaxVotes = 3 }
+	eq(WCText_ProposalLine("Denounce Rome", nil, 0, 0, costs, true), "Denounce Rome, no votes yet, equals votes for, minus votes against")
+	eq(WCText_ProposalLine("Denounce Rome", nil, 2, 10, costs, false), "Denounce Rome, your votes: 2 votes for, costs 10 favor, equals adds a vote for 20 favor, minus removes one")
+	eq(WCText_ProposalLine("Denounce Rome", nil, -1, 0, costs, false), "Denounce Rome, your votes: 1 vote against, minus adds a vote against for 10 favor")
+end)
+
 test("ProposalLine", function()
 	eq(WCText_ProposalLine("Denounce Rome", "Everybody does.", 0, 0), "Denounce Rome: Everybody does, no votes yet")
 	eq(WCText_ProposalLine("Denounce Rome", "", -2, 10), "Denounce Rome, your votes: 2 votes against, costs 10 favor")

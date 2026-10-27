@@ -86,6 +86,8 @@ local function GatherLoyalty( pCity:table )
 	local levelRow:table = GameInfo.LoyaltyLevels[ level ];
 	if levelRow ~= nil then
 		loyalty.level = Locale.Lookup( levelRow.Name );
+		loyalty.levelIndex = level;
+		loyalty.topLevel = 3;		-- LOYALTY_LEVEL_3 = Loyal (Expansion1_LoyaltyLevels.xml)
 		if level < 3 then
 			loyalty.effect = Locale.Lookup( "LOC_LOYALTY_GROWTH_AND_YIELD_EFFECTS_TEXT", levelRow.GrowthChange * 100, levelRow.YieldChange * 100 );
 		else
@@ -167,6 +169,65 @@ local function GatherReligion( data:table )
 		if row ~= nil then religion.pantheon = Locale.Lookup( row.Name ); end
 	end
 	return religion;
+end
+
+-- Per-religion followers, pressure, majority, next religion and holy city (engine probed in game, round 27).
+-- Fills religion.rows (nil when the engine calls fail: the text then falls back to the GetCityData fields).
+local function GatherReligionDetail( pCity:table, religion:table, population:number )
+	local cityReligion:table = pCity:GetReligion();
+	local gameReligion:table = Game.GetReligion();
+	local function NameOf( id:number ) return Locale.Lookup( gameReligion:GetName( id ) ); end
+	local ownType:number = -1;
+	Guard( "own religion", function()
+		local pr:table = Players[ Game.GetLocalPlayer() ]:GetReligion();
+		ownType = pr:GetReligionTypeCreated();
+	end );
+	local majorityType:number = cityReligion:GetMajorityReligion();
+	local rows:table = {};
+	for _, entry in ipairs( cityReligion:GetReligionsInCity() ) do
+		if entry.Religion ~= nil and entry.Religion >= 0 then
+			local pressure:number = Guard( "pressure", function() return cityReligion:GetTotalPressureOnCity( entry.Religion ); end );
+			table.insert( rows, { id = entry.Religion, name = NameOf( entry.Religion ), followers = entry.Followers or 0,
+				pressure = pressure, own = entry.Religion == ownType, majority = entry.Religion == majorityType } );
+		end
+	end
+	table.sort( rows, function( a, b )
+		if a.majority ~= b.majority then return a.majority; end
+		if a.own ~= b.own then return a.own; end
+		if a.followers ~= b.followers then return a.followers > b.followers; end
+		return a.id < b.id;
+	end );
+	religion.rows = rows;
+	religion.citizens = population;
+	if majorityType ~= nil and majorityType >= 0 then
+		for _, row in ipairs( rows ) do
+			if row.majority then religion.majority = { name = row.name, followers = row.followers }; end
+		end
+		if religion.majority == nil then religion.majority = { name = NameOf( majorityType ), followers = 0 }; end
+	end
+	Guard( "next religion", function()
+		local nextType:number = cityReligion:GetNextReligion();
+		local turns:number = cityReligion:GetTurnsToNextReligion();
+		if nextType ~= nil and nextType >= 0 and turns ~= nil and turns > 0 and nextType ~= majorityType then
+			religion.nextName = NameOf( nextType );
+			religion.nextTurns = turns;
+		end
+	end );
+	Guard( "holy city", function()
+		for p = 0, 63 do
+			local player:table = Players[p];
+			if player ~= nil and player:IsMajor() then
+				local pr:table = player:GetReligion();
+				local created:number = pr:GetReligionTypeCreated();
+				if created ~= nil and created >= 0 then
+					local hc:table = CityManager.GetCity( pr:GetHolyCityID() );
+					if hc ~= nil and hc:GetOwner() == pCity:GetOwner() and hc:GetID() == pCity:GetID() then
+						religion.holyCityOf = NameOf( created );
+					end
+				end
+			end
+		end
+	end );
 end
 
 local function GatherGreatWorks( pCity:table )
@@ -325,6 +386,8 @@ function CityReport_Gather( pCity:table )
 	d.amenities = GatherAmenities( data );
 	d.loyalty = Guard( "loyalty", function() return GatherLoyalty( pCity ); end );
 	d.religion = GatherReligion( data );
+	Guard( "religion detail", function() GatherReligionDetail( pCity, d.religion, data.Population ); end );
+	if d.religion.rows ~= nil and #d.religion.rows == 0 and d.religion.majority == nil and #d.religion.others > 0 then d.religion.rows = nil; end
 
 	-- production: "nothing" is reported by the empty hash, not by the name
 	local queue:table = pCity:GetBuildQueue();
