@@ -412,12 +412,22 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	end
 	if attackList == nil then table.sort( found, HubCursor.ScanEntryBefore ); end
 	local next:number = 1;
+	local visited:boolean = false;		-- the target X lands on was already spoken (the open announcement counts)
+	local cursorX:number, cursorY:number = HubCursor.GetCursor();
 	for i, entry in ipairs( found ) do
-		if entry.key == m_scanKey then next = i % #found + 1; end
+		if entry.key == m_scanKey then next = i % #found + 1; visited = true; end
+	end
+	if not visited and ( attackList ~= nil or listed ~= nil ) then
+		-- the scan state was lost (origin or mode looked different): the target the cursor stands on was the one just spoken
+		for i, entry in ipairs( found ) do
+			if entry.x == cursorX and entry.y == cursorY then next = i % #found + 1; visited = true; end
+		end
 	end
 	m_scanKey = found[ next ].key;
 	HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
-	if next == #found and #found > 1 then
+	if #found == 1 and visited then
+		OutputMessageToScreenReader( "Only target", true );
+	elseif next == #found and #found > 1 then
 		OutputMessageToScreenReader( "Last target, X wraps to the first", true );
 	end
 end

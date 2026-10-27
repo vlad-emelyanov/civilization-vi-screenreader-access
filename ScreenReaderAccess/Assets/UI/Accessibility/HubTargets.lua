@@ -215,27 +215,27 @@ local function CombatPreviewText( unit:table, plot:table, combatType )
 	elseif wallsMax > 0 then
 		-- a city or district with walls: part of the damage goes to the walls
 		if wallsDamage > 0 then
-			table.insert( parts, "deals " .. wallsDamage .. " damage to the walls, " .. math.max( 0, wallsMax - wallsFinal ) .. " of " .. wallsMax .. " left" );
+			table.insert( parts, "deals about " .. wallsDamage .. " damage to the walls, about " .. math.max( 0, wallsMax - wallsFinal ) .. " of " .. wallsMax .. " left" );
 		end
 		if dealt > wallsDamage or wallsDamage == 0 then
-			table.insert( parts, "deals " .. dealt .. " damage to the city, " .. math.max( 0, defenderMax - defenderFinal ) .. " of " .. defenderMax .. " health left" );
+			table.insert( parts, "deals about " .. dealt .. " damage to the city, about " .. math.max( 0, defenderMax - defenderFinal ) .. " of " .. defenderMax .. " health left" );
 		end
 	elseif defenderFinal >= defenderMax then
 		if IsCityOrDistrictPlot( plot ) then
-			table.insert( parts, "health to 0" );
+			table.insert( parts, "likely takes health to 0" );
 		else
-			table.insert( parts, "kills the target" );
+			table.insert( parts, "likely kills the target" );
 		end
 	else
-		table.insert( parts, "deals " .. dealt .. " damage, target left with " .. ( defenderMax - defenderFinal ) .. " of " .. defenderMax );
+		table.insert( parts, "deals about " .. dealt .. " damage, target left with about " .. ( defenderMax - defenderFinal ) .. " of " .. defenderMax );
 	end
 	local taken:number = attacker[CombatResultParameters.DAMAGE_TO] or 0;
 	local attackerMax:number = attacker[CombatResultParameters.MAX_HIT_POINTS] or 0;
 	local attackerFinal:number = attacker[CombatResultParameters.FINAL_DAMAGE_TO] or 0;
 	if attackerMax > 0 and attackerFinal >= attackerMax then
-		table.insert( parts, "you would die" );
+		table.insert( parts, "you would likely die" );
 	elseif taken > 0 then
-		table.insert( parts, "you take " .. taken );
+		table.insert( parts, "you take about " .. taken );
 	else
 		table.insert( parts, "no damage to you" );
 	end

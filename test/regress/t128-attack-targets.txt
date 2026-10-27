@@ -18,6 +18,8 @@ key W -Settle 1500
 expect ^Attack: choose a target
 # the walk: only attackable targets, hostile (W has the Catapult, then Ram, Crossbowman, Musketman, Musketman); never a peaceful civ
 key X -Settle 800
+# the target spoken on open (the Catapult) counts as visited: the first X goes to the Ram
+expect Barbarian Ram
 expect-not would declare war
 key X -Settle 800
 expect-not would declare war
