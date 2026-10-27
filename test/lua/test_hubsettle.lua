@@ -44,6 +44,11 @@ test("first Enter on a dangerous tile warns, second within 10 s goes through, an
 	eq(HubEnemies.GuardDecision(h, 70, "5:10:63:1", 101), "warn")
 end)
 
+test("key names are SRKey tokens", function()
+	eq(HubSettle.ArrivalBuildText("Farm", true, true), "[KEY:Enter] builds Farm")
+	eq(HubSettle.ArrivalStaleText("Farm", ""), "Farm is no longer possible here. [KEY:X|X] lists other tiles")
+end)
+
 test("arrival sentence", function()
 	eq(HubSettle.ArrivalBuildText("Farm", true, true), "Enter builds Farm")
 	eq(HubSettle.ArrivalBuildText("Farm", false, true), "Farm can be built next turn: select it and press Enter")

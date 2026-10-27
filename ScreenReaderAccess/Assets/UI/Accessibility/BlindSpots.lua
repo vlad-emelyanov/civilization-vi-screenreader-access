@@ -97,7 +97,7 @@ function BlindSpots.Advice( cityDistance:number, campDistance:number )
 		text = text .. ": at least " .. Plural( cityDistance, "tile", "tiles" ) .. " from any city";
 		if campDistance ~= nil then text = text .. " and " .. campDistance .. " from another camp"; end
 	end
-	return text .. ". Enter moves the cursor to the middle of it, M sends a unit, a unit on alert there keeps watch";
+	return text .. ". " .. SRKey( "Enter" ) .. " moves the cursor to the middle of it, " .. SRKey( "M", "X" ) .. " sends a unit, a unit on alert there keeps watch";
 end
 
 -- Plots 1 to 8 tiles from the cities, sorted into two lists:

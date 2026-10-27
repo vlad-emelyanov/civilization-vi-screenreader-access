@@ -67,7 +67,7 @@ function Hub.EnterFallback()
 	if not Hub.IsUnitOrdersLabel( m_enterLabel ) then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit ~= nil then
-		local text:string = HubAnnounce.UnitText( unit ) .. ", needs orders. Tab for its actions";
+		local text:string = HubAnnounce.UnitText( unit ) .. ", needs orders. " .. SRKey( "Tab" ) .. " for its actions";
 		-- a unit the game lets neither skip nor sleep (UnitPanel adds a disabled Skip Turn entry with the reason)
 		local okHint:boolean, hint = pcall( function()
 			for _, item in ipairs( HubMenus.FetchMenuItems( false ) ) do
@@ -113,7 +113,7 @@ function Hub.HandleInput( input:table )
 				local ok:boolean, err = xpcall( function() if key == Keys.VK_RETURN then HubTargets.ConfirmTarget(); else HubTargets.CancelTarget(); end end, KeyNavErrorHandler );
 				if not ok then
 					print( "InGameAccess target mode error: " .. tostring( err ) );
-					OutputMessageToScreenReader( "Something went wrong, Escape to cancel" );
+					OutputMessageToScreenReader( "Something went wrong, " .. SRKey( "Escape" ) .. " to cancel" );
 				end
 			end
 			return true;
@@ -127,7 +127,7 @@ function Hub.HandleInput( input:table )
 	end
 	-- Just after an attack the end-turn label can flash a governor blocker; Enter would open the Governors screen
 	if key == Keys.VK_RETURN and UI.GetElapsedTime() - HubTargets.attackTime < 5 and Hub.IsGovernorLabel() then
-		if msg == KeyEvents.KeyUp then HubCore.SayResult( "The attack is still resolving, press Enter again in a moment" ); end
+		if msg == KeyEvents.KeyUp then HubCore.SayResult( "The attack is still resolving, press " .. SRKey( "Enter" ) .. " again in a moment" ); end
 		return true;
 	end
 	-- Enter while an attack's result is still on its way: it would end the turn by accident (N says the same)
@@ -212,7 +212,7 @@ function Hub.UnitActionsKey()
 		if mode.list ~= nil and mode.list.tabAction ~= nil then
 			mode.list.tabAction();
 		else
-			OutputMessageToScreenReader( "Nothing for Tab here" );		-- (regions that use Tab consume it before it becomes an action)
+			OutputMessageToScreenReader( "Nothing for " .. SRKey( "Tab" ) .. " here" );		-- (regions that use Tab consume it before it becomes an action)
 		end
 		return;
 	end

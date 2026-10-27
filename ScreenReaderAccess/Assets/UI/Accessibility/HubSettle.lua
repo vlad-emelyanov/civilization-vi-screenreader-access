@@ -136,15 +136,15 @@ end
 -- Pure: "Danger: Barbarian Man-At-Arms 1 tile from Wheat. Enter again sends it anyway"
 function HubSettle.DangerGuardText( enemyName:string, distance:number, tileName:string )
 	local where:string = ( distance <= 0 ) and ( "on " .. tileName ) or ( HubCore.Plural( distance, "tile", "tiles" ) .. " from " .. tileName );
-	return "Danger: " .. enemyName .. " " .. where .. ". Enter again sends it anyway";
+	return "Danger: " .. enemyName .. " " .. where .. ". " .. SRKey( "Enter" ) .. " again sends it anyway";
 end
 
 -- Pure: said on arrival of a builder that was sent to build. hasMoves false: the build waits for the next turn.
 -- selected false: the builder is not the selected unit.
 function HubSettle.ArrivalBuildText( improvement:string, hasMoves:boolean, selected:boolean )
-	if not selected then return "Select it and press Enter to build " .. improvement; end
-	if not hasMoves then return improvement .. " can be built next turn: select it and press Enter"; end
-	return "Enter builds " .. improvement;
+	if not selected then return "Select it and press " .. SRKey( "Enter" ) .. " to build " .. improvement; end
+	if not hasMoves then return improvement .. " can be built next turn: select it and press " .. SRKey( "Enter" ); end
+	return SRKey( "Enter" ) .. " builds " .. improvement;
 end
 
 -- Visible hostile land soldiers (no scouts, no ships): { name, x, y, key }.
@@ -267,7 +267,7 @@ local function OpenBuildBrowser( unit:table )
 		HubCore.CloseMode( false, false );
 		HubCore.m_mode = { name = "build", list = m_buildList, onClose = BuildClosed };
 		m_buildList.Reset();
-		OutputMessageToScreenReader( city.name .. ", nothing to improve. Left and Right for other cities" );
+		OutputMessageToScreenReader( city.name .. ", nothing to improve. " .. SRKey( "Left and Right" ) .. " for other cities" );
 		return;
 	end
 	HubCore.CloseMode( false, false );
@@ -364,7 +364,7 @@ end
 function HubSettle.ArrivalStaleText( improvement:string, reason:string )
 	local text:string = improvement .. " is no longer possible here";
 	if reason ~= nil and reason ~= "" then text = text .. ": " .. reason; end
-	return text .. ". X lists other tiles";
+	return text .. ". " .. SRKey( "X", "X" ) .. " lists other tiles";
 end
 
 -- Why the improvement chosen with the order cannot be built now (nil: it can, or the check is not possible). A selected unit
@@ -453,8 +453,8 @@ end
 
 -- Pure: what N says while Enter is armed. unitName may be nil.
 function HubSettle.ArmedTextFor( p:table, unitName:string )
-	if p.act ~= nil then return "Enter " .. HubSettle.ActionPhrase( p.act ); end
-	return "Enter builds " .. p.name .. ( ( unitName ~= nil and unitName ~= "" ) and ( " with the " .. unitName ) or "" );
+	if p.act ~= nil then return SRKey( "Enter" ) .. " " .. HubSettle.ActionPhrase( p.act ); end
+	return SRKey( "Enter" ) .. " builds " .. p.name .. ( ( unitName ~= nil and unitName ~= "" ) and ( " with the " .. unitName ) or "" );
 end
 
 function HubSettle.ArmedEnterText()
@@ -525,17 +525,17 @@ end
 -- Pure: said on arrival of a unit that was sent to act. hasMoves false: the action waits for the next turn.
 -- selected false: the unit is not the selected unit.
 function HubSettle.ArrivalActionText( a:table, hasMoves:boolean, selected:boolean )
-	if not selected then return "Select it and press Enter to " .. HubSettle.ActionInfinitive( a ); end
+	if not selected then return "Select it and press " .. SRKey( "Enter" ) .. " to " .. HubSettle.ActionInfinitive( a ); end
 	if not hasMoves then
-		local text:string = HubSettle.ActionInfinitive( a ) .. " next turn: select it and press Enter";
+		local text:string = HubSettle.ActionInfinitive( a ) .. " next turn: select it and press " .. SRKey( "Enter" );
 		return string.upper( string.sub( text, 1, 1 ) ) .. string.sub( text, 2 );
 	end
-	return "Enter " .. HubSettle.ActionPhrase( a );
+	return SRKey( "Enter" ) .. " " .. HubSettle.ActionPhrase( a );
 end
 
 -- Pure: "Rome's Campus, 3 tiles north-east, 2 turns, 1 tile north of Rome" / "here, Rome's Campus, Enter activates Euclid"
 function HubSettle.ActItemText( e:table, a:table )
-	if e.here then return "here, " .. e.name .. ", Enter " .. HubSettle.ActionPhrase( a ); end
+	if e.here then return "here, " .. e.name .. ", " .. SRKey( "Enter" ) .. " " .. HubSettle.ActionPhrase( a ); end
 	local parts:table = { e.name };
 	if e.relative ~= nil then table.insert( parts, e.relative ); end
 	if e.turns ~= nil then table.insert( parts, HubCore.Plural( e.turns, "turn", "turns" ) ); end

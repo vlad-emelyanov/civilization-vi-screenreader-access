@@ -35,7 +35,7 @@ function HubAnnounce.SpeakWhatsNext()
 	if placing ~= nil then OutputMessageToScreenReader( placing ); return; end
 	local targetMode, targetLabel = HubTargets.GetTargetMode();
 	if targetLabel ~= nil then
-		OutputMessageToScreenReader( "Choosing a tile: " .. targetLabel .. ". Enter confirms, Escape cancels" );
+		OutputMessageToScreenReader( "Choosing a tile: " .. targetLabel .. ". " .. SRKey( "Enter" ) .. " confirms, " .. SRKey( "Escape" ) .. " cancels" );
 		return;
 	end
 	HubSettle.RestoreJustCleared();
@@ -59,7 +59,7 @@ function HubAnnounce.SpeakWhatsNext()
 	if okWait and isWait then
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if okCongress and inSession then
-			OutputMessageToScreenReader( "World Congress in session. Enter or Control+N resumes it" );
+			OutputMessageToScreenReader( "World Congress in session. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it" );
 			return;
 		end
 	end
@@ -103,11 +103,11 @@ end
 function HubAnnounce.ReadyUnitsText( text:string, count:number, thing:string, isSelected:boolean )
 	if count == 1 then
 		if isSelected then
-			return HubAnnounce.BlockerWithThing( text, thing and ( thing .. ", selected" ), "Tab opens its actions" );
+			return HubAnnounce.BlockerWithThing( text, thing and ( thing .. ", selected" ), SRKey( "Tab" ) .. " opens its actions" );
 		end
-		return HubAnnounce.BlockerWithThing( text, thing, "Enter selects it" );
+		return HubAnnounce.BlockerWithThing( text, thing, SRKey( "Enter" ) .. " selects it" );
 	end
-	if count > 1 then return count .. " units need orders. Enter selects the next one"; end
+	if count > 1 then return count .. " units need orders. " .. SRKey( "Enter" ) .. " selects the next one"; end
 	return text;
 end
 
@@ -522,7 +522,7 @@ local function TurnNotEnded( turn:number )
 		-- (the panel says "Please wait" for the whole session: the congress screen is what needs the player)
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if text == "" and okCongress and inSession then
-			OutputMessageToScreenReader( "Turn not ended: World Congress is waiting for your votes. Enter or Control+N resumes it", true );
+			OutputMessageToScreenReader( "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it", true );
 			return;
 		end
 		if text == "" and waited < 6 then
@@ -549,7 +549,7 @@ function HubAnnounce.RepeatTurnStartLine()
 	end
 	if UI.GetHeadSelectedCity() ~= nil then return; end
 	local text:string = BlockerText();
-	if text ~= "" then HubCore.Announce( text .. ". Enter handles it", true, "turn" ); end
+	if text ~= "" then HubCore.Announce( text .. ". " .. SRKey( "Enter" ) .. " handles it", true, "turn" ); end
 end
 
 function HubAnnounce.OnPlayerTurnActivated( playerID:number, isFirstTime:boolean )
@@ -651,5 +651,5 @@ function HubAnnounce.UpdateReadyWatch( deltaTime:number )
 	if not m_ready.armed or m_ready.stable < READY_STABLE then return; end
 	if HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return; end
 	m_ready.armed = false;
-	HubCore.Announce( "All done. Enter ends the turn", true, "ready" );
+	HubCore.Announce( "All done. " .. SRKey( "Enter" ) .. " ends the turn", true, "ready" );
 end
