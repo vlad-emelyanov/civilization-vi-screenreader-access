@@ -145,3 +145,28 @@ Alternative if the override is too costly: a mod-side search list (type a word, 
 **Seen in the user's log:** "Loyalty 100, plus 34 per turn, Loyal, may turn to Free Cities". `LoyaltyItem` appends "may turn to <rival>" whenever the data names a rival civ. At full loyalty and positive pressure that is misleading.
 
 **Proposed:** say "may turn to X" only when loyalty is falling (perTurn < 0) or the level is below Loyal. Otherwise keep it in the Space detail as "would turn to X if loyalty ran out".
+
+## M9. "Transfer to Another City" does nothing for great people (bug, cause found)
+
+**Reported:** great people have a Transfer to Another City action (Shift+R), and pressing it seems to do nothing.
+
+**From the user's log:**
+- "Isaac Newton actions, 7 options ... Transfer to Another City, key Shift+R, 3 of 7".
+- After Enter the only line is a plain cursor read ("Warrior, Plains, Farm, yours ... 1 tile south-east"). No mode line, and nothing about where the unit can go.
+- For a trader the same action works: "Move trader to which city? 5 cities ... Trader moved to Winnipeg" (TradeOriginChooser).
+
+**Cause:**
+- The action enters `InterfaceModeTypes.TELEPORT_TO_CITY`. `HubTargets.lua` lists that mode in `m_chooserModes`: "the trade chooser panels own these modes, the hub stays silent and lets every key through".
+- `Choosers/TradeOriginChooser.lua` `OnInterfaceModeChanged` opens only `if pSelectedUnitInfo.MakeTradeRoute`, so only for traders.
+- For a great person (or any other unit with this operation) nothing owns the mode. The game waits for a mouse click on one of the highlighted cities (`WorldInput.lua` `OnInterfaceModeChange_TeleportToCity` highlights `UnitManager.GetOperationTargets( unit, UI.GetInterfaceModeParameter( UnitOperationTypes.PARAM_OPERATION_TYPE ) )`, and the click runs `TeleportToCity()`). The player hears nothing and has no keys.
+
+**Proposed fix:**
+- Treat `TELEPORT_TO_CITY` as a chooser mode only when the head unit's `GameInfo.Units[...].MakeTradeRoute` is true. Otherwise make it a hub target mode named "Transfer to city".
+- **Opening line:** "Transfer Isaac Newton to which city? N cities". Better still, a list like the trader's: city name and distance, nearest first. Build it from the `GetOperationTargets` plots (add the mode to `HubTargets.ModeTargetPlots`, so X walks the valid cities in the cursor version too).
+- **Enter:** move the cursor to the city and confirm through the game's own path, the click that runs WorldInput `TeleportToCity()` (`ClickCursorPlot`, as other target modes do). Never call `RequestOperation` with hand-built parameters. Then say "Isaac Newton moved to Montréal".
+- **Escape:** cancels.
+- **Engine probe:**
+  - Which units get this operation: great people, and maybe others such as `UNITOPERATION_TELEPORT_TO_CITY` holders?
+  - Which cities does `GetOperationTargets` return?
+  - Is the transfer instant, and does it cost the unit's moves?
+- **Fixture:** any save with an unactivated great person and two or more cities. The user's game had Isaac Newton in Ottawa at turn 103. pt-modes fixtures from rounds 20-21 have great people.
