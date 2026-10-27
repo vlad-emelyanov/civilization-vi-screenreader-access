@@ -322,6 +322,14 @@ local function RememberIfVisible( x:number, y:number, improvement:number )
 end
 
 -- Events.ImprovementVisibilityChanged( x, y, improvementType, visibility ): a village or camp comes into view
+-- Read-only: a foreign city remembered from when it was in view (name, owner id), for plots now out of sight. Nil: none known.
+function HubPlaces.SeenCity( index:number )
+	HubPlaces.Prime();
+	local entry:table = m_seen[ index ];
+	if entry ~= nil and entry.kind == "foreign" then return entry.name, entry.owner; end
+	return nil;
+end
+
 function HubPlaces.OnImprovementVisibilityChanged( x:number, y:number, improvementType:number, visibility:number )
 	if RevealedState ~= nil and visibility ~= RevealedState.VISIBLE then return; end
 	RememberIfVisible( x, y, improvementType );
@@ -1112,9 +1120,10 @@ function HubPlaces.BuildSendItems( place:table )
 	local rings:table = nil;
 	for i = 1, math.min( MAX_SEND_PATHS, #candidates ) do
 		local unit:table = candidates[i].unit;
-		local turns:number = PathTurns( unit, plot, budget );
+		-- an unexplored target: no path finding (the answer would tell land from water); listed by distance, the game decides on Enter
+		local turns:number = place.unexplored and 0 or PathTurns( unit, plot, budget );
 		local near:table, ring:number = nil, 0;
-		if turns == nil and not place.escort and candidates[i].distance > 1 and budget.left > 0 then
+		if turns == nil and not place.escort and candidates[i].distance > 1 and budget.left > 0 and not place.unexplored then
 			if rings == nil then rings = RingPlots( place.x, place.y ); end
 			near, turns, ring = BestNear( unit, rings, budget );
 		end
@@ -1151,7 +1160,7 @@ function HubPlaces.BuildSendItems( place:table )
 		return a.unitId < b.unitId;
 	end );
 	for _, item in ipairs( items ) do
-		item.text = item.name .. ", " .. HubCore.Plural( item.turns, "turn", "turns" );
+		item.text = item.name .. ", " .. ( place.unexplored and ( HubCore.Plural( item.distance, "tile", "tiles" ) .. " away" ) or HubCore.Plural( item.turns, "turn", "turns" ) );
 		if item.ring ~= nil then item.text = item.text .. ", " .. ( item.ring == 1 and "next to " or "near " ) .. place.name; end
 		local activity:string = HubPlaces.UnitActivity( item.unit, false );
 		if activity ~= nil then item.text = item.text .. ", " .. activity; end
@@ -1185,6 +1194,55 @@ function HubPlaces.OpenSend( place:table )
 	HubCore.OpenMode( "send", m_sendList, place.title or ( "Send a unit to " .. place.name ) );
 end
 
+-- Shift+M (KeyNavSendHere): the send list for the map cursor's plot, any tile. Named by the city, the visible foreign
+-- unit (a capturable civilian of an enemy opens the capture list: military units only) or the terrain; an unexplored tile
+-- is allowed (Move To works into the fog).
+function HubPlaces.SendHere()
+	if not HubTargets.CanOpenMode() then return; end
+	local x:number, y:number = HubCursor.GetCursor();
+	local plot:table = Map.GetPlot( x, y );
+	if plot == nil then
+		OutputMessageToScreenReader( "Edge of the map" );
+		return;
+	end
+	local name:string = "unexplored tile";
+	local capture:boolean = false;
+	if PlotDescription_GetVisibility( plot ) ~= "unexplored" then
+		local localID:number = Game.GetLocalPlayer();
+		local types:table = CapturableTypes();
+		local ok:boolean, units = pcall( Units.GetUnitsInPlot, plot );
+		local foreign:table = nil;
+		for _, unit in ipairs( ( ok and units ) or {} ) do
+			if unit:GetOwner() ~= localID and PlotDescription_IsUnitVisible( unit ) then
+				foreign = foreign or unit;
+				local row:table = GameInfo.Units[ unit:GetUnitType() ];
+				if row ~= nil and types[ row.UnitType ] and HubCore.IsHostile( unit:GetOwner() ) then capture = true; foreign = unit; end
+			end
+		end
+		local city:table = plot:IsCity() and Cities.GetCityInPlot( x, y ) or nil;
+		if city ~= nil then
+			name = Locale.Lookup( city:GetName() );
+		elseif foreign ~= nil then
+			name = PlotDescription_GetUnitName( foreign );
+		else
+			local parts:table = {};
+			if plot:IsLake() then
+				table.insert( parts, "lake" );
+			else
+				local terrain:table = GameInfo.Terrains[ plot:GetTerrainType() ];
+				if terrain ~= nil then table.insert( parts, string.lower( Locale.Lookup( terrain.Name ) ) ); end
+			end
+			local featureType:number = plot:GetFeatureType();
+			local feature:table = ( featureType ~= nil and featureType >= 0 ) and GameInfo.Features[ featureType ] or nil;
+			if feature ~= nil then table.insert( parts, "with " .. string.lower( Locale.Lookup( feature.Name ) ) ); end
+			name = table.concat( parts, " " ) .. " tile";
+		end
+	end
+	HubPlaces.OpenSend( { name = name, x = x, y = y, key = "cursor:" .. plot:GetIndex(), capture = capture, escort = false,
+		unexplored = ( PlotDescription_GetVisibility( plot ) == "unexplored" ),
+		title = "Send a unit to " .. name } );
+end
+
 -- Escape: back to the list the chooser came from.
 local function CloseSend()
 	local back:string = m_send ~= nil and m_send.back or nil;
@@ -1215,7 +1273,7 @@ local function OrderUnit( unitID:number, place:table, item:table )
 	local enemy:boolean = HubTargets.EnemyVisibleAt( plot );
 	local path:table = UnitManager.GetMoveToPathEx( mover, plot:GetIndex() );
 	local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
-	if war == nil and not reachable then
+	if war == nil and not reachable and not place.unexplored then
 		return name .. " cannot reach " .. ( nearby and "the area of " or "" ) .. place.name;
 	end
 	HubTargets.IssueMoveOrder( mover, plot, war, enemy );
