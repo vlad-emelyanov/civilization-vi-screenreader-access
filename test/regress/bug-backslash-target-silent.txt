@@ -5,6 +5,6 @@ clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) print("selected builder") break end end
 expect-lua ^selected builder
 action MoveTo -Settle 1000
-key Backslash -Settle 1500
+action CapitalCity -Settle 1500
 expect (?i)Rome
 no-lua-errors

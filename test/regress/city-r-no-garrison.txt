@@ -1,10 +1,11 @@
-# Written blind 2026-10-27 (round 28, not yet recorded). R on a city with no garrison and no walls (Cumae) says why it cannot attack instead of staying silent.
+# Written blind 2026-10-27 (round 28, not yet recorded). R on a city with no garrison and no walls (Setia: walls=false, garrison killed by the script; Cumae and Rome have walls) says why it cannot attack instead of staying silent.
 # covers: **/HubTargets.lua
-# no-share-load: city selection
+# no-share-load: kills the garrison
 load pt-early-t99
 clear-advisors
-lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Cumae" then UI.SelectCity(c) end end
-wait Cumae -Timeout 8
-key R -Settle 1500
-expect (?i)^Cumae can't attack
+lua GameCore_Tuner for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Setia" then for _,x in ipairs(Units.GetUnitsInPlot(Map.GetPlot(c:GetX(),c:GetY()))) do if x:GetOwner()==0 then UnitManager.Kill(x) end end end end
+lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Setia" then UI.SelectCity(c) end end
+wait Setia -Timeout 8
+action RangedAttack -Settle 1500
+expect (?i)^Setia can't attack
 no-lua-errors
