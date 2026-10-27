@@ -66,3 +66,36 @@ test("bare map: X selects at the cursor, LB rings", function()
 	eq(table.concat(calls, ","), "can:nil,ring")
 	mode = 7
 end)
+
+test("a held RT (Shift) acts on KeyUp only when no other key came between", function()
+	mode = nil
+	Keys.VK_SHIFT, Keys.VK_CONTROL, Keys.VK_ALT = 16, 17, 18
+	local hotkeys = {}
+	LuaEvents = setmetatable({ SRA_PadHotkey = function(name) table.insert(hotkeys, name) end }, { __index = function() return function() end end })
+	local savedUI = UI
+	UI = setmetatable({ GetHeadSelectedUnit = function() return {} end }, { __index = savedUI })
+	local rt = Keys[Gamepad.Map.RT.key]
+	local function ev(msg, key, control) return HubGamepad.HandleInput({}, msg, key, control or false) end
+	-- RT down, Shift, Right down/up, RT up: no Move To
+	eq(ev(KeyEvents.KeyDown, rt), true)
+	ev(KeyEvents.KeyDown, 16)
+	ev(KeyEvents.KeyDown, Keys.VK_RIGHT)
+	ev(KeyEvents.KeyUp, Keys.VK_RIGHT)
+	ev(KeyEvents.KeyUp, 16)
+	eq(ev(KeyEvents.KeyUp, rt), true)
+	eq(#hotkeys, 0)
+	-- RT down, modifier only, RT up: Move To
+	ev(KeyEvents.KeyDown, rt)
+	ev(KeyEvents.KeyDown, 16)
+	ev(KeyEvents.KeyUp, 16)
+	eq(ev(KeyEvents.KeyUp, rt), true)
+	eq(hotkeys[1], "MoveTo")
+	-- RT down, RT up: Move To again; a KeyUp without a KeyDown acts
+	ev(KeyEvents.KeyDown, rt)
+	ev(KeyEvents.KeyUp, rt)
+	eq(#hotkeys, 2)
+	ev(KeyEvents.KeyUp, rt)
+	eq(#hotkeys, 3)
+	UI = savedUI
+	mode = 7
+end)

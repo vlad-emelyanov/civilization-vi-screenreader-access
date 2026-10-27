@@ -91,14 +91,40 @@ local MAP_ACTIONS:table = {
 -- ===========================================================================
 --	INPUT (called first in Hub.HandleInput; true = consumed)
 -- ===========================================================================
+-- A held button (RT is Shift for the console app) acts on its KeyUp only if no other key event came between its KeyDown and KeyUp
+-- (modifier keys and the mode keys do not count). m_held[ button ] = true once tainted. A KeyUp with no known KeyDown acts.
+local m_held:table = {};
+
+local function TaintHeld()
+	for held, _ in pairs( m_held ) do m_held[ held ] = true; end
+end
+
+-- Records the event; true = a KeyUp whose button must not act
+local function TrackEvent( button:string, msg:number, key:number )
+	if button == "ModeOn" or button == "ModeOff" then return false; end
+	if button == nil then
+		if key ~= Keys.VK_SHIFT and key ~= Keys.VK_CONTROL and key ~= Keys.VK_ALT then TaintHeld(); end
+		return false;
+	end
+	if msg == KeyEvents.KeyDown then
+		TaintHeld();
+		m_held[ button ] = false;
+		return false;
+	end
+	local tainted:boolean = ( m_held[ button ] == true );
+	m_held[ button ] = nil;
+	return tainted;
+end
+
 function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:boolean )
 	local button:string = Gamepad.ButtonOf( key, isControl );
+	local suppressed:boolean = TrackEvent( button, msg, key );
 	if button == nil then return false; end
 	if button == "ModeOn" then Gamepad.SetActive( true ); return true; end
 	if button == "ModeOff" then Gamepad.SetActive( false ); return true; end
 	if not HubCore.IsLocalPlayerActive() then return false; end
 	Gamepad.SetActive( true );
-	local isUp:boolean = ( msg == KeyEvents.KeyUp );
+	local isUp:boolean = ( msg == KeyEvents.KeyUp ) and not suppressed;
 
 	if HubCore.IsGamePopupOpen() then
 		if button == "LB" or button == "RB" then
@@ -116,6 +142,7 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 
 	if MAP_ACTIONS[ button ] ~= nil then
 		if HubCore.m_mode ~= nil then
+			if suppressed then return true; end
 			-- the open list may have an action for the button (extraKeys[ Gamepad.Key( "X" ) ])
 			local ok:boolean, consumed = xpcall( function() return HubCore.m_mode.list.HandleInput( input ); end, KeyNavErrorHandler );
 			if not ok then print( "InGameAccess Pad" .. button .. " list error: " .. tostring( consumed ) ); end
