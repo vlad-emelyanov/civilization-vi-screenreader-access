@@ -360,6 +360,36 @@ local function BuildGo( item:table )
 	end
 end
 
+-- Pure: the arrival sentence when the improvement chosen with the order is no longer possible on the tile.
+function HubSettle.ArrivalStaleText( improvement:string, reason:string )
+	local text:string = improvement .. " is no longer possible here";
+	if reason ~= nil and reason ~= "" then text = text .. ": " .. reason; end
+	return text .. ". X lists other tiles";
+end
+
+-- Why the improvement chosen with the order cannot be built now (nil: it can, or the check is not possible). A selected unit
+-- is asked the way RunArmedBuild asks (its unit actions menu), else the build scan.
+function HubSettle.ArmedBuildProblem( unit:table, plot:table, b:table, selected:boolean )
+	if selected and b.type ~= nil then
+		local okMenu:boolean, items = pcall( HubMenus.FetchMenuItems, true );
+		if okMenu and items ~= nil then
+			for _, menuItem in ipairs( items ) do
+				if menuItem.action ~= nil and menuItem.action.improvement == b.type then
+					if menuItem.choosable == false then return menuItem.reason or ""; end
+					return nil;
+				end
+			end
+			return "";
+		end
+	end
+	if b.hash ~= nil and not BuildScan_CanBuild( unit, plot, b ) then
+		local district:number = plot:GetDistrictType();
+		if district ~= nil and district >= 0 then return "a district stands there"; end
+		return "";
+	end
+	return nil;
+end
+
 -- Called by HubEvents when a unit with a move order arrives: the sentence to append ("Enter builds Farm") or nil. Arms Enter.
 function HubSettle.OnArrived( unit:table, plot:table, record:table )
 	HubSettle.m_pending = nil;
@@ -368,7 +398,10 @@ function HubSettle.OnArrived( unit:table, plot:table, record:table )
 	local head:table = UI.GetHeadSelectedUnit();
 	local selected:boolean = head ~= nil and head:GetID() == unit:GetID();
 	local hasMoves:boolean = unit:GetMovesRemaining() > 0;
-	if hasMoves and b.hash ~= nil and not BuildScan_CanBuild( unit, plot, b ) then return nil; end
+	if hasMoves and b.hash ~= nil then
+		local why:string = HubSettle.ArmedBuildProblem( unit, plot, b, selected );
+		if why ~= nil then return HubSettle.ArrivalStaleText( b.name, why ); end
+	end
 	HubSettle.m_pending = { unitId = unit:GetID(), plotIndex = plot:GetIndex(), type = b.type, name = b.name, turn = Game.GetCurrentGameTurn(),
 		keepOnKeys = not ( hasMoves and selected ), act = b.act };
 	if b.act ~= nil then return HubSettle.ArrivalActionText( b.act, hasMoves, selected ); end
@@ -396,11 +429,31 @@ function HubSettle.BuildEnterArmed()
 	if p == nil then return false; end
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil or unit:GetID() ~= p.unitId then return false; end
+	-- the player's announced focus moved on to another unit (the head selection may lag behind): not this builder's build
+	if HubCore.m_lastAnnouncedUnit ~= nil and HubCore.m_lastAnnouncedUnit ~= p.unitId then return false; end
 	if p.turn ~= nil and Game.GetCurrentGameTurn() > p.turn + 1 then HubSettle.m_pending = nil; return false; end
 	if UnitManager.GetQueuedDestination( unit ) ~= nil then HubSettle.m_pending = nil; return false; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil or plot:GetIndex() ~= p.plotIndex then HubSettle.m_pending = nil; return false; end
 	return unit:GetMovesRemaining() > 0;
+end
+
+-- Pure: what N says while Enter is armed. unitName may be nil.
+function HubSettle.ArmedTextFor( p:table, unitName:string )
+	if p.act ~= nil then return "Enter " .. HubSettle.ActionPhrase( p.act ); end
+	return "Enter builds " .. p.name .. ( ( unitName ~= nil and unitName ~= "" ) and ( " with the " .. unitName ) or "" );
+end
+
+function HubSettle.ArmedEnterText()
+	local p:table = HubSettle.m_pending;
+	if p == nil then return nil; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	local name:string = nil;
+	if unit ~= nil then
+		local ok:boolean, n = pcall( PlotDescription_GetUnitName, unit );
+		if ok then name = n; end
+	end
+	return HubSettle.ArmedTextFor( p, name );
 end
 
 -- Enter (armed): the same code path as the Tab menu item of that improvement (UnitPanel's own button callback).

@@ -13,6 +13,21 @@ local m_pendingUnit			:number = nil;		-- unit selected while the game was still 
 
 -- What the Next Action key (Enter) will do, as the game's action panel says it ("Unit needs orders", "Choose
 -- production", "Next turn", ...). Read from the panel's own label so that expansion blockers are covered too.
+-- Pure decision table: what Enter does before the end-turn / next-blocker path. Attack under way wins over an armed build.
+function HubAnnounce.EnterIntentKind( attackPending:boolean, buildArmed:boolean )
+	if attackPending then return "attack"; end
+	if buildArmed then return "build"; end
+	return nil;
+end
+
+-- Single source of truth for N and the Enter key (InGameAccess.HandleInput): kind ("attack" / "build" / nil), spoken text.
+function HubAnnounce.EnterIntent()
+	local kind:string = HubAnnounce.EnterIntentKind( HubCore.AttackPendingActive(), HubSettle.BuildEnterArmed() );
+	if kind == "attack" then return kind, "Attack under way, wait for the result"; end
+	if kind == "build" then return kind, HubSettle.ArmedEnterText(); end
+	return nil, nil;
+end
+
 function HubAnnounce.SpeakWhatsNext()
 	if not HubCore.IsLocalPlayerActive() then return; end
 	-- placing a district / wonder, or choosing a tile for an order: say what Enter does there, not the end-turn label
@@ -23,6 +38,8 @@ function HubAnnounce.SpeakWhatsNext()
 		OutputMessageToScreenReader( "Choosing a tile: " .. targetLabel .. ". Enter confirms, Escape cancels" );
 		return;
 	end
+	local intentKind:string, intentText:string = HubAnnounce.EnterIntent();
+	if intentText ~= nil then OutputMessageToScreenReader( intentText ); return; end
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
 	local text:string = nil;
 	if label ~= nil then text = CleanTextForSpeech( label:GetText() ); end
@@ -288,6 +305,10 @@ function HubAnnounce.OnUnitSelectionChanged( playerID:number, unitID:number, hex
 	if HubCore.m_movers[ unitID ] ~= nil and UnitManager.GetQueuedDestination( unit ) == nil then HubCore.m_movers[ unitID ] = nil; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil then return; end
+	HubCore.m_lastAnnouncedUnit = unitID;
+	-- an armed build belongs to the builder the player left (unless it waits for later: no moves or not selected on arrival)
+	local armed:table = HubSettle.m_pending;
+	if armed ~= nil and armed.unitId ~= unitID and not armed.keepOnKeys then HubSettle.m_pending = nil; end
 	HubCursor.SetCursor( plot:GetX(), plot:GetY(), false );
 	local text:string = HubAnnounce.UnitText( unit ) .. ". " .. PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } );
 	local position:string = HubAnnounce.PositionText( plot );
@@ -546,11 +567,15 @@ function HubAnnounce.OnLocalPlayerTurnEnd()
 	m_endedTurn = turn;
 	local player:table = Players[ Game.GetLocalPlayer() ];
 	if player == nil or not player:IsTurnActive() then
-		OutputMessageToScreenReader( "Turn ended", true );
-		-- the turn is back active within 0.1 s when it was refused: do not wait for the (late) engine event
-		HubCore.After( 0.4, function()
+		-- the turn is back active within 0.1 s when it was refused (a unit that finished its move during the end-of-turn
+		-- processing): do not wait for the (late) engine event, and do not say "Turn ended" first
+		HubCore.After( 0.3, function()
 			local current:table = Players[ Game.GetLocalPlayer() ];
-			if m_endedTurn == turn and Game.GetCurrentGameTurn() == turn and current ~= nil and current:IsTurnActive() then TurnNotEnded( turn ); end
+			if m_endedTurn == turn and Game.GetCurrentGameTurn() == turn and current ~= nil and current:IsTurnActive() then
+				TurnNotEnded( turn );
+			elseif m_endedTurn == turn or Game.GetCurrentGameTurn() ~= turn then
+				OutputMessageToScreenReader( "Turn ended", true );
+			end
 		end );
 		return;
 	end

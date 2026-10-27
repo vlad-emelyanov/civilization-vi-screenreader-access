@@ -1132,6 +1132,7 @@ function HubTargets.ConfirmTarget()
 			if turns > 1 or #path.plots > 2 then
 				HubCore.SayResult( "Moving to attack" .. ( attackName ~= nil and ( " " .. attackName ) or "" ) .. ", " .. HubCore.Plural( turns, "turn", "turns" ) );
 			else
+				HubCore.MarkAttackPending( unit:GetID() );
 				HubCore.SayResult( AttackingText( plot, "Attacking" ) );
 			end
 		end
@@ -1146,6 +1147,7 @@ function HubTargets.ConfirmTarget()
 		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.RANGE_ATTACK, nil, parameters ) then
 			UnitManager.RequestOperation( unit, UnitOperationTypes.RANGE_ATTACK, parameters );
 			HubTargets.attackTime = UI.GetElapsedTime();
+			HubCore.MarkAttackPending( unit:GetID() );
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 			HubCore.SayResult( AttackingText( plot, "Ranged attack" ) );		-- the combat line arrives seconds later
 		else
@@ -1161,6 +1163,7 @@ function HubTargets.ConfirmTarget()
 			LuaEvents.Civ6Common_ConfirmWarDialog( unit:GetOwner(), war[1], WarTypes.SURPRISE_WAR );
 		elseif UnitManager.CanStartOperation( unit, UnitOperationTypes.AIR_ATTACK, nil, parameters ) then
 			UnitManager.RequestOperation( unit, UnitOperationTypes.AIR_ATTACK, parameters );
+			HubCore.MarkAttackPending( unit:GetID() );
 			UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 			HubCore.SayResult( AttackingText( plot, "Air attack" ) );
 		else
@@ -1184,6 +1187,7 @@ function HubTargets.ConfirmTarget()
 		local attacker:table = ( mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK ) and UI.GetHeadSelectedDistrict() or city;
 		if attacker ~= nil and CityManager.CanStartCommand( attacker, CityCommandTypes.RANGE_ATTACK, params ) then
 			CityManager.RequestCommand( attacker, CityCommandTypes.RANGE_ATTACK, params );
+			HubCore.MarkAttackPending( attacker:GetID() );
 			if mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK then
 				HubTargets.districtAttackTurn[ AttackKey( attacker ) ] = Game.GetCurrentGameTurn();
 			else

@@ -128,8 +128,15 @@ function Hub.HandleInput( input:table )
 		if msg == KeyEvents.KeyUp then HubCore.SayResult( "The attack is still resolving, press Enter again in a moment" ); end
 		return true;
 	end
+	-- Enter while an attack's result is still on its way: it would end the turn by accident (N says the same)
+	local intentKind:string, intentText:string = nil, nil;
+	if key == Keys.VK_RETURN and not HubCore.IsGamePopupOpen() then intentKind, intentText = HubAnnounce.EnterIntent(); end
+	if intentKind == "attack" then
+		if msg == KeyEvents.KeyUp then HubCore.SayResult( intentText ); end
+		return true;
+	end
 	-- Enter right after a builder arrived on the tile it was sent to: it builds the improvement chosen in the X list
-	if key == Keys.VK_RETURN and not HubCore.IsGamePopupOpen() and HubSettle.BuildEnterArmed() then
+	if intentKind == "build" then
 		if msg == KeyEvents.KeyUp then HubCore.Safe( "ArmedBuild", HubSettle.RunArmedBuild )(); end
 		return true;
 	end
