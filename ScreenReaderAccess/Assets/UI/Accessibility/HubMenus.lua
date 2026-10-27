@@ -114,7 +114,7 @@ function HubMenus.FetchMenuItems( refresh:boolean )
 	local keyCount:table = {};
 	for _, action in ipairs( m_unitActions ) do
 		local text:string = action.name;
-		if action.hotkey ~= nil and action.hotkey ~= "" then text = text .. ", key " .. action.hotkey; end
+		if action.hotkey ~= nil and action.hotkey ~= "" then text = text .. ", key " .. ( string.find( action.hotkey, "[%]|]" ) == nil and SRKey( action.hotkey, action.hotkeyButton ) or action.hotkey ); end
 		if action.disabled then
 			text = text .. ", unavailable" .. ( action.reason ~= "" and ( ": " .. action.reason ) or "" );
 		end
@@ -160,7 +160,7 @@ function HubMenus.ConfirmText( unit:table, typeName:string )
 	else
 		text = "Remove Improvement destroys the " .. impName .. " on this tile";
 	end
-	return text .. ". Enter again to confirm";
+	return text .. ". " .. SRKey( "Enter" ) .. " again to confirm";
 end
 
 local function RunMenuItem( item:table )
@@ -242,7 +242,7 @@ function HubMenus.ToggleUnitMenu()
 	local browser:table = ( HubSettle ~= nil ) and HubSettle.BrowserFor( unit ) or nil;
 	if browser ~= nil then
 		-- the mod's own browser (X on the map): first entry, so the controller reaches it too
-		table.insert( m_menuItems, 1, { key = "browse|" .. browser.text, text = browser.text, detail = "Opens the same browser as the X key", browse = browser } );
+		table.insert( m_menuItems, 1, { key = "browse|" .. browser.text, text = browser.text, detail = "Opens the same browser as the " .. SRKey( "X key", "X button" ), browse = browser } );
 	end
 	if #m_menuItems == 0 then
 		OutputMessageToScreenReader( PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " has no actions" );

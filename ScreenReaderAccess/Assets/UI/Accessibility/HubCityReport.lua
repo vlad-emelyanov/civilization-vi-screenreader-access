@@ -205,7 +205,7 @@ function HubCityReport.TilesEnter( item:table )
 		end
 		if HubCityReport.m_manageConfirm ~= t.key then
 			HubCityReport.m_manageConfirm = t.key;
-			OutputMessageToScreenReader( "Buy this tile for " .. t.cost .. " gold? Enter to confirm, Escape to go back" );
+			OutputMessageToScreenReader( "Buy this tile for " .. t.cost .. " gold? " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back" );
 			return;
 		end
 		HubCityReport.m_manageConfirm = nil;
@@ -308,7 +308,7 @@ m_reportList = KeyNavList_Create{
 	onActivate	= function( item )
 		if item.manage ~= nil then HubCityReport.EnterManageView( item.manage ); return; end
 		if item.key == "districtspots" then OutputMessageToScreenReader( item.detail ); return; end		-- the production panel has no focus-by-item entry: Tab opens it
-		OutputMessageToScreenReader( "Nothing to open here. Space reads the details" );
+		OutputMessageToScreenReader( "Nothing to open here. " .. SRKey( "Space" ) .. " reads the details" );
 	end,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
 };
@@ -354,7 +354,7 @@ HubCityReport.m_specList = KeyNavList_Create{
 		if m == nil then return {}; end
 		local items:table = CityManage_DistrictItems( m );
 		for _, item in ipairs( items ) do
-			item.detail = item.text .. ". Enter adds a specialist, Backspace removes one (controller: X)";
+			item.detail = item.text .. ". " .. SRKey( "Enter" ) .. " adds a specialist, " .. SRKey( "Backspace", "X" ) .. " removes one (controller: X)";
 		end
 		return items;
 	end,

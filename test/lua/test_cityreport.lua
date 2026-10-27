@@ -1,6 +1,12 @@
 -- CityReportData.lua: plain city table -> report items
 stub("engine")
 include("CityReportData")
+-- strings carry [KEY:kb|button] tokens (SRKey): compare the keyboard wording
+local rawEq = eq
+local function eq(actual, expected, msg)
+	if type(actual) == "string" then actual = actual:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1") end
+	rawEq(actual, expected, msg)
+end
 
 local function city()
 	return {
@@ -105,6 +111,7 @@ end)
 
 test("production", function()
 	local d = city()
+	rawEq(find(CityReport_BuildItems(d), "production").text:find("[KEY:Tab] opens production", 1, true) ~= nil, true)
 	eq(find(CityReport_BuildItems(d), "production").text, "Production: Builder, 1 turn, 2 more queued, Tab opens production")
 	d.production = { name = "" }
 	eq(find(CityReport_BuildItems(d), "production").text, "Production: nothing, Tab opens production")

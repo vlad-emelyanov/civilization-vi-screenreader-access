@@ -229,6 +229,11 @@ HubEnemies.m_dangerSig = {};			-- civilian unit id -> signature of the danger li
 HubEnemies.m_escortHinted = {};			-- "unit:partner" -> true: "X here too" was said
 HubEnemies.m_checkArmed = false;
 
+-- KeyText wrapped for speech: the pad button (a Gamepad.Map name) replaces it for the controller player.
+function HubEnemies.KeyHint( actionName:string, default:string, button:string )
+	return SRKey( HubEnemies.KeyText( actionName, default ), button );
+end
+
 function HubEnemies.KeyText( actionName:string, default:string )
 	local ok:boolean, text = pcall( function()
 		local id = Input.GetActionId( actionName );
@@ -351,7 +356,7 @@ function HubEnemies.ExposedText( items:table )
 	local who:string = names[1];
 	if #names == 2 then who = names[1] .. " and " .. names[2];
 	elseif #names > 2 then who = table.concat( names, ", ", 1, #names - 1 ) .. " and " .. names[ #names ]; end
-	return who .. " exposed: " .. table.concat( enemies, ", " ) .. ". Enter again ends the turn anyway";
+	return who .. " exposed: " .. table.concat( enemies, ", " ) .. ". " .. SRKey( "Enter" ) .. " again ends the turn anyway";
 end
 
 -- hint: "Move it into Rome" or nil.
@@ -366,7 +371,7 @@ end
 function HubEnemies.AloneText( unitName:string, turns:number, danger:string, formationKey:string )
 	local text:string = unitName .. " moving alone";
 	if turns ~= nil then text = text .. ", " .. HubCore.Plural( turns, "turn", "turns" ); end
-	return text .. ". " .. danger .. ". Escort first: J then M sends a soldier, " .. formationKey .. " forms the escort";
+	return text .. ". " .. danger .. ". Escort first: " .. SRKey( "J", "LB or RB" ) .. " then " .. SRKey( "M", "X" ) .. " sends a soldier, " .. formationKey .. " forms the escort";
 end
 
 -- "2 tiles from the path" / "on the path" / "at the target"
@@ -531,7 +536,7 @@ function HubEnemies.CheckScouts( atTurnStart:boolean )
 						cx = best:GetX(), cy = best:GetY(), turn = Game.GetCurrentGameTurn() };
 					local relative:string = PlotDescription_GetRelative( Map.GetPlot( best:GetX(), best:GetY() ), plot );
 					table.insert( lines, HubEnemies.AlarmText( PlotDescription_GetUnitName( h.unit ), Locale.Lookup( best:GetName() ),
-						relative, HubEnemies.KeyText( "Attack", "W" ) ) );
+						relative, HubEnemies.KeyHint( "Attack", "W", "LT" ) ) );
 				end
 			end
 		end

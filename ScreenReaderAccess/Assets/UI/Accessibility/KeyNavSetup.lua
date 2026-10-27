@@ -29,7 +29,9 @@
 --    QueueFocus(key, prefix), CancelSelection(), HandleKey(key), HandleInput(pInputStruct), Update(deltaTime).
 --    Wire up: ContextPtr:SetInputHandler(function(p) return nav.HandleInput(p); end, true); ContextPtr:SetUpdate(nav.Update).
 
-local PULLDOWN_HINT:string = ", dropdown, Left/Right or Enter to change";
+local function PulldownHint()
+	return ", dropdown, " .. SRKey( "Left/Right" ) .. " or " .. SRKey( "Enter" ) .. " to change";
+end
 
 function KeyNavSetup_IsUsable( control:object )
 	return control ~= nil and not control:IsHidden() and not control:IsDisabled();
@@ -111,7 +113,7 @@ end
 
 function KeyNavSetup_PulldownItem( control:object, parameter:table, label:string )
 	return {
-		control = control, kind = "pulldown", label = label, focusSuffix = PULLDOWN_HINT,
+		control = control, kind = "pulldown", label = label, focusSuffix = PulldownHint(),
 		getText = function()
 			return label..": "..(parameter.Value and tostring(parameter.Value.Name) or "");
 		end,
@@ -252,7 +254,7 @@ local function BuildParameterItem( pid:string, parameter:table, c:table, label:s
 		local editRoot:object = c.StringRoot or c.Root or c.StringEdit;
 		if not editRoot:IsHidden() and KeyNavSetup_IsUsable(c.StringEdit) then
 			return {
-				control = c.StringEdit, kind = "edit", focusSuffix = ", Enter to edit",
+				control = c.StringEdit, kind = "edit", focusSuffix = ", " .. SRKey( "Enter" ) .. " to edit",
 				getText = function() return KeyNavEditBox_Describe(label, c.StringEdit); end,
 				activate = function()
 					KeyNavEditBox_Begin(c.StringEdit, {
@@ -449,7 +451,7 @@ function KeyNavSetup_NewController( cfg:table )
 		if #options == 0 then return; end
 		local label:string = item.label or "";
 		m_selection = { item = item, options = options, index = current, originalIndex = (not noOriginal) and current or nil };
-		OutputMessageToScreenReader(label..", "..SelectionText()..". Up/Down to choose, Enter to select, Escape to cancel", false);
+		OutputMessageToScreenReader(label..", "..SelectionText()..". " .. SRKey( "Up/Down" ) .. " to choose, " .. SRKey( "Enter" ) .. " to select, " .. SRKey( "Escape" ) .. " to cancel", false);
 	end
 
 	local function SelectionKey( key:number )

@@ -4279,6 +4279,13 @@ end
 --	Keyboard menu of the selected unit's actions (InGameAccess hub, Tab). Built from the very table the panel's icons
 --	come from (m_subjectData.Actions). Only plain data goes across LuaEvents; callbacks stay in this context.
 -- ===========================================================================
+-- The pad button of a unit hotkey that LT / RT run (HubGamepad), for the spoken ", key W".
+local function SRHotkeyButton( hotkeyId )
+	if hotkeyId == "Attack" then return "LT"; end
+	if hotkeyId == "MoveTo" then return "RT"; end
+	return nil;
+end
+
 local function SRActionName( action:table, tooltip:string )
 	if action.SRName ~= nil then return action.SRName; end
 	if action.SRLabel ~= nil then return action.SRLabel; end
@@ -4685,7 +4692,7 @@ local function SRBuildActions()
 						end
 					end
 					table.insert( plain, {
-						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey,
+						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey, hotkeyButton = SRHotkeyButton( action.HotkeyId ),
 						disabled = ( action.Disabled == true ), reason = reason,
 						detail = detail, category = category,
 					tag = action.userTag, typeName = SRTypeName( action.userTag ), build = ( action.SRName ~= nil ),
@@ -4832,7 +4839,7 @@ function SRFoundReligionRefusal( unit:table, action:table )
 	if holySite ~= nil then best, standing = SRNearestDistrict( unit, holySite ); end
 	if holySite ~= nil and not standing then return PlotDescription_DistrictReason( Locale.Lookup( holySite.Name ), best, false ); end
 	if engine ~= "" then return engine; end
-	return "no action available here; Tab lists its actions";
+	return "no action available here; " .. SRKey( "Tab" ) .. " lists its actions";
 end
 
 function SRTryFoundReligionHotkey( actionId:number )
@@ -4878,7 +4885,7 @@ function SRSayBlockedHotkey( actionId:number )
 						if refine ~= nil then reason = table.concat( refine( SRReasonList( tooltip ) ), ", " ); end
 					elseif string.find( name, "^Activate " ) then lowered = "activate " .. string.sub( name, 10 );
 					elseif string.find( name, "^Retire " ) then lowered = "retire " .. string.sub( name, 8 ); end
-					if reason == "" and gpPerson ~= nil then reason = "no action available here; Tab lists its actions"; end
+					if reason == "" and gpPerson ~= nil then reason = "no action available here; " .. SRKey( "Tab" ) .. " lists its actions"; end
 					OutputMessageToScreenReader( "Cannot " .. lowered
 						.. ( reason ~= "" and ( ": " .. reason ) or "" ) );
 					return;
@@ -4909,7 +4916,7 @@ function SRSayBlockedHotkey( actionId:number )
 		local _, verb:string, person:string = SRGreatPersonActivateName( unit );
 		local why:string = ( unit:GetMovesRemaining() <= 0 ) and "no moves left this turn"
 			or SRRefusalReason( unit, GameInfo.UnitCommands["UNITCOMMAND_ACTIVATE_GREAT_PERSON"].Hash, SRDistrictRefiner( unit, true ) );
-		if why == "" then why = "no action available here; Tab lists its actions"; end
+		if why == "" then why = "no action available here; " .. SRKey( "Tab" ) .. " lists its actions"; end
 		OutputMessageToScreenReader( "Cannot " .. string.lower( verb or "activate" ) .. " " .. ( person or Locale.Lookup( unit:GetName() ) )
 			.. ( why ~= "" and ( ": " .. why ) or "" ) );
 		return;

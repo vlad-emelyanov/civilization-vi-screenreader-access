@@ -85,7 +85,7 @@ function HubTargets.CanOpenMode( allowTarget:boolean )
 		return false;
 	end
 	if HubCore.IsModeOpen( "placement" ) then
-		OutputMessageToScreenReader( "Place it, or Escape to cancel first" );
+		OutputMessageToScreenReader( "Place it, or " .. SRKey( "Escape" ) .. " to cancel first" );
 		return false;
 	end
 	return true;
@@ -629,7 +629,7 @@ function HubTargets.CapitalKey()
 	-- a placement or chooser mode (trade route ...): selecting the capital would cancel it
 	if UI.GetInterfaceMode() ~= InterfaceModeTypes.SELECTION or HubCore.IsModeOpen( "placement" ) then
 		print( "CapitalKey: Escape first, mode " .. tostring( UI.GetInterfaceMode() ) );
-		OutputMessageToScreenReader( "Escape first" );
+		OutputMessageToScreenReader( SRKey( "Escape" ) .. " first" );
 		return;
 	end
 	local selected:table = UI.GetHeadSelectedCity();
@@ -684,7 +684,7 @@ local function WatchWarReturn( tries:number )
 	m_attackIntent = record.intent;
 	UI.SetInterfaceMode( record.mode );
 	HubCursor.SetCursor( record.x, record.y, false );
-	OutputMessageToScreenReader( "War not declared. Still choosing a target: Enter to confirm, Escape to cancel" );
+	OutputMessageToScreenReader( "War not declared. Still choosing a target: " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
 end
 
 -- City ranged attack: the cursor starts on the nearest tile the city can hit (Enter on the city itself says "No valid target").
@@ -704,7 +704,7 @@ function HubTargets.CursorToNearestCityTarget()
 		end
 	end
 	if bestPlot == nil then
-		OutputMessageToScreenReader( "No enemy in range. Escape to cancel", true );
+		OutputMessageToScreenReader( "No enemy in range. " .. SRKey( "Escape" ) .. " to cancel", true );
 		return;
 	end
 	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
@@ -856,10 +856,10 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if HubTargets.lastModeLine == newMode and now - HubTargets.lastModeTime < 0.5 then return; end
 	HubTargets.lastModeLine, HubTargets.lastModeTime = newMode, now;
 	if newMode == InterfaceModeTypes.MOVE_TO and m_attackIntent then
-		OutputMessageToScreenReader( "Attack: choose a target with Shift+Arrows or X, Enter to attack, Escape to cancel" );
+		OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "Shift+Arrows" ) .. " or " .. SRKey( "X", "X" ) .. ", " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
 		return;
 	end
-	OutputMessageToScreenReader( label .. ": choose a tile with Shift+Arrows, Enter to confirm, Escape to cancel" );
+	OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
 	if IsCityMode( newMode ) then HubCore.After( 0.3, HubTargets.CursorToNearestCityTarget ); end
 end
 
@@ -1272,7 +1272,7 @@ function HubTargets.AttackKey()
 	if mode ~= nil then
 		if mode == InterfaceModeTypes.MOVE_TO and not m_attackIntent then
 			m_attackIntent = true;
-			OutputMessageToScreenReader( "Attack: choose a target with Shift+Arrows or X, Enter to attack, Escape to cancel" );
+			OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "Shift+Arrows" ) .. " or " .. SRKey( "X", "X" ) .. ", " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
 			HubCursor.ScanUnits( false );
 		else
 			HubTargets.ConfirmTarget();

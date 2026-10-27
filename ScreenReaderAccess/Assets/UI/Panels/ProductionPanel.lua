@@ -2835,7 +2835,7 @@ local function SRA_Announce( keepGuard:boolean )
 		end
 		if mode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
 	end
-	if not m_srHintSaid then m_srHintSaid = true; title = title .. ", Space for description"; end
+	if not m_srHintSaid then m_srHintSaid = true; title = title .. ", " .. SRKey( "Space" ) .. " for description"; end
 	-- Start on the advisor's recommended item when it can be built and needs no placement (a unit, building or project: a blind
 	-- Enter-Enter then builds what the title announces); a recommended wonder or district is only named in the title (a second
 	-- Enter would start its placement by accident). Otherwise on the first item that can be built (the top of the list).

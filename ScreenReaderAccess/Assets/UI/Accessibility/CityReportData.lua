@@ -243,13 +243,13 @@ end
 local function ProductionItem( d:table )
 	local p:table = d.production;
 	if p == nil or p.name == nil or p.name == "" then
-		local text:string = "Production: nothing, Tab opens production";
+		local text:string = "Production: nothing, " .. SRKey( "Tab" ) .. " opens production";
 		return { key = "production", text = text, detail = text };
 	end
 	local text:string = "Production: " .. p.name;
 	if p.turns ~= nil and p.turns > 0 then text = text .. ", " .. Turns( p.turns ); end
 	if p.queued ~= nil and p.queued > 0 then text = text .. ", " .. p.queued .. " more queued"; end
-	text = text .. ", Tab opens production";
+	text = text .. ", " .. SRKey( "Tab" ) .. " opens production";
 
 	local detail:table = { p.name };
 	if p.percent ~= nil then table.insert( detail, Num( p.percent * 100 ) .. " percent done" ); end
@@ -257,7 +257,7 @@ local function ProductionItem( d:table )
 	table.insert( detail, Num( d.yields.production.value ) .. " production per turn" );
 	if p.description ~= nil and p.description ~= "" then table.insert( detail, Clean( p.description ) ); end
 	if p.queued ~= nil and p.queued > 0 then table.insert( detail, p.queued .. " more in the queue" ); end
-	table.insert( detail, "Tab opens the production panel to choose or buy" );
+	table.insert( detail, SRKey( "Tab" ) .. " opens the production panel to choose or buy" );
 	return { key = "production", text = text, detail = Join( detail, ". " ) };
 end
 
@@ -329,7 +329,7 @@ local function DistrictSpotsItem( d:table )
 				if ( e.total or 0 ) > 0 then table.insert( best, e.name .. ": " .. DistrictAdvice_BestSpot( e ) ); end
 			end
 			if #best > 0 then text = text .. ". " .. Join( best, ". " ); end
-			text = text .. ". Tab opens production";
+			text = text .. ". " .. SRKey( "Tab" ) .. " opens production";
 			cache[k] = text;
 			return text;
 		end
@@ -475,8 +475,8 @@ local function FocusItem( d:table )
 	end
 	local text:string = "Focus: " .. ( #favored > 0 and Join( favored, " and " ) or "none" );
 	if #ignored > 0 then text = text .. ", ignoring " .. Join( ignored, " and " ); end
-	return { key = "focus", manage = "focus", text = text .. ". Enter to change",
-		detail = "Favored yields make the citizens prefer tiles with that yield, ignored yields make them avoid it. Enter opens the list" };
+	return { key = "focus", manage = "focus", text = text .. ". " .. SRKey( "Enter" ) .. " to change",
+		detail = "Favored yields make the citizens prefer tiles with that yield, ignored yields make them avoid it. " .. SRKey( "Enter" ) .. " opens the list" };
 end
 
 local function TilesItem( d:table )
@@ -486,7 +486,7 @@ local function TilesItem( d:table )
 	local text:string = "Tiles: " .. c.working .. " of " .. Plural( c.total, "citizen", "citizens" ) .. " on tiles";
 	local detail:string = text .. ". " .. Plural( #m.tiles, "workable tile", "workable tiles" );
 	if m.buy ~= nil and #m.buy > 0 then detail = detail .. ", " .. Plural( #m.buy, "tile", "tiles" ) .. " to buy"; end
-	return { key = "tiles", manage = "tiles", text = text .. ". Enter to manage", detail = detail .. ". Enter opens the list" };
+	return { key = "tiles", manage = "tiles", text = text .. ". " .. SRKey( "Enter" ) .. " to manage", detail = detail .. ". " .. SRKey( "Enter" ) .. " opens the list" };
 end
 
 local function SpecialistsItem( d:table )
@@ -496,8 +496,8 @@ local function SpecialistsItem( d:table )
 	for _, dist in ipairs( m.districts ) do filled = filled + dist.count; slots = slots + dist.max; end
 	local where:string = ( #m.districts == 1 ) and m.districts[1].name or Plural( #m.districts, "district", "districts" );
 	return { key = "specialists", manage = "specialists",
-		text = "Specialists: " .. filled .. " of " .. Plural( slots, "slot", "slots" ) .. " in " .. where .. ". Enter to manage",
-		detail = "Specialists work in districts instead of on tiles. Enter opens the list" };
+		text = "Specialists: " .. filled .. " of " .. Plural( slots, "slot", "slots" ) .. " in " .. where .. ". " .. SRKey( "Enter" ) .. " to manage",
+		detail = "Specialists work in districts instead of on tiles. " .. SRKey( "Enter" ) .. " opens the list" };
 end
 
 -- The city's totals after a change: "Food plus 5, production 13"
