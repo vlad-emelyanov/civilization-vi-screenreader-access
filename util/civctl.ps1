@@ -837,7 +837,9 @@ function Invoke-Tuner {
     # Pass the code through a temp file: quoting Lua (quotes, newlines) through cmd.exe and PowerShell 5.1 argument parsing is unreliable.
     $tmp = Join-Path $StateDir 'tuner.lua'
     [IO.File]::WriteAllText($tmp, $code, (New-Object Text.UTF8Encoding($false)))
-    $rc = Invoke-Python @($py, 'lua', '-f', $tmp, $state)
+    $outLines = Invoke-PythonCapture @($py, 'lua', '-f', $tmp, $state)
+    $rc = $script:PyExit
+    foreach ($ol in $outLines) { Write-Output (Expand-KeyHints ([string]$ol)) }   # same keyboard wording as SR> lines
     if ($rc -ne 0) { Assert-GameHealthy -Grace 8 -Block }   # a failed call may mean the game just crashed or froze
     Quit-Civctl $rc
 }
