@@ -1,6 +1,6 @@
 # Round 24: in the attack mode an enemy that needs more than one turn to reach says its strengths: "attack, 2 turns, Strength 33 against 15 when you reach it".
 # Fixture pt-early-t64: Heavy Chariot in Rome, barbarians (archer 2 tiles south-east, scout 4 tiles south) around.
-# covers: **/HubTargets.lua
+# covers: **/HubTargets.lua **/HubCursor.lua
 # no-share-load: selects a unit and enters a target mode
 load pt-early-t64
 clear-advisors

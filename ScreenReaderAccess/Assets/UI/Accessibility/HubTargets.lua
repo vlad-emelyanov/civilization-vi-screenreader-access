@@ -16,7 +16,7 @@ do
 		MOVE_TO = "Move to", RANGE_ATTACK = "Ranged attack", AIR_ATTACK = "Air attack", CITY_RANGE_ATTACK = "City ranged attack",
 		DISTRICT_RANGE_ATTACK = "District ranged attack", WMD_STRIKE = "Nuclear strike", ICBM_STRIKE = "Missile strike",
 		COASTAL_RAID = "Coastal raid", DEPLOY = "Deploy", REBASE = "Rebase", AIRLIFT = "Airlift", FORM_CORPS = "Form corps",
-		FORM_ARMY = "Form army",
+		FORM_ARMY = "Form army", TELEPORT_TO_CITY = "Transfer to city",
 		NAVAL_GOLD_RAID = "Naval raid", SACRIFICE_SELECTION = "Sacrifice", KILL_WEAKER_UNIT = "Kill weaker unit",
 		TRANSFORM_UNIT = "Transform unit", RESTORE_UNIT_MOVES = "Restore moves", PRIORITY_TARGET = "Priority target",
 	};
@@ -30,8 +30,33 @@ end
 -- TradeOriginChooser.lua) own these two modes with their own keyboard lists, speech, Enter and Escape. The hub stays
 -- silent and lets every key through (as in the production panel); it only closes its unit menu when one starts.
 local m_chooserModes:table = {};
-for _, name in ipairs( { "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY", "SPY_TRAVEL_TO_CITY", "SPY_CHOOSE_MISSION" } ) do
+for _, name in ipairs( { "MAKE_TRADE_ROUTE", "SPY_TRAVEL_TO_CITY", "SPY_CHOOSE_MISSION" } ) do
 	if InterfaceModeTypes[name] ~= nil then m_chooserModes[ InterfaceModeTypes[name] ] = true; end
+end
+
+-- TELEPORT_TO_CITY ("Transfer to Another City"): the trade origin chooser owns the mode for traders only (it opens when the unit
+-- has MakeTradeRoute); for great persons nobody does, so the hub does (a list of cities, see OpenTransfer).
+local function IsTeleportMode( mode:number )
+	return mode ~= nil and InterfaceModeTypes.TELEPORT_TO_CITY ~= nil and mode == InterfaceModeTypes.TELEPORT_TO_CITY;
+end
+
+local function IsTraderUnit( unit:table )
+	if unit == nil then return true; end		-- nothing selected: leave the mode to the panels
+	local row:table = GameInfo.Units[ unit:GetUnitType() ];
+	return row ~= nil and row.MakeTradeRoute == true;
+end
+
+local function IsChooserMode( mode:number )
+	if mode == nil then return false; end
+	if IsTeleportMode( mode ) then return IsTraderUnit( UI.GetHeadSelectedUnit() ); end
+	return m_chooserModes[mode] == true;
+end
+
+-- The spoken name of a hub target mode (nil: not one; the trader's transfer belongs to the chooser panel).
+local function TargetLabel( mode:number )
+	local label:string = m_targetModes[mode];
+	if label ~= nil and IsTeleportMode( mode ) and IsTraderUnit( UI.GetHeadSelectedUnit() ) then return nil; end
+	return label;
 end
 
 -- A mode in which the unit attacks (ranged, air, strikes, or a move with the Attack key), not a plain move or deploy.
@@ -46,7 +71,7 @@ end
 
 function HubTargets.GetTargetMode()
 	local mode:number = UI.GetInterfaceMode();
-	local label:string = m_targetModes[mode];
+	local label:string = TargetLabel( mode );
 	if label ~= nil then return mode, label; end
 	return nil, nil;
 end
@@ -70,6 +95,7 @@ end
 local function IsCityMode( mode:number )
 	return mode == InterfaceModeTypes.CITY_RANGE_ATTACK or mode == InterfaceModeTypes.DISTRICT_RANGE_ATTACK;
 end
+HubTargets.IsCityMode = IsCityMode;
 
 -- The unit or city that chose a target mode is gone (died, deselected, turn ended): leave the mode, or Enter and
 -- Escape would be swallowed by a mode that has nothing to act on.
@@ -342,9 +368,56 @@ function HubTargets.IsAttackTarget( plot:table )
 	return string.find( text, "valid target", 1, true ) ~= nil or string.find( text, "attack", 1, true ) == 1;
 end
 
+-- Plots a melee attack (the Attack key on a unit without ranged attack) may be aimed at: no list exists in the engine
+-- (GetOperationTargets(MOVE_TO) is empty), so the plots within 10 tiles with a visible hostile unit, city or district are
+-- candidates, kept when the move info says "attack ..." (a multi-turn approach counts; "would declare war" does not).
+local MELEE_SCAN_DISTANCE:number = 10;
+function HubTargets.MeleeAttackCandidates( unit:table )
+	local set:table = {};
+	local localPlayer:number = Game.GetLocalPlayer();
+	local function Consider( x:number, y:number )
+		if Map.GetPlotDistance( unit:GetX(), unit:GetY(), x, y ) > MELEE_SCAN_DISTANCE then return; end
+		local plot:table = Map.GetPlot( x, y );
+		if plot == nil or set[ plot:GetIndex() ] ~= nil or not HubCore.IsPlotVisibleToLocal( plot ) then return; end
+		set[ plot:GetIndex() ] = HubTargets.IsAttackTarget( plot );
+	end
+	for playerID = 0, 63 do
+		local player:table = Players[ playerID ];
+		if playerID ~= localPlayer and player ~= nil and player:IsAlive() and HubCore.IsHostile( playerID ) then
+			for _, other in player:GetUnits():Members() do
+				if PlotDescription_IsUnitVisible( other ) then Consider( other:GetX(), other:GetY() ); end
+			end
+			for _, city in player:GetCities():Members() do Consider( city:GetX(), city:GetY() ); end
+			pcall( function()
+				for _, district in player:GetDistricts():Members() do Consider( district:GetX(), district:GetY() ); end
+			end );
+		end
+	end
+	local result:table = {};
+	for plotIndex, ok in pairs( set ) do
+		if ok then result[ plotIndex ] = true; end
+	end
+	return result;
+end
+
+-- Set of plot indexes the current attack mode can hit this turn (X walks only these). nil: the mode has no such list
+-- (nuclear strikes and missiles target any plot): X keeps scanning for units. unit: the selected unit (nil for the city modes).
+function HubTargets.AttackTargetPlots( mode:number, unit:table )
+	if mode == nil then return nil; end
+	if IsCityMode( mode ) then
+		local city:table = UI.GetHeadSelectedCity();
+		return ( city ~= nil ) and GetCityAttackTargets( city ) or nil;
+	end
+	if unit == nil then return nil; end
+	if mode == InterfaceModeTypes.RANGE_ATTACK then return GetAttackTargets( unit, UnitOperationTypes.RANGE_ATTACK ); end
+	if mode == InterfaceModeTypes.AIR_ATTACK then return GetAttackTargets( unit, UnitOperationTypes.AIR_ATTACK ); end
+	if mode == InterfaceModeTypes.MOVE_TO and m_attackIntent then return HubTargets.MeleeAttackCandidates( unit ); end
+	return nil;
+end
+
 -- Modes whose valid targets the game lists (WorldInput's OnInterfaceModeChange_* highlight them): the plots of
 -- GetOperationTargets / GetCommandTargets, or for Form Corps / Form Army the plots of the partner units.
-local m_listedOperations:table = { COASTAL_RAID = "COASTAL_RAID", DEPLOY = "DEPLOY", REBASE = "REBASE" };
+local m_listedOperations:table = { COASTAL_RAID = "COASTAL_RAID", DEPLOY = "DEPLOY", REBASE = "REBASE", TELEPORT_TO_CITY = "TELEPORT_TO_CITY" };
 local m_listedCommands:table = { AIRLIFT = "AIRLIFT", KILL_WEAKER_UNIT = "KILL_WEAKER_UNIT", TRANSFORM_UNIT = "TRANSFORM_UNIT",
 	RESTORE_UNIT_MOVES = "RESTORE_UNIT_MOVES", NAVAL_GOLD_RAID = "NAVAL_GOLD_RAID" };
 
@@ -703,7 +776,9 @@ end
 
 function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
-	if HubCore.m_mode ~= nil and ( HubCore.m_mode.name == "menu" or m_targetModes[ newMode ] ~= nil or m_chooserModes[ newMode ] ) then HubCore.CloseMode( false, true ); end
+	if HubCore.m_mode ~= nil and ( HubCore.m_mode.name == "menu" or TargetLabel( newMode ) ~= nil or IsChooserMode( newMode ) ) then HubCore.CloseMode( false, true ); end
+	-- the transfer list belongs to its mode only
+	if HubCore.IsModeOpen( "transfer" ) and not IsTeleportMode( newMode ) then HubCore.CloseMode( false, true ); end
 	-- placing a district or wonder: the placement browser opens; it ends with the mode (placed, cancelled or replaced)
 	if HubCore.IsModeOpen( "placement" ) then
 		HubCore.m_placeReplaced = ( newMode == InterfaceModeTypes.DISTRICT_PLACEMENT or newMode == InterfaceModeTypes.BUILDING_PLACEMENT );
@@ -715,12 +790,17 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 		return;
 	end
 	HubCore.m_enterWatch = -1;
-	if HubTargets.warReturn ~= nil and m_targetModes[ newMode ] == nil and UI.GetElapsedTime() - HubTargets.warReturn.time < 3 then
+	if HubTargets.warReturn ~= nil and TargetLabel( newMode ) == nil and UI.GetElapsedTime() - HubTargets.warReturn.time < 3 then
 		HubCore.After( 0.5, function() WatchWarReturn( 0 ); end );
 	end
 	if newMode ~= InterfaceModeTypes.MOVE_TO then m_attackIntent = false; end
-	local label:string = m_targetModes[ newMode ];
+	local label:string = TargetLabel( newMode );
 	if label == nil then return; end
+	if IsTeleportMode( newMode ) then
+		-- at once (the unit menu is closed above): Enter in a gap would reach ConfirmTarget on the cursor plot
+		HubTargets.OpenTransfer();
+		return;
+	end
 	-- the cursor starts at the acting unit or city, and the tiles are chosen from there
 	local plot:table = HubCore.GetSelectionPlot();
 	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false ); end
@@ -737,6 +817,123 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 end
 
 local m_directRequests:table;
+
+-- ===========================================================================
+--	TRANSFER TO ANOTHER CITY (great persons; Shift+R): a list of the cities the unit can go to
+-- ===========================================================================
+local m_transfer		:table = nil;		-- { unitID, operation, items }
+local m_transferList	:table = nil;
+
+-- Items for the cities: entries { name, distance, plotIndex } -> nearest first, then by name.
+function HubTargets.TransferItems( entries:table )
+	table.sort( entries, function( a, b )
+		if a.distance ~= b.distance then return a.distance < b.distance; end
+		if a.name ~= b.name then return a.name < b.name; end
+		return a.plotIndex < b.plotIndex;
+	end );
+	local items:table = {};
+	for _, entry in ipairs( entries ) do
+		table.insert( items, { key = entry.plotIndex, plotIndex = entry.plotIndex, name = entry.name,
+			text = entry.name .. ", " .. HubCore.Plural( entry.distance, "tile", "tiles" ) } );
+	end
+	return items;
+end
+
+local function BuildTransferItems()
+	if m_transfer == nil then return {}; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return {}; end
+	local entries:table = {};
+	pcall( function()
+		local results:table = UnitManager.GetOperationTargets( unit, m_transfer.operation );
+		local plots:table = results ~= nil and results[UnitOperationResults.PLOTS] or nil;
+		for _, plotId in ipairs( plots or {} ) do
+			local plot:table = Map.GetPlotByIndex( plotId );
+			local city:table = ( plot ~= nil ) and Cities.GetCityInPlot( plot:GetX(), plot:GetY() ) or nil;
+			if city ~= nil then
+				table.insert( entries, { name = Locale.Lookup( city:GetName() ), plotIndex = plotId,
+					distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), plot:GetX(), plot:GetY() ) } );
+			end
+		end
+	end );
+	return HubTargets.TransferItems( entries );
+end
+
+local function CancelTransfer()
+	HubCore.CloseMode( false, true );
+	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+	HubCore.SayResult( "Cancelled" );
+end
+
+-- Mirrors WorldInput.lua TeleportToCity() exactly (same CanStartOperation / RequestOperation / SetInterfaceMode), then tells where the unit ended up.
+function HubTargets.ConfirmTeleport( unit:table, plot:table, operation )
+	if operation == nil then operation = UnitOperationTypes.TELEPORT_TO_CITY; end
+	local parameters:table = {};
+	parameters[UnitOperationTypes.PARAM_X] = plot:GetX();
+	parameters[UnitOperationTypes.PARAM_Y] = plot:GetY();
+	if not UnitManager.CanStartOperation( unit, operation, nil, parameters ) then
+		HubCore.SayResult( "Cannot transfer there, choose a city from the list" );
+		return false;
+	end
+	local unitName:string = Locale.Lookup( unit:GetName() );
+	local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+	local cityName:string = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "the city";
+	local unitID:number, owner:number = unit:GetID(), unit:GetOwner();
+	local plotIndex:number = plot:GetIndex();
+	UnitManager.RequestOperation( unit, operation, parameters );
+	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+	UI.PlaySound( "Unit_Relocate" );
+	HubTargets.m_lastDirectTarget = { plot = plotIndex, time = UI.GetElapsedTime() };
+	-- the probe saw an instant move: check the position a moment later
+	local function Check( attempt:number )
+		local moved:table = Players[ owner ]:GetUnits():FindID( unitID );
+		if moved ~= nil and Map.GetPlot( moved:GetX(), moved:GetY() ):GetIndex() == plotIndex then
+			HubCore.SayResult( unitName .. " moved to " .. cityName );
+		elseif attempt < 3 then
+			HubCore.After( 0.6, function() Check( attempt + 1 ); end );
+		else
+			HubCore.SayResult( unitName .. " did not arrive in " .. cityName );
+		end
+	end
+	HubCore.After( 0.4, function() Check( 1 ); end );
+	return true;
+end
+
+local function TransferActivate( item:table )
+	local unit:table = UI.GetHeadSelectedUnit();
+	local plot:table = Map.GetPlotByIndex( item.plotIndex );
+	if unit == nil or plot == nil or m_transfer == nil then
+		HubCore.SayResult( "Unit no longer available" );
+		return;
+	end
+	local operation = m_transfer.operation;
+	HubCore.CloseMode( false, true );
+	HubCursor.SetCursor( plot:GetX(), plot:GetY(), false, false, true );
+	HubTargets.ConfirmTeleport( unit, plot, operation );
+end
+
+-- Opens the city list for the unit in the Transfer mode (OnInterfaceModeChanged calls it).
+function HubTargets.OpenTransfer()
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return; end
+	local operation = UI.GetInterfaceModeParameter( UnitOperationTypes.PARAM_OPERATION_TYPE );
+	if operation == nil or operation < 0 then operation = UnitOperationTypes.TELEPORT_TO_CITY; end
+	m_transfer = { unitID = unit:GetID(), operation = operation };
+	if #BuildTransferItems() == 0 then
+		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+		HubCore.SayResult( "No city to transfer to" );
+		return;
+	end
+	if m_transferList == nil then
+		m_transferList = KeyNavList_Create{
+			build		= BuildTransferItems,
+			isActive	= function() return HubCore.IsModeOpen( "transfer" ); end,
+			onActivate	= TransferActivate,
+			onClose		= CancelTransfer,
+		};
+	end
+	HubCore.OpenMode( "transfer", m_transferList, "Transfer " .. Locale.Lookup( unit:GetName() ) .. " to which city?" );
+end
 
 -- For modes without a direct call below: click the plot with the real mouse, like a sighted player would.
 local function ClickCursorPlot()
@@ -996,6 +1193,9 @@ function HubTargets.ConfirmTarget()
 		else
 			HubCore.SayResult( "Cannot attack there" );
 		end
+	elseif unit ~= nil and IsTeleportMode( mode ) then
+		-- list closed (X walks the cities): Enter on a city confirms like the list
+		HubTargets.ConfirmTeleport( unit, plot, UI.GetInterfaceModeParameter( UnitOperationTypes.PARAM_OPERATION_TYPE ) );
 	elseif unit ~= nil and ( mode == InterfaceModeTypes.FORM_CORPS or mode == InterfaceModeTypes.FORM_ARMY ) then
 		ConfirmFormation( unit, plot, mode == InterfaceModeTypes.FORM_ARMY );
 	elseif unit ~= nil and m_directRequests[mode] ~= nil then

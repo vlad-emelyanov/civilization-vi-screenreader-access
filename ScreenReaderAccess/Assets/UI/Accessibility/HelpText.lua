@@ -44,7 +44,7 @@ local m_sections:table = {
 		{ action = "KeyNavCycleAllUnits",		default = "Control+K",	text = "select the next of all your units, also fortified and automated ones" },
 		{ action = "NextUnit",					default = "]",			text = "next ready unit" },
 		{ action = "PrevUnit",					default = "[",			text = "previous ready unit" },
-		{ action = "KeyNavScanUnits",			default = "X",			text = "cursor to the nearest foreign unit in view, hostile first, again: the next" },
+		{ action = "KeyNavScanUnits",			default = "X",			text = "cursor to the nearest foreign unit in view, hostile first, again: the next; in an attack mode only what you can attack" },
 		{ action = "KeyNavYields",				default = "Control+G",	text = "gold, science, culture and faith in one sentence" },
 		{ action = "KeyNavTopPanel",			default = "Control+Y",	text = "top panel list: yields, resources, research, civic, turn, era" },
 		{ action = "KeyNavNotifications",		default = "Control+N",	text = "notifications: Enter activates, Delete dismisses, M sends a unit to its place" },
