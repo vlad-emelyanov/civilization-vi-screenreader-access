@@ -447,13 +447,14 @@ HubCore.Listen( LuaEvents.ProductionPanel_Open, HubCityReport.OnProductionPanelO
 HubCore.Listen( LuaEvents.SRA_ProductionEscape, HubCityReport.OnProductionEscape );
 HubCore.Listen( LuaEvents.ProductionPanel_Close, HubCityReport.OnProductionPanelClose );
 
-function HubCityReport.ToggleCityReport()
+-- preferCursor (the controller's Y): the city on the cursor tile comes before the selected one.
+function HubCityReport.ToggleCityReport( preferCursor )
 	if HubCore.IsModeOpen( "cityreport" ) then HubCore.CloseMode( true, false ); return; end
-	HubCityReport.OpenReport( nil, nil );
+	HubCityReport.OpenReport( nil, nil, preferCursor == true );
 end
 
 -- title / initialKey (optional): a different opening line and the report item to focus (the return from production).
-function HubCityReport.OpenReport( title:string, initialKey )
+function HubCityReport.OpenReport( title:string, initialKey, preferCursor:boolean )
 	if not HubTargets.CanOpenMode() then return; end
 	if not Hub.m_cityReportLoaded or CityReport_Gather == nil or CityReport_BuildItems == nil then
 		OutputMessageToScreenReader( "The city report is not available" );
@@ -461,8 +462,8 @@ function HubCityReport.OpenReport( title:string, initialKey )
 	end
 	local localPlayer:number = Game.GetLocalPlayer();
 	local city:table = UI.GetHeadSelectedCity();
-	if city == nil or city:GetOwner() ~= localPlayer then
-		city = nil;
+	if preferCursor or city == nil or city:GetOwner() ~= localPlayer then
+		if city ~= nil and city:GetOwner() ~= localPlayer then city = nil; end
 		local x:number, y:number = HubCursor.GetCursor();
 		local atCursor:table = Cities.GetCityInPlot( x, y );
 		if atCursor ~= nil and atCursor:GetOwner() == localPlayer then city = atCursor; end

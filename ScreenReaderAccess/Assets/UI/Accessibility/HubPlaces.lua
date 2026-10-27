@@ -946,12 +946,16 @@ local m_facade:table = {
 	HandleInput = function( input:table ) return m_list.HandleInput( input ); end,
 };
 
+-- X on the controller sends a unit there (what M does)
+local m_placesKeys:table = { [Keys.VK_TAB] = function() SwitchCategory( 1 ); end, [Keys.M] = SendKey, [Keys.T] = TreatKey };
+if Gamepad.Key( "X" ) ~= nil then m_placesKeys[ Gamepad.Key( "X" ) ] = SendKey; end
+
 m_list = KeyNavList_Create{
 	build		= function() return ( m_data ~= nil and m_data.cats[ m_cat ] ~= nil ) and m_data.cats[ m_cat ].items or {}; end,
 	isActive	= function() return HubCore.IsModeOpen( "places" ); end,
 	onActivate	= ActivateItem,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
-	extraKeys	= { [Keys.VK_TAB] = function() SwitchCategory( 1 ); end, [Keys.M] = SendKey, [Keys.T] = TreatKey },
+	extraKeys	= m_placesKeys,
 	ctrlKeys	= { [Keys.VK_TAB] = function() SwitchCategory( -1 ); end },
 };
 

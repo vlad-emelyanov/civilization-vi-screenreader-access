@@ -29,7 +29,7 @@ include = function(name)
 end
 
 local TABLES = { "Hub", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus",
-	"HubRegions", "HubPlaces", "HubOverview", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp" }
+	"HubRegions", "HubPlaces", "HubOverview", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp", "HubGamepad" }
 
 test("hub and modules load and Initialize runs", function()
 	local path = ROOT .. "/ScreenReaderAccess/UI/Additions/InGameAccess.lua"

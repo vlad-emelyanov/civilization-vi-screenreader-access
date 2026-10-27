@@ -88,9 +88,11 @@ end
 --	INPUT HANDLER: runs before WorldInput and ActionPanel (see docs/ingame-plan.md, Input order)
 -- ===========================================================================
 function Hub.HandleInput( input:table )
-	if not HubCore.IsLocalPlayerActive() then return false; end
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	-- controller buttons (F-keys) first: they must not reset the end-turn guard or the settle prompt; the mode keys work on AI turns too
+	if HubGamepad.HandleInput( input, msg, input:GetKey(), input:IsControlDown() ) then return true; end
+	if not HubCore.IsLocalPlayerActive() then return false; end
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
 	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN then
 		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
@@ -227,6 +229,7 @@ function Hub.RegisterAction( name:string, handler )
 end
 
 -- Hub modules (Accessibility/Hub*.lua), see docs/ingame-plan.md
+include( "Gamepad" );		-- the controller key table (HubRegions / HubPlaces use it for X)
 include( "HubCore" );
 include( "HubCursor" );
 include( "HubTargets" );
@@ -241,6 +244,7 @@ include( "HubCityReport" );
 include( "HubEvents" );
 include( "HubEnemies" );
 include( "HubHelp" );
+include( "HubGamepad" );
 
 -- ===========================================================================
 function Initialize()
@@ -344,6 +348,7 @@ function Initialize()
 		if player ~= nil then HubCore.RememberUnit( player:GetUnits():FindID( unitID ) ); end
 	end );
 
+	HubGamepad.Init();
 	ContextPtr:SetInputHandler( Hub.OnInput, true );
 	ContextPtr:SetUpdate( HubCore.Safe( "Update", Hub.OnUpdate ) );
 	ContextPtr:SetShutdown( function() pcall( HubPlaces.ResetCampState ); HubCore.OnShutdown(); end );
