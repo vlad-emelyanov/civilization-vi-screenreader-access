@@ -1,0 +1,18 @@
+# Written blind 2026-10-27 (not yet recorded). pt-early-t88, Shift+J: area overview of the cursor on the capital: "Area" names Rome and reads only explored plots, "Continent" says tiles known, then one item per direction; Space repeats, Escape closes.
+# covers: **/HubOverview.lua UI/Additions/InGameAccess.lua **/HubCursor.lua **/PlotDescription.lua
+load pt-early-t88
+clear-advisors
+lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(), c:GetY(), true, true); return 1
+action KeyNavAreaOverview -Settle 1500
+expect ^Area overview, \d+ options
+expect ^Rome: .*, 1 of \d+
+key Down -Settle 800
+expect ^(\w[\w ]*): \d+ tiles? known; extends about
+expect of Rome
+key Down -Settle 800
+expect ^(North|North-east|East|South-east|South|South-west|West|North-west): .*, 3 of \d+
+key Space -Settle 800
+expect ^(North|North-east|East|South-east|South|South-west|West|North-west):
+key Escape -Settle 1000
+expect ^Closed
+no-lua-errors

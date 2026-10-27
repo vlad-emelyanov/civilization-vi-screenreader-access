@@ -1,0 +1,13 @@
+# Written blind 2026-10-27 (not yet recorded). pt-early-t88, Shift+M: the send list for the map cursor's tile (a few tiles off the capital): "Send a unit to ... tile", units with turns. Browse only: no unit is sent (Escape closes).
+# covers: **/HubPlaces.lua UI/Additions/InGameAccess.lua **/HubCursor.lua
+load pt-early-t88
+clear-advisors
+lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(), c:GetY(), true, true); return 1
+key Shift+Right -Settle 700 -Count 3
+action KeyNavSendHere -Settle 2000
+expect ^Send a unit to
+expect \d+ turns?
+key Down -Settle 800
+key Escape -Settle 1000
+expect ^Closed
+no-lua-errors

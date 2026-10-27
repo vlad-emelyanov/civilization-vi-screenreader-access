@@ -105,6 +105,8 @@ local m_sections:table = {
 	} },
 	{ title = "Places list", entries = {
 		{ action = "KeyNavPlaces",		default = "J",			text = "places list: threats first (a barbarian scout that has seen your city, raiders, enemies next to your settler or builder), cities, units, points of interest (barbarian camps say what guards them; Space says what destroying one gives), blind spots (land near your cities out of sight or unexplored, where barbarian camps can appear; unexplored areas may include sea and mountains), notification places, foreign cities, enemy civilians you can capture" },
+		{ action = "KeyNavAreaOverview",	default = "Shift+J",	text = "area overview of the map cursor: a list with the area (terrain, coast, river, luxury and strategic resources within 3 tiles; your city's area when the cursor is in your territory), the continent (tiles known, how far it reaches, cities on it, unexplored edges) and one item per direction (terrain, borders, ocean, first city, how much is unexplored); only explored tiles count; Space repeats, Escape closes" },
+		{ action = "KeyNavSendHere",		default = "Shift+M",	text = "send a unit to the cursor tile (any tile, also unexplored): list of your units that can get there with the turns they need, fastest first; Enter sends the chosen one; Escape closes" },
 		{ keys = "Tab and Control+Tab",	text = "next and previous category" },
 		{ keys = "Space",				text = "read the tile and where it is" },
 		{ keys = "Enter",				text = "cursor there, a unit of yours is selected" },

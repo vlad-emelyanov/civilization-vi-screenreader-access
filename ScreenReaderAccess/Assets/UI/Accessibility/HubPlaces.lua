@@ -1185,6 +1185,54 @@ function HubPlaces.OpenSend( place:table )
 	HubCore.OpenMode( "send", m_sendList, place.title or ( "Send a unit to " .. place.name ) );
 end
 
+-- Shift+M (KeyNavSendHere): the send list for the map cursor's plot, any tile. Named by the city, the visible foreign
+-- unit (a capturable civilian of an enemy opens the capture list: military units only) or the terrain; an unexplored tile
+-- is allowed (Move To works into the fog).
+function HubPlaces.SendHere()
+	if not HubTargets.CanOpenMode() then return; end
+	local x:number, y:number = HubCursor.GetCursor();
+	local plot:table = Map.GetPlot( x, y );
+	if plot == nil then
+		OutputMessageToScreenReader( "Edge of the map" );
+		return;
+	end
+	local name:string = "unexplored tile";
+	local capture:boolean = false;
+	if PlotDescription_GetVisibility( plot ) ~= "unexplored" then
+		local localID:number = Game.GetLocalPlayer();
+		local types:table = CapturableTypes();
+		local ok:boolean, units = pcall( Units.GetUnitsInPlot, plot );
+		local foreign:table = nil;
+		for _, unit in ipairs( ( ok and units ) or {} ) do
+			if unit:GetOwner() ~= localID and PlotDescription_IsUnitVisible( unit ) then
+				foreign = foreign or unit;
+				local row:table = GameInfo.Units[ unit:GetUnitType() ];
+				if row ~= nil and types[ row.UnitType ] and HubCore.IsHostile( unit:GetOwner() ) then capture = true; foreign = unit; end
+			end
+		end
+		local city:table = plot:IsCity() and Cities.GetCityInPlot( x, y ) or nil;
+		if city ~= nil then
+			name = Locale.Lookup( city:GetName() );
+		elseif foreign ~= nil then
+			name = PlotDescription_GetUnitName( foreign );
+		else
+			local parts:table = {};
+			if plot:IsLake() then
+				table.insert( parts, "lake" );
+			else
+				local terrain:table = GameInfo.Terrains[ plot:GetTerrainType() ];
+				if terrain ~= nil then table.insert( parts, string.lower( Locale.Lookup( terrain.Name ) ) ); end
+			end
+			local featureType:number = plot:GetFeatureType();
+			local feature:table = ( featureType ~= nil and featureType >= 0 ) and GameInfo.Features[ featureType ] or nil;
+			if feature ~= nil then table.insert( parts, "with " .. string.lower( Locale.Lookup( feature.Name ) ) ); end
+			name = table.concat( parts, " " ) .. " tile";
+		end
+	end
+	HubPlaces.OpenSend( { name = name, x = x, y = y, key = "cursor:" .. plot:GetIndex(), capture = capture, escort = false,
+		title = "Send a unit to " .. name } );
+end
+
 -- Escape: back to the list the chooser came from.
 local function CloseSend()
 	local back:string = m_send ~= nil and m_send.back or nil;
