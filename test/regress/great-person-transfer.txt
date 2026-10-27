@@ -1,0 +1,27 @@
+# Written blind in round 27 (M9), NOT yet run in game. Transfer to Another City (Shift+R) for a great person: the hub opens a city list
+# ("Transfer <name> to which city?"), Enter moves the unit and says "<name> moved to <city>".
+# The tuner grants Euclid with the probe's call (GrantPerson(individual, class, era, 0, 0, false)); the unit appears in the capital.
+# NEEDS VERIFICATION: the GrantPerson arguments, the unit name "Euclid", that the fixture has 2+ cities, Shift+R as the hotkey.
+# covers: **/HubTargets.lua **/HubCursor.lua **/HubMenus.lua **/UnitPanel.lua
+# no-share-load: grants a great person and moves it
+load pt-modes-t160
+clear-advisors
+lua GameCore_Tuner Game.GetGreatPeople():GrantPerson(GameInfo.GreatPersonIndividuals["GREAT_PERSON_INDIVIDUAL_EUCLID"].Index, GameInfo.GreatPersonClasses["GREAT_PERSON_CLASS_SCIENTIST"].Index, Game.GetEras():GetCurrentEra(), 0, 0, false)
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_GREAT_SCIENTIST" then UI.DeselectAllUnits() UI.SelectUnit(u) end end
+wait Euclid -Timeout 8
+key Shift+R -Settle 2000
+expect Transfer Euclid to which city\?
+expect \d+ options?
+expect \d+ tiles?
+# Escape cancels the mode
+key Escape -Settle 1000
+expect ^Cancelled
+lua InGameAccess return UI.GetInterfaceMode()==InterfaceModeTypes.SELECTION and 'selection' or 'other'
+expect-lua ^selection$
+# again, and transfer to the first city of the list
+key Shift+R -Settle 2000
+expect Transfer Euclid to which city\?
+key Enter -Settle 2500
+expect ^Euclid moved to \S
+no-lua-errors

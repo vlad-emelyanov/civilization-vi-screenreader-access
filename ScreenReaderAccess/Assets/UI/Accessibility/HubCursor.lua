@@ -271,9 +271,46 @@ function HubCursor.ScanEntryBefore( a:table, b:table )
 end
 
 -- W / X in an attack mode with no foreign unit within 10 tiles: name the nearest hostile unit far away, if any.
-function HubCursor.NoEnemyText( unitName:string, enemyName:string, relative:string )
+-- outOfRange: number of enemy plots in view that the attack cannot reach (optional, appended when above 0).
+function HubCursor.NoEnemyText( unitName:string, enemyName:string, relative:string, outOfRange:number )
 	if enemyName == nil then return "No enemy in view"; end
-	return "No enemy in range of the " .. unitName .. ". Nearest enemy: " .. enemyName .. ( relative ~= nil and ( ", " .. relative ) or "" );
+	local text:string = "No enemy in range of the " .. unitName .. ". Nearest enemy: " .. enemyName .. ( relative ~= nil and ( ", " .. relative ) or "" );
+	if outOfRange ~= nil and outOfRange > 0 then
+		text = text .. ", " .. outOfRange .. ( outOfRange == 1 and " more enemy" or " more enemies" ) .. " in view out of range";
+	end
+	return text;
+end
+
+-- Scan entries for X in an attack mode: one per plot of the set of plots the attack can hit now (all valid), nearest first.
+function HubCursor.AttackScanEntries( targets:table, originX:number, originY:number )
+	local found:table = {};
+	for plotIndex, _ in pairs( targets ) do
+		local plot:table = Map.GetPlotByIndex( plotIndex );
+		if plot ~= nil then
+			table.insert( found, { key = tostring( plotIndex ), index = plotIndex, x = plot:GetX(), y = plot:GetY(),
+				distance = Map.GetPlotDistance( originX, originY, plot:GetX(), plot:GetY() ), hostile = true, valid = true } );
+		end
+	end
+	table.sort( found, HubCursor.ScanEntryBefore );
+	return found;
+end
+
+-- Number of plots with a visible hostile unit within 10 tiles (for "N more enemies in view out of range").
+local function CountHostilePlotsInView( originPlot:table )
+	local seen:table, count:number = {}, 0;
+	local localPlayer:number = Game.GetLocalPlayer();
+	for playerID = 0, 63 do
+		local player:table = Players[ playerID ];
+		if playerID ~= localPlayer and player ~= nil and player:IsAlive() and HubCore.IsHostile( playerID ) then
+			for _, unit in player:GetUnits():Members() do
+				if Map.GetPlotDistance( originPlot:GetX(), originPlot:GetY(), unit:GetX(), unit:GetY() ) <= 10 and PlotDescription_IsUnitVisible( unit ) then
+					local plotIndex:number = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex();
+					if not seen[ plotIndex ] then seen[ plotIndex ] = true; count = count + 1; end
+				end
+			end
+		end
+	end
+	return count;
 end
 
 -- X: the cursor jumps to the nearest plot with foreign units in view (hostile ones first); pressed again, to the
@@ -314,8 +351,27 @@ function HubCursor.ScanUnits( interrupt:boolean )
 			return;
 		end
 	end
+	-- an attack mode with a list of what can be attacked now (ranged, air, city, district, melee): X walks only those
+	local attackList:table = nil;
+	if listed == nil and targetMode ~= nil then
+		attackList = HubTargets.AttackTargetPlots( targetMode, UI.GetHeadSelectedUnit() );
+	end
+	if attackList ~= nil then
+		found = HubCursor.AttackScanEntries( attackList, originPlot:GetX(), originPlot:GetY() );
+		for _, entry in ipairs( found ) do entry.hostile = HubTargets.EnemyVisibleAt( Map.GetPlot( entry.x, entry.y ) ); end
+		if #found == 0 then
+			local unit:table = UI.GetHeadSelectedUnit();
+			if HubTargets.IsCityMode( targetMode ) or unit == nil then
+				OutputMessageToScreenReader( "No enemy in range. Escape to cancel" );
+			else
+				local enemyName:string, relative:string = PlotDescription_NearestHostile( unit, 30 );
+				OutputMessageToScreenReader( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative, CountHostilePlotsInView( originPlot ) ) );
+			end
+			return;
+		end
+	end
 	for playerID = 0, 63 do
-		if listed ~= nil then break; end
+		if listed ~= nil or attackList ~= nil then break; end
 		local player:table = Players[ playerID ];
 		if playerID ~= localPlayer and player ~= nil and player:IsAlive() then
 			local hostile:boolean = HubCore.IsHostile( playerID );
@@ -334,7 +390,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 			end
 		end
 	end
-	local attackMode:boolean = listed == nil and HubTargets.GetTargetMode() ~= nil;
+	local attackMode:boolean = listed == nil and attackList == nil and HubTargets.GetTargetMode() ~= nil;
 	if #found == 0 then
 		local unit:table = ( attackMode and HubTargets.IsAttackMode( HubTargets.GetTargetMode() ) ) and UI.GetHeadSelectedUnit() or nil;
 		if unit ~= nil then
@@ -354,7 +410,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 			entry.war = ( not entry.hostile ) and unit ~= nil and HubTargets.WarTargets( unit, plot ) ~= nil;
 		end
 	end
-	table.sort( found, HubCursor.ScanEntryBefore );
+	if attackList == nil then table.sort( found, HubCursor.ScanEntryBefore ); end
 	local next:number = 1;
 	for i, entry in ipairs( found ) do
 		if entry.key == m_scanKey then next = i % #found + 1; end
