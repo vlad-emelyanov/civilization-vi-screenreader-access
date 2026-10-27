@@ -425,7 +425,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	end
 	m_scanKey = found[ next ].key;
 	HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
-	if #found == 1 and visited then
+	if #found == 1 and visited and ( attackList ~= nil or listed ~= nil ) then
 		OutputMessageToScreenReader( "Only target", true );
 	elseif next == #found and #found > 1 then
 		OutputMessageToScreenReader( "Last target, X wraps to the first", true );
