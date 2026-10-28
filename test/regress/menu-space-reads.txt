@@ -1,0 +1,17 @@
+# UNVERIFIED (blind-written). In-game menu: opening says the first item once, Space reads the focused item and never activates it (Save Game used to open the Save screen), closing says only Menu closed.
+# covers: **/InGameTopOptionsMenu.lua
+# no-share-load: opens the game menu
+load early-t60
+clear-advisors
+key Escape -Settle 2000
+expect (?i)^In game menu, 
+key Down -Settle 600
+key Down -Settle 600
+expect (?i)save game
+key Space -Settle 1500
+expect (?i)save game
+lua InGameAccess return tostring(HubCore.TestDirtyReason())
+expect-lua ^open: 
+key Escape -Settle 1500
+expect (?i)^Menu closed$
+no-lua-errors

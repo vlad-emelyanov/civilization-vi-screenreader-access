@@ -38,6 +38,7 @@ local m_selectedKeyNavElement: number = 0;
 local m_announcedButton:table = nil;	-- last button spoken (by key or by hover): the hover that follows our own mouse move is not spoken again
 local m_saveAnnouncePending: boolean = false;	-- a quick save was started and its completion is not announced yet
 local m_saveAnnounceTimer: number = 0;
+local m_hoverMute: number = 0;		-- seconds during which a mouse hover is not spoken (the stale real-mouse position at open / close)
 
 
 -- State variable to track that the menu is in the process of being closed and 
@@ -250,6 +251,7 @@ function Close()
 	end
 	
 	m_isClosing = true;
+	m_hoverMute = 2;
 	m_saveAnnouncePending = false;
 	OutputMessageToScreenReader("Menu closed");
 	
@@ -528,7 +530,19 @@ function KeyHandler( key:number )
 		return m_kPopupDialog:KeyHandler(key);
 	end
 
-	if key == Keys.VK_RETURN or key == Keys.VK_SPACE then
+	if key == Keys.VK_SPACE then
+		-- Space / Y reads the focused item again with its tooltip; it never activates (Enter does)
+		local item:table = m_keyNavElements[m_selectedKeyNavElement + 1];
+		if item ~= nil then
+			local ok, tip = pcall( function() return item:GetToolTipString(); end );
+			local text:string = GetButtonText(item);
+			if ok and tip ~= nil and tip ~= "" then text = text .. ". " .. Locale.Lookup(tip); end
+			OutputMessageToScreenReader(text);
+		end
+		return true;
+	end
+
+	if key == Keys.VK_RETURN then
 		-- Call the button's own handler: the real mouse does not reach this menu's buttons (hover and click go to the map under it)
 		local control:table = m_keyNavElements[m_selectedKeyNavElement + 1];
 		local handlers:table = {
@@ -680,7 +694,8 @@ function OnShow()
 	m_selectedKeyNavElement = 0;
 	m_announcedButton = m_keyNavElements[1];	-- "In game menu" stands for the first item; its hover is not spoken
 	KeyNavMoveMouse(m_keyNavElements[m_selectedKeyNavElement + 1]);
-	OutputMessageToScreenReader("In game menu", true);
+	m_hoverMute = 0.7;
+	OutputMessageToScreenReader("In game menu, " .. ( m_keyNavElements[1] ~= nil and GetButtonText(m_keyNavElements[1]) or "" ), true);
 
 	-- Do not deselect all as on-rails scenarios (e.g., tutorials) may get out of sync.	
 	Controls.PauseWindow:SetHide(false);
@@ -780,6 +795,7 @@ end
 -- ===========================================================================
 function OnUpdate( fDeltaTime:number )
 	KeyNav_Tick(fDeltaTime);
+	if m_hoverMute > 0 then m_hoverMute = m_hoverMute - fDeltaTime; end
 	-- Fallback when Events.SaveComplete does not fire for a quick save.
 	if m_saveAnnouncePending then
 		if ContextPtr:IsHidden() then
@@ -809,7 +825,7 @@ end
 -- ===========================================================================
 function AnnounceButton(control:table)
 	if m_kPopupDialog:IsOpen() then return; end
-	if m_announcedButton == control then return; end
+	if m_announcedButton == control or m_hoverMute > 0 or m_isClosing then return; end
 	m_announcedButton = control;
 	OutputMessageToScreenReader(GetButtonText(control));
 end

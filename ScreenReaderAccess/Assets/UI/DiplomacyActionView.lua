@@ -612,6 +612,7 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 					choosable = not isDisabled,
 					reason = ( isDisabled and selection.FailureReasons ~= nil ) and CleanTextForSpeech( Locale.Lookup(selection.FailureReasons[1]) ) or "Not available",
 					isExit = ( selection.Key == "CHOICE_EXIT" ),
+					detail = isDisabled and ( ( selection.FailureReasons ~= nil and selection.FailureReasons[1] ~= nil ) and CleanTextForSpeech( Locale.Lookup(selection.FailureReasons[1]) ) or "Not available" ) or nil,
 					callback = function() handler.OnSelectionButtonClicked(selection.Key); end,
 				} );
 				-- End ScreenReaderAccess change
@@ -3180,9 +3181,11 @@ function SRA_OverviewEntries()
 			local favor = GameInfo.DiplomaticActions_XP2[ selection.DiplomaticActionType ].FavorCost;
 			if favor ~= nil and favor > 0 then table.insert( parts, favor .. " favor" ); end
 		end
+		local grievances:string = nil;
 		if IsWarChoice( key ) and GameInfo.DiplomaticActions_XP2 ~= nil then
 			local points = ms_LocalPlayer:GetDiplomacy():ComputeDOWWarmongerPoints( ms_SelectedPlayerID, GetWarType( key ) );
 			table.insert( parts, points .. " grievances" );
+			grievances = tostring( points );
 		end
 		local disabled:boolean = selection.IsDisabled == true;
 		local reason:string = nil;
@@ -3213,6 +3216,12 @@ function SRA_OverviewEntries()
 		local detail:string = nil;
 		local actionDef = GameInfo.DiplomaticActions[ selection.DiplomaticActionType ];
 		if actionDef ~= nil and actionDef.Description ~= nil then detail = CleanTextForSpeech( Locale.Lookup( actionDef.Description ) ); end
+		-- Most actions have no Description (the game shows no tooltip either): fall back to what the entry knows
+		if detail == nil and selection.ToolTip ~= nil then detail = CleanTextForSpeech( Locale.Lookup( selection.ToolTip ) ); end
+		if grievances ~= nil then
+			detail = ( detail ~= nil and ( detail .. ". " ) or "" ) .. "Declaring it would cost " .. grievances .. " warmonger grievances with the other civilizations";
+		end
+		if disabled and reason ~= nil then detail = ( detail ~= nil and ( detail .. ". " ) or "" ) .. "Unavailable: " .. reason; end
 		return { key = "o:" .. tostring( key ), text = table.concat( parts, ", " ), choosable = not disabled, reason = reason, detail = detail, callback = callback };
 	end
 
@@ -3232,7 +3241,7 @@ function SRA_OverviewEntries()
 		table.insert( top, { key = "sub:discuss", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_DISCUSS" ) ) .. ", " .. #discuss .. " options", sub = "discuss" } );
 	end
 	if #war > 0 then
-		table.insert( top, { key = "sub:war", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ) .. ", " .. #war .. " options", sub = "war" } );
+		table.insert( top, { key = "sub:war", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ) .. ", " .. #war .. " options", sub = "war", detail = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI_TT" ) ) } );
 	end
 	return top, discuss, war;
 end
