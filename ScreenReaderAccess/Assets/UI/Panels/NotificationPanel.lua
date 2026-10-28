@@ -1929,6 +1929,21 @@ local function SRA_NotificationTexts( pNotification:table )
 	local merged:string = DiplomacyText_NotificationLine( pNotification:GetTypeName(), message, summary );
 	if merged ~= message then message = merged; summary = ""; end	-- the summary is in the main line now: do not speak it twice
 	if pNotification:GetTypeName() == "NOTIFICATION_CITYSTATE_USURPED" then summary = summary .. ". F2 to send envoys"; end
+	-- A notification that points at a city ("Choose Production", "City Needs Food", "City Losing Loyalty") does not name it in its
+	-- title, so several look identical in the list: lead with the type, then the city ("Choose Production: Antium").
+	-- Only our own cities, and not for notifications about a unit or spy (they merely stand in a city): those keep their title.
+	local typeName:string = pNotification:GetTypeName();
+	if typeName ~= "NOTIFICATION_CITYSTATE_USURPED" and pNotification:IsLocationValid()
+			and not string.find( typeName, "UNIT", 1, true ) and not string.find( typeName, "SPY", 1, true ) then
+		local x:number, y:number = pNotification:GetLocation();
+		local pCity:table = CityManager.GetCityAt( x, y );
+		if pCity ~= nil and pCity:GetOwner() == Game.GetLocalPlayer() then
+			local cityName:string = Locale.Lookup( pCity:GetName() );
+			if cityName ~= "" and not string.find( message, cityName, 1, true ) and not string.find( summary, cityName, 1, true ) then
+				message = message .. ": " .. cityName;
+			end
+		end
+	end
 	return message, summary;
 end
 

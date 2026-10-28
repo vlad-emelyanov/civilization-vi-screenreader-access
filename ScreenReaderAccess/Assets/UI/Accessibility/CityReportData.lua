@@ -221,10 +221,30 @@ end
 -- 4b. Power (Gathering Storm): d.power = { current, required, generatedTotal, status = "powered"|"underpowered"|"none",
 --     description, consumed / needed / generated = { { label, value } }, advice }
 -- ---------------------------------------------------------------------------
+-- A power source name can reach us as "Rome Rome" (the game's source key is a composed string); say a repeated
+-- word sequence once ("Rome Rome" -> "Rome", "Coal Plant Coal Plant" -> "Coal Plant").
+local function CollapseRepeat( label:string )
+	label = string.gsub( tostring( label or "" ), "%s+", " " );
+	label = string.gsub( label, "^ ", "" );
+	label = string.gsub( label, " $", "" );
+	local words:table = {};
+	for w in string.gmatch( label, "%S+" ) do table.insert( words, w ); end
+	local n:number = #words;
+	if n >= 2 and n % 2 == 0 then
+		local half:number = n / 2;
+		local same:boolean = true;
+		for i = 1, half do
+			if words[ i ] ~= words[ i + half ] then same = false; break; end
+		end
+		if same then return table.concat( words, " ", 1, half ); end
+	end
+	return label;
+end
+
 local function PowerLines( entries:table )
 	local parts:table = {};
 	for _, e in ipairs( entries or {} ) do
-		if e.value ~= nil then table.insert( parts, e.label .. " " .. Num( e.value ) ); end
+		if e.value ~= nil then table.insert( parts, CollapseRepeat( e.label ) .. " " .. Num( e.value ) ); end
 	end
 	return parts;
 end
