@@ -3045,8 +3045,9 @@ local function SRA_KeyHorizontal( delta:number )
 	local f:table = SRA_ResolutionFacts( item.index );
 	m_sraFocusOption[ f.hash ] = ( delta < 0 ) and 1 or 2;
 	m_sraOmitNameHash = f.hash;
-	m_sraMainList.Focus( item.key );
-	m_sraOmitNameHash = nil;
+	local ok:boolean, err = xpcall( function() m_sraMainList.Focus( item.key ); end, KeyNavErrorHandler );
+	m_sraOmitNameHash = nil;		-- always cleared, also when Focus failed
+	if not ok then print( "WorldCongressPopup option switch error: " .. tostring( err ) ); end
 end
 
 function SRA_SwitchTab( delta:number )
