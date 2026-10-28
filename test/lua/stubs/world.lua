@@ -56,6 +56,8 @@ function M:install()
 		function o:GetIndex() return p.y * w + p.x end
 		function o:IsWater() return p.terrain == "water" end
 		function o:IsLake() return p.lake == true end
+		function o:GetAreaID() return p.area or (p.terrain == "water" and 100 or 1) end	-- ocean 100, land 1, a lake needs area = n
+		function o:GetArea() return { GetID = function() return o:GetAreaID() end } end
 		function o:IsCity() return p.city == true end
 		function o:IsNaturalWonder() return p.wonder == true end
 		function o:IsMountain() return p.mountain == true end

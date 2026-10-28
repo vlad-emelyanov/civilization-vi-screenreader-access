@@ -417,9 +417,11 @@ function PlotDescription_GetShort( plot:table, options:table )
 	local terrain:table = _TerrainParts(plot);
 	local resource:string = _ResourceText(plot);
 	local line:table = {};
+	-- options.resourceFirst (places list details): the resource is what the line is about, so it leads the terrain
+	if resource ~= nil and options.resourceFirst then table.insert(line, resource); end
 	for _, t in ipairs(terrain) do table.insert(line, t); end
 	if resource ~= nil then
-		table.insert(line, resource);
+		if not options.resourceFirst then table.insert(line, resource); end
 		-- only the cursor read asks for it (options.resourceTech): unit lines, places and placement stay short
 		local tech:string = options.resourceTech and _ResourceTechText(plot, false) or nil;
 		if tech ~= nil then table.insert(line, tech); end

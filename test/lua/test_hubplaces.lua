@@ -319,7 +319,7 @@ test("a clan camp says its clan and type first and offers T while in view", func
 	Game.GetBarbarianManager = function() return manager end
 	local item = campItem({ plot = Map.GetPlot(5, 5) })
 	assert(item.text:find("^Badger Claw clan, Melee Open, Barbarian Camp, "), item.text)
-	assert(item.text:find(", T to treat with the clan$"), item.text)
+	assert(item.text:find(", %[KEY:T%] to treat with the clan$"), item.text)
 	eq(item.clan, true)
 	world:set(2, 12, { fogged = true })
 	item = campItem({ plot = Map.GetPlot(5, 5) })
@@ -762,4 +762,28 @@ test("threats item says the position exactly once", function()
 	assert(text:find("^Barbarian Archer, near your city, "), text)
 	local _, n = text:gsub("of Rome", "")
 	eq(n, 1)
+end)
+
+test("ship filter: keeps places on or within 2 tiles of the ship's water, drops inland and lake places, keeps unrevealed", function()
+	-- row y=16: x 0..3 ocean, x 4..9 land, a lake at (8,16)
+	for x = 0, 3 do world:set(x, 16, { terrain = "water" }) end
+	world:set(8, 16, { terrain = "water", lake = true, area = 7 })
+	world:set(9, 18, { hidden = true })
+	local function item(x, y) return { x = x, y = y, text = x .. "," .. y } end
+	local items = { item(2, 16), item(4, 16), item(5, 16), item(7, 16), item(8, 16), item(9, 18) }
+	local isRevealed = function(plot) return not world.plots[plot:GetIndex()].hidden end
+	local kept, left = HubPlaces.ReachableByShip(items, 100, Map.GetPlot, isRevealed)
+	local t = {}
+	for _, i in ipairs(kept) do t[#t + 1] = i.text end
+	eq(table.concat(t, " "), "2,16 4,16 5,16 9,18")
+	eq(left, 2)
+end)
+
+test("ship filter: categories lose items, empty ones go, the head says how many", function()
+	local cats = { { name = "Cities", items = { { x = 2, y = 16 }, { x = 7, y = 16 } } }, { name = "Camps", items = { { x = 7, y = 16 } } } }
+	local out = HubPlaces.FilterForShip(cats, 100)
+	eq(#out, 1)
+	eq(out[1].name, "Cities")
+	eq(#out[1].items, 1)
+	eq(out[1].left, 1)
 end)
