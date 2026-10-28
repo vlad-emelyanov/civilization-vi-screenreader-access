@@ -721,7 +721,7 @@ function HubPlaces.FilterForShip( cats:table, areaIds:table )
 		if #kept > 0 then
 			table.insert( result, { name = cat.name, items = kept, left = left } );
 		else
-			table.insert( gone, cat.name .. ": all " .. left .. " out of reach" );
+			table.insert( gone, cat.name .. ( ( left == 1 ) and ": 1 out of this ship's reach" or ( ": all " .. left .. " out of this ship's reach" ) ) );
 		end
 	end
 	return result, table.concat( gone, ". " );

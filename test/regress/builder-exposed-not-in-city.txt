@@ -1,0 +1,10 @@
+# Written blind (2026-10-28, not run). Play test on pt-modern-t191: "Builder exposed: Barbarian Pike and Shot 2 tiles north-west" was spoken at every end-turn Enter for builders standing inside Lugdunum. A civilian in a city of ours is never exposed: no unit the end-turn guard lists stands on a city tile.
+# covers: **/HubEnemies.lua
+# no-share-load: loads pt-modern-t191
+load pt-modern-t191
+clear-advisors
+lua InGameAccess local _,sig=HubEnemies.ExposedCivilians(3); local bad=0; for id in string.gmatch(sig,'%d+') do local u=Players[Game.GetLocalPlayer()]:GetUnits():FindID(tonumber(id)); if u and Cities.GetCityInPlot(u:GetX(),u:GetY()) then bad=bad+1 end end return 'INCITY '..bad
+expect-lua ^INCITY 0$
+lua InGameAccess local t=HubEnemies.ScanThreats(); local bad=0; for _,c in ipairs(t.civilians) do if c.unit and Cities.GetCityInPlot(c.unit:GetX(),c.unit:GetY()) then bad=bad+1 end end return 'INCITY '..bad
+expect-lua ^INCITY 0$
+no-lua-errors

@@ -786,7 +786,7 @@ test("ship filter: categories lose items, empty ones go, the head says how many"
 	eq(out[1].name, "Cities")
 	eq(#out[1].items, 1)
 	eq(out[1].left, 1)
-	eq(gone, "Camps: all 1 out of reach")
+	eq(gone, "Camps: 1 out of this ship's reach")
 end)
 
 test("ship filter: a port city touching a lake and the ocean keeps ocean places (area set)", function()
