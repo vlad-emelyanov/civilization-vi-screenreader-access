@@ -271,6 +271,10 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavMoveCellRight",		function() HubCursor.MoveCursor( 1, 0 ); end );
 	Hub.RegisterAction( "KeyNavMoveCellUp",			function() HubCursor.MoveCursor( 0, 1 ); end );
 	Hub.RegisterAction( "KeyNavMoveCellDown",		function() HubCursor.MoveCursor( 0, -1 ); end );
+	Hub.RegisterAction( "KeyNavJumpCellLeft",		function() HubCursor.MoveCursor( -1, 0, 5 ); end );
+	Hub.RegisterAction( "KeyNavJumpCellRight",		function() HubCursor.MoveCursor( 1, 0, 5 ); end );
+	Hub.RegisterAction( "KeyNavJumpCellUp",		function() HubCursor.MoveCursor( 0, 1, 5 ); end );
+	Hub.RegisterAction( "KeyNavJumpCellDown",		function() HubCursor.MoveCursor( 0, -1, 5 ); end );
 	Hub.RegisterAction( "KeyNavPlotDetails",		HubCursor.SpeakPlotDetails );
 	Hub.RegisterAction( "KeyNavCursorToSelection",	HubCursor.CursorToSelection );
 	Hub.RegisterAction( "KeyNavWhatsNext",			HubAnnounce.SpeakWhatsNext );

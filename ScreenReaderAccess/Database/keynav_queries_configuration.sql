@@ -15,6 +15,16 @@ INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavMoveCellRight',0,'KBMous
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavMoveCellUp',0,'KBMouse','LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_UP');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavMoveCellDown',0,'KBMouse','LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_DOWN');
 
+-- Five-tile cursor jumps
+INSERT INTO "InputActions" VALUES ('KeyNavJumpCellLeft','Jump cells left','Move the map cursor 5 cells left','GLOBAL','World','PC');
+INSERT INTO "InputActions" VALUES ('KeyNavJumpCellRight','Jump cells right','Move the map cursor 5 cells right','GLOBAL','World','PC');
+INSERT INTO "InputActions" VALUES ('KeyNavJumpCellUp','Jump cells up','Move the map cursor 5 cells up','GLOBAL','World','PC');
+INSERT INTO "InputActions" VALUES ('KeyNavJumpCellDown','Jump cells down','Move the map cursor 5 cells down','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavJumpCellLeft',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_LEFT');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavJumpCellRight',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_RIGHT');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavJumpCellUp',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_UP');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavJumpCellDown',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_DOWN');
+
 -- In-game screen reader hotkeys (handled by UI/Additions/InGameAccess.lua)
 INSERT INTO "InputActions" VALUES ('KeyNavPlotDetails','Plot details','Read a detailed description of the map cursor plot','GLOBAL','World','PC');
 INSERT INTO "InputActions" VALUES ('KeyNavCursorToSelection','Cursor to selection','Move the map cursor to the selected unit or city and read it','GLOBAL','World','PC');

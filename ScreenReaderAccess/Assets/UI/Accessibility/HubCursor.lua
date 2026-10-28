@@ -150,14 +150,20 @@ function HubCursor.SetCursor( x:number, y:number, speak:boolean, interrupt:boole
 end
 
 -- Shift+Arrows. Left/Right step along the row; Up/Down step to the next row north/south (alternately north-west
--- and north-east, so that two steps go straight north, as on the screen).
-function HubCursor.MoveCursor( dx:number, dy:number )
+-- and north-east, so that two steps go straight north, as on the screen). steps (default 1): the Control+Shift+Arrows jump of 5.
+function HubCursor.MoveCursor( dx:number, dy:number, steps:number )
 	if not HubCore.IsLocalPlayerActive() then return; end
 	local x:number, y:number = HubCursor.GetCursor();
-	x = x + dx;
-	y = y + dy;
+	steps = steps or 1;
 	local width:number, height:number = Map.GetGridSize();
-	if y < 0 or y >= height then
+	local fromX:number, fromY:number = x, y;
+	x = x + dx * steps;
+	y = y + dy * steps;
+	if steps > 1 then		-- a jump stops at the edge of the map instead of being refused
+		y = math.max( 0, math.min( height - 1, y ) );
+		if not Map.IsWrapX() then x = math.max( 0, math.min( width - 1, x ) ); end
+	end
+	if y < 0 or y >= height or ( x == fromX and y == fromY ) then
 		OutputMessageToScreenReader( "Edge of the map" );
 		return;
 	end

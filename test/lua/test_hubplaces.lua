@@ -799,3 +799,27 @@ test("ship filter: a port city touching a lake and the ocean keeps ocean places 
 	local only = HubPlaces.ReachableByShip(items, { [7] = true }, Map.GetPlot)
 	eq(#only, 1)
 end)
+
+test("foreign lands: one item per met owner at the nearest revealed tile, city-state wording, no city known", function()
+	world:set(20, 4, { owner = 2 })
+	world:set(22, 4, { owner = 2 })
+	world:set(10, 8, { owner = 3 })
+	world:set(11, 8, { owner = 3 })
+	world:set(12, 8, { owner = 3 })
+	world.minors = { [3] = true }
+	local ctx = { plot = Map.GetPlot(5, 5) }
+	local cats = HubPlaces.BuildCategories(ctx)
+	local lands
+	for _, c in ipairs(cats) do if c.name == "Foreign lands" then lands = c end end
+	assert(lands, "no Foreign lands category")
+	eq(#lands.items, 2)
+	-- nearest first: owner 3 (distance 5) before owner 2 (distance 15)
+	eq(lands.items[1].x, 10)
+	assert(lands.items[1].text:find("^LOC_CIV_3, city%-state border, "), lands.items[1].text)
+	assert(lands.items[1].text:find(", no city known$"), lands.items[1].text)
+	eq(lands.items[2].x, 20)
+	assert(lands.items[2].text:find("^LOC_CIV_2, border, "), lands.items[2].text)
+	assert(not lands.items[2].text:find("no city known"), lands.items[2].text)
+	assert(lands.items[1].detail():find("3 tiles of their territory revealed"), lands.items[1].detail())
+	world.minors = nil
+end)

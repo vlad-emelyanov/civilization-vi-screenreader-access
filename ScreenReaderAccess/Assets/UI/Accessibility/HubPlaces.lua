@@ -464,6 +464,9 @@ local function ScanSeen( ctx:table )
 	local localID:number = Game.GetLocalPlayer();
 	local width:number, height:number = Map.GetGridSize();
 	local found:table = {};
+	local owned:table = {};		-- owner id -> { count, plot (the revealed tile nearest to the reference), distance }
+	ctx.owned = owned;
+	local refX:number, refY:number = ctx.plot:GetX(), ctx.plot:GetY();
 	for y = 0, height - 1 do
 		for x = 0, width - 1 do
 			local plot:table = Map.GetPlot( x, y );
@@ -471,6 +474,17 @@ local function ScanSeen( ctx:table )
 			if plot ~= nil and vis:IsRevealed( index ) then
 				if vis:IsVisible( index ) then
 					RememberPlot( plot, index );
+				end
+				local owner:number = plot:GetOwner();
+				if owner ~= nil and owner >= 0 and owner ~= localID then
+					local d:number = Map.GetPlotDistance( refX, refY, x, y );
+					local o:table = owned[ owner ];
+					if o == nil then
+						owned[ owner ] = { count = 1, plot = plot, distance = d };
+					else
+						o.count = o.count + 1;
+						if d < o.distance then o.plot = plot; o.distance = d; end
+					end
 				end
 				local featureType:number = plot:GetFeatureType();
 				local row:table = ( featureType ~= nil and featureType >= 0 ) and GameInfo.Features[ featureType ] or nil;
@@ -618,6 +632,32 @@ local function ForeignItems( ctx:table )
 	return SortItems( items );
 end
 
+-- One item per met civ and city-state with a revealed tile of its territory, at the revealed tile nearest to the reference
+-- (the borders are known long before a city is: they show where to march). ScanSeen collected ctx.owned.
+function HubPlaces.ForeignLandsItems( ctx:table )
+	local items:table = {};
+	local localID:number = Game.GetLocalPlayer();
+	local me:table = Players[ localID ];
+	local diplomacy:table = ( me ~= nil ) and me:GetDiplomacy() or nil;
+	local hasCity:table = {};
+	for _, entry in pairs( m_seen ) do
+		if entry.kind == "foreign" and entry.owner ~= nil then hasCity[ entry.owner ] = true; end
+	end
+	for owner, o in pairs( ctx.owned or {} ) do
+		local player:table = Players[ owner ];
+		if player ~= nil and not player:IsBarbarian() and not ( player.IsFreeCities ~= nil and player:IsFreeCities() ) and ( diplomacy == nil or diplomacy:HasMet( owner ) ) then
+			local text:string = PlotDescription_GetCivName( owner ) .. ( player:IsMajor() and ", border, " or ", city-state border, " ) .. Where( o.plot, ctx );
+			if not hasCity[ owner ] then text = text .. ", no city known"; end
+			local item:table = MakeItem( "l:" .. owner, "land", PlotDescription_GetCivName( owner ), text, o.plot, ctx );
+			local base = item.detail;
+			local count:number = o.count;
+			item.detail = function() return base() .. ". " .. HubCore.Plural( count, "tile", "tiles" ) .. " of their territory revealed"; end
+			table.insert( items, item );
+		end
+	end
+	return SortItems( items );
+end
+
 -- Types a unit can be captured as (GameInfo.UnitCaptures: Settler and Builder), as a set of UnitType names.
 local function CapturableTypes()
 	local set:table = {};
@@ -759,7 +799,8 @@ function HubPlaces.BuildCategories( ctx:table )
 		{ name = "Your cities", build = CityItems }, { name = "Your units", build = UnitItems },
 		{ name = "Points of interest", build = PointItems }, { name = "Blind spots", build = BlindSpotItems },
 			{ name = "Notifications", build = NotificationItems },
-		{ name = "Foreign cities", build = ForeignItems }, { name = "Civilians to capture", build = CaptureItems },
+		{ name = "Foreign cities", build = ForeignItems }, { name = "Foreign lands", build = HubPlaces.ForeignLandsItems },
+		{ name = "Civilians to capture", build = CaptureItems },
 	};
 	for _, source in ipairs( sources ) do
 		local ok:boolean, items = xpcall( function() return source.build( ctx ); end, KeyNavErrorHandler );

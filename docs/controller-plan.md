@@ -39,6 +39,8 @@ Popups and the in-game menu sit above the hub and take every key: there A/B/Y/st
 
 Right stick and stick clicks (selection changes) work on the bare map and inside hub lists (a selection change closes the list, as it does with the keyboard); they pass through while a game screen is open.
 
+Keyboard only: the 5-tile cursor jumps (`KeyNavJumpCell*`, Control+Shift+Arrows) have no pad button (the right stick is taken by selection changes); on the pad use the places list (Foreign lands category) to reach far tiles.
+
 ## The ring (LB / RB)
 
 The in-game UI is a ring of keyboard lists; RB opens the next, LB the previous; B closes the open one back to the map. Order:

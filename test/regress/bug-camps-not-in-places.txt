@@ -4,9 +4,8 @@
 load bug-camps-not-in-places
 clear-advisors
 action KeyNavPlaces -Settle 1500
-key Control+Tab -Settle 800
-key Control+Tab -Settle 800
-key Control+Tab -Settle 800
+key Tab -Settle 800
+key Tab -Settle 800
 expect ^Points of interest.*3 items.*Barbarian Outpost, last seen
 key Down -Settle 800
 expect Barbarian Outpost, last seen.*2 of 3
