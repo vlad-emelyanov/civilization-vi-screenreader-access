@@ -2536,6 +2536,16 @@ local function SRA_TurnsText( turns:number )
 	return turns .. ( turns == 1 and " turn" or " turns" );
 end
 
+-- Space on a repair item: what is repaired and what it costs, not the whole district text with its adjacency lines.
+local function SRA_RepairDetail( kItem:table, kind:string )
+	local name:string = Locale.Lookup( kItem.Name );
+	local text:string = "Repairs the pillaged " .. name .. ( kind == "district" and " district" or "" ) .. ", restoring what it produces";
+	local turns:string = SRA_TurnsText( kItem.TurnsLeft );
+	if turns ~= nil then text = text .. ". " .. turns; end
+	if kItem.Cost ~= nil and kItem.Cost > 0 then text = text .. ", " .. kItem.Cost .. " production"; end
+	return text;
+end
+
 local function SRA_Item( kItem:table, kind:string, section:string, owner:string )
 	local name:string = Locale.Lookup( kItem.Name );
 	if kItem.Repair then name = "Repair " .. name; end		-- a pillaged building or district: the item repairs it
@@ -2575,9 +2585,13 @@ local function SRA_Item( kItem:table, kind:string, section:string, owner:string 
 		text = table.concat( parts, ", " ),
 		data = kItem,
 		choosable = not ( kItem.Disabled or built ),
+		built = built,
 		reason = built and "Already built" or ( "Can't build " .. name .. ( reasons ~= "" and ( ": " .. reasons ) or "" ) ),
 		recommended = recommended,
-		detail = function() return SRA_Detail( detailItem ); end,
+		detail = function()
+			if detailItem.Repair then return SRA_RepairDetail( detailItem, kind ); end
+			return SRA_Detail( detailItem );
+		end,
 	};
 end
 
@@ -2639,9 +2653,11 @@ local function SRA_GetItems()
 	end
 
 	local districtsSection:string = Locale.Lookup( "LOC_HUD_DISTRICTS_BUILDINGS" );
+	local builtDistricts:table = {};		-- "City Center, already built" rows go after everything that can be built in this section
 	for _, kDistrict in ipairs( data.DistrictItems ) do
 		local districtName:string = Locale.Lookup( kDistrict.Name );
-		table.insert( items, SRA_Item( kDistrict, "district", districtsSection, nil ) );
+		local districtItem:table = SRA_Item( kDistrict, "district", districtsSection, nil );
+		if districtItem.built then table.insert( builtDistricts, districtItem ); else table.insert( items, districtItem ); end
 		local districtType:string = kDistrict.Type;
 		if GameInfo.DistrictReplaces[ districtType ] ~= nil then districtType = GameInfo.DistrictReplaces[ districtType ].ReplacesDistrictType; end
 		for _, kBuilding in ipairs( data.BuildingItems ) do
@@ -2650,6 +2666,7 @@ local function SRA_GetItems()
 			end
 		end
 	end
+	for _, districtItem in ipairs( builtDistricts ) do table.insert( items, districtItem ); end
 	local wondersSection:string = Locale.Lookup( "LOC_HUD_CITY_WONDERS" );
 	for _, kBuilding in ipairs( data.BuildingItems ) do
 		if kBuilding.IsWonder then table.insert( items, SRA_Item( kBuilding, "wonder", wondersSection, nil ) ); end

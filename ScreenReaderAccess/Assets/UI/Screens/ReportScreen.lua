@@ -131,7 +131,7 @@ local function SRA_FlushLine()
 	local inst:table = pending.inst;
 	local yields:table = {
 		{ label = "production",	value = inst.Production:GetText() },
-		{ label = "food",		value = inst.Food:GetText() },
+		{ label = "food produced",	value = inst.Food:GetText() },
 		{ label = "gold",		value = inst.Gold:GetText() },
 		{ label = "science",	value = inst.Science:GetText() },
 		{ label = "culture",	value = inst.Culture:GetText() },
@@ -190,13 +190,20 @@ local function SRA_YieldsItems()
 			table.insert( lines, ReportText_LineItem( line.name, line.yields ) );
 		end
 		local detail:string = table.concat( lines, ". " );
+		-- The table's Food column is the gross yield of the worked tiles; the city report speaks the net surplus after
+		-- the citizens eat. Label the gross figure and say the surplus too, so the two screens do not seem to disagree.
+		local surplus:string = "";
+		pcall( function()
+			local s:number = d.City:GetGrowth():GetFoodSurplus();
+			surplus = ", food surplus " .. ( ReportText_Signed( s ) or "0" );
+		end );
 		table.insert( items, {
 			key = "city:" .. id, section = "City income",
 			text = ReportText_CityIncome( SRA_Text( d.CityName ), {
-				{ label = "production", value = d.ProductionPerTurn }, { label = "food", value = d.FoodPerTurn },
+				{ label = "production", value = d.ProductionPerTurn }, { label = "food produced", value = d.FoodPerTurn },
 				{ label = "gold", value = d.GoldPerTurn }, { label = "science", value = d.SciencePerTurn },
 				{ label = "culture", value = d.CulturePerTurn }, { label = "faith", value = d.FaithPerTurn },
-				{ label = "tourism", value = d.WorkedTileYields and d.WorkedTileYields["TOURISM"] or 0 } } ),
+				{ label = "tourism", value = d.WorkedTileYields and d.WorkedTileYields["TOURISM"] or 0 } } ) .. surplus,
 			detail = ( detail ~= "" ) and detail or nil } );
 	end
 

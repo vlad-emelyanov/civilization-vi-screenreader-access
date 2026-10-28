@@ -22,6 +22,7 @@ local m_srList			:table = nil;
 local m_srOverviewList	:table = nil;	-- the overview (things you can propose) as a keyboard list
 local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" / "war"), nil = top level
 local m_srPendingAnswer	:string = nil;	-- key of the answer chosen while a cinema scene was showing
+local m_srLeaving			:boolean = false;	-- Goodbye was chosen: the screen closes when the session ends, and takes no answers meanwhile
 
 
 -- ===========================================================================
@@ -504,7 +505,9 @@ end
 function OnSelectConversationDiplomacyStatement(key)
 
 	if (key == "CHOICE_EXIT") then
+		m_srLeaving = true;		-- ScreenReaderAccess: Goodbye closes the screen (the overview behind it would take the next Enter as "declare friendship")
 		ExitConversationMode(false);
+		if ms_ActiveSessionID == nil then m_srLeaving = false; end		-- no session to wait for: the overview is shown at once
 	else
 		if (key == "CHOICE_DECLARE_SURPRISE_WAR") then 
 			DiplomacyManager.AddStatement(ms_ActiveSessionID, Game.GetLocalPlayer(), "DECLARE_SURPRISE_WAR");
@@ -2547,7 +2550,9 @@ function OnDiplomacySessionClosed(sessionID)
 				ms_bShowingDeal = false;
 			end
 
-			if (ms_InitiatedByPlayerID == ms_OtherPlayerID) then
+			local srLeaving:boolean = m_srLeaving;		-- ScreenReaderAccess
+			m_srLeaving = false;
+			if (ms_InitiatedByPlayerID == ms_OtherPlayerID or srLeaving) then
 				-- The other player initiated contact, just exit
 				Close();
 			else
@@ -2901,6 +2906,7 @@ end
 --	Guarantee close!
 -- ===========================================================================
 function Close()
+	m_srLeaving = false;		-- ScreenReaderAccess
 
 	print("Closing Diplomacy Action View. m_eventID: "..tostring(m_eventID));
 
@@ -3293,12 +3299,12 @@ function SRA_OnCinemaEnded()
 end
 
 local function SRA_ConversationActive()
-	return not ContextPtr:IsHidden() and ms_ActiveSessionID ~= nil and ( ms_currentViewMode == CONVERSATION_MODE or ms_currentViewMode == CINEMA_MODE )
+	return not m_srLeaving and not ContextPtr:IsHidden() and ms_ActiveSessionID ~= nil and ( ms_currentViewMode == CONVERSATION_MODE or ms_currentViewMode == CINEMA_MODE )
 		and #m_srSelections > 0 and not m_PopupDialog:IsOpen();
 end
 
 local function SRA_OverviewActive()
-	return not ContextPtr:IsHidden() and ms_ActiveSessionID == nil and ms_currentViewMode == OVERVIEW_MODE and not m_PopupDialog:IsOpen()
+	return not m_srLeaving and not ContextPtr:IsHidden() and ms_ActiveSessionID == nil and ms_currentViewMode == OVERVIEW_MODE and not m_PopupDialog:IsOpen()
 		and ms_SelectedPlayerID ~= -1 and ms_SelectedPlayerID ~= ms_LocalPlayerID;
 end
 
