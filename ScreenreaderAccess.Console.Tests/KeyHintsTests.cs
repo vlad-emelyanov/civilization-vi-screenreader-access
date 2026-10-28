@@ -62,6 +62,17 @@ public class KeyHintsTests
     public void Pad_UnknownKeysStayKeyboardText(string input, string expected)
         => Assert.Equal(expected, KeyHints.Expand(input, true));
 
+    [Theory]
+    [InlineData("Alpha, 1 of 3[PAD:, Y for details]", "Alpha, 1 of 3, Y for details", "Alpha, 1 of 3")]
+    [InlineData("[KEY:Enter] opens[PAD:, Y for details]", "A opens, Y for details", "Enter opens")]
+    [InlineData("a[PAD:x][PAD:y]b", "axyb", "ab")]
+    [InlineData("open [PAD:x", "open [PAD:x", "open [PAD:x")]
+    public void PadOnlyText(string input, string padExpected, string keyboardExpected)
+    {
+        Assert.Equal(padExpected, KeyHints.Expand(input, true));
+        Assert.Equal(keyboardExpected, KeyHints.Expand(input, false));
+    }
+
     [Fact]
     public void TwoTokensInOneLine()
     {

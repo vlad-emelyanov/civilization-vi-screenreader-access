@@ -12,7 +12,7 @@ print = function(...)
 end
 function ClearPrinted() Printed = {} end
 -- the text part of every "#SCREENREADER - x" / "#SCREENREADER[NOINTERRUPT] - x" line printed so far
--- Spoken(): keyboard wording ([KEY:kb] / [KEY:kb|button] tokens expanded to kb, like util/civctl.ps1); SpokenRaw(): unexpanded
+-- Spoken(): keyboard wording ([KEY:kb] / [KEY:kb|button] tokens expanded to kb, [PAD:x] removed, like util/civctl.ps1); SpokenRaw(): unexpanded
 function SpokenRaw()
 	local out = {}
 	for _, line in ipairs(Printed) do
@@ -24,7 +24,7 @@ end
 function Spoken()
 	local out = {}
 	for i, text in ipairs(SpokenRaw()) do
-		out[i] = text:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1")
+		out[i] = text:gsub("%[PAD:[^%]]*%]", ""):gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1")
 	end
 	return out
 end
@@ -88,10 +88,13 @@ if SRKey == nil then
 		return "[KEY:" .. keyboard .. "]"
 	end
 end
+if SRPadHint == nil then
+	function SRPadHint(text) return "[PAD:" .. text .. "]" end
+end
 -- a spoken-text token [KEY:kb|button] in the actual value is compared as its keyboard wording unless the expected text has tokens itself
 local function kbwording(actual, expected)
-	if type(actual) == "string" and type(expected) == "string" and not expected:find("[KEY:", 1, true) then
-		return (actual:gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1"))
+	if type(actual) == "string" and type(expected) == "string" and not expected:find("[KEY:", 1, true) and not expected:find("[PAD:", 1, true) then
+		return (actual:gsub("%[PAD:[^%]]*%]", ""):gsub("%[KEY:([^%]|]+)|?[^%]]*%]", "%1"))
 	end
 	return actual
 end

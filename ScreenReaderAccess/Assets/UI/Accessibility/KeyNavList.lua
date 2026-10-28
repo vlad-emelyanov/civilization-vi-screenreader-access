@@ -10,6 +10,7 @@
 --		extraKeys  ={ [Keys.VK_DELETE] = function() ... end },   -- optional: more keys, acted on at KeyUp
 --		ctrlKeys   = { [Keys.VK_TAB] = function() ... end },    -- optional: Control+key (acted on at KeyUp; Shift+Tab is Steam's overlay, so Control+Tab = previous)
 --		horizontal = true,                                -- optional: Left/Right also move (like Up/Down)
+--		noDetailHint = true,                              -- optional: no pad-only ", Y for details" after the first item when the list opens
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
@@ -53,7 +54,7 @@ function KeyNavList_Create( config:table )
 		return nil;
 	end
 
-	local function Speak( items:table, index:number, interrupt:boolean, withSection:boolean )
+	local function Speak( items:table, index:number, interrupt:boolean, withSection:boolean, padHint:boolean )
 		local item:table = items[ index ];
 		if item == nil then return; end
 		m_focusKey = item.key;
@@ -66,7 +67,17 @@ function KeyNavList_Create( config:table )
 			text = item.section .. ": " .. text;
 		end
 		m_lastSection = item.section;
-		OutputMessageToScreenReader( text .. ", " .. index .. " of " .. #items, not interrupt );
+		text = text .. ", " .. index .. " of " .. #items;
+		if padHint and not config.noDetailHint then
+			-- first announcement after open only: the pad user learns that Y reads the details (keyboard speech unchanged)
+			local detail = item.detail;
+			if type( detail ) == "function" then
+				local ok:boolean, result = xpcall( detail, KeyNavErrorHandler );
+				detail = ok and result or nil;
+			end
+			if detail ~= nil and detail ~= "" then text = text .. SRPadHint( ", Y for details" ); end
+		end
+		OutputMessageToScreenReader( text, not interrupt );
 	end
 
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
@@ -83,7 +94,7 @@ function KeyNavList_Create( config:table )
 		if index == nil then index = 1; m_focusKey = items[1].key; end
 		if silent then return; end		-- the caller speaks (its own opening sentence)
 		OutputMessageToScreenReader( title .. ", " .. #items .. ( #items == 1 and " option" or " options" ), true );
-		Speak( items, index, false, true );
+		Speak( items, index, false, true, true );
 	end
 
 	-- A deliberate key (Tab to another tab) ends the Enter guard: the Enter that follows is meant.
