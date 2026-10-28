@@ -19,7 +19,7 @@ Civ VI on PC does not react to a gamepad (the engine carries console-port leftov
 | A | Enter | activate / confirm | Next Action (the game's Enter, with the hub's Enter guards) | activate the item | confirm the tile |
 | B | Escape | back / close | nothing (swallowed; it must not open the game menu) | close the list ("Closed") | cancel |
 | Y | Space | details | own city on the cursor tile: city report (Control+I); else plot details (I) | read the item's details | combat modifiers (attack modes) |
-| X | F13 | the list's secondary action (see "X in lists") | select your unit or city on the cursor tile (K; again: the next one there) | the list's X action, else nothing | nothing |
+| X | F13 | the list's secondary action (see "X in lists") | the selected unit's browser (settle spots, tiles to improve, tiles to act on) when the cursor is on that unit, otherwise select your unit or city on the cursor tile (K; again: the next one there) | the list's X action, else nothing | nothing |
 | Left stick | Up/Down/Left/Right | move in lists; Left/Right change values | move the map cursor one tile (also when the user did not bind the cursor to the arrows) | move | move the target cursor |
 | D-pad up / down | Home / End | first / last item | What is next (N) / cursor to selection (.) | first / last | nothing |
 | D-pad right / left | Tab / Control+Tab | next / previous section or tab | unit actions menu or city production (what Tab does) / area overview (Shift+J) | next / previous section (places categories, help sections, production tabs) | nothing |

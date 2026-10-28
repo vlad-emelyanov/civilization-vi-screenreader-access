@@ -113,3 +113,11 @@ test("BrowserFor: settler, builder, action unit, anything else", function()
 	eq(type(HubSettle.BrowserFor(unit).open), "function")
 	HubCore.IsSettler, BuildScan_Improvements, HubSettle.ActivationPlots = saved.settler, saved.scan, saved.act
 end)
+
+test("BuildItemTextOf: improvement first, then where, then the tile, then turns and status", function()
+	local e = { name = "Plains, Rainforest", relative = "2 tiles south", turns = 2, worked = true }
+	eq(HubSettle.BuildItemTextOf(e, "Lumber Mill plus 2 production", nil), "Lumber Mill plus 2 production, 2 tiles south, Plains Rainforest, 2 turns, worked")
+	eq(HubSettle.BuildItemTextOf({ name = "Crabs", relative = "1 tile north", turns = 1 }, "Fishing Boats plus 1 food", "danger: Archer 2 tiles away"),
+		"Fishing Boats plus 1 food, 1 tile north, Crabs, 1 turn, danger: Archer 2 tiles away")
+	eq(HubSettle.BuildItemTextOf({ name = "Wheat", here = true }, "Farm plus 1 food", nil), "Farm plus 1 food, here, Wheat")
+end)

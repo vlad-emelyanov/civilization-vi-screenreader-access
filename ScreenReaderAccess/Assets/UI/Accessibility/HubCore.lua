@@ -529,7 +529,7 @@ end
 function HubCore.SettleSentence( unit:table )
 	local key:string = "B";
 	if HubEnemies ~= nil and HubEnemies.KeyText ~= nil then key = HubEnemies.KeyText( "FoundCity", "B" ); end
-	return SettleScan_Sentence( SettleScan_Scan( unit ), key, unit:GetMovesRemaining() > 0 );
+	return SettleScan_Sentence( SettleScan_Scan( unit ), SRKey( key, "D-pad right, Found City," ), unit:GetMovesRemaining() > 0 );
 end
 
 -- Adds a handler to an event when the game has that event.
