@@ -43,7 +43,7 @@ The in-game hub (`UI/Additions/InGameAccess.lua`) is split into `Accessibility/H
 
 ## Item wording in lists
 
-An item starts with what tells it apart from its neighbours; words every item shares or the title already said are dropped or moved to the opening line; status and numbers follow; position (n of m) stays last. Example, the builder's tile browser: "Lumber Mill plus 2 production, 2 tiles south, Plains Rainforest, 2 turns, worked, 1 of 5" (improvement and yield first, then where, then the tile, then turns and status).
+The full set of speech rules is `docs/speech-guidelines.md`; read it before writing any spoken text. In short: an item starts with what tells it apart from its neighbours; words every item shares or the title already said are dropped or moved to the opening line; status and numbers follow; position (n of m) stays last. Example, the builder's tile browser: "Lumber Mill plus 2 production, 2 tiles south, Plains Rainforest, 2 turns, worked, 1 of 5" (improvement and yield first, then where, then the tile, then turns and status).
 
 ## Key names in spoken text
 

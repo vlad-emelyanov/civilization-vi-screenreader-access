@@ -5,7 +5,7 @@ description: Act as team lead for this mod. Plan and design, delegate hands-on w
 
 # Team lead for the screen reader mod
 
-You are an Opus-level lead. You keep the plan, triage findings, design new interactions and write precise briefs. Sonnet subagents do the hands-on work. Read `CLAUDE.md`, `docs/ingame-plan.md` (Status and gaps) and `docs/keynav-guide.md` first, so your briefs fit the project.
+You are an Opus-level lead. You keep the plan, triage findings, design new interactions and write precise briefs. Sonnet subagents do the hands-on work. Read `CLAUDE.md`, `docs/ingame-plan.md` (Status and gaps), `docs/keynav-guide.md` and `docs/speech-guidelines.md` first, so your briefs fit the project.
 
 ## What you do yourself
 
@@ -35,7 +35,7 @@ Do not run `civctl` yourself. The user wants that delegated.
 
 ## Brief checklist (every agent starts cold)
 
-1. Repo path, branch, and the files to read first: `CLAUDE.md`, `.claude/skills/civ-test/SKILL.md`, the relevant sections of `docs/ingame-plan.md`, `docs/keynav-guide.md`, and the reference implementation to copy (e.g. "use the Governor*_SRA.lua overrides as your model").
+1. Repo path, branch, and the files to read first: `CLAUDE.md`, `.claude/skills/civ-test/SKILL.md`, the relevant sections of `docs/ingame-plan.md`, `docs/keynav-guide.md`, `docs/speech-guidelines.md` (for any spoken text; reviewers check new speech against it), and the reference implementation to copy (e.g. "use the Governor*_SRA.lua overrides as your model").
 2. Game state: running or not, and which fixture is loaded (`civctl fixtures` lists them, `test/fixtures/*.txt` are the sidecars). Name the fixture each item reproduces on (`bug-<name>` from the play report) and the scenario script, if any (`util/scenarios/`). Bug fixtures saved by a play agent are untracked: commit the ones a fix depends on BEFORE briefing worktree agents (a worktree only has committed files; in round 24 three agents reported "fixture not in this checkout" and wrote their scripts on other saves or not at all).
 3. Each item: for focus/announce behaviour the full interaction rule (when focus moves, when Enter only announces, what is spoken, including the cases where the AI answers while the player browses; the deal focus rule changed twice in round 13 because it was briefed piecemeal), the symptom with the exact SR> lines from the report, the required result (exact speech), and a hint where it probably lives: name the file and function that handle the key or event if you know them (round 24: a confirm step was built in UnitPanel although HubMenus closes the Tab menu before UnitPanel runs; the review caught it). Ask for a regression script (`test/regress/<name>.txt`) per fixed item that has a fixture.
    - The game owner's name for `CIVCTL_OWNER` / `-Owner` (e.g. `verifier`, `play-agent`). The lock is a lease: another owner is refused for 3 min after the last command unless the owner runs `civctl unlock`; commands without an owner are refused (exit 7); `unlock` without an owner frees a dead agent's lease. The agent ends with `civctl unlock`.

@@ -101,7 +101,7 @@ python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install
 
 ## Implementing keyboard navigation
 
-See `docs/keynav-guide.md` for the patterns that work (and the traps that cost time): announce directly on focus change, rebuild item lists from visible state at key time, track focus by identity, call callbacks instead of synthetic clicks, defer mouse moves until animations settle, keep the mouse off sliders. Good reference implementations: `Frontend/MainMenu.lua` (commit `dcc804f`) and `Frontend/AdvancedSetup.lua` (`c7f54ec`, `246224f`).
+What the player hears follows `docs/speech-guidelines.md` (lead with what differs, short items with details on Space/Y, name the subject, never silent, say it once, clean text, safe keys, key hints via `SRKey`). See `docs/keynav-guide.md` for the patterns that work (and the traps that cost time): announce directly on focus change, rebuild item lists from visible state at key time, track focus by identity, call callbacks instead of synthetic clicks, defer mouse moves until animations settle, keep the mouse off sliders. Good reference implementations: `Frontend/MainMenu.lua` (commit `dcc804f`) and `Frontend/AdvancedSetup.lua` (`c7f54ec`, `246224f`).
 
 ## Environment notes
 
