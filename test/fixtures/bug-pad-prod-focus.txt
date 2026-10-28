@@ -1,0 +1,7 @@
+turn: 105
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Rome production panel via Tab opens on item 2 (Holy Site) though it announces Recommended: Commercial Hub (item 6)
+mod commit: 615cd8c
+created: 2026-10-28
+size: 1265 KB

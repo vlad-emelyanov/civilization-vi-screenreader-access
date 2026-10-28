@@ -1,0 +1,7 @@
+turn: 108
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: pad play-test chain, controller keys, turn 108
+mod commit: 615cd8c
+created: 2026-10-28
+size: 1277 KB

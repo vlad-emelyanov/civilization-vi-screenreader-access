@@ -1,0 +1,7 @@
+turn: 100
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Antium production panel open (Tab), F19 Menu does nothing, no speech, no game menu
+mod commit: 615cd8c
+created: 2026-10-28
+size: 1253 KB
