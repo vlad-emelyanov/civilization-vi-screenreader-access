@@ -5,6 +5,7 @@ include( "InstanceManager" );
 
 include("ScreenReader");
 include("DiplomacyText");
+include("NotificationSubject");
 
 
 -- ===========================================================================
@@ -1933,8 +1934,10 @@ local function SRA_NotificationTexts( pNotification:table )
 	-- title, so several look identical in the list: lead with the type, then the city ("Choose Production: Antium").
 	-- Only our own cities, and not for notifications about a unit or spy (they merely stand in a city): those keep their title.
 	local typeName:string = pNotification:GetTypeName();
-	if typeName ~= "NOTIFICATION_CITYSTATE_USURPED"
-			and not string.find( typeName, "UNIT", 1, true ) and not string.find( typeName, "SPY", 1, true ) then
+	local isUnit:boolean = string.find( typeName, "UNIT", 1, true ) ~= nil;
+	local cityName:string = nil;
+	local unitName:string = nil;
+	if typeName ~= "NOTIFICATION_CITYSTATE_USURPED" and not isUnit and not string.find( typeName, "SPY", 1, true ) then
 		local pCity:table = nil;
 		if pNotification:IsLocationValid() then
 			local x:number, y:number = pNotification:GetLocation();
@@ -1944,13 +1947,20 @@ local function SRA_NotificationTexts( pNotification:table )
 			local targetPlayer, targetID = pNotification:GetTarget();
 			if targetPlayer ~= nil and Players[ targetPlayer ] ~= nil and targetID ~= nil then pCity = Players[ targetPlayer ]:GetCities():FindID( targetID ); end
 		end
-		if pCity ~= nil and pCity:GetOwner() == Game.GetLocalPlayer() then
-			local cityName:string = Locale.Lookup( pCity:GetName() );
-			if cityName ~= "" and string.sub( cityName, 1, 4 ) ~= "LOC_" and not string.find( message, cityName, 1, true ) and not string.find( summary, cityName, 1, true ) then
-				message = message .. ": " .. cityName;
-			end
+		if pCity ~= nil and pCity:GetOwner() == Game.GetLocalPlayer() then cityName = Locale.Lookup( pCity:GetName() ); end
+	elseif isUnit and pNotification:IsTargetValid() then
+		-- "Unit available for promotion": the target is (player, unit id)
+		local targetPlayer, targetID, targetType = pNotification:GetTarget();
+		if targetType == PlayerComponentTypes.UNIT and targetPlayer ~= nil and Players[ targetPlayer ] ~= nil and targetID ~= nil then
+			local pUnit:table = Players[ targetPlayer ]:GetUnits():FindID( targetID );
+			if pUnit ~= nil then unitName = Locale.Lookup( pUnit:GetName() ); end
 		end
 	end
+	-- Nothing resolved for the type: the pure helper falls back to the short summary where the title is ambiguous
+	-- (Wonder Completed, Need More Amenities, Negotiated Peace ...). The summary is not spoken twice when it went into the line.
+	local line:string = NotificationSubject_Line( typeName, message, summary, cityName, unitName );
+	if line ~= message and summary ~= "" and string.find( line, summary, 1, true ) then summary = ""; end
+	message = line;
 	return message, summary;
 end
 
