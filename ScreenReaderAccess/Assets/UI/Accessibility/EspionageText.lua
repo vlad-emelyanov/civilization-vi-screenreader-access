@@ -9,7 +9,7 @@
 --	EspionageText_History( m )       m: { name, rank, mission, turnsAgo, success, description, status }
 --	EspionageText_EnemySpy( e )      e: { name, civ, canTrade }
 --	EspionageText_Destination( d )   d: { name, owner, capital, turns }
---	EspionageText_Mission( m )       m: { name, district, chance, turns, reason }
+--	EspionageText_Mission( m )       m: { name, district, chance, turns, reason, noName }
 --	EspionageText_Outcomes( o )      o: { success, failure, lost } (whole percents; nil or 0 are left out)
 -- ===========================================================================
 
@@ -89,7 +89,8 @@ function EspionageText_Destination( d:table )
 end
 
 function EspionageText_Mission( m:table )
-	local parts:table = { m.name };
+	local parts:table = {};
+	if not m.noName then table.insert( parts, m.name ); end
 	if m.district ~= nil and m.district ~= "" then table.insert( parts, m.district ); end
 	if m.reason ~= nil then
 		table.insert( parts, "unavailable: " .. m.reason );

@@ -1036,7 +1036,7 @@ local function SRA_MissionItems()
 			table.insert( items, {
 				key = "m:" .. entry.opHash .. ":" .. entry.plotIndex, entry = recorded, name = data.name, district = data.district,
 				choosable = ( data.reason == nil ), reason = data.reason and ( data.name .. " is unavailable: " .. data.reason ) or nil,
-				text = EspionageText_Mission{ name = data.name, district = data.district, chance = data.chance, turns = data.turns, reason = data.reason },
+				text = EspionageText_Mission{ name = data.name, district = data.district, chance = data.chance, turns = data.turns, reason = data.reason, noName = entry.counter },
 				detail = function() return SRA_MissionDetail( recorded, data ); end,
 			} );
 		end
@@ -1058,6 +1058,7 @@ end
 
 local function SRA_Head()
 	if SRA_IsDestinationList() then return "Choose destination for " .. SRA_SpyName(); end
+	if m_city ~= nil and m_srMissions[ 1 ] ~= nil and m_srMissions[ 1 ].counter then return "Counterspy missions in " .. SRA_CityName( m_city ); end
 	if m_city ~= nil then return "Choose mission in " .. SRA_CityName( m_city ); end
 	return "Choose";
 end

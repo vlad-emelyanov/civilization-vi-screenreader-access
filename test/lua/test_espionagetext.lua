@@ -38,6 +38,7 @@ test("destination and mission", function()
 	eq(EspionageText_Mission{ name = "Steal tech boost", chance = 75, turns = 8 }, "Steal tech boost, 75 percent success, 8 turns")
 	eq(EspionageText_Mission{ name = "Sabotage", district = "Industrial Zone", chance = 60, turns = 5 }, "Sabotage, Industrial Zone, 60 percent success, 5 turns")
 	eq(EspionageText_Mission{ name = "Counterspy", district = "Campus", turns = 3 }, "Counterspy, Campus, 3 turns")
+	eq(EspionageText_Mission{ name = "Counterspy", noName = true, district = "Campus", turns = 8 }, "Campus, 8 turns")
 	eq(EspionageText_Mission{ name = "Siphon", reason = "needs a Commercial Hub" }, "Siphon, unavailable: needs a Commercial Hub")
 end)
 
