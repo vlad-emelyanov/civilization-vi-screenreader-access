@@ -1,5 +1,5 @@
 # Round 24: Remove Improvement in the builder's Tab menu destroys a Mine: Enter warns ("destroys the Mine on this tile. Enter again to confirm"),
-# Round 25: the "not possible on this tile" entries are no longer listed, so the menu is shorter and Remove Improvement comes earlier: the 8 Downs below were counted with them and must be re-verified in game (counts are regexes now).
+# Round 25: "not possible on this tile" entries are no longer listed, so the count varies; Remove Improvement is reached from the end (End = Delete, Up = Remove Improvement, the second to last).
 # the second Enter removes it and says "Mine removed". Fixture pt-early-t64: the builder stands on an Iron mine.
 # covers: **/HubMenus.lua **/UnitPanel.lua
 # no-share-load: removes the improvement
@@ -7,17 +7,11 @@ load pt-early-t64
 clear-advisors
 lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) UI.LookAtPlot(u:GetX(),u:GetY()) return u:GetID() end end
 key Tab -Settle 1500
-expect Builder actions, d+ options
+expect Builder actions, \d+ options
 expect ^Browse tiles to improve
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-expect Remove Improvement, d+ of d+
+key End -Settle 600
+key Up -Settle 600
+expect Remove Improvement, \d+ of \d+
 key Enter -Settle 1500
 expect Remove Improvement destroys the Mine on this tile\. Enter again to confirm
 key Enter -Settle 4000 -NoQuiet
