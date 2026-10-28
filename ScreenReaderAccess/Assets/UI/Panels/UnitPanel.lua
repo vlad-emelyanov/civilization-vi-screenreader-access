@@ -4691,6 +4691,9 @@ local function SRBuildActions()
 							detail = detail .. ". " .. reason;
 						end
 					end
+					if reason == "not possible on this tile" then
+						table.remove( m_srActions ); -- noise: a build action that cannot be done on this tile
+					else
 					table.insert( plain, {
 						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey, hotkeyButton = SRHotkeyButton( action.HotkeyId ),
 						disabled = ( action.Disabled == true ), reason = reason,
@@ -4698,6 +4701,7 @@ local function SRBuildActions()
 					tag = action.userTag, typeName = SRTypeName( action.userTag ), build = ( action.SRName ~= nil ),
 						improvement = ( action.SRName ~= nil and GameInfo.Improvements[ action.CallbackVoid1 ] ~= nil ) and GameInfo.Improvements[ action.CallbackVoid1 ].ImprovementType or nil,
 						destructive = ( action.Disabled ~= true and SRIsDestructiveBuild( SRTypeName( action.userTag ) ) ) } );
+					end
 				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
 				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil
 						and GameInfo.Units[unit:GetUnitType()].NumRandomChoices > 0 then

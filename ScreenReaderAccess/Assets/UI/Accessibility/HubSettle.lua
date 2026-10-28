@@ -339,8 +339,12 @@ local function BuildGo( item:table )
 		return;
 	end
 	local tile:table = item.entry;
+	local isHere:boolean = unit ~= nil and ( tile.here or ( unit:GetX() == tile.x and unit:GetY() == tile.y ) );
+	-- the builder's own tile with a single improvement to offer: Enter builds it (the several-choice case opens the unit menu)
+	local single:table = nil;
+	if isHere and tile.improvements ~= nil and #tile.improvements == 1 and not tile.improvements[1].repair then single = tile.improvements[1]; end
 	if unit ~= nil and unit:GetID() == m_build.unitId and BuildScan_Improvements( unit ) ~= nil
-			and not ( tile.here or ( unit:GetX() == tile.x and unit:GetY() == tile.y ) ) then
+			and ( not isHere or single ~= nil ) then
 		if DangerWarned( unit, tile.plotIndex, tile.name ) then return; end
 	end
 	HubCore.CloseMode( false, false );
@@ -349,7 +353,12 @@ local function BuildGo( item:table )
 		return;
 	end
 	if tile.here or ( unit:GetX() == tile.x and unit:GetY() == tile.y ) then
-		HubMenus.ToggleUnitMenu();
+		if single ~= nil and single.type ~= nil then
+			HubSettle.m_pending = { unitId = unit:GetID(), plotIndex = tile.plotIndex, type = single.type, name = single.name, turn = Game.GetCurrentGameTurn() };
+			HubSettle.RunArmedBuild();
+		else
+			HubMenus.ToggleUnitMenu();
+		end
 		return;
 	end
 	local plot:table = Map.GetPlotByIndex( tile.plotIndex );

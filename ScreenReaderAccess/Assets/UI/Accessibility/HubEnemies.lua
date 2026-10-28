@@ -426,6 +426,8 @@ end
 -- Is there a city of ours on this tile (plot:IsCity() plus the city list, so a missing flag cannot expose a civilian in Rome)?
 local function CityOnTile( plot:table, x:number, y:number )
 	if plot ~= nil and plot:IsCity() then return true; end
+	local okCity:boolean, atPlot = pcall( Cities.GetCityInPlot, x, y );
+	if okCity and atPlot ~= nil and atPlot:GetOwner() == Game.GetLocalPlayer() then return true; end
 	local me:table = Players[ Game.GetLocalPlayer() ];
 	if me == nil then return false; end
 	for _, city in me:GetCities():Members() do
