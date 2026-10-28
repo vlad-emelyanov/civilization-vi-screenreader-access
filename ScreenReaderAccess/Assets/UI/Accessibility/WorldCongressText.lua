@@ -205,13 +205,15 @@ function WCText_ReviewResolution( d )
 	return table.concat( parts, ", " );
 end
 
--- A proposal in the results. upVotes / downVotes are totals.
+-- A proposal in the results: name, effect, then the outcome. upVotes / downVotes are totals.
+-- "Climate Accords: Earn points by ..., passed, 5 for, 2 against"
 function WCText_ReviewProposal( title, description, upVotes, downVotes )
 	local text:string = WCText_Strip( title );
+	if description ~= nil and WCText_Strip( description ) ~= "" then text = text .. ": " .. WCText_Strip( description ); end
 	if upVotes ~= nil then
-		text = text .. ( upVotes > downVotes and " passed" or " failed" ) .. ", " .. upVotes .. " for, " .. downVotes .. " against";
+		local outcome:string = ( upVotes > downVotes and "passed" or "failed" ) .. ", " .. upVotes .. " for, " .. downVotes .. " against";
+		text = text .. ( description ~= nil and WCText_Strip( description ) ~= "" and ", " or " " ) .. outcome;
 	end
-	if description ~= nil and WCText_Strip( description ) ~= "" then text = text .. ". " .. WCText_Strip( description ); end
 	return text;
 end
 

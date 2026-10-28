@@ -1,0 +1,25 @@
+# Written blind (2026-10-28). Fixture bug-congress-accords-text (turn 231): the Climate Accords proposal used to speak only its flavor quote ("We all share this planet..."). Now the item says name, then the effect (how to score / buffs), never the quote first; the quote is left to Space.
+# covers: **/WorldCongressPopup_SRA.lua **/WorldCongressText.lua
+# no-share-load: opens the congress results
+load bug-congress-accords-text
+clear-advisors
+# the popup is not restored by a load: open it like the results notification does
+lua InGame LuaEvents.NotificationPanel_OpenWorldCongressResults()
+wait (?i)World Congress results -Timeout 10
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Right -Settle 1500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Right -Settle 1500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect (?i)Climate Accords: (?!")\S
+expect-not (?i)Climate Accords: "
+no-lua-errors
