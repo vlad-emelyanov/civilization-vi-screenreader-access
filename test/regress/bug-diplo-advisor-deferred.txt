@@ -11,8 +11,7 @@ expect ^Declare Friendship
 key Enter -Settle 3000
 expect Dido of Phoenicia says
 key Enter -Settle 3000
-expect Diplomacy with Dido of Phoenicia, Declared Friend
-key Escape -Settle 3500
+# Goodbye now closes the screen directly (no overview in between)
 expect ^Diplomacy closed
 expect ADVISOR:.*Enter closes
 key Enter -Settle 1500
