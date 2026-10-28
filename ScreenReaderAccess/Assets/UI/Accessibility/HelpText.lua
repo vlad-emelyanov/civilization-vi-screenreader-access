@@ -187,7 +187,7 @@ local m_sections:table = {
 		{ keys = "Left trigger",		text = "on the map: attack with the selected unit or city" },
 		{ keys = "Right trigger",		text = "on the map: move the selected unit to a tile" },
 		{ keys = "View",				text = "this accessibility help, again closes it" },
-		{ keys = "Menu",				text = "the game menu; closes an open list first" },
+		{ keys = "Menu",				text = "the game menu; closes an open list or the production panel first; with another screen open it says to close that screen first" },
 		{ keys = "Left stick click",	text = "select your capital city; in a target mode move the target to the capital (like Backslash)" },
 		{ keys = "Right stick click",	text = "select the next unit that needs orders" },
 		{ keys = "Right stick up and down",	text = "previous and next of all your units" },

@@ -1,0 +1,17 @@
+# UNVERIFIED (blind-written). Controller Menu (F19) with the production panel open closes the panel and opens the game menu (it used to do nothing, silently). Bug fixture bug-pad-menu-in-production.
+# covers: **/HubGamepad.lua **/ProductionPanel.lua **/InGameTopOptionsMenu.lua
+# no-share-load: opens the production panel and the game menu
+load bug-pad-menu-in-production
+clear-advisors
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2000
+expect (?i)choose production
+key F19 -Settle 2000
+expect (?i)^In game menu, 
+lua InGameAccess return tostring(HubCore.TestDirtyReason())
+expect-lua ^open: 
+lua InGame return tostring(ContextPtr:LookUpControl("/InGame/PartialScreens/ProductionPanel"):IsHidden())
+expect-lua ^true$
+key Escape -Settle 1500
+expect (?i)^Menu closed$
+no-lua-errors

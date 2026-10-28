@@ -121,3 +121,25 @@ test("bare map: X opens the selected unit's browser when the cursor is on it, el
 	press("X")
 	eq(table.concat(calls, ","), "select")
 end)
+
+test("screen open: LB / RB say how to close it; Menu closes the production panel and opens the game menu", function()
+	local said = {}
+	OutputMessageToScreenReader = function(t) table.insert(said, t) end
+	local shown = { ["/InGame/PartialScreens/ProductionPanel"] = true }
+	ContextPtr = { LookUpControl = function(_, path)
+		if shown[path] == nil then return nil end
+		return { IsHidden = function() return false end }
+	end }
+	LuaEvents = setmetatable({}, { __index = function(_, name) return function() table.insert(calls, name) end end })
+	HubCore.IsGamePopupOpen = function() return true end
+	HubCore.CloseMode = function() table.insert(calls, "closemode") end
+	eq(press("Menu"), true)
+	eq(table.concat(calls, ","), "CityPanel_ProductionClose,closemode,InGame_OpenInGameOptionsMenu")
+	shown = { ["/InGame/CityStates"] = true }
+	eq(press("Menu"), true)
+	eq(table.concat(calls, ","), "")
+	eq(said[1], "Close the screen first, " .. SRKey("Escape") .. " closes it")
+	press("LB")
+	eq(#said, 2)
+	HubCore.IsGamePopupOpen = function() return false end
+end)

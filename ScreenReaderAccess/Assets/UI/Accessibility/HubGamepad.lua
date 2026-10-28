@@ -8,7 +8,7 @@
 --	  - ModeOn / ModeOff (F22 / F23) set the controller mode flag,
 --	  - global buttons (Menu, View, LB, RB, stick clicks, right stick) act on KeyUp, both events are consumed,
 --	  - mode-dependent buttons (X, LT, RT) go to the open hub list first, in a target mode X scans for foreign units and LT / RT are silent, and act on the bare map,
---	  - while a game screen or popup is open every button but LB / RB passes through (LB / RB say "Close the screen first").
+--	  - while a game screen or popup is open every button but LB / RB / Menu passes through (LB / RB say "Close the screen first, B closes it"; Menu closes the production panel and opens the game menu, other screens answer like LB / RB).
 --	Keys that no screen wanted reach WorldInput's catcher (Gamepad_CatchKey), which fires LuaEvents.SRA_PadCursor / SRA_PadDetails /
 --	SRA_PadInfo; the listeners are here.
 -- ===========================================================================
@@ -54,6 +54,15 @@ local function CityStep( step:number )
 	if player:GetCities():GetCount() == 0 then Say( "You have no cities" ); return; end
 	local current:table = UI.GetHeadSelectedCity();
 	if step < 0 then UI.SelectPrevCity( current ); else UI.SelectNextCity( current ); end
+end
+
+local function IsControlShown( path:string )
+	local control = ContextPtr:LookUpControl( path );
+	return control ~= nil and not control:IsHidden();
+end
+
+local function CloseFirstText()
+	return "Close the screen first, " .. SRKey( "Escape" ) .. " closes it";
 end
 
 local GLOBAL_ACTIONS:table = {
@@ -139,7 +148,19 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 
 	if HubCore.IsGamePopupOpen() then
 		if button == "LB" or button == "RB" then
-			if isUp then Say( "Close the screen first" ); end
+			if isUp then Say( CloseFirstText() ); end
+			return true;
+		end
+		if button == "Menu" and not IsControlShown( "/InGame/TopOptionsMenu" ) then
+			-- the production panel is a side panel that does not handle Menu: close it, then open the game menu as on the bare map
+			if IsControlShown( "/InGame/PartialScreens/ProductionPanel" ) or IsControlShown( "/InGame/PartialScreens/ProductionManager" ) then
+				if isUp then
+					LuaEvents.CityPanel_ProductionClose();
+					OpenGameMenu();
+				end
+				return true;
+			end
+			if isUp then Say( CloseFirstText() ); end		-- any other open screen swallows Menu
 			return true;
 		end
 		if suppressed then return true; end		-- a KeyUp after another key (held RT = Shift) is consumed
