@@ -309,7 +309,24 @@ function HubEvents.OnCityAddedToMap( ownerID:number, cityID:number, x:number, y:
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local city:table = Players[ ownerID ]:GetCities():FindID( cityID );
 	local name:string = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "City";
-	HubCore.SayResult( name .. " founded" );
+	-- CityAddedToMap also fires for a captured or traded city: its original owner is then another civ
+	local verb:string = "founded";
+	local original:number = ownerID;
+	if city ~= nil then
+		local okC:boolean, loser = pcall( function() return city:GetJustConqueredFrom(); end );		-- the loser (RazeCity.lua uses it too)
+		if okC and type( loser ) == "number" and loser >= 0 and loser ~= ownerID then
+			original = loser;
+		else
+			local okO:boolean, orig = pcall( function() return city:GetOriginalOwner(); end );
+			if okO and type( orig ) == "number" then original = orig; end
+		end
+	end
+	if original ~= nil and original ~= ownerID and original >= 0 then
+		verb = "captured";
+		local cfg:table = PlayerConfigurations[ original ];
+		if cfg ~= nil and cfg:GetCivilizationShortDescription() ~= nil then verb = verb .. " from " .. Locale.Lookup( cfg:GetCivilizationShortDescription() ); end
+	end
+	HubCore.SayResult( name .. " " .. verb );
 end
 
 -- A builder finished an improvement on its own plot.

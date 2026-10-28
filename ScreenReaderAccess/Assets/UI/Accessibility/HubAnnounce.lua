@@ -459,6 +459,7 @@ function HubAnnounce.OnLoadScreenClose()
 	HubCore.ClearSpeechHold();
 	HubAnnounce.ResetReadyWatch();
 	HubCore.m_lastAnnouncedTurn = "";
+	HubCore.m_turnLineSpoken = nil;
 	if HubEnemies ~= nil then HubEnemies.Reset(); end
 	m_lastSettleSpoken = nil;
 	HubCursor.ResetCursor();

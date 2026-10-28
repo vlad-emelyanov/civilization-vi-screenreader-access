@@ -3249,10 +3249,10 @@ function SRA_OverviewEntries()
 		end
 	end
 	if #discuss > 0 then
-		table.insert( top, { key = "sub:discuss", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_DISCUSS" ) ) .. ", " .. #discuss .. " options", sub = "discuss" } );
+		table.insert( top, { key = "sub:discuss", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_DISCUSS" ) ) .. ", " .. #discuss .. " options", sub = "discuss", title = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_DISCUSS" ) ) } );
 	end
 	if #war > 0 then
-		table.insert( top, { key = "sub:war", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ) .. ", " .. #war .. " options", sub = "war", detail = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI_TT" ) ) } );
+		table.insert( top, { key = "sub:war", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ) .. ", " .. #war .. " options", sub = "war", title = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ), detail = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI_TT" ) ) } );
 	end
 	return top, discuss, war;
 end
@@ -3339,7 +3339,7 @@ local function SRA_OnOverviewActivate( item:table )
 	if item.sub ~= nil then
 		m_srOverviewSub = item.sub;
 		m_srOverviewList.Reset();
-		m_srOverviewList.Open( item.text );
+		m_srOverviewList.Open( item.title or item.text );
 	else
 		item.callback();
 	end

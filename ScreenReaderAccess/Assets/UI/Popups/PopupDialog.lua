@@ -213,6 +213,7 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 		return;
 	end
 
+	local srLabel:string = CleanTextForSpeech( label );		-- ScreenReaderAccess: spoken text without [SIZE_16]/[COLOR]/[ICON] markup
 	-- Set button label and callback with an injected "Close()"
 	pButtonControl:SetText(label);
 
@@ -231,7 +232,7 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 			m_suppressControl = nil;
 		else
 			m_suppressControl = nil;
-			OutputMessageToScreenReader(label);
+			OutputMessageToScreenReader(srLabel);
 		end
 	end);
 	-- if the mouse was already on this button no MouseEnter fired; forget the suppression once it leaves
@@ -244,7 +245,7 @@ function PopupDialog:AddButton( label:string, callback:ifunction, optionalActiva
 	pButtonControl:RegisterCallback(Mouse.eLClick, closeAndCallback);
 
 	-- Add button to popup controls table so we can match activate commands to button callbacks
-	table.insert(self.PopupControls, { Type = "Button", Control = pButtonControl, Callback = closeAndCallback, Command = optionalActivateCommand, Label = label });
+	table.insert(self.PopupControls, { Type = "Button", Control = pButtonControl, Callback = closeAndCallback, Command = optionalActivateCommand, Label = srLabel });
 
 	-- Recalculate size of button container
 	pTopControl:CalculateSize();
