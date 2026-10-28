@@ -2850,6 +2850,7 @@ local SRA_ROW_NAMES:table = {
 	[ROW_INDEX.WILDCARD]	= "LOC_GOVT_POLICY_TYPE_WILDCARD",
 };
 
+local function SRA_Cap( s:string ) return string.upper( string.sub( s, 1, 1 ) ) .. string.sub( s, 2 ); end
 local SRA_ROW_SHORT:table = {
 	[ROW_INDEX.MILITARY] = "military", [ROW_INDEX.ECONOMIC] = "economic",
 	[ROW_INDEX.DIPLOMAT] = "diplomatic", [ROW_INDEX.WILDCARD] = "wildcard",
@@ -3080,7 +3081,7 @@ local function SRA_OnActivate( item:table )
 			return;
 		end
 		m_srList.Reset();
-		m_srList.Open( item.label .. ", choose a policy" .. ( item.policy ~= nil and ( ", replaces " .. item.policy.Name ) or "" ) );
+		m_srList.Open( SRA_Cap( item.label ) .. ", choose a policy" .. ( item.policy ~= nil and ( ", replaces " .. item.policy.Name ) or "" ) );
 	elseif item.kind == "policy" then
 		local slot:table = SRA_FindSlot( m_srCatalogSlotIndex );
 		if slot == nil then
@@ -3117,7 +3118,7 @@ local function SRA_OnDelete()
 	local focusKey = m_srList.GetFocusKey();
 	for _, item in ipairs( items ) do
 		if item.key == focusKey and item.kind == "slot" then
-			if item.policy == nil then OutputMessageToScreenReader( item.label .. " is already empty" ); return; end
+			if item.policy == nil then OutputMessageToScreenReader( SRA_Cap( item.label ) .. " is already empty" ); return; end
 			if not IsAbleToChangePolicies() then OutputMessageToScreenReader( "Policies can't be changed now" ); return; end
 			RemoveActivePolicyAtSlotIndex( item.slot.GC_SlotIndex );
 			SRA_RefreshSlots();
