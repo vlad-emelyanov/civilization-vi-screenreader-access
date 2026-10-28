@@ -1946,7 +1946,7 @@ local function SRA_NotificationTexts( pNotification:table )
 		end
 		if pCity ~= nil and pCity:GetOwner() == Game.GetLocalPlayer() then
 			local cityName:string = Locale.Lookup( pCity:GetName() );
-			if cityName ~= "" and not string.find( message, cityName, 1, true ) and not string.find( summary, cityName, 1, true ) then
+			if cityName ~= "" and string.sub( cityName, 1, 4 ) ~= "LOC_" and not string.find( message, cityName, 1, true ) and not string.find( summary, cityName, 1, true ) then
 				message = message .. ": " .. cityName;
 			end
 		end
