@@ -41,8 +41,7 @@ function NotificationSubject_Line( typeName:string, message:string, summary:stri
 		for _, t in ipairs( NOTIFICATION_SUBJECT_SUMMARY_TITLES ) do
 			if NS_Contains( message, t ) then wanted = true; end
 		end
-		if wanted and NS_Contains( summary, message ) then return summary; end
-		if wanted then return message .. ": " .. summary; end
+		if wanted then return summary; end	-- a full sentence that already says what kind of notification it is
 	end
 	return message;
 end

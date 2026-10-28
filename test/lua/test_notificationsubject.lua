@@ -8,7 +8,7 @@ test("own city is appended unless named already", function()
 end)
 
 test("amenities: city from the summary when the notification has no usable city", function()
-	eq(NotificationSubject_Line("NOTIFICATION_CITY_LOW_AMENITIES", "Need More Amenities", "Lugdunum needs more Amenities", nil, nil), "Need More Amenities: Lugdunum needs more Amenities")
+	eq(NotificationSubject_Line("NOTIFICATION_CITY_LOW_AMENITIES", "Need More Amenities", "Lugdunum needs more Amenities", nil, nil), "Lugdunum needs more Amenities")
 end)
 
 test("unit name", function()
@@ -17,8 +17,8 @@ test("unit name", function()
 end)
 
 test("wonder and peace use the short summary", function()
-	eq(NotificationSubject_Line("NOTIFICATION_WONDER_COMPLETED", "Wonder Completed", "Eiffel Tower completed in Paris", nil, nil), "Wonder Completed: Eiffel Tower completed in Paris")
-	eq(NotificationSubject_Line("NOTIFICATION_NEGOTIATED_PEACE", "Negotiated Peace", "Nazca has made peace with Hong Kong", nil, nil), "Negotiated Peace: Nazca has made peace with Hong Kong")
+	eq(NotificationSubject_Line("NOTIFICATION_WONDER_COMPLETED", "Wonder Completed", "Eiffel Tower completed in Paris", nil, nil), "Eiffel Tower completed in Paris")
+	eq(NotificationSubject_Line("NOTIFICATION_NEGOTIATED_PEACE", "Negotiated Peace", "Nazca has made peace with Hong Kong", nil, nil), "Nazca has made peace with Hong Kong")
 end)
 
 test("long or unrelated summaries are not used", function()

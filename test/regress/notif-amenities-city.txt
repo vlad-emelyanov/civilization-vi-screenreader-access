@@ -4,6 +4,6 @@ load bug-notif-amenities-city
 clear-advisors
 action KeyNavNotifications -Settle 2000
 key Down -Settle 400
-expect Need More Amenities: .*Lugdunum
+expect Lugdunum needs more Amenities
 key Escape -Settle 800
 no-lua-errors
