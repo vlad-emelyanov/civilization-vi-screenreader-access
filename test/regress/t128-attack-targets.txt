@@ -18,8 +18,8 @@ key W -Settle 1500
 expect ^Attack: choose a target
 # the walk: only attackable targets, hostile (W has the Catapult, then Ram, Crossbowman, Musketman, Musketman); never a peaceful civ
 key X -Settle 800
-# the target spoken on open (the Catapult) counts as visited: the first X goes to the Ram
-expect ^attack, .*Barbarian Battering Ram
+# X walks by turns: the target spoken on open (the Ram, 1 turn) counts as visited, the first X goes to the Catapult (2 turns)
+expect ^attack, .*Barbarian Catapult
 expect-not would declare war
 key X -Settle 800
 expect-not would declare war
@@ -36,11 +36,11 @@ expect ^DECLARE WAR
 key Escape -Settle 3000
 expect ^War not declared\. Still choosing a target
 key X -Settle 800
-expect Barbarian Catapult
+expect Barbarian Battering Ram
 key X -Settle 800
 key X -Settle 800
 key X -Settle 800
 expect attack, \d+ turns?(, Strength \d+ against \d+ when you reach it)?\. Barbarian Musketman, Plains
 key Enter -Settle 2000 -NoQuiet
-expect ^Moving to attack Barbarian Musketman, \d+ turns?
+expect ^Moving to attack Barbarian Crossbowman, \d+ turns?
 no-lua-errors

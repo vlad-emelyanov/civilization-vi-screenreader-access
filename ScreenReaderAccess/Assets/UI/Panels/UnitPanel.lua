@@ -4448,7 +4448,7 @@ local function SRDistrictRefiner( unit:table, long:boolean )
 		if standing then return; end
 		local text:string = PlotDescription_DistrictReason( Locale.Lookup( districtRow.Name ), best, long );
 		-- the engine's text up to the district name: LOC_UNITCOMMAND_ACTIVATE_GREAT_PERSON_INVALID_DISTRICT = "Must be on a completed {1_DistrictName}."
-		local marker:string = "\1";
+		local marker:string = "SRMARKERX";
 		local prefix:string = CleanTextForSpeech( Locale.Lookup( "LOC_UNITCOMMAND_ACTIVATE_GREAT_PERSON_INVALID_DISTRICT", marker ) );
 		local cut:number = string.find( prefix, marker, 1, true );
 		if cut == nil or cut <= 1 then return; end
