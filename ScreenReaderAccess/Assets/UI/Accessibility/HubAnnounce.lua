@@ -413,7 +413,8 @@ function HubAnnounce.OnCitySelectionChanged( owner:number, cityID:number, i:numb
 	if loyalty ~= nil then table.insert( parts, loyalty ); end
 	HubCore.m_lastSelectionSpeech = UI.GetElapsedTime();
 	local text:string = table.concat( parts, ", " );
-	if Hub ~= nil and Hub.m_cityReportLoaded and HubTargets.GetTargetMode() == nil then text = text .. SRPadHint( ", Y for its report" ); end		-- pad only: Y on an own city opens the report (HubGamepad.OnPadDetails)
+	local cx:number, cy:number = HubCursor.GetCursor();		-- (SetCursor above ran first) pad Y opens the report only with the cursor on the city
+	if Hub ~= nil and Hub.m_cityReportLoaded and HubTargets.GetTargetMode() == nil and cx == city:GetX() and cy == city:GetY() then text = text .. SRPadHint( ", Y for its report" ); end		-- pad only: Y on an own city opens the report (HubGamepad.OnPadDetails)
 	HubCore.Announce( text, false, "selection" );
 end
 
