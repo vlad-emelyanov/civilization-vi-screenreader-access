@@ -7,7 +7,7 @@
 --	  text:    what Up/Down speak, e.g. "Yields: food plus 4, production 12, gold 8, science 6, culture 3, faith 2"
 --	  detail:  what Space speaks (the game's own tooltips / breakdowns, cleaned for speech)
 --
---	Fields of d that are optional: loyalty, greatWorks, tradingPosts (nil or empty: no item).
+--	Fields of d that are optional: loyalty, power, greatWorks, tradingPosts (nil or empty: no item).
 -- ===========================================================================
 
 include( "ScreenReader" );
@@ -215,6 +215,52 @@ local function LoyaltyItem( d:table )
 	if l.rival ~= nil and l.rival ~= "" then table.insert( detail, "The city would turn to " .. l.rival .. " if loyalty ran out" ); end
 	if l.advice ~= nil and l.advice ~= "" then table.insert( detail, Clean( l.advice ) ); end
 	return { key = "loyalty", text = text, detail = Join( detail, ". " ) };
+end
+
+-- ---------------------------------------------------------------------------
+-- 4b. Power (Gathering Storm): d.power = { current, required, generatedTotal, status = "powered"|"underpowered"|"none",
+--     description, consumed / needed / generated = { { label, value } }, advice }
+-- ---------------------------------------------------------------------------
+local function PowerLines( entries:table )
+	local parts:table = {};
+	for _, e in ipairs( entries or {} ) do
+		if e.value ~= nil then table.insert( parts, e.label .. " " .. Num( e.value ) ); end
+	end
+	return parts;
+end
+
+local function PowerItem( d:table )
+	local p:table = d.power;
+	if p == nil then return nil; end
+	local required:number = p.required or 0;
+	local generated:number = p.generatedTotal or 0;
+	if required == 0 and generated == 0 then return nil; end
+	local text:string;
+	if required == 0 then
+		text = "Power: none needed, generates " .. Num( generated );
+	else
+		text = "Power " .. Num( p.current or 0 ) .. " of " .. Num( required );
+		if p.status == "underpowered" then
+			text = text .. " needed, underpowered";
+		else
+			text = text .. ", powered";
+		end
+		if generated > 0 then text = text .. ", generates " .. Num( generated ); end
+	end
+
+	local detail:table = {};
+	if p.description ~= nil and p.description ~= "" then table.insert( detail, Clean( p.description ) ); end
+	local consumed:table = PowerLines( p.consumed );
+	if #consumed > 0 then table.insert( detail, "From: " .. Join( consumed ) ); end
+	local needed:table = PowerLines( p.needed );
+	if #needed > 0 then table.insert( detail, "Needed by: " .. Join( needed ) ); end
+	local made:table = PowerLines( p.generated );
+	if #made > 0 then table.insert( detail, "Generates: " .. Join( made ) ); end
+	if p.advice ~= nil and p.advice ~= "" then table.insert( detail, Clean( p.advice ) ); end
+	if #detail == 0 then table.insert( detail, text ); end
+	-- the LOC descriptions and the advice end with a period: strip it before joining with ". "
+	for i, part in ipairs( detail ) do detail[i] = string.gsub( part, "[%.%s]+$", "" ); end
+	return { key = "power", text = text, detail = Join( detail, ". " ) };
 end
 
 -- ---------------------------------------------------------------------------
@@ -581,6 +627,7 @@ function CityReport_BuildItems( d:table )
 	Guard( function() Add( GrowthItem( d ) ); end );
 	Guard( function() Add( AmenitiesItem( d ) ); end );
 	Guard( function() Add( LoyaltyItem( d ) ); end );
+	Guard( function() Add( PowerItem( d ) ); end );
 	Guard( function() Add( ReligionItem( d ) ); end );
 	Guard( function() Add( DefenseItem( d ) ); end );
 	Guard( function() Add( ProductionItem( d ) ); end );

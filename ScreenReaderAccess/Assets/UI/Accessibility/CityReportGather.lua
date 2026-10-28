@@ -118,6 +118,55 @@ local function GatherLoyalty( pCity:table )
 	return loyalty;
 end
 
+-- City power (Gathering Storm, copied from CityPanelPower.lua OnRefresh). nil in the base game / Rise and Fall.
+local function PowerSources( list:table )
+	local out:table = {};
+	if type( list ) ~= "table" then return out; end
+	for _, inner in ipairs( list ) do
+		if type( inner ) == "table" then
+			local source, value = next( inner );
+			if source ~= nil and type( value ) == "number" then
+				table.insert( out, { label = Locale.Lookup( source ), value = Round( value, 1 ) } );
+			end
+		end
+	end
+	return out;
+end
+
+local function GatherPower( pCity:table )
+	if pCity.GetPower == nil then return nil; end
+	local power:table = pCity:GetPower();
+	if power == nil then return nil; end
+	local free:number = power:GetFreePower();
+	local temporary:number = power:GetTemporaryPower();
+	local current:number = free + temporary;
+	local required:number = power:GetRequiredPower();
+	local status:string = "powered";
+	local description:string = "LOC_POWER_STATUS_POWERED_DESCRIPTION";
+	if required == 0 then
+		status = "none";
+		description = "LOC_POWER_STATUS_NO_POWER_NEEDED_DESCRIPTION";
+	elseif not power:IsFullyPowered() then
+		status = "underpowered";
+		description = "LOC_POWER_STATUS_UNPOWERED_DESCRIPTION";
+	else
+		-- IsFullyPoweredByActiveProject() raised an error when called without arguments in the tuner
+		local ok:boolean, byProject = pcall( function() return power:IsFullyPoweredByActiveProject(); end );
+		if ok and byProject then current = required; end
+	end
+	local p:table = { current = Round( current, 1 ), required = Round( required, 1 ), status = status, description = Locale.Lookup( description ) };
+	p.consumed = Guard( "power free", function() return PowerSources( power:GetFreePowerSources() ); end ) or {};
+	for _, e in ipairs( Guard( "power temporary", function() return PowerSources( power:GetTemporaryPowerSources() ); end ) or {} ) do
+		table.insert( p.consumed, e );
+	end
+	p.needed = Guard( "power required", function() return PowerSources( power:GetRequiredPowerSources() ); end ) or {};
+	p.generated = Guard( "power generated", function() return PowerSources( power:GetGeneratedPowerSources() ); end ) or {};
+	p.generatedTotal = 0;
+	for _, e in ipairs( p.generated ) do p.generatedTotal = p.generatedTotal + e.value; end
+	Guard( "power advice", function() p.advice = pCity:GetPowerAdvice(); end );
+	return p;
+end
+
 local function GatherDistricts( data:table )
 	local districts:table = {};
 	local specialists:table = {};
@@ -385,6 +434,7 @@ function CityReport_Gather( pCity:table )
 	d.growth = GatherGrowth( pCity, data );
 	d.amenities = GatherAmenities( data );
 	d.loyalty = Guard( "loyalty", function() return GatherLoyalty( pCity ); end );
+	d.power = Guard( "power", function() return GatherPower( pCity ); end );
 	d.religion = GatherReligion( data );
 	Guard( "religion detail", function() GatherReligionDetail( pCity, d.religion, data.Population ); end );
 	if d.religion.rows ~= nil and #d.religion.rows == 0 and d.religion.majority == nil and #d.religion.others > 0 then d.religion.rows = nil; end

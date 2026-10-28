@@ -168,6 +168,36 @@ test("religion comes right after loyalty", function()
 	eq(table.concat(keys, ","), "yields,growth,amenities,loyalty,religion,defense,production,districts,citizens")
 end)
 
+test("power: underpowered, powered, none needed, generates only, absent", function()
+	local d = city()
+	eq(find(CityReport_BuildItems(d), "power"), nil)
+	d.power = { current = 4, required = 6, generatedTotal = 0, status = "underpowered", description = "Buildings work at half speed.",
+		consumed = { { label = "Coal Power Plant", value = 4 } }, needed = { { label = "Factory", value = 2 }, { label = "Stadium", value = 4 } },
+		generated = {}, advice = "Build a power plant." }
+	local item = find(CityReport_BuildItems(d), "power")
+	eq(item.text, "Power 4 of 6 needed, underpowered")
+	contains(item.detail, "From: Coal Power Plant 4. Needed by: Factory 2, Stadium 4. Build a power plant")
+	eq(item.detail:find("..", 1, true), nil)
+	eq(item.detail:sub(-1) ~= ".", true)
+	d.power = { current = 6, required = 6, generatedTotal = 0, status = "powered", consumed = {}, needed = {}, generated = {} }
+	eq(find(CityReport_BuildItems(d), "power").text, "Power 6 of 6, powered")
+	d.power = { current = 0, required = 0, generatedTotal = 0, status = "none" }
+	eq(find(CityReport_BuildItems(d), "power"), nil)
+	d.power = { current = 0, required = 0, generatedTotal = 8, status = "none", generated = { { label = "Coal Power Plant", value = 8 } } }
+	item = find(CityReport_BuildItems(d), "power")
+	eq(item.text, "Power: none needed, generates 8")
+	contains(item.detail, "Generates: Coal Power Plant 8")
+end)
+
+test("power comes right after loyalty", function()
+	local d = city()
+	d.loyalty = { current = 100, max = 100, perTurn = 8, level = "Loyal", sources = {}, influence = {} }
+	d.power = { current = 2, required = 2, generatedTotal = 0, status = "powered" }
+	local keys = {}
+	for i, item in ipairs(CityReport_BuildItems(d)) do keys[i] = item.key end
+	eq(table.concat(keys, ","), "yields,growth,amenities,loyalty,power,religion,defense,production,districts,citizens")
+end)
+
 test("great works and trading posts are optional items", function()
 	local d = city()
 	d.greatWorks = { slots = 3, filled = 1, names = { "Mona Lisa" } }
