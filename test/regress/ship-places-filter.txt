@@ -1,0 +1,20 @@
+# Written blind 2026-10-28 (C6, not yet recorded). In the Move To mode with a ship the places list leaves out what the ship can never reach: the inland city Antium (50,28) is gone from "Your cities", coastal Rome (51,32) stays, and the head says how many were left out.
+# covers: **/HubPlaces.lua **/HubTargets.lua **/PlotDescription.lua UI/Additions/InGameAccess.lua
+load pt-modern-t176
+clear-advisors
+lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(1245187)) return 1
+wait Frigate -Timeout 8
+action MoveTo -Settle 1500
+expect (?i)move to
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+# the Cities category (Tab walks the categories; Control+Tab goes back) is the one that lost the inland city
+key Tab -Settle 800
+key Tab -Settle 800
+key Tab -Settle 800
+expect (?i)out of this ship's reach left out
+expect Rome
+expect-not Antium
+key Escape -Settle 1200
+key Escape -Settle 1500
+no-lua-errors
