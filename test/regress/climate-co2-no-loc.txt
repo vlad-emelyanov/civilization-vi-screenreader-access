@@ -1,12 +1,16 @@
-# UNVERIFIED (blind-written). bug-climate-loc-leader (turn 229, Rome): the CO2 tab named the top contributor as the raw key LOC_LEADER_MONTEZUMA_NAME.
+# bug-climate-loc-leader (turn 229, Rome): the CO2 tab named the top contributor as the raw key LOC_LEADER_MONTEZUMA_NAME.
 # Also the event history reads "<event>, <place>, turn N" (event first, turn after the place), not "Turn N: ...".
 # covers: **/ClimateScreen_SRA.lua **/ClimateText.lua
 load bug-climate-loc-leader
 clear-advisors
 action ToggleWorldClimate -Settle 2500
 expect ^World Climate\.
+key Down -Settle 500
+key Down -Settle 500
+expect ^CO2: global total \d+, top contributor [^,]+, yours \d+, 3 of
+expect-not LOC_
 key Tab -Settle 1000
-expect ^CO2 levels, 2 of 3 tabs\. CO2: global total \d+.*top contributor .+, yours
+expect ^CO2 levels, 2 of 3 tabs\. CO2: global total \d+
 expect-not LOC_
 key Tab -Settle 1000
 expect ^Event history, 3 of 3 tabs\.
