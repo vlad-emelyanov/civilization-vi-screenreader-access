@@ -412,7 +412,10 @@ function HubAnnounce.OnCitySelectionChanged( owner:number, cityID:number, i:numb
 	local loyalty:string = CityLoyaltyText( city );
 	if loyalty ~= nil then table.insert( parts, loyalty ); end
 	HubCore.m_lastSelectionSpeech = UI.GetElapsedTime();
-	HubCore.Announce( table.concat( parts, ", " ), false, "selection" );
+	local text:string = table.concat( parts, ", " );
+	local cx:number, cy:number = HubCursor.GetCursor();		-- (SetCursor above ran first) pad Y opens the report only with the cursor on the city
+	if Hub ~= nil and Hub.m_cityReportLoaded and HubTargets.GetTargetMode() == nil and cx == city:GetX() and cy == city:GetY() then text = text .. SRPadHint( ", Y for its report" ); end		-- pad only: Y on an own city opens the report (HubGamepad.OnPadDetails)
+	HubCore.Announce( text, false, "selection" );
 end
 
 -- "Turn 5, 3600 BC". Said once per turn: a new turn and a finished load both announce it, and a loaded game

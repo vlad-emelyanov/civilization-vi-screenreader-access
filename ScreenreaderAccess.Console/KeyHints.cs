@@ -8,6 +8,7 @@ namespace ScreenreaderAccess.Console;
 public static class KeyHints
 {
     private const string Open = "[KEY:";
+    private const string PadOpen = "[PAD:";
 
     private static readonly Dictionary<string, string> ButtonNames = new(StringComparer.Ordinal)
     {
@@ -37,9 +38,12 @@ public static class KeyHints
     private static readonly HashSet<string> ShiftKeys = new(StringComparer.OrdinalIgnoreCase)
         { "Enter", "Home", "End", "Up", "Down", "Left", "Right", "Arrows", "arrow keys" };
 
+    /// <summary>Also handles [PAD:text] (Lua SRPadHint): pad = the text itself, keyboard = removed. The text holds no ']'.</summary>
     public static string Expand(string text, bool pad)
     {
-        if (string.IsNullOrEmpty(text) || !text.Contains(Open, StringComparison.Ordinal)) return text;
+        if (string.IsNullOrEmpty(text)) return text;
+        if (text.Contains(PadOpen, StringComparison.Ordinal)) text = ExpandPad(text, pad);
+        if (!text.Contains(Open, StringComparison.Ordinal)) return text;
         StringBuilder sb = new();
         int pos = 0;
         while (pos < text.Length)
@@ -57,6 +61,24 @@ public static class KeyHints
                 sb.Append(text, start, end - start + 1);   // malformed: left as is
             else
                 sb.Append(pad ? PadText(kb, button) : kb);
+            pos = end + 1;
+        }
+        sb.Append(text, pos, text.Length - pos);
+        return sb.ToString();
+    }
+
+    private static string ExpandPad(string text, bool pad)
+    {
+        StringBuilder sb = new();
+        int pos = 0;
+        while (pos < text.Length)
+        {
+            int start = text.IndexOf(PadOpen, pos, StringComparison.Ordinal);
+            if (start < 0) break;
+            int end = text.IndexOf(']', start + PadOpen.Length);
+            if (end < 0) break;   // unclosed: the rest stays as is
+            sb.Append(text, pos, start - pos);
+            if (pad) sb.Append(text, start + PadOpen.Length, end - start - PadOpen.Length);
             pos = end + 1;
         }
         sb.Append(text, pos, text.Length - pos);

@@ -431,7 +431,7 @@ function Read-NewLogLines {
 
 # The mod marks key names in speech as [KEY:keyboard] / [KEY:keyboard|button] (SRKey); the console app picks one at speech time.
 # The harness and the regress scripts always see the keyboard wording.
-function Expand-KeyHints([string]$text) { return [regex]::Replace($text, '\[KEY:([^\]|]+)(?:\|[^\]]*)?\]', '$1') }
+function Expand-KeyHints([string]$text) { $text = [regex]::Replace($text, '\[PAD:[^\]]*\]', ''); return [regex]::Replace($text, '\[KEY:([^\]|]+)(?:\|[^\]]*)?\]', '$1') }   # [PAD:x] = pad-only text, dropped in the keyboard view
 
 function Format-Lines($lines) {
     foreach ($l in $lines) {

@@ -104,6 +104,12 @@ function SRKey( keyboard:string, button:string )
 	return "[KEY:" .. keyboard .. "]";
 end
 
+-- Text spoken ONLY when the player last used the gamepad (the console app keeps `text` for the pad, removes the token for the keyboard).
+-- For hints that make no sense on the keyboard, e.g. SRPadHint( ", Y for details" ). `text` must not contain ']'.
+function SRPadHint( text:string )
+	return "[PAD:" .. text .. "]";
+end
+
 -- Prepares game text (with [NEWLINE] and [ICON_x] style markup) for speech.
 function CleanTextForSpeech(text: string)
 	if text == nil then return ""; end
