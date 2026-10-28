@@ -1,0 +1,14 @@
+# Written blind 2026-10-28 (not yet recorded). Bug bug-denounce-popup-size-tags: the Denounce confirm popup spoke "[SIZE_16]Denounce, [SIZE_12]"; popup buttons are spoken without markup. The Casus Belli submenu said "5 options" twice.
+# covers: **/PopupDialog.lua **/DiplomacyActionView.lua
+# no-share-load: Enter in diplomacy starts a session with an AI civ
+load bug-denounce-popup-size-tags
+clear-advisors
+action KeyNavDiplomacy -Settle 1500
+key Enter -Settle 3000
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+expect-not \[SIZE_
+expect-not \[COLOR
+expect-not options, \d+ options
+no-lua-errors

@@ -5,6 +5,7 @@
 -- ===========================================================================
 HubCore = {};
 
+HubCore.m_turnLineSpoken = nil;		-- text of the last "Turn N, year" line, never spoken twice (HubCore.Announce)
 HubCore.m_lastAnnouncedTurn = "";		-- "<local player>:<turn>" of the last turn announcement (hotseat: every player hears their turn)
 HubCore.m_cursorPlayer = -1;		-- local player the cursor belongs to
 HubCore.m_ready = false;	-- a game is loaded (LoadScreenClose seen): event announcements are allowed
@@ -314,6 +315,11 @@ end
 -- kind: "selection" (unit/city selected), "settle", "turn", "ready", or nil.
 function HubCore.Announce( text:string, nointerrupt:boolean, kind:string )
 	if text == nil or text == "" then return; end
+	-- the "Turn N, year" line is said once per turn, whatever popups (advisors ...) come and go afterwards
+	if kind == "turn" and string.find( text, "^Turn %d+, " ) then
+		if HubCore.m_turnLineSpoken == text then return; end
+		HubCore.m_turnLineSpoken = text;
+	end
 	local speech:table = HubCore.m_speech;
 	if HubCore.IsSpeechHeld() or #speech.queue > 0 then
 		QueueSpeech( speech.queue, text, kind );
