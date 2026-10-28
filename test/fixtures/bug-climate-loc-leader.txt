@@ -1,0 +1,7 @@
+turn: 229
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: World Climate CO2 top contributor reads LOC_LEADER_MONTEZUMA_NAME
+mod commit: cff67b6
+created: 2026-10-28
+size: 1490 KB

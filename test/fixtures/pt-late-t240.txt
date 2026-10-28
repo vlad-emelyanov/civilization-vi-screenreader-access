@@ -1,0 +1,7 @@
+turn: 240
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain end 2: Lugdunum, world congress passed, trader to Hong Kong, Quadrireme bought
+mod commit: cff67b6
+created: 2026-10-28
+size: 1545 KB

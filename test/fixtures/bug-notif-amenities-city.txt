@@ -1,0 +1,7 @@
+turn: 236
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Need More Amenities notification title lacks city name (Choose Production names it)
+mod commit: cff67b6
+created: 2026-10-28
+size: 1524 KB

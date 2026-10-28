@@ -1,0 +1,7 @@
+turn: 231
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Climate Accords in World Congress speaks only the flavor quote, no effect text
+mod commit: cff67b6
+created: 2026-10-28
+size: 1503 KB
