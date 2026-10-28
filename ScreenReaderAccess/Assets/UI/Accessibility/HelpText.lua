@@ -126,7 +126,7 @@ local m_sections:table = {
 		{ action = "PrevCity",			default = "Shift+9",	text = "previous city" },
 		{ keys = "Tab",					text = "with a city selected: production panel" },
 		{ keys = "Tab",					text = "in the city report: production panel of that city (the unit actions menu opens only from the map)" },
-		{ keys = "Tab and Control+Tab",	text = "in the production panel: production, queue, purchase with gold, purchase with faith" },
+		{ keys = "Tab and Control+Tab",	text = "in the production panel: production, queue, purchase with gold, purchase with faith; the item you were on stays focused. The panel opens on the production in progress, and Enter on another item says what it replaces" },
 		{ keys = "Enter",				text = "in the production panel: produce or buy; districts and wonders start the placement mode" },
 		{ action = "KeyNavCityReport",	default = "Control+I",	text = "city report: yields, growth, amenities, loyalty, defense, districts, citizens, religion" },
 		{ keys = "Space",				text = "in the city report: the breakdown of the entry" },
