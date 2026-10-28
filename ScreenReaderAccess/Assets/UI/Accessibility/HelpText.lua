@@ -167,7 +167,7 @@ local m_sections:table = {
 		{ action = "ToggleWorldClimate",default = "Page Down",	text = "world climate (Gathering Storm): Tab switches overview, CO2, history" },
 		{ action = "OpenCivilopedia",	default = "F9",			text = "civilopedia: Tab sections, Enter opens a page or link, Backspace back (controller: left trigger), F search" },
 		{ keys = "Delete in options",		text = "options, key bindings: Delete (controller: X) clears the selected binding" },
-		{ action = "KeyNavDiplomacy",	default = "V",			text = "diplomacy: you first, then civilizations met, each with score, military, science, culture, gold and faith; Enter opens the diplomacy screen with that leader" },
+		{ action = "KeyNavDiplomacy",	default = "V",			text = "diplomacy: the civilizations met first, you last (Up from the first civilization wraps to you), each with score, military, science, culture, gold and faith; Enter opens the diplomacy screen with that leader" },
 		{ action = "KeyNavStanding",	default = "Control+R",	text = "where you stand among the civilizations you have met: rank in score, military, science, culture, gold and faith, and your weakest category" },
 		{ keys = "Tab and Control+Tab",	text = "deal screen: Deal, your items, their items, actions; S reads the summary (controller: X)" },
 		{ keys = "Left and Right",		text = "deal screen: change a gold or resource amount by 1, with Shift by 10" },

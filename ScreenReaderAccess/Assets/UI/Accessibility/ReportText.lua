@@ -59,14 +59,14 @@ end
 function ReportText_CityIncome( name:string, entries:table )
 	local list:string = ReportText_YieldList( entries, true );
 	if list == "" then list = "no yields"; end
-	return name .. ": " .. list;
+	return name .. ", " .. list;
 end
 
 -- One row of the source breakdown: "Library: science plus 2, culture plus 1" (name alone when it yields nothing)
 function ReportText_LineItem( name:string, entries:table )
 	local list:string = ReportText_YieldList( entries, true );
 	if list == "" then return name; end
-	return name .. ": " .. list;
+	return name .. ", " .. list;
 end
 
 -- "Gold: income plus 30, expenses minus 12, net plus 18, balance 245"
@@ -89,9 +89,9 @@ function ReportText_UnitExpense( name:string, count:number, maintenance:number )
 	return name .. ", " .. ReportText_Plural( count, "unit", "units" ) .. ", minus " .. Num( maintenance ) .. " gold";
 end
 
--- "Rome, Library: minus 1 gold"
+-- "Rome, Library, minus 1 gold"
 function ReportText_BuildingExpense( city:string, building:string, maintenance:number )
-	return city .. ", " .. building .. ": minus " .. Num( maintenance ) .. " gold";
+	return city .. ", " .. building .. ", minus " .. Num( maintenance ) .. " gold";
 end
 
 -- thing: "4 gold per turn" or "2 Silk"

@@ -1253,6 +1253,7 @@ function SRA_HandleInput( input:table )
 			if key == Keys.VK_RETURN then action = ( m_srConfirm.kind == "travel" ) and SRA_ConfirmTravel or SRA_ConfirmMission;
 			elseif key == Keys.VK_ESCAPE then action = SRA_Back;
 			elseif key == Keys.VK_SPACE then action = SRA_ReadConfirmDetail;
+			elseif key == Keys.VK_UP or key == Keys.VK_DOWN then action = ( m_srConfirm.kind == "travel" ) and SRA_AskTravel or SRA_AskMission;		-- nothing to move to: repeat the question
 			end
 			if action ~= nil then
 				local ok:boolean, err = xpcall( action, KeyNavErrorHandler );

@@ -225,7 +225,7 @@ local function SRA_YieldsItems()
 			table.insert( lines, ReportText_BuildingExpense( e.city, e.name, e.maintenance ) );
 		end
 		table.insert( items, { key = "bexp:total", section = "Building expenses",
-			text = "Building expenses: minus " .. sum .. " gold in total, " .. ReportText_Plural( #lines, "entry", "entries" ),
+			text = "Minus " .. sum .. " gold in total, " .. ReportText_Plural( #lines, "entry", "entries" ),
 			detail = table.concat( lines, ". " ) } );
 		for i, e in ipairs( m_srBuildingExpenses ) do
 			table.insert( items, { key = "bexp:" .. i, section = "Building expenses", text = ReportText_BuildingExpense( e.city, e.name, e.maintenance ) } );
@@ -240,7 +240,7 @@ local function SRA_YieldsItems()
 			sum = sum + e.maintenance;
 		end
 		table.sort( sorted, function( a, b ) return a.name < b.name; end );
-		table.insert( items, { key = "uexp:total", section = "Unit expenses", text = "Unit maintenance: minus " .. sum .. " gold in total" } );
+		table.insert( items, { key = "uexp:total", section = "Unit expenses", text = "Minus " .. sum .. " gold in total" } );
 		for _, e in ipairs( sorted ) do
 			table.insert( items, { key = "uexp:" .. e.name, section = "Unit expenses", text = ReportText_UnitExpense( e.name, e.count, e.maintenance ) } );
 		end

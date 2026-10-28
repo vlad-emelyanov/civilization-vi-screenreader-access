@@ -157,7 +157,7 @@ function WCText_ProposalLine( title, description, votes, cost, costData, hint )
 		text = text .. ", no votes yet";
 		if hint then text = text .. ", " .. SRKey( "equals", "X" ) .. " votes for, " .. SRKey( "minus", "LT" ) .. " votes against"; end
 	else
-		text = text .. ", your votes: " .. WCText_Plural( math.abs( votes ), "vote" ) .. ( votes > 0 and " for" or " against" );
+		text = text .. ", your votes: " .. WCText_Plural( math.abs( votes ), "vote" ) .. ( votes > 0 and " for it" or " against it" );
 		if cost ~= nil and cost > 0 then text = text .. ", costs " .. cost .. " favor"; end
 		local step:string;
 		if votes > 0 then
