@@ -1933,10 +1933,17 @@ local function SRA_NotificationTexts( pNotification:table )
 	-- title, so several look identical in the list: lead with the type, then the city ("Choose Production: Antium").
 	-- Only our own cities, and not for notifications about a unit or spy (they merely stand in a city): those keep their title.
 	local typeName:string = pNotification:GetTypeName();
-	if typeName ~= "NOTIFICATION_CITYSTATE_USURPED" and pNotification:IsLocationValid()
+	if typeName ~= "NOTIFICATION_CITYSTATE_USURPED"
 			and not string.find( typeName, "UNIT", 1, true ) and not string.find( typeName, "SPY", 1, true ) then
-		local x:number, y:number = pNotification:GetLocation();
-		local pCity:table = CityManager.GetCityAt( x, y );
+		local pCity:table = nil;
+		if pNotification:IsLocationValid() then
+			local x:number, y:number = pNotification:GetLocation();
+			pCity = CityManager.GetCityAt( x, y );
+		elseif pNotification:IsTargetValid() then
+			-- "Choose Production" has no location, its target is (player, city id)
+			local targetPlayer, targetID = pNotification:GetTarget();
+			if targetPlayer ~= nil and Players[ targetPlayer ] ~= nil and targetID ~= nil then pCity = Players[ targetPlayer ]:GetCities():FindID( targetID ); end
+		end
 		if pCity ~= nil and pCity:GetOwner() == Game.GetLocalPlayer() then
 			local cityName:string = Locale.Lookup( pCity:GetName() );
 			if cityName ~= "" and not string.find( message, cityName, 1, true ) and not string.find( summary, cityName, 1, true ) then

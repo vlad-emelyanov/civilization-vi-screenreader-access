@@ -1,0 +1,10 @@
+# Choose Production notifications name their city in the list ("Choose Production: Rome").
+# covers: **/NotificationPanel.lua
+load bug-pad-prod-focus
+clear-advisors
+action KeyNavNotifications -Settle 2000
+key Down -Settle 400
+key Down -Settle 400
+expect ^Choose Production: \w+
+key Escape -Settle 800
+no-lua-errors
