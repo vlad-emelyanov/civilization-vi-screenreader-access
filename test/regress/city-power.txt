@@ -1,0 +1,20 @@
+# Written blind 2026-10-28 (C7, not yet recorded). pt-modern-t176: the scenario gives Rome a Research Lab (needs 3 power), so the capital's city report has a Power entry right after Loyalty.
+# covers: **/CityReportData.lua **/CityReportGather.lua
+# no-share-load: scenario adds a building
+load pt-modern-t176
+clear-advisors
+scenario city-power
+action CapitalCity -Settle 1500
+key Control+I -Settle 2500
+expect ^.+ report, \d+ options
+key Down -Settle 800
+key Down -Settle 800
+key Down -Settle 800
+expect ^Loyalty \d+
+key Down -Settle 800
+expect ^Power \d+ of \d+ needed, underpowered
+key Space -Settle 1500
+expect Needed by: .*Research Lab
+key Escape -Settle 1500
+expect ^Closed
+no-lua-errors
