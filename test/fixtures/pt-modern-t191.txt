@@ -1,0 +1,7 @@
+turn: 191
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: t191 after 15 turns: Factory + Coal Power Plant in Rome (powered), Spy in Rome on counterspy, Bodyguard of Lies dedication, gold ~+11
+mod commit: f197d23
+created: 2026-10-28
+size: 1051 KB
