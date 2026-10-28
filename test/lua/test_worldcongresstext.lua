@@ -99,3 +99,11 @@ test("ReviewProposal", function()
 	eq(WCText_ReviewProposal("Emergency", "Help.", 5, 2), "Emergency passed, 5 for, 2 against. Help")
 	eq(WCText_ReviewProposal("Emergency", nil, 1, 4), "Emergency failed, 1 for, 4 against")
 end)
+
+test("ResolutionLine: omitName speaks only the option, hints are SRKey tokens", function()
+	local d = { name = "Arms Control", focus = 2, effect = "No nukes", chosen = 0, votes = 0, cost = 0, needsTarget = false, hint = true, omitName = true }
+	eq(WCText_ResolutionLine(d), "Option B: No nukes, no votes yet, equals adds a vote, Left and Right switch option")
+	eq(WCText_ResolutionLine(d), "Option B: No nukes, no votes yet, [KEY:equals|X] adds a vote, [KEY:Left and Right] switch option")
+	d.omitName = false
+	eq(WCText_ResolutionLine(d), "Arms Control, option B: No nukes, no votes yet, equals adds a vote, Left and Right switch option")
+end)

@@ -123,22 +123,27 @@ end
 -- One resolution while voting.
 -- d: name, focus (1/2, the option being looked at), effect (text of the focused option), chosen (0/1/2, the option
 -- holding the votes), votes, cost, target (text or nil), needsTarget (bool);
--- optional: costData (GetVotesandFavorCost, adds "equals adds a vote for N favor"), hint (bool, adds the key hint when no votes)
+-- omitName (bool, only "Option B: ..." without the resolution name); optional: costData (GetVotesandFavorCost, adds "equals adds a vote for N favor"), hint (bool, adds the key hint when no votes)
 function WCText_ResolutionLine( d )
 	local letter:string = WCText_Letter( d.focus );
-	local parts:table = { d.name .. ", option " .. letter .. ": " .. WCText_Strip( d.effect ) };
+	local parts:table;
+	if d.omitName then		-- a Left / Right switch within the resolution: the name was just spoken
+		parts = { "Option " .. letter .. ": " .. WCText_Strip( d.effect ) };
+	else
+		parts = { d.name .. ", option " .. letter .. ": " .. WCText_Strip( d.effect ) };
+	end
 	if d.chosen == d.focus and d.votes > 0 then
 		table.insert( parts, "your votes: " .. WCText_VotesPhrase( d.votes, letter, d.cost ) );
 		if d.needsTarget then
 			table.insert( parts, "target: " .. ( d.target or "none" ) );
 		end
-		local step:string = NextStep( d.votes, d.costData, "equals", "minus", "a vote" );
+		local step:string = NextStep( d.votes, d.costData, SRKey( "equals", "X" ), SRKey( "minus", "LT" ), "a vote" );
 		if step ~= "" then table.insert( parts, step ); end
 	elseif d.chosen ~= 0 and d.votes > 0 then
 		table.insert( parts, "your votes are on option " .. WCText_Letter( d.chosen ) );
 	else
 		table.insert( parts, "no votes yet" );
-		if d.hint then table.insert( parts, "equals adds a vote, Left and Right switch option" ); end
+		if d.hint then table.insert( parts, SRKey( "equals", "X" ) .. " adds a vote, " .. SRKey( "Left and Right" ) .. " switch option" ); end
 	end
 	return table.concat( parts, ", " );
 end
@@ -150,15 +155,15 @@ function WCText_ProposalLine( title, description, votes, cost, costData, hint )
 	if description ~= nil and WCText_Strip( description ) ~= "" then text = text .. ": " .. WCText_Strip( description ); end
 	if votes == nil or votes == 0 then
 		text = text .. ", no votes yet";
-		if hint then text = text .. ", equals votes for, minus votes against"; end
+		if hint then text = text .. ", " .. SRKey( "equals", "X" ) .. " votes for, " .. SRKey( "minus", "LT" ) .. " votes against"; end
 	else
 		text = text .. ", your votes: " .. WCText_Plural( math.abs( votes ), "vote" ) .. ( votes > 0 and " for" or " against" );
 		if cost ~= nil and cost > 0 then text = text .. ", costs " .. cost .. " favor"; end
 		local step:string;
 		if votes > 0 then
-			step = NextStep( votes, costData, "equals", "minus", "a vote" );
+			step = NextStep( votes, costData, SRKey( "equals", "X" ), SRKey( "minus", "LT" ), "a vote" );
 		else
-			step = NextStep( -votes, costData, "minus", "equals", "a vote against" );
+			step = NextStep( -votes, costData, SRKey( "minus", "LT" ), SRKey( "equals", "X" ), "a vote against" );
 		end
 		if step ~= "" then text = text .. ", " .. step; end
 	end

@@ -2522,6 +2522,7 @@ end
 --	OnVoteProposal, the pulldown selection callback, OnNext, OnAccept, ...), nothing is requested from the engine here.
 -- ===========================================================================
 local m_sraHintCount:number = 0;			-- resolution lines spoken since the popup opened (the key hint is said for the first 3)
+local m_sraOmitNameHash = nil;		-- resolution hash whose name is left out of the line (Left / Right option switch)
 local m_sraFocusOption:table = {};		-- resolution hash -> 1 or 2: the option the cursor looks at
 local m_sraTargetHash = nil;			-- resolution hash while the target chooser is open
 local m_sraPending:number = -1;			-- seconds until the opening announcement (< 0: none pending)
@@ -2640,6 +2641,7 @@ local function SRA_ResolutionItem( index )
 		votes = f.held and f.held.votes or 0, cost = f.held and f.held.cost or 0,
 		target = f.target, needsTarget = SRA_HasTargets( f.rd ),
 		hint = m_sraHintCount < 3,
+		omitName = ( m_sraOmitNameHash == f.hash ),
 	};
 	pcall( function() d.costData = Game.GetWorldCongress():GetVotesandFavorCost( Game.GetLocalPlayer() ); end );
 	return { key = "res:" .. f.hash, kind = "res", index = index, text = WCText_ResolutionLine( d ),
@@ -2984,7 +2986,7 @@ local function SRA_VoteResolution( item:table, direction:number )
 	local nextCost:string = WCText_NextCostPhrase( kData.votes, kCost );
 	if nextCost ~= "" then table.insert( parts, nextCost ); end
 	local after:table = SRA_ResolutionFacts( item.index );
-	if after ~= nil and after.target == nil and SRA_HasTargets( after.rd ) then table.insert( parts, "target needed, T to choose" ); end
+	if after ~= nil and after.target == nil and SRA_HasTargets( after.rd ) then table.insert( parts, "target needed, " .. SRKey( "T", "A" ) .. " to choose" ); end
 	SRA_Say( table.concat( parts, ", " ) );
 	return true;
 end
@@ -3042,7 +3044,10 @@ local function SRA_KeyHorizontal( delta:number )
 	if item == nil or item.kind ~= "res" then return; end
 	local f:table = SRA_ResolutionFacts( item.index );
 	m_sraFocusOption[ f.hash ] = ( delta < 0 ) and 1 or 2;
-	m_sraMainList.Focus( item.key );
+	m_sraOmitNameHash = f.hash;
+	local ok:boolean, err = xpcall( function() m_sraMainList.Focus( item.key ); end, KeyNavErrorHandler );
+	m_sraOmitNameHash = nil;		-- always cleared, also when Focus failed
+	if not ok then print( "WorldCongressPopup option switch error: " .. tostring( err ) ); end
 end
 
 function SRA_SwitchTab( delta:number )
@@ -3209,7 +3214,7 @@ end
 local function SRA_Help()
 	local mode:string = SRA_Mode();
 	if mode == "vote" then
-		SRA_Say( SRKey( "Up and Down" ) .. " move between resolutions and proposals. " .. SRKey( "Left and Right" ) .. " choose option A or B. " .. SRKey( "Equals or Shift Up", "X" ) .. " adds a vote, " .. SRKey( "minus or Shift Down", "LT" ) .. " removes one. T or " .. SRKey( "Enter" ) .. " chooses the target. " .. SRKey( "Space" ) .. " reads the whole resolution. " .. SRKey( "N", "RT" ) .. " or the last item reviews your votes. " .. SRKey( "Escape" ) .. " closes the screen; Resume Congress reopens it." );
+		SRA_Say( SRKey( "Up and Down" ) .. " move between resolutions and proposals. " .. SRKey( "Left and Right" ) .. " choose option A or B. " .. SRKey( "Equals or Shift Up", "X" ) .. " adds a vote, " .. SRKey( "minus or Shift Down", "LT" ) .. " removes one. " .. SRKey( "T" ) .. " or " .. SRKey( "Enter" ) .. " chooses the target. " .. SRKey( "Space" ) .. " reads the whole resolution. " .. SRKey( "N", "RT" ) .. " or the last item reviews your votes. " .. SRKey( "Escape" ) .. " closes the screen; Resume Congress reopens it." );
 	elseif mode == "summary" then
 		SRA_Say( SRKey( "Up and Down" ) .. " read your choices. " .. SRKey( "Enter" ) .. " on Submit votes, or " .. SRKey( "N", "RT" ) .. ", sends them and ends your turn. Back to voting, just before Submit, returns. " .. SRKey( "End" ) .. " jumps to Submit votes. " .. SRKey( "Escape" ) .. " closes the screen." );
 	elseif m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
@@ -3256,7 +3261,7 @@ local function SRA_Announce()
 			while costData[ free ] ~= nil and costData[ free ] == 0 do free = free + 1; end
 			if free > 0 then head = head .. ", " .. WCText_Plural( free, "free vote" ) .. " each"; end
 		end
-		hint = "H for keys";
+		hint = SRKey( "H", "View" ) .. " for keys";
 	elseif mode == "summary" then
 		head = "Review your votes. " .. ( m_StartingFavor - m_WorkingFavor ) .. " favor spent, " .. m_WorkingFavor .. " left";
 		hint = SRKey( "Enter" ) .. " on Submit votes sends them";
@@ -3334,6 +3339,7 @@ function SRA_CreateLists()
 	end );
 	Bind( Keys.N, SRA_Forward );
 	Bind( Keys.H, SRA_Help );
+	Bind( Gamepad.Key( "View" ), SRA_Help );		-- controller: View = H (keys)
 	m_sraMainList = KeyNavList_Create{
 		build = SRA_BuildItems,
 		onFocus = function( item:table ) if item.kind == "res" or item.kind == "prop" then m_sraHintCount = m_sraHintCount + 1; end end,

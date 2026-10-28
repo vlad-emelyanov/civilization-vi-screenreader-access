@@ -49,7 +49,7 @@ end
 function SRA_SayIntro()
 	if SRA_InGamePopupOpen() then return; end		-- the other popup speaks first, the intro again once it is closed
 	OutputMessageToScreenReader( CleanTextForSpeech( Controls.Title:GetText() ) .. ". " .. CleanTextForSpeech( Controls.Body1:GetText() ) .. " " ..
-		CleanTextForSpeech( Controls.Body2:GetText() ) .. " Enter to begin voting.", true );
+		CleanTextForSpeech( Controls.Body2:GetText() ) .. " " .. SRKey( "Enter" ) .. " to begin voting.", true );
 end
 
 -- ===========================================================================
