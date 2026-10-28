@@ -258,6 +258,8 @@ local function PowerItem( d:table )
 	if #made > 0 then table.insert( detail, "Generates: " .. Join( made ) ); end
 	if p.advice ~= nil and p.advice ~= "" then table.insert( detail, Clean( p.advice ) ); end
 	if #detail == 0 then table.insert( detail, text ); end
+	-- the LOC descriptions and the advice end with a period: strip it before joining with ". "
+	for i, part in ipairs( detail ) do detail[i] = string.gsub( part, "[%.%s]+$", "" ); end
 	return { key = "power", text = text, detail = Join( detail, ". " ) };
 end
 

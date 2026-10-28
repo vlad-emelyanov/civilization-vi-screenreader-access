@@ -176,7 +176,9 @@ test("power: underpowered, powered, none needed, generates only, absent", functi
 		generated = {}, advice = "Build a power plant." }
 	local item = find(CityReport_BuildItems(d), "power")
 	eq(item.text, "Power 4 of 6 needed, underpowered")
-	contains(item.detail, "From: Coal Power Plant 4. Needed by: Factory 2, Stadium 4. Build a power plant.")
+	contains(item.detail, "From: Coal Power Plant 4. Needed by: Factory 2, Stadium 4. Build a power plant")
+	eq(item.detail:find("..", 1, true), nil)
+	eq(item.detail:sub(-1) ~= ".", true)
 	d.power = { current = 6, required = 6, generatedTotal = 0, status = "powered", consumed = {}, needed = {}, generated = {} }
 	eq(find(CityReport_BuildItems(d), "power").text, "Power 6 of 6, powered")
 	d.power = { current = 0, required = 0, generatedTotal = 0, status = "none" }
