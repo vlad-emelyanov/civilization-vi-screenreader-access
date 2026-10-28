@@ -16,6 +16,7 @@ include("SRListen");		-- ScreenReaderAccess: removable listeners
 include("KeyNavList");		-- ScreenReaderAccess: keyboard navigation of the item list
 include("PlacementScan");		-- ScreenReaderAccess: Space on a district says where it fits best
 include("DistrictAdvice");
+include("ProductionText");
 
 -- ===========================================================================
 --	Constants
@@ -2684,6 +2685,7 @@ local function SRA_ResolvePending( fromEvent:boolean )
 		local text:string = ( pending.queueMode and "Queued " or "Producing " ) .. pending.name;
 		if pending.repair then text = ( pending.queueMode and "Queued repair of " or "Repairing " ) .. pending.name; end
 		if pending.turns ~= nil and not pending.queueMode then text = text .. ", " .. pending.turns; end
+		if not pending.repair then text = ProductionText_Replaces( text, pending.replaces, pending.name ); end
 		if not m_srActive then text = text .. ". Production closed"; end		-- the panel closed itself (units, projects)
 		OutputMessageToScreenReader( text );
 	elseif pending.kind == "buy" then
@@ -2758,6 +2760,10 @@ local function SRA_OnActivate( item:table )
 		kind = "produce", name = name, queueMode = queueMode, repair = ( kItem.Repair == true ), turns = SRA_TurnsText( kItem.TurnsLeft ),
 		hash0 = queue:GetCurrentProductionTypeHash(), size0 = queue:GetSize(),
 	};
+	if not queueMode and m_srPending.hash0 ~= nil and m_srPending.hash0 ~= 0 and m_srPending.hash0 ~= kItem.Hash then
+		local oldRow:table = GameInfo.Buildings[m_srPending.hash0] or GameInfo.Districts[m_srPending.hash0] or GameInfo.Units[m_srPending.hash0] or GameInfo.Projects[m_srPending.hash0];
+		if oldRow ~= nil then m_srPending.replaces = Locale.Lookup( oldRow.Name ); end
+	end
 	-- A repair needs no placement: if the game refuses it (e.g. an enemy unit on the district), say why instead of closing silently.
 	if kItem.Repair and ( item.kind == "district" or item.kind == "building" ) then
 		-- The engine accepts the order (CanProduce is true) but drops it silently while an enemy unit stands on the district:
@@ -2816,7 +2822,7 @@ local function SRA_OnClose()
 	end
 end
 
-local function SRA_Announce( keepGuard:boolean )
+local function SRA_Announce( keepGuard:boolean, keepKey:string )
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
 	local mode:number = m_CurrentListMode;
@@ -2831,7 +2837,7 @@ local function SRA_Announce( keepGuard:boolean )
 		local hash:number = queue ~= nil and queue:GetCurrentProductionTypeHash() or 0;
 		if hash ~= nil and hash ~= 0 then
 			local row:table = GameInfo.Buildings[hash] or GameInfo.Districts[hash] or GameInfo.Units[hash] or GameInfo.Projects[hash];
-			if row ~= nil then title = title .. ", currently " .. Locale.Lookup( row.Name ); end
+			if row ~= nil then title = title .. ", " .. ProductionText_Current( Locale.Lookup( row.Name ), SRA_TurnsText( queue:GetTurnsLeft() ) ); end
 		end
 		if mode == LISTMODE.PROD_QUEUE then title = title .. ", queue"; end
 	end
@@ -2840,11 +2846,20 @@ local function SRA_Announce( keepGuard:boolean )
 	-- Enter-Enter then builds what the title announces); a recommended wonder or district is only named in the title (a second
 	-- Enter would start its placement by accident). Otherwise on the first item that can be built (the top of the list).
 	local firstChoosable = nil;
+	local currentKey = nil;
+	local carriedKey = nil;
+	local currentHash:number = 0;
+	do
+		local q:table = city:GetBuildQueue();
+		if q ~= nil then currentHash = q:GetCurrentProductionTypeHash() or 0; end
+	end
 	local recommendedKey = nil;
 	local recommendedName = nil;
 	for _, item in ipairs( SRA_GetItems() ) do
 		if item.choosable then
 			if firstChoosable == nil then firstChoosable = item.key; end
+			if currentKey == nil and currentHash ~= 0 and not item.purchase and item.data ~= nil and item.data.Hash == currentHash then currentKey = item.key; end
+			if carriedKey == nil and keepKey ~= nil and ProductionText_Identity( item.key ) == keepKey then carriedKey = item.key; end
 			if item.recommended and recommendedName == nil and item.data ~= nil and item.data.Name ~= nil then
 				recommendedName = Locale.Lookup( item.data.Name );
 				if item.kind ~= "district" and item.kind ~= "wonder" then recommendedKey = item.key; end
@@ -2861,6 +2876,10 @@ local function SRA_Announce( keepGuard:boolean )
 	end
 	-- a repair at the top stays focused: it is urgent
 	if recommendedKey ~= nil and not firstIsRepair and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then firstChoosable = recommendedKey; end
+	-- the item focused before a Tab stays focused when the new tab lists it; else the production in progress (so a quick Enter
+	-- cannot replace it by accident); a repair at the top and the recommendation come first otherwise
+	if currentKey ~= nil and not firstIsRepair and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then firstChoosable = currentKey; end
+	if carriedKey ~= nil then firstChoosable = carriedKey; end
 	m_srList.Open( title, firstChoosable, false, keepGuard );
 end
 
@@ -2878,8 +2897,9 @@ local function SRA_SwitchTab( delta:number )
 	end
 	local nextEntry:table = tabs[ ( current - 1 + delta ) % #tabs + 1 ];
 	m_srPending = nil;
+	local keepKey:string = ProductionText_Identity( m_srList.GetFocusKey() );
 	m_tabs.SelectTab( nextEntry.tab );
-	SRA_Announce( true );
+	SRA_Announce( true, keepKey );
 	m_srList.DisarmGuard();		-- Tab is deliberate: an Enter right after it chooses (the guard only covers a double Enter on the real open)
 end
 local function SRA_NextTab() SRA_SwitchTab( 1 ); end

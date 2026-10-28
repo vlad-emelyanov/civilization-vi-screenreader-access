@@ -84,7 +84,7 @@ globals = {
 	"TreeText_Detail", "TreeText_Queue", "TreeText_Group", "TreeText_Match", "TreeNav_Create", "TreeNav_ItemName", "TreeNav_Round",
 	"GreatWorksText_Plural", "GreatWorksText_SlotWord", "GreatWorksText_Yields", "GreatWorksText_Work", "GreatWorksText_Theming", "GreatWorksText_Header",
 	"GreatWorksText_Slot", "GreatWorksText_Destination", "GreatWorksText_Summary", "GreatWorksText_Pickup", "GreatWorksText_Moved", "GreatWorksText_Showcase",
-	"ClimateText_Plural", "ClimateText_Signed", "ClimateText_Percent", "ClimateText_Tab", "ClimateText_Phase", "ClimateText_Temperature",
+	"ProductionText_Current", "ProductionText_Replaces", "ProductionText_Identity", "ClimateText_Plural", "ClimateText_Signed", "ClimateText_Percent", "ClimateText_Tab", "ClimateText_Phase", "ClimateText_Temperature",
 	"ClimateText_Contribution", "ClimateText_Summary", "ClimateText_Chance", "ClimateText_Volcanoes", "ClimateText_Row", "ClimateText_Event", "ClimateText_Effects",
 	"TreatClanText_Opening", "TreatClanText_Target", "TreatClanText_Item", "TreatClanText_Result",
 	"PlotDescription_ResetClanMode", "PlotDescription_GetClan", "PlotDescription_GetClanPhrase", "PlotDescription_CanTreatWithClan",
