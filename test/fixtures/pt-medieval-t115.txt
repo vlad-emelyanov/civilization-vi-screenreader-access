@@ -1,0 +1,7 @@
+turn: 115
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Medieval war play-test end: Edirne captured+kept (loyalty 22, falling), at peace with Ottomans, Antium founded, bankrupt (gold 0, -17/turn), barbarians raiding Rome
+mod commit: 0d592fc
+created: 2026-10-28
+size: 998 KB

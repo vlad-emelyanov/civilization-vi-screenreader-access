@@ -1,0 +1,7 @@
+turn: 104
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Crossbowman and Catapult in Rome say 'no enemy it can target in range' with barbarian archer adjacent (hp37) and man-at-arms 2 tiles away; city ranged attack works; catapult worked last turn
+mod commit: 0d592fc
+created: 2026-10-28
+size: 967 KB

@@ -1,0 +1,7 @@
+turn: 100
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Denounce confirm popup: Down reads '[SIZE_16]Denounce, [SIZE_12]' instead of Yes/No wording; diplomacy popup open now
+mod commit: 0d592fc
+created: 2026-10-28
+size: 946 KB

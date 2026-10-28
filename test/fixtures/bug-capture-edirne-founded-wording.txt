@@ -1,0 +1,7 @@
+turn: 114
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Edirne just captured (setup: tuner damaged city + spawned MAA): speech says 'Edirne founded'; no Keep/Raze popup appeared; check advisor popups and notifications
+mod commit: 0d592fc
+created: 2026-10-28
+size: 994 KB
