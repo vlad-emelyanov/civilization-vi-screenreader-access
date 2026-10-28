@@ -1,0 +1,15 @@
+# Written blind 2026-10-28 (not yet recorded; run with civregress --record first). Places (J): the "Foreign lands" category lists one item per met civ / city-state whose territory is revealed, at the nearest revealed border tile; Control+Shift+Right jumps the map cursor 5 tiles and reads the tile.
+# covers: **/HubPlaces.lua **/HubCursor.lua UI/Additions/InGameAccess.lua Database/keynav_queries_configuration.sql **/HelpText.lua
+load pt-medieval-t115
+clear-advisors
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+# the category index depends on the fixture (threats, notifications ...), so Tab walks every category (it wraps) and the checks look at the whole window
+key Tab -Settle 700 -Count 9
+expect Foreign lands, \d+ of \d+ categories, \d+ items?\.
+expect , (city-state )?border, .*(tiles? |here)
+key Escape -Settle 1200
+expect ^Closed
+action KeyNavJumpCellRight -Settle 1200
+expect \S
+no-lua-errors

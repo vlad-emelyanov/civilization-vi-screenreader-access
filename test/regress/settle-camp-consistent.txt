@@ -10,11 +10,9 @@ expect but barbarian camp
 key Down -Settle 600
 key Escape -Settle 800
 action KeyNavPlaces -Settle 1500
-key Control+Tab -Settle 800
-key Control+Tab -Settle 800
-key Control+Tab -Settle 800
-key Control+Tab -Settle 800
-expect ^Points of interest, 3 of 6 categories, 6 items
+key Tab -Settle 800
+key Tab -Settle 800
+expect ^Points of interest, 3 of \d+ categories, 6 items
 key Down -Count 5 -Settle 600
 expect Barbarian Outpost
 key Escape -Settle 800
