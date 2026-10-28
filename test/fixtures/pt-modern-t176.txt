@@ -5,3 +5,41 @@ purpose: t176: Flight researched, Aerodrome building, Biplane needs Oil, 3 citie
 mod commit: 25ec773
 created: 2026-10-24
 size: 969 KB
+facts: (civctl fixture-info 2026-10-28)
+  turn: 176 (your turn)
+  civ: ROME / TRAJAN
+  era: MODERN
+  government: OLIGARCHY
+  research: tech STEEL, civic MASS_MEDIA
+  gold: 8 (-9.3/turn)
+  faith: 388 (+0.0/turn)
+  diplomatic favor: 58
+  cities:
+    - Rome pop 11; districts [NEIGHBORHOOD DAM CAMPUS HARBOR AERODROME]; buildings [MONUMENT PALACE GRANARY LIBRARY WALLS LIGHTHOUSE CASTLE UNIVERSITY SEWER]
+    - Antium pop 8; districts []; buildings [MONUMENT GRANARY WALLS WATER_MILL CASTLE]
+    - Lugdunum pop 4; districts []; buildings [MONUMENT GRANARY WALLS CASTLE SEWER]
+  units: BUILDER x5 (5 with moves), FIELD_CANNON x2 (2 with moves), FRIGATE x1 (1 with moves), PIKE_AND_SHOT x2 (2 with moves), RANGER x1 (1 with moves), TRADER x2 (2 with moves)
+  trade routes: 2 of 2 slots used
+  met civs: GREECE, NORWAY
+  city-states met: 3 met (GENEVA, HATTUSA, FREE_CITIES); envoy tokens to give: 0
+  great people points: none
+  religion: pantheon DESERT_FOLKLORE, founded no
+  spies: 0
+  governors: points 8 spent 4, appointed [THE_DEFENDER THE_AMBASSADOR]
+  blockers: ENDTURN_BLOCKING_UNITS
+  hostile units near cities:
+    - PIKE_AND_SHOT (barbarian) 4 tiles from Lugdunum at 38,31
+  unimproved resources in city plots:
+    - ANTIQUITY_SITE at 49,27 in Antium: no improvement
+    - CATTLE at 51,33 in Rome: PASTURE (tech known ANIMAL_HUSBANDRY)
+    - INCENSE at 48,27 in Antium: PLANTATION (tech known IRRIGATION)
+    - JADE at 42,30 in Lugdunum: MINE (tech known MINING)
+    - RICE at 50,30 in Rome: FARM (no prerequisite)
+    - RICE at 51,29 in Antium: FARM (no prerequisite)
+    - SILK at 50,27 in Antium: PLANTATION (tech known IRRIGATION)
+    - SILK at 50,32 in Rome: PLANTATION (tech known IRRIGATION)
+    - STONE at 53,32 in Rome: QUARRY (tech known MINING)
+    - TRUFFLES at 50,34 in Rome: CAMP (tech known ANIMAL_HUSBANDRY)
+    - WHEAT at 39,29 in Lugdunum: FARM (no prerequisite)
+  barbarian camps seen:
+    - camp at 38,31 (visible now), 4 tiles from Lugdunum
