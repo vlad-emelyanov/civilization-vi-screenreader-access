@@ -98,6 +98,7 @@ HubMenus.OPERATION_RESULTS.UNITOPERATION_DEPLOY = function() return CursorTarget
 local RESULT_SILENT = {
 	UNITOPERATION_FOUND_CITY = true, UNITOPERATION_BUILD_IMPROVEMENT = true, UNITCOMMAND_UPGRADE = true, PROMOTION = true,
 	UNITOPERATION_MOVE_TO = true, UNITCOMMAND_PROMOTE = true,
+	UNITCOMMAND_DELETE = true,		-- the yes/no popup announces itself; Escape/No says "Delete cancelled" (UnitPanel.OnNoDelete)
 };
 
 function HubMenus.OnUnitActionsReceived( unitId:number, list:table )

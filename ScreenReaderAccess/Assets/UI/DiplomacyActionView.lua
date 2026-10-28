@@ -22,6 +22,8 @@ local m_srList			:table = nil;
 local m_srOverviewList	:table = nil;	-- the overview (things you can propose) as a keyboard list
 local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" / "war"), nil = top level
 local m_srPendingAnswer	:string = nil;	-- key of the answer chosen while a cinema scene was showing
+local m_srLeavingAt			:number = 0;		-- time Goodbye was chosen; m_srLeaving never lasts longer than 3 s (SRA_IsLeaving)
+local m_srLeaving			:boolean = false;	-- Goodbye was chosen: the screen closes when the session ends, and takes no answers meanwhile
 
 
 -- ===========================================================================
@@ -504,7 +506,10 @@ end
 function OnSelectConversationDiplomacyStatement(key)
 
 	if (key == "CHOICE_EXIT") then
+		m_srLeaving = ( ms_currentViewMode == CONVERSATION_MODE );
+		m_srLeavingAt = UI.GetElapsedTime();		-- ScreenReaderAccess: Goodbye closes the screen (the overview behind it would take the next Enter as "declare friendship")
 		ExitConversationMode(false);
+		if ms_ActiveSessionID == nil then m_srLeaving = false; end		-- no session to wait for: the overview is shown at once
 	else
 		if (key == "CHOICE_DECLARE_SURPRISE_WAR") then 
 			DiplomacyManager.AddStatement(ms_ActiveSessionID, Game.GetLocalPlayer(), "DECLARE_SURPRISE_WAR");
@@ -2530,6 +2535,7 @@ end
 function OnDiplomacySessionClosed(sessionID)
 	-- Getting this a little late?
 	if (not ms_bIsViewInitialized) then
+		m_srLeaving = false;		-- ScreenReaderAccess
 		ms_ActiveSessionID = nil;
 		m_srSelections = {};		-- ScreenReaderAccess
 		return;
@@ -2547,7 +2553,9 @@ function OnDiplomacySessionClosed(sessionID)
 				ms_bShowingDeal = false;
 			end
 
-			if (ms_InitiatedByPlayerID == ms_OtherPlayerID) then
+			local srLeaving:boolean = m_srLeaving;		-- ScreenReaderAccess
+			m_srLeaving = false;
+			if (ms_InitiatedByPlayerID == ms_OtherPlayerID or srLeaving) then
 				-- The other player initiated contact, just exit
 				Close();
 			else
@@ -2901,6 +2909,7 @@ end
 --	Guarantee close!
 -- ===========================================================================
 function Close()
+	m_srLeaving = false;		-- ScreenReaderAccess
 
 	print("Closing Diplomacy Action View. m_eventID: "..tostring(m_eventID));
 
@@ -2957,6 +2966,7 @@ end
 
 -- ===========================================================================
 function OnShow()
+	m_srLeaving = false;		-- ScreenReaderAccess
 	-- NOTE: We can get here after the OnDiplomacyStatement handler has done some setup, so don't reset too much, assume that OnHide has closed things down properly.	
 
 	Controls.AlphaIn:SetToBeginning();
@@ -2986,6 +2996,7 @@ end
 
 ----------------------------------------------------------------    
 function OnHide()
+	m_srLeaving = false;		-- ScreenReaderAccess
 
 	m_srSelections = {};		-- ScreenReaderAccess
 	LuaEvents.DiploBasePopup_HideUI(false);
@@ -3292,13 +3303,19 @@ function SRA_OnCinemaEnded()
 	if not ok then print( "DiplomacyActionView cinema error: " .. tostring( err ) ); end
 end
 
+-- Goodbye pending; self-clears after 3 s so a close event that never comes cannot leave the lists dead
+local function SRA_IsLeaving()
+	if m_srLeaving and UI.GetElapsedTime() - m_srLeavingAt > 3 then m_srLeaving = false; end
+	return m_srLeaving;
+end
+
 local function SRA_ConversationActive()
-	return not ContextPtr:IsHidden() and ms_ActiveSessionID ~= nil and ( ms_currentViewMode == CONVERSATION_MODE or ms_currentViewMode == CINEMA_MODE )
+	return not SRA_IsLeaving() and not ContextPtr:IsHidden() and ms_ActiveSessionID ~= nil and ( ms_currentViewMode == CONVERSATION_MODE or ms_currentViewMode == CINEMA_MODE )
 		and #m_srSelections > 0 and not m_PopupDialog:IsOpen();
 end
 
 local function SRA_OverviewActive()
-	return not ContextPtr:IsHidden() and ms_ActiveSessionID == nil and ms_currentViewMode == OVERVIEW_MODE and not m_PopupDialog:IsOpen()
+	return not SRA_IsLeaving() and not ContextPtr:IsHidden() and ms_ActiveSessionID == nil and ms_currentViewMode == OVERVIEW_MODE and not m_PopupDialog:IsOpen()
 		and ms_SelectedPlayerID ~= -1 and ms_SelectedPlayerID ~= ms_LocalPlayerID;
 end
 

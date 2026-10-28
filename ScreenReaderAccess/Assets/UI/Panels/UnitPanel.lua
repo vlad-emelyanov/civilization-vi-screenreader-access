@@ -2754,6 +2754,7 @@ end
 -- ===========================================================================
 function OnNoDelete()
     m_DeleteInProgress = false;
+	OutputMessageToScreenReader( "Delete cancelled", false );		-- ScreenReaderAccess mod change
 end
 
 function OnPromptToDeleteUnit()
@@ -4328,7 +4329,8 @@ end
 local function SRReasonList( tooltip:string )
 	local reasons:table = {};
 	for reason in string.gmatch( tooltip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
-		table.insert( reasons, CleanTextForSpeech( reason ) );
+		-- no trailing stop: the reasons are joined with ", " ("Too many units ... location., Insufficient ...")
+		table.insert( reasons, ( string.gsub( CleanTextForSpeech( reason ), "[%s%.]+$", "" ) ) );
 	end
 	return reasons;
 end
@@ -4705,6 +4707,11 @@ local function SRBuildActions()
 							local rowU = ( unit ~= nil ) and GameInfo.Units[ unit:GetUnitType() ] or nil;
 							isTransfer = ( rowU ~= nil and rowU.MakeTradeRoute ~= true );
 						end
+					end
+					-- Any other disabled action the engine gives no reason for (Priority Target, Alert ...): never leave it bare
+					if action.Disabled == true and reason == "" and not isTransfer then
+						reason = ( unit ~= nil and unit:GetMovesRemaining() <= 0 ) and "no moves left" or "not available for this unit now";
+						detail = detail .. ". " .. reason;
 					end
 					if reason == "not possible on this tile" or isTransfer then
 						table.remove( m_srActions ); -- noise: a build action that cannot be done on this tile / a disabled Transfer for a unit that is no trader
