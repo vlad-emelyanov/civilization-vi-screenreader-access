@@ -276,6 +276,21 @@ function HubCursor.ScanEntryBefore( a:table, b:table )
 	return a.index < b.index;
 end
 
+-- Pure: melee attack scan order: targets reached this turn (turns <= 1) first, nearest first; then the rest by turns, then distance.
+function HubCursor.AttackTurnsBefore( a:table, b:table )
+	local turnsA:number, turnsB:number = a.turns or 99, b.turns or 99;
+	local nowA:boolean, nowB:boolean = turnsA <= 1, turnsB <= 1;
+	if nowA ~= nowB then return nowA; end
+	if nowA then
+		if a.distance ~= b.distance then return a.distance < b.distance; end
+	elseif turnsA ~= turnsB then
+		return turnsA < turnsB;
+	elseif a.distance ~= b.distance then
+		return a.distance < b.distance;
+	end
+	return a.index < b.index;
+end
+
 -- W / X in an attack mode with no foreign unit within 10 tiles: name the nearest hostile unit far away, if any.
 -- outOfRange: number of enemy plots in view that the attack cannot reach (optional, appended when above 0).
 function HubCursor.NoEnemyText( unitName:string, enemyName:string, relative:string, outOfRange:number )
@@ -365,6 +380,15 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	if attackList ~= nil then
 		found = HubCursor.AttackScanEntries( attackList, originPlot:GetX(), originPlot:GetY() );
 		for _, entry in ipairs( found ) do entry.hostile = HubTargets.EnemyVisibleAt( Map.GetPlot( entry.x, entry.y ) ); end
+		-- the melee candidates include multi-turn approaches: those reached this turn first, then by turns
+		local meleeUnit:table = UI.GetHeadSelectedUnit();
+		if targetMode == InterfaceModeTypes.MOVE_TO and meleeUnit ~= nil then
+			for _, entry in ipairs( found ) do
+				local okPath:boolean, path = pcall( UnitManager.GetMoveToPathEx, meleeUnit, entry.index );
+				if okPath and path ~= nil and path.turns ~= nil and #path.turns > 0 then entry.turns = path.turns[ #path.turns ]; end
+			end
+			table.sort( found, HubCursor.AttackTurnsBefore );
+		end
 		if #found == 0 then
 			local unit:table = UI.GetHeadSelectedUnit();
 			if HubTargets.IsCityMode( targetMode ) or unit == nil then

@@ -1,0 +1,9 @@
+# Blind-written 2026-10-28 (war play-test follow-up): R (ranged attack mode) puts the cursor on the nearest target in range like the city ranged attack, instead of "No target here to compare". Needs a ranged unit with an enemy in range; otherwise only the mode line is checked.
+# covers: **/HubTargets.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
+# no-share-load: attacks
+load pt-medieval-t115
+clear-advisors
+action NextUnit -Settle 1500
+action RangedAttack -Settle 1500
+expect-not (?i)no target here to compare
+no-lua-errors

@@ -360,8 +360,11 @@ function HubEnemies.ExposedText( items:table )
 end
 
 -- hint: "Move it into Rome" or nil.
-function HubEnemies.DangerText( civilianName:string, nearName:string, enemyName:string, relative:string, hint:string )
-	local text:string = civilianName .. ( nearName ~= nil and ( " near " .. nearName ) or "" ) .. " in danger: " .. enemyName;
+-- farText: "9 tiles east of Rome" for a city beyond 3 tiles (then nearName is nil): "near" only within a few tiles.
+function HubEnemies.DangerText( civilianName:string, nearName:string, enemyName:string, relative:string, hint:string, farText:string )
+	local where:string = "";
+	if nearName ~= nil then where = " near " .. nearName; elseif farText ~= nil then where = ", " .. farText .. ","; end
+	local text:string = civilianName .. where .. " in danger: " .. enemyName;
 	if relative ~= nil and relative ~= "" then text = text .. " " .. relative; end
 	if hint ~= nil and hint ~= "" then text = text .. ". " .. hint; end
 	return text;
@@ -711,9 +714,18 @@ function HubEnemies.ScanThreats()
 					elseif nearCity ~= nil then
 						hint = "Move it into " .. Locale.Lookup( nearCity:GetName() );
 					end
+					local nearName:string, farText:string = nil, nil;
+					if nearCity ~= nil then
+						if cityDistance <= 3 then
+							nearName = Locale.Lookup( nearCity:GetName() );
+						else
+							local rel:string = PlotDescription_GetRelative( Map.GetPlot( nearCity:GetX(), nearCity:GetY() ), plot );
+							if rel ~= nil then farText = rel .. " of " .. Locale.Lookup( nearCity:GetName() ); end
+						end
+					end
 					local text:string = HubEnemies.DangerText( Locale.Lookup( unit:GetName() ),
-						nearCity ~= nil and Locale.Lookup( nearCity:GetName() ) or nil, PlotDescription_GetUnitName( nearest.unit ),
-						PlotDescription_GetRelative( plot, Map.GetPlot( nearest.x, nearest.y ) ), hint );
+						nearName, PlotDescription_GetUnitName( nearest.unit ),
+						PlotDescription_GetRelative( plot, Map.GetPlot( nearest.x, nearest.y ) ), hint, farText );
 					table.insert( result.civilians, { key = unit:GetID(), sig = nearest.key .. "@" .. nearest.x .. "," .. nearest.y,
 						text = text, enemy = nearest, unit = unit } );
 				end

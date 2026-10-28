@@ -119,12 +119,16 @@ end
 -- Prepares game text (with [NEWLINE] and [ICON_x] style markup) for speech.
 function CleanTextForSpeech(text: string)
 	if text == nil then return ""; end
-	text = string.gsub(text, "%[NEWLINE%]", ". ");
+	-- line breaks become sentence breaks, but never ".." / "?. ." / a leading or trailing ". " (empty lines, lines ending in punctuation)
+	text = string.gsub(text, "%[NEWLINE%]", "");
 	text = _StripIconMarkup(text);
 	text = string.gsub(text, "%[[^%]]*%]", "");
 	text = string.gsub(text, "%s+", " ");
-	text = string.gsub(text, "^%s+", "");
-	text = string.gsub(text, "%s+$", "");
+	text = string.gsub(text, "%s*[%s]*", "");
+	text = string.gsub(text, "^[%s]+", "");
+	text = string.gsub(text, "[%s]+$", "");
+	text = string.gsub(text, "([%.!?:;,])", "%1 ");
+	text = string.gsub(text, "", ". ");
 	return text;
 end
 
@@ -179,6 +183,7 @@ function SRDescriptionFirst( name:string, description:string, tooltip:string )
 		if from ~= nil then
 			rest = string.sub( rest, 1, from - 1 ) .. string.sub( rest, to + 1 );
 			rest = string.gsub( rest, "%.%s*%.", "." );
+			rest = string.gsub( rest, "%s%s+", " " );
 			rest = string.gsub( rest, "^[%s%.,]+", "" );
 			rest = string.gsub( rest, "[%s,]+$", "" );
 		end

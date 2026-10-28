@@ -270,7 +270,12 @@ local function _TerrainParts( plot:table )
 	local featureType:number = plot:GetFeatureType();
 	if featureType ~= nil and featureType >= 0 then
 		local feature:table = GameInfo.Features[featureType];
-		if feature ~= nil then table.insert(parts, Locale.Lookup(feature.Name)); end
+		if feature ~= nil then
+			local featureName:string = Locale.Lookup(feature.Name);
+			-- Gathering Storm floodplains are named "Plains Floodplains": the terrain word is already in the feature
+			if #parts > 0 and string.find(string.lower(featureName), string.lower(parts[#parts]), 1, true) then table.remove(parts); end
+			table.insert(parts, featureName);
+		end
 	end
 	return parts;
 end

@@ -111,6 +111,8 @@ test("civilian danger and the lone mover", function()
 	eq(HubEnemies.DangerText("Builder", "Rome", "Barbarian Horseman", "2 tiles east", "Move it into Rome"),
 		"Builder near Rome in danger: Barbarian Horseman 2 tiles east. Move it into Rome")
 	eq(HubEnemies.DangerText("Settler", nil, "Barbarian Warrior", nil, nil), "Settler in danger: Barbarian Warrior")
+	eq(HubEnemies.DangerText("Legion", nil, "Barbarian Archer", "2 tiles east", nil, "9 tiles east of Rome"),
+		"Legion, 9 tiles east of Rome, in danger: Barbarian Archer 2 tiles east")
 	eq(HubEnemies.AloneText("Settler", 3, "Barbarian Warrior " .. HubEnemies.FromPathText(2, false), "Shift+E"),
 		"Settler moving alone, 3 turns. Barbarian Warrior 2 tiles from the path. Escort first: J then M sends a soldier, Shift+E forms the escort")
 	eq(HubEnemies.FromPathText(0, false), "on the path")

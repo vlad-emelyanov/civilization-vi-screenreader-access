@@ -130,7 +130,9 @@ local function _TerrainName( plot:table )
 	local name:string = ( terrain ~= nil ) and Locale.Lookup( terrain.Name ) or "";
 	local feature:number = plot:GetFeatureType();
 	if feature ~= nil and feature >= 0 and GameInfo.Features[ feature ] ~= nil then
-		name = name .. ", " .. Locale.Lookup( GameInfo.Features[ feature ].Name );
+		local featureName:string = Locale.Lookup( GameInfo.Features[ feature ].Name );
+		if name ~= "" and string.find( string.lower( featureName ), string.lower( name ), 1, true ) then name = featureName;	-- "Plains Floodplains"
+		else name = name .. ", " .. featureName; end
 	end
 	return ( string.gsub( name, "[()]", "" ) );
 end
