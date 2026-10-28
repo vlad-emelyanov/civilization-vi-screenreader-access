@@ -20,7 +20,7 @@ action KeyNavPlaces -Settle 1500
 key Tab -Settle 600 -Count 5
 expect ^Foreign cities
 key M -Settle 2000
-expect next to Zanzibar
+expect Send a unit to Zanzibar, \d+ options
 key Escape -Settle 1000
 expect ^Places\. Foreign cities
 no-lua-errors
