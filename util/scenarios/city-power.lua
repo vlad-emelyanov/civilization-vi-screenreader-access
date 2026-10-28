@@ -1,4 +1,4 @@
--- Scenario: city-power. STATUS: unverified (written blind)
+-- Scenario: city-power. STATUS: verified 2026-10-28: the building is created (HasBuilding true) but GetRequiredPower() stays 0 until a turn change; fixture pt-modern-t177-lab = this scenario + `civctl advance 1`, used by test/regress/city-power.txt
 -- Fixture: pt-modern-t176 (Rome (51,32) is the capital, has a Campus district + University). Gives Rome a Research Lab (RequiredPower 3,
 --   Expansion2_Buildings.xml) so the city needs power it does not get -> "Underpowered". Then: CapitalCity, Control+I, Down x4 ->
 --   "Power 0 of 3 needed, underpowered" (right after Loyalty); Space -> status description, "Needed by: ..." and the advice.

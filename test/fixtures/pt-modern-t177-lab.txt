@@ -1,0 +1,7 @@
+turn: 177
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: pt-modern-t176 + scenario city-power (Research Lab in Rome) + advance 1: Rome underpowered (RequiredPower 3 only recomputes on a turn change); for city-power regress
+mod commit: 131472f
+created: 2026-10-28
+size: 986 KB

@@ -1,9 +1,7 @@
-# Written blind 2026-10-28 (C7, not yet recorded). pt-modern-t176: the scenario gives Rome a Research Lab (needs 3 power), so the capital's city report has a Power entry right after Loyalty.
+# Written blind 2026-10-28 (C7, not yet recorded). pt-modern-t177-lab (t176 + scenario city-power + advance 1; the game recomputes required power only on a turn change, so a scenario alone shows 0): Rome has a Research Lab (needs 3 power), so the capital's city report has a Power entry right after Loyalty.
 # covers: **/CityReportData.lua **/CityReportGather.lua
-# no-share-load: scenario adds a building
-load pt-modern-t176
+load pt-modern-t177-lab
 clear-advisors
-scenario city-power
 action CapitalCity -Settle 1500
 key Control+I -Settle 2500
 expect ^.+ report, \d+ options
