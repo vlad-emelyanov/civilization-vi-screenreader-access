@@ -54,3 +54,16 @@ test("IsAttackMode: only attack modes, a move only with the attack intent", func
 	istrue(not HubTargets.IsAttackMode(1))
 	istrue(not HubTargets.IsAttackMode(nil))
 end)
+
+test("melee scan: reachable this turn first (nearest), then by turns", function()
+	local list = {
+		{ id = "far12", index = 1, distance = 10, turns = 12 },
+		{ id = "near3", index = 2, distance = 3, turns = 3 },
+		{ id = "adj", index = 3, distance = 1, turns = 1 },
+		{ id = "two", index = 4, distance = 2, turns = 1 },
+	}
+	table.sort(list, HubCursor.AttackTurnsBefore)
+	local ids = {}
+	for _, e in ipairs(list) do table.insert(ids, e.id) end
+	eq(table.concat(ids, ","), "adj,two,near3,far12")
+end)

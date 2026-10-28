@@ -220,15 +220,15 @@ test("send chooser: an unreachable place is approached from a neighbour (next to
 	local items = HubPlaces.BuildSendItems({ name = "Rome", x = 5, y = 5 })
 	assert(#items >= 2, #items)
 	for _, item in ipairs(items) do
-		assert(item.text:find(", next to Rome"), item.text)
+		assert(item.text:find(", stops next to it"), item.text)
 		assert(item.nearX ~= nil and Map.GetPlotDistance(item.nearX, item.nearY, 5, 5) == 1)
 	end
 	for _, item in ipairs(items) do assert(not item.text:find("^Archer"), "Archer already stands next to Rome") end
-	assert(items[1].text:find("^Scout, %d+ turns?, next to Rome"), items[1].text)
+	assert(items[1].text:find("^Scout, %d+ turns?, stops next to it"), items[1].text)
 	-- ring 1 blocked too: the fallback goes to 2 tiles ("near")
 	for dy = -1, 1 do for dx = -1, 1 do world.unreachable[(5 + dy) * 30 + 5 + dx] = true end end
 	items = HubPlaces.BuildSendItems({ name = "Rome", x = 5, y = 5 })
-	assert(#items >= 1 and items[1].text:find(", near Rome"), items[1] and items[1].text)
+	assert(#items >= 1 and items[1].text:find(", stops near it"), items[1] and items[1].text)
 	world.unreachable = nil
 end)
 

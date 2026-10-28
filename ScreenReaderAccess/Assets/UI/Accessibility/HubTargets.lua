@@ -296,6 +296,11 @@ end
 -- "Attacking Barbarian Horseman": the name of what stands on the plot (a visible foreign unit, else the city).
 local function TargetName( plot:table )
 	if not HubCore.IsPlotVisibleToLocal( plot ) then return nil; end
+	-- a city on the plot is what the attack goes against, whatever unit stands in it
+	if plot:IsCity() then
+		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+		if city ~= nil and city:GetOwner() ~= Game.GetLocalPlayer() then return Locale.Lookup( city:GetName() ); end
+	end
 	local target:table = CombatText_PickDefender( Units.GetUnitsInPlot( plot ), function( other )
 		return other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ); end );
 	if target ~= nil then return PlotDescription_GetUnitName( target ); end
@@ -710,6 +715,26 @@ function HubTargets.CursorToNearestCityTarget()
 	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
 end
 
+-- Unit ranged / air attack: the cursor starts on the nearest tile the unit can hit now (like the city ranged attack above).
+function HubTargets.CursorToNearestUnitTarget()
+	local mode:number = UI.GetInterfaceMode();
+	if mode ~= InterfaceModeTypes.RANGE_ATTACK and mode ~= InterfaceModeTypes.AIR_ATTACK then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return; end
+	local ok:boolean, targets = pcall( HubTargets.AttackTargetPlots, mode, unit );
+	if not ok or targets == nil then return; end
+	local bestPlot:table, bestDistance:number = nil, 99;
+	for plotIndex, _ in pairs( targets ) do
+		local plot:table = Map.GetPlotByIndex( plotIndex );
+		if plot ~= nil then
+			local distance:number = Map.GetPlotDistance( unit:GetX(), unit:GetY(), plot:GetX(), plot:GetY() );
+			if distance < bestDistance then bestPlot, bestDistance = plot, distance; end
+		end
+	end
+	if bestPlot == nil then return; end		-- nothing in range: X / Enter say so
+	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
+end
+
 HubTargets.cityAttackTurn = {};		-- "owner:city id" -> game turn of the last city ranged attack we confirmed
 HubTargets.districtAttackTurn = {};	-- "owner:district id" -> same for district attacks (not used for the city reason)
 
@@ -861,6 +886,13 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	end
 	OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows", "LStick" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
 	if IsCityMode( newMode ) then HubCore.After( 0.3, HubTargets.CursorToNearestCityTarget ); end
+	if newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK then
+		local startX:number, startY:number = HubCursor.GetCursor();
+		HubCore.After( 0.3, function()
+			local x:number, y:number = HubCursor.GetCursor();
+			if x == startX and y == startY then HubTargets.CursorToNearestUnitTarget(); end		-- the cursor moved meanwhile: leave it
+		end );
+	end
 end
 
 local m_directRequests:table;

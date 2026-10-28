@@ -1239,7 +1239,7 @@ function HubPlaces.BuildSendItems( place:table )
 	end );
 	for _, item in ipairs( items ) do
 		item.text = item.name .. ", " .. ( place.unexplored and ( HubCore.Plural( item.distance, "tile", "tiles" ) .. " away" ) or HubCore.Plural( item.turns, "turn", "turns" ) );
-		if item.ring ~= nil then item.text = item.text .. ", " .. ( item.ring == 1 and "next to " or "near " ) .. place.name; end
+		if item.ring ~= nil then item.text = item.text .. ", " .. ( item.ring == 1 and "stops next to it" or "stops near it" ); end
 		local activity:string = HubPlaces.UnitActivity( item.unit, false );
 		if activity ~= nil then item.text = item.text .. ", " .. activity; end
 		if item.escorting ~= nil then item.text = item.text .. ", escorting " .. item.escorting; end
@@ -1312,7 +1312,11 @@ function HubPlaces.SendHere()
 			end
 			local featureType:number = plot:GetFeatureType();
 			local feature:table = ( featureType ~= nil and featureType >= 0 ) and GameInfo.Features[ featureType ] or nil;
-			if feature ~= nil then table.insert( parts, "with " .. string.lower( Locale.Lookup( feature.Name ) ) ); end
+			if feature ~= nil then
+				local featureName:string = string.lower( Locale.Lookup( feature.Name ) );
+				if #parts > 0 and string.find( featureName, parts[#parts], 1, true ) then parts[#parts] = featureName;
+				else table.insert( parts, "with " .. featureName ); end
+			end
 			name = table.concat( parts, " " ) .. " tile";
 		end
 	end

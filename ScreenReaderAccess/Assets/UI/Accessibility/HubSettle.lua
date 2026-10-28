@@ -191,6 +191,34 @@ function HubSettle.BuildItemTextOf( entry:table, improvements:string, dangerText
 	return text;
 end
 
+-- Pure: items = { { text = "...", where = function() return "1 tile south of Rome" end }, ... }. Items whose text reads the
+-- same get their position seen from the nearest city appended; those still identical are numbered ("1 of 2").
+function HubSettle.Disambiguate( items:table )
+	local groups:table = {};
+	for _, item in ipairs( items ) do
+		groups[ item.text ] = groups[ item.text ] or {};
+		table.insert( groups[ item.text ], item );
+	end
+	for _, group in pairs( groups ) do
+		if #group > 1 then
+			local seen:table = {};
+			for _, item in ipairs( group ) do
+				local where:string = item.where ~= nil and item.where() or nil;
+				if where ~= nil then item.extra = where; seen[ where ] = ( seen[ where ] or 0 ) + 1; end
+			end
+			local counter:table = {};
+			for _, item in ipairs( group ) do
+				local extra:string = item.extra;
+				if extra ~= nil and seen[ extra ] > 1 then
+					counter[ extra ] = ( counter[ extra ] or 0 ) + 1;
+					extra = extra .. ", " .. counter[ extra ] .. " of " .. seen[ extra ];
+				end
+				if extra ~= nil then item.text = item.text .. ", " .. extra; end
+			end
+		end
+	end
+end
+
 local function BuildItemText( entry:table )
 	local danger:string = nil;
 	if entry.danger ~= nil then danger = HubSettle.DangerItemText( entry.danger.name, entry.danger.distance ); end
@@ -232,6 +260,10 @@ local function LoadBuildItems( unit:table, force:boolean )
 		end
 		table.insert( m_build.items, { key = tile.key, text = BuildItemText( tile ), detail = BuildItemDetail( tile ), entry = tile } );
 	end
+	for _, item in ipairs( m_build.items ) do
+		item.where = function() return ( HubAnnounce ~= nil and HubAnnounce.PositionText ~= nil ) and HubAnnounce.PositionText( item.entry.plot ) or nil; end
+	end
+	HubSettle.Disambiguate( m_build.items );
 	m_build.nowCount = #m_build.items;
 	for _, tile in ipairs( scan.later or {} ) do
 		table.insert( m_build.items, { key = tile.key, text = LaterItemText( tile, entry.name ), detail = LaterItemDetail( tile ), entry = tile } );

@@ -121,3 +121,19 @@ test("BuildItemTextOf: improvement first, then where, then the tile, then turns 
 		"Fishing Boats plus 1 food, 1 tile north, Crabs, 1 turn, danger: Archer 2 tiles away")
 	eq(HubSettle.BuildItemTextOf({ name = "Wheat", here = true }, "Farm plus 1 food", nil), "Farm plus 1 food, here, Wheat")
 end)
+
+test("identical tile items get a position, then a number", function()
+	local items = {
+		{ text = "Farm plus 1 food, 2 tiles north-west, Plains Floodplains, 2 turns, worked", where = function() return "1 tile west of Rome" end },
+		{ text = "Farm plus 1 food, 2 tiles north-west, Plains Floodplains, 2 turns, worked", where = function() return "2 tiles north of Rome" end },
+		{ text = "Mine plus 1 production, here, Hills", where = function() return "in Rome" end },
+		{ text = "Farm, 1 tile east, Wheat, 1 turn", where = function() return "x" end },
+		{ text = "Farm, 1 tile east, Wheat, 1 turn", where = function() return "x" end },
+	}
+	HubSettle.Disambiguate(items)
+	eq(items[1].text, "Farm plus 1 food, 2 tiles north-west, Plains Floodplains, 2 turns, worked, 1 tile west of Rome")
+	eq(items[2].text, "Farm plus 1 food, 2 tiles north-west, Plains Floodplains, 2 turns, worked, 2 tiles north of Rome")
+	eq(items[3].text, "Mine plus 1 production, here, Hills")
+	eq(items[4].text, "Farm, 1 tile east, Wheat, 1 turn, x, 1 of 2")
+	eq(items[5].text, "Farm, 1 tile east, Wheat, 1 turn, x, 2 of 2")
+end)
