@@ -206,7 +206,7 @@ end
 -- " Promotion available, Shift+U" for a unit that can be promoted (empty otherwise).
 function HubAnnounce.PromotionHint( unit:table )
 	local ok:boolean, can, results = pcall( function() return UnitManager.CanStartCommand( unit, UnitCommandTypes.PROMOTE, true, true ); end );
-	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then return "Promotion available, Shift+U"; end
+	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then return "Promotion available, " .. SRKey( "Shift+U", "D-pad right menu" ); end
 	return nil;
 end
 
@@ -216,16 +216,16 @@ end
 function HubAnnounce.UpgradeText( info:table, repeated:boolean )
 	if info == nil or info.target == nil then return nil; end
 	if info.available then
-		if repeated then return "Upgrade available, U"; end
+		if repeated then return "Upgrade available, " .. SRKey( "U", "D-pad right menu" ); end
 		local text:string = "Upgrade to " .. info.target .. " available";
 		if info.cost ~= nil and info.cost > 0 then text = text .. ", " .. info.cost .. " gold"; end
 		if info.resourceCost ~= nil and info.resourceCost > 0 and info.resource ~= nil then
 			text = text .. ", " .. info.resourceCost .. " " .. info.resource;
 		end
-		return text .. ", U";
+		return text .. ", " .. SRKey( "U", "D-pad right menu" );
 	end
 	if repeated then return nil; end
-	return "Upgrade to " .. info.target .. " unavailable, U says why";
+	return "Upgrade to " .. info.target .. " unavailable, " .. SRKey( "U says why", "the D-pad right menu says why" );
 end
 
 -- Has the local player the tech and civic the unit type needs? (a blocked upgrade to a unit not yet unlocked is not worth a hint)

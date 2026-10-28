@@ -110,6 +110,12 @@ function SRPadHint( text:string )
 	return "[PAD:" .. text .. "]";
 end
 
+-- The mirror of SRPadHint: text spoken ONLY when the player did NOT last use the gamepad (removed when the pad is current).
+-- For hints that name a keyboard-only key, e.g. SRKbHint( ", key D" ). `text` must not contain ']'.
+function SRKbHint( text:string )
+	return "[KB:" .. text .. "]";
+end
+
 -- Prepares game text (with [NEWLINE] and [ICON_x] style markup) for speech.
 function CleanTextForSpeech(text: string)
 	if text == nil then return ""; end

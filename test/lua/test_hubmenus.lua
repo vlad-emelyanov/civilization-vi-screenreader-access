@@ -107,3 +107,23 @@ test("a unit without a browser gets no browse entry", function()
 	HubCore.CloseMode(false, false)
 	restore()
 end)
+
+test("menu key hint: keyboard-only unless the action has a pad button; Retire asks first", function()
+	local saved_le, saved_ui = LuaEvents, UI
+	local list = {
+		{ id = 1, tag = 1, name = "Fortify", hotkey = "D", disabled = false, reason = "", detail = "" },
+		{ id = 2, tag = 2, name = "Move To", hotkey = "M", hotkeyButton = "RT", disabled = false, reason = "", detail = "" },
+		{ id = 3, tag = 3, name = "Transfer", hotkey = "Shift+R", disabled = false, reason = "", detail = "" },
+		{ id = 4, tag = 4, name = "Wait", disabled = false, reason = "", detail = "" },
+	}
+	LuaEvents = { SRA_RequestUnitActions = function() HubMenus.OnUnitActionsReceived(1, list) end }
+	UI = setmetatable({ GetHeadSelectedUnit = function() return {} end }, { __index = saved_ui })
+	local items = HubMenus.FetchMenuItems(false)
+	LuaEvents, UI = saved_le, saved_ui
+	eq(items[1].text, "Fortify[KB:, key D]")
+	eq(items[2].text, "Move To, key [KEY:M|RT]")
+	eq(items[3].text, "Transfer[KB:, key Shift+R]")
+	eq(items[4].text, "Wait")
+	local unit = { GetName = function() return "Hannibal" end, GetX = function() return 1 end, GetY = function() return 1 end }
+	eq(HubMenus.ConfirmText(unit, "UNITCOMMAND_ACTIVATE_GREAT_PERSON"), "Retire Hannibal ends the unit for good and cannot be undone. [KEY:Enter] again to confirm")
+end)

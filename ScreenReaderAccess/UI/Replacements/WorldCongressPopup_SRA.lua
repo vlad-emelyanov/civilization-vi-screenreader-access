@@ -3214,7 +3214,7 @@ end
 local function SRA_Help()
 	local mode:string = SRA_Mode();
 	if mode == "vote" then
-		SRA_Say( SRKey( "Up and Down" ) .. " move between resolutions and proposals. " .. SRKey( "Left and Right" ) .. " choose option A or B. " .. SRKey( "Equals or Shift Up", "X" ) .. " adds a vote, " .. SRKey( "minus or Shift Down", "LT" ) .. " removes one. " .. SRKey( "T" ) .. " or " .. SRKey( "Enter" ) .. " chooses the target. " .. SRKey( "Space" ) .. " reads the whole resolution. " .. SRKey( "N", "RT" ) .. " or the last item reviews your votes. " .. SRKey( "Escape" ) .. " closes the screen; Resume Congress reopens it." );
+		SRA_Say( SRKey( "Up and Down" ) .. " move between resolutions and proposals. " .. SRKey( "Left and Right" ) .. " choose option A or B. " .. SRKey( "Equals or Shift Up", "X" ) .. " adds a vote, " .. SRKey( "minus or Shift Down", "LT" ) .. " removes one. " .. SRKbHint( "T or " ) .. SRKey( "Enter" ) .. " chooses the target. " .. SRKey( "Space" ) .. " reads the whole resolution. " .. SRKey( "N", "RT" ) .. " or the last item reviews your votes. " .. SRKey( "Escape" ) .. " closes the screen; Resume Congress reopens it." );
 	elseif mode == "summary" then
 		SRA_Say( SRKey( "Up and Down" ) .. " read your choices. " .. SRKey( "Enter" ) .. " on Submit votes, or " .. SRKey( "N", "RT" ) .. ", sends them and ends your turn. Back to voting, just before Submit, returns. " .. SRKey( "End" ) .. " jumps to Submit votes. " .. SRKey( "Escape" ) .. " closes the screen." );
 	elseif m_ReviewTab == REVIEW_TAB_AVAILABLE_PROPOSALS then
