@@ -1,4 +1,4 @@
-# UNVERIFIED (blind-written). The production panel names the production in progress in its opening line and focuses it; Enter on another item says what it replaces; Tab keeps the focused item by identity.
+# The production panel names the production in progress in its opening line and focuses it; Enter on another item says what it replaces; Tab keeps the focused item by identity.
 # covers: **/ProductionPanel.lua **/ProductionText.lua
 # no-share-load: sets production
 load early-t60
@@ -12,7 +12,8 @@ expect (?i)producing
 lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
 key Tab -Settle 2000
 expect (?i)choose production.*Currently building
-key Down -Settle 800
+# the game's list hides the production in progress, so focus lands on the first item; End = a buildable project
+key End -Settle 800
 key Enter -Settle 2500 -Quiet 700
 expect (?i)replaces
 lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())

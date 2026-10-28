@@ -2862,7 +2862,7 @@ local function SRA_Announce( keepGuard:boolean, keepKey:string )
 			if carriedKey == nil and keepKey ~= nil and ProductionText_Identity( item.key ) == keepKey then carriedKey = item.key; end
 			if item.recommended and recommendedName == nil and item.data ~= nil and item.data.Name ~= nil then
 				recommendedName = Locale.Lookup( item.data.Name );
-				if item.kind ~= "district" and item.kind ~= "wonder" then recommendedKey = item.key; end
+				recommendedKey = item.key;		-- also a district or wonder: the title names it, so focus must land on it (the open guard covers a double Enter)
 			end
 		end
 	end

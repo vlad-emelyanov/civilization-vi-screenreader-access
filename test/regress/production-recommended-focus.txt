@@ -1,0 +1,10 @@
+# The production panel focuses the item named in "Recommended: X", also when X is a district (pad play test: Recommended Commercial Hub, focus on Holy Site).
+# covers: **/ProductionPanel.lua
+load bug-pad-prod-focus
+clear-advisors
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2500 -Quiet 700
+expect (?i)choose production.*Recommended: Commercial Hub
+expect Commercial Hub, district.*recommended
+key Escape -Settle 1200
+no-lua-errors
