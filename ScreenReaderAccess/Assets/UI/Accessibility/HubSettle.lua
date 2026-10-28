@@ -62,9 +62,9 @@ local function SettleGo( item:table )
 		if not ok then
 			HubCore.SayResult( "Cannot settle here" .. ( ( extra ~= nil and extra ~= "" ) and ( ": " .. extra ) or "" ) );
 		elseif extra == true then
-			HubCore.SayResult( "B to found next turn" );
+			HubCore.SayResult( SRKey( "B", "D-pad right, Found City," ) .. " to found next turn" );
 		else
-			HubCore.SayResult( "B to found the city here" );
+			HubCore.SayResult( SRKey( "B", "D-pad right, Found City," ) .. " to found the city here" );
 		end
 		return;
 	end
@@ -176,15 +176,25 @@ function HubSettle.DangerAt( plot:table, radius:number, hostiles:table )
 	return best;
 end
 
--- "Wheat, Farm plus 1 food, 2 tiles north-east, 1 turn, worked" / "Here, Wheat, Farm plus 1 food"
-local function BuildItemText( entry:table )
-	local text:string = ( entry.here and "Here, " or "" ) .. entry.name .. ", " .. BuildImprovementsText( entry );
-	if not entry.here then
-		text = text .. ", " .. entry.relative .. ", " .. HubCore.Plural( entry.turns or 0, "turn", "turns" );
+-- Pure: the item starts with what tells it apart (the improvement and its yield), then where, then the tile, then turns and status:
+-- "Farm plus 1 food, 2 tiles north-east, Wheat, 1 turn, worked" / "Farm plus 1 food, here, Wheat"
+function HubSettle.BuildItemTextOf( entry:table, improvements:string, dangerText:string )
+	local tile:string = string.gsub( entry.name, ", ", " " );
+	local text:string = improvements;
+	if entry.here then
+		text = text .. ", here, " .. tile;
+	else
+		text = text .. ", " .. entry.relative .. ", " .. tile .. ", " .. HubCore.Plural( entry.turns or 0, "turn", "turns" );
 	end
 	if entry.worked then text = text .. ", worked"; end
-	if entry.danger ~= nil then text = text .. ", " .. HubSettle.DangerItemText( entry.danger.name, entry.danger.distance ); end
+	if dangerText ~= nil then text = text .. ", " .. dangerText; end
 	return text;
+end
+
+local function BuildItemText( entry:table )
+	local danger:string = nil;
+	if entry.danger ~= nil then danger = HubSettle.DangerItemText( entry.danger.name, entry.danger.distance ); end
+	return HubSettle.BuildItemTextOf( entry, BuildImprovementsText( entry ), danger );
 end
 
 local function BuildItemDetail( entry:table )
@@ -764,7 +774,7 @@ end
 -- Hint for the announcement of a selected builder (costs nothing: no scan); nil for other units.
 function HubSettle.BuilderHint( unit:table )
 	if unit == nil or BuildScan_Improvements( unit ) == nil then return nil; end
-	return "X lists tiles to improve";
+	return SRKey( "X", "X" ) .. " lists tiles to improve";
 end
 
 -- The browser X opens for this unit, as { text, open } for the unit actions menu (the controller has no X on the map), or nil

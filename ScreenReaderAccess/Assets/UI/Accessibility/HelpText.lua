@@ -179,7 +179,7 @@ local m_sections:table = {
 		{ keys = "A",					text = "activate or confirm; on the map Next Action; in a target mode confirm the tile" },
 		{ keys = "B",					text = "back or close; closes the open list; in a target mode cancel; on the map it does nothing (Menu opens the game menu)" },
 		{ keys = "Y",					text = "details: reads the item in a list; on the map your own city under the cursor opens its city report, else the details of the tile; in an attack mode the combat modifiers" },
-		{ keys = "X",					text = "the list's second action: dismiss in notifications, send a unit in places; on the map select your unit or city on the cursor tile, again the next one there; in a target mode target the nearest foreign unit (like the X key); in screens: the screen's main extra key, see each screen" },
+		{ keys = "X",					text = "the list's second action: dismiss in notifications, send a unit in places; on the map: with the cursor on the selected unit and that unit has a browser (settler, builder, great person ...) it opens that browser, otherwise it selects your unit or city on the cursor tile, again the next one there; in a target mode target the nearest foreign unit (like the X key); in screens: the screen's main extra key, see each screen" },
 		{ keys = "Left stick",			text = "move in lists, Left and Right change values; on the map move the cursor one tile; in a target mode move the target cursor" },
 		{ keys = "D-pad up and down",	text = "first and last entry in a list; on the map what is next and cursor to selection" },
 		{ keys = "D-pad right and left",text = "next and previous section or tab in a list; on the map the unit actions menu or city production, and the area overview" },

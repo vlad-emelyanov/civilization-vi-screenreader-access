@@ -82,8 +82,19 @@ local function MoveButton()
 	else Say( "No unit selected" ); end
 end
 
+-- X: with a unit selected that has a browser (settler, builder, ...) and the map cursor on its tile, the same browser the X key opens
+-- on the bare map (the settler / builder hints say "X to browse"); otherwise select what is on the cursor tile.
+local function PadX()
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit ~= nil and HubSettle ~= nil and HubSettle.BrowserFor( unit ) ~= nil then
+		local x:number, y:number = HubCursor.GetCursor();
+		if x == unit:GetX() and y == unit:GetY() then HubCore.Safe( "PadX", HubSettle.ScanKey )(); return; end
+	end
+	HubCursor.SelectAtCursor();
+end
+
 local MAP_ACTIONS:table = {
-	X	= function() HubCursor.SelectAtCursor(); end,
+	X	= PadX,
 	LT	= AttackButton,
 	RT	= MoveButton,
 };

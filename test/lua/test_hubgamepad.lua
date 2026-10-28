@@ -4,6 +4,7 @@ for i = 13, 24 do Keys["VK_F" .. i] = 100 + i end
 LuaEvents = setmetatable({}, { __index = function() return function() end end })
 include("Gamepad")
 
+UI.GetHeadSelectedUnit = function() return nil end
 local calls = {}
 local mode = 7
 local refuse = false
@@ -16,9 +17,11 @@ HubTargets = {
 	CanOpenMode = function(allow) table.insert(calls, "can:" .. tostring(allow)); return not refuse end,
 	CapitalKey = function() table.insert(calls, "capital") end,
 }
-HubSettle = { ScanKey = function() table.insert(calls, "scan") end }
+local browser = true
+HubSettle = { ScanKey = function() table.insert(calls, "scan") end, BrowserFor = function() if browser then return {} end end }
 HubPlaces = { TogglePlaces = function() table.insert(calls, "places") end }
-HubCursor = { SelectAtCursor = function() table.insert(calls, "select") end }
+local cursorX, cursorY = 3, 4
+HubCursor = { GetCursor = function() return cursorX, cursorY end, SelectAtCursor = function() table.insert(calls, "select") end }
 HubPad = { RingNext = function() table.insert(calls, "ring") end, RingPrev = function() table.insert(calls, "ring") end }
 include("HubGamepad")
 
@@ -98,4 +101,23 @@ test("a held RT (Shift) acts on KeyUp only when no other key came between", func
 	eq(#hotkeys, 3)
 	UI = savedUI
 	mode = 7
+end)
+
+test("bare map: X opens the selected unit's browser when the cursor is on it, else selects at the cursor", function()
+	mode = nil
+	local unit = { GetX = function() return 3 end, GetY = function() return 4 end }
+	UI.GetHeadSelectedUnit = function() return unit end
+	press("X")
+	eq(table.concat(calls, ","), "scan")
+	cursorX = 5
+	press("X")
+	eq(table.concat(calls, ","), "select")
+	cursorX = 3
+	browser = false
+	press("X")
+	eq(table.concat(calls, ","), "select")
+	UI.GetHeadSelectedUnit = function() return nil end
+	browser = true
+	press("X")
+	eq(table.concat(calls, ","), "select")
 end)

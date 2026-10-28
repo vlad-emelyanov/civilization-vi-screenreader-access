@@ -119,9 +119,9 @@ function HubEvents.OnUnitMoveComplete( playerID:number, unitID:number, x:number,
 			if not ok then
 				text = text .. ", " .. SettleScan_CannotText( extra );
 			elseif extra ~= true then
-				text = text .. ", B to found the city";
+				text = text .. ", " .. SRKey( "B", "D-pad right, Found City," ) .. " to found the city";
 			else
-				text = text .. ", can settle, B to found next turn";
+				text = text .. ", can settle, " .. SRKey( "B", "D-pad right, Found City," ) .. " to found next turn";
 			end
 		end
 		if record.build ~= nil and HubSettle ~= nil and HubSettle.OnArrived ~= nil then
