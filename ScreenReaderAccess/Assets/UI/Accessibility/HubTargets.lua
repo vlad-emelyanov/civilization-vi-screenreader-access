@@ -886,7 +886,13 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	end
 	OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows", "LStick" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
 	if IsCityMode( newMode ) then HubCore.After( 0.3, HubTargets.CursorToNearestCityTarget ); end
-	if newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK then HubCore.After( 0.3, HubTargets.CursorToNearestUnitTarget ); end
+	if newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK then
+		local startX:number, startY:number = HubCursor.GetCursor();
+		HubCore.After( 0.3, function()
+			local x:number, y:number = HubCursor.GetCursor();
+			if x == startX and y == startY then HubTargets.CursorToNearestUnitTarget(); end		-- the cursor moved meanwhile: leave it
+		end );
+	end
 end
 
 local m_directRequests:table;

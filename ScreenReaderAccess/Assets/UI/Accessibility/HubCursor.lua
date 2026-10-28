@@ -383,7 +383,9 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		-- the melee candidates include multi-turn approaches: those reached this turn first, then by turns
 		local meleeUnit:table = UI.GetHeadSelectedUnit();
 		if targetMode == InterfaceModeTypes.MOVE_TO and meleeUnit ~= nil then
-			for _, entry in ipairs( found ) do
+			-- found is nearest first: only the nearest 8 get a path (the rest have turns = nil and sort last)
+			for i = 1, math.min( #found, 8 ) do
+				local entry:table = found[i];
 				local okPath:boolean, path = pcall( UnitManager.GetMoveToPathEx, meleeUnit, entry.index );
 				if okPath and path ~= nil and path.turns ~= nil and #path.turns > 0 then entry.turns = path.turns[ #path.turns ]; end
 			end

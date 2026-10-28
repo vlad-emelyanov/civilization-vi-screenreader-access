@@ -209,9 +209,7 @@ function HubSettle.Disambiguate( items:table )
 			local counter:table = {};
 			for _, item in ipairs( group ) do
 				local extra:string = item.extra;
-				if extra == nil then
-					extra = nil;
-				elseif seen[ extra ] > 1 then
+				if extra ~= nil and seen[ extra ] > 1 then
 					counter[ extra ] = ( counter[ extra ] or 0 ) + 1;
 					extra = extra .. ", " .. counter[ extra ] .. " of " .. seen[ extra ];
 				end
