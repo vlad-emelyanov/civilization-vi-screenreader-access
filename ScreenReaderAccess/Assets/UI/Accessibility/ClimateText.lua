@@ -93,15 +93,16 @@ function ClimateText_Row( name:string, amount:number, total:number )
 	return name .. ": " .. Num( amount or 0 ) .. " CO2, " .. ClimateText_Percent( amount, total ) .. " percent";
 end
 
--- "Turn 85: Hurricane Alfred, Storm, North America, 3 tiles damaged, 1 population lost"
+-- "Storm, Hurricane Alfred, North America, turn 85, 3 tiles damaged, 1 population lost"
 -- f = { turn, typeName, name, location, effects = { "..." } }
 function ClimateText_Event( f:table )
 	local parts:table = {};
-	if f.name ~= nil and f.name ~= "" then table.insert( parts, f.name ); end
 	if f.typeName ~= nil and f.typeName ~= "" then table.insert( parts, f.typeName ); end
+	if f.name ~= nil and f.name ~= "" then table.insert( parts, f.name ); end
 	if f.location ~= nil and f.location ~= "" then table.insert( parts, f.location ); end
+	table.insert( parts, "turn " .. f.turn );
 	for _, effect in ipairs( f.effects or {} ) do table.insert( parts, effect ); end
-	return "Turn " .. f.turn .. ": " .. table.concat( parts, ", " );
+	return table.concat( parts, ", " );
 end
 
 -- Effects of a disaster as short phrases from its counts

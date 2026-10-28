@@ -35,6 +35,13 @@ function GreatPeopleText_PatronageReason( p:table, opt:table, unit:string )
 	return "Not possible now, someone may already have enough points or you passed this person";
 end
 
+-- The game's era names already end in "Era" ("Atomic Era"): do not say it twice.
+function GreatPeopleText_Era( eraName:string )
+	if eraName == nil or eraName == "" then return nil; end
+	if string.lower( string.sub( eraName, -4 ) ) == " era" then return eraName; end
+	return eraName .. " era";
+end
+
 local function Leader( p:table )
 	if p.leaderName == nil then return nil; end
 	if p.leaderPoints > p.points then return p.leaderName .. " leads with " .. GreatPeopleText_Num( p.leaderPoints ); end
@@ -42,34 +49,47 @@ local function Leader( p:table )
 	return nil;
 end
 
--- "Great Scientist: Hypatia, 120 of 480 points, you earn 3 per turn, Phoenicia leads with 300, 640 gold, ..."
+-- "Great Scientist Hypatia, 120 of 480 points, 640 gold" (+ ", can buy" when the gold patronage is affordable).
+-- Rate, leader, faith and shortfalls are in the Space detail.
 function GreatPeopleText_Item( p:table )
 	if p.none then return p.className .. ": none left, all claimed"; end
-	local text:string = p.className .. ": " .. p.name .. ", " .. GreatPeopleText_Num( p.points ) .. " of "
-		.. GreatPeopleText_Num( p.cost ) .. " points, you earn " .. GreatPeopleText_Num( p.perTurn ) .. " per turn";
-	local lead:string = Leader( p );
-	if lead ~= nil then text = text .. ", " .. lead; end
+	local text:string = p.className .. " " .. p.name .. ", " .. GreatPeopleText_Num( p.points ) .. " of "
+		.. GreatPeopleText_Num( p.cost ) .. " points";
 	if p.canRecruit then
 		text = text .. ", you can recruit now";
 		if p.canReject then text = text .. " or pass"; end
 	elseif p.canReject then
 		text = text .. ", you can pass";
-	else
-		if p.gold ~= nil and p.gold.shown then
-			text = text .. ", " .. GreatPeopleText_Num( p.gold.cost ) .. " gold, " .. GreatPeopleText_Afford( p.gold, "gold" );
-		end
-		if p.faith ~= nil and p.faith.shown then
-			text = text .. ", " .. GreatPeopleText_Num( p.faith.cost ) .. " faith, " .. GreatPeopleText_Afford( p.faith, "faith" );
-		end
+	elseif p.gold ~= nil and p.gold.shown then
+		text = text .. ", " .. GreatPeopleText_Num( p.gold.cost ) .. " gold";
+		if p.gold.can then text = text .. ", can buy"; end
 	end
 	return text;
+end
+
+-- Patronage lines for the detail: "640 gold, can't afford, need 120 more gold", "320 faith, affordable"
+function GreatPeopleText_PatronageLines( p:table )
+	local lines:table = {};
+	if p.canRecruit or p.canReject then return lines; end
+	if p.gold ~= nil and p.gold.shown then
+		table.insert( lines, GreatPeopleText_Num( p.gold.cost ) .. " gold, " .. GreatPeopleText_Afford( p.gold, "gold" ) );
+	end
+	if p.faith ~= nil and p.faith.shown then
+		table.insert( lines, GreatPeopleText_Num( p.faith.cost ) .. " faith, " .. GreatPeopleText_Afford( p.faith, "faith" ) );
+	end
+	return lines;
 end
 
 -- Space: abilities, era, the points of every civilization.
 function GreatPeopleText_Detail( p:table )
 	if p.none then return p.className .. ": every great person of this kind has been claimed"; end
-	local parts:table = { p.className .. ": " .. p.name };
-	if p.eraName ~= nil and p.eraName ~= "" then table.insert( parts, p.eraName .. " era" ); end
+	local parts:table = { p.className .. " " .. p.name };
+	table.insert( parts, "You earn " .. GreatPeopleText_Num( p.perTurn ) .. " points per turn" );
+	local lead:string = Leader( p );
+	if lead ~= nil then table.insert( parts, lead ); end
+	for _, line in ipairs( GreatPeopleText_PatronageLines( p ) ) do table.insert( parts, line ); end
+	local era:string = GreatPeopleText_Era( p.eraName );
+	if era ~= nil then table.insert( parts, era ); end
 	for _, ability in ipairs( p.abilities or {} ) do table.insert( parts, ability ); end
 	if p.earnConditions ~= nil and p.earnConditions ~= "" then table.insert( parts, "You can't earn this person yet: " .. p.earnConditions ); end
 	local standings:table = {};
@@ -120,7 +140,8 @@ end
 
 function GreatPeopleText_PastDetail( p:table )
 	local parts:table = { GreatPeopleText_PastItem( p ) };
-	if p.eraName ~= nil and p.eraName ~= "" then table.insert( parts, p.eraName .. " era" ); end
+	local era:string = GreatPeopleText_Era( p.eraName );
+	if era ~= nil then table.insert( parts, era ); end
 	for _, ability in ipairs( p.abilities or {} ) do table.insert( parts, ability ); end
 	return table.concat( parts, ". " );
 end

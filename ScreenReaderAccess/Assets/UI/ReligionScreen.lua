@@ -1790,6 +1790,19 @@ end
 -- ---------------------------------------------------------------------------
 -- Items per mode
 -- ---------------------------------------------------------------------------
+-- Same test as the Great People screen's "none left": the timeline entry of the Great Prophet class has no individual.
+local function SRA_NoProphetsLeft()
+	local ok:boolean, none = pcall( function()
+		local prophetClass:table = GameInfo.GreatPersonClasses["GREAT_PERSON_CLASS_PROPHET"];
+		if prophetClass == nil then return false; end
+		for _, entry in ipairs( Game.GetGreatPeople():GetTimeline() ) do
+			if entry.Class == prophetClass.Index then return entry.Individual == nil; end
+		end
+		return false;
+	end );
+	return ok and none == true;
+end
+
 local function SRA_ItemsWorking()
 	local items:table = {};
 	if m_PantheonBelief >= 0 then
@@ -1798,6 +1811,8 @@ local function SRA_ItemsWorking()
 	local step:string;
 	if m_PantheonBelief < 0 then
 		step = Locale.Lookup( "LOC_RELIGIONPANEL_NEXT_STEP_FOUND_PANTHEON", m_pGameReligion:GetMinimumFaithNextPantheon() );
+	elseif not m_isHasProphet and SRA_NoProphetsLeft() then
+		step = "No Great Prophets left; a religion can no longer be founded";
 	elseif not m_isHasProphet then
 		step = Locale.Lookup( "LOC_RELIGIONPANEL_NEXT_STEP_EARN_PROPHET" );
 	else

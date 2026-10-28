@@ -39,8 +39,8 @@ end)
 
 test("events", function()
 	eq(ClimateText_Event({ turn = 85, name = "Hurricane Alfred", typeName = "Storm", location = "Europe", effects = { "3 tiles damaged" } }),
-		"Turn 85: Hurricane Alfred, Storm, Europe, 3 tiles damaged")
-	eq(ClimateText_Event({ turn = 80, typeName = "Phase 1" }), "Turn 80: Phase 1")
+		"Storm, Hurricane Alfred, Europe, turn 85, 3 tiles damaged")
+	eq(ClimateText_Event({ turn = 80, typeName = "Phase 1" }), "Phase 1, turn 80")
 	local e = ClimateText_Effects(2, 1, 0, 3)
 	eq(#e, 3)
 	eq(e[1], "2 tiles fertilized")
