@@ -57,7 +57,7 @@ globals = {
 	"LensText_Actions", "LensText_ActiveLens", "LensText_Legend", "LensText_OnKey", "LensText_OnModeChanged", "LensText_Setup", "LensText_PlotText", "LensText_Prefix", "LensText_Toggled",
 	"BuildScan_Cities", "BuildScan_DefaultCity", "BuildScan_Scan", "StringifyCity", "StringifyUnit", "TopPanelData_BuildItems",
 	"TopPanelData_Summary", "STANDING_CATEGORIES", "StandingText_Ordinal", "StandingText_Numbers", "StandingText_ListItem", "StandingText_Rank", "StandingText_Line", "DIPLOMACY_TEXT_REASONS", "DIPLOMACY_TEXT_PARTY_NOTIFICATIONS", "DiplomacyText_Opening", "DiplomacyText_NotificationLine", "DiplomacyText_SuzerainNote",
-	"GreatPeopleText_Actions", "GreatPeopleText_ActionsTitle", "GreatPeopleText_Afford", "GreatPeopleText_Detail",
+	"GreatPeopleText_Actions", "GreatPeopleText_ActionsTitle", "GreatPeopleText_Afford", "GreatPeopleText_Detail", "GreatPeopleText_Era", "GreatPeopleText_PatronageLines",
 	"GreatPeopleText_Item", "GreatPeopleText_Num", "GreatPeopleText_Opening", "GreatPeopleText_PastDetail",
 	"GreatPeopleText_PastItem", "GreatPeopleText_PatronageReason",
 	"PromotionText_Detail", "PromotionText_Done", "PromotionText_Item", "PromotionText_Opening",

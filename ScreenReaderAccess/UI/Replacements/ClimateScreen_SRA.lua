@@ -152,7 +152,7 @@ local function SRA_Location( plotIndex:number )
 		return SRA_Lookup( GameInfo.Continents[ continent ].Description );
 	end
 	local territory = Territories.GetTerritoryAt( plotIndex );
-	if territory ~= nil then return SRA_Clean( territory:GetName() ); end
+	if territory ~= nil then return SRA_Lookup( territory:GetName() ); end
 	return SRA_Lookup( "LOC_CLIMATE_SCREEN_WATER" );
 end
 
@@ -244,7 +244,7 @@ local function SRA_OverviewItems()
 	-- CO2
 	local topID:number = GetWorstCO2PlayerID();
 	local top:string = SRA_Lookup( "LOC_CLIMATE_NO_ONE" );
-	if topID ~= -1 and PlayerConfigurations[ topID ] ~= nil then top = SRA_Clean( PlayerConfigurations[ topID ]:GetPlayerName() ); end
+	if topID ~= -1 and PlayerConfigurations[ topID ] ~= nil then top = SRA_Lookup( PlayerConfigurations[ topID ]:GetPlayerName() ); end
 	table.insert( items, { key = "co2", text = "CO2: global total " .. total .. ", top contributor " .. top .. ", yours " .. mine,
 		detail = SRA_Lookup( "LOC_CLIMATE_CO2_TOTAL_TOOLTIP", GameClimate.GetCO2FootprintModifier() ) } );
 

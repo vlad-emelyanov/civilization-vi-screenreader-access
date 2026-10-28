@@ -213,6 +213,12 @@ end
 local function SRA_Speak()
 	if ContextPtr:IsHidden() or g_pSelectedCity == nil then return; end
 	local city:string = Locale.Lookup( g_pSelectedCity:GetName() );
+	-- a city name the game has no text for stays a raw key: "LOC_CITY_NAME_ULUNDI" -> "Ulundi"
+	local rawName:string = string.match( city, "^LOC_CITY_NAME_(.+)$" );
+	if rawName ~= nil then
+		city = string.upper( string.sub( rawName, 1, 1 ) ) .. string.lower( string.sub( rawName, 2 ) );
+		city = string.gsub( city, "_(%l)", function( c ) return " " .. string.upper( c ); end );
+	end
 	m_srCityName = city;
 	local text:string = city .. " captured";
 	local ok:boolean, civ = pcall( function()

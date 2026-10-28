@@ -18,15 +18,12 @@ test("number formatting", function()
 	eq(GreatPeopleText_Num(nil), "0")
 end)
 
-test("item with leader and patronage", function()
-	eq(GreatPeopleText_Item(person()), "Great Scientist: Hypatia, 120 of 480 points, you earn 3 per turn, Phoenicia leads with 300, 640 gold, can't afford, need 120 more gold, 320 faith, affordable")
-end)
-
-test("item when you lead / nobody has points", function()
-	local p = person(); p.leaderPoints = 50; p.gold.shown = false; p.faith.shown = false
-	eq(GreatPeopleText_Item(p), "Great Scientist: Hypatia, 120 of 480 points, you earn 3 per turn, you lead")
-	p.points = 0; p.leaderName = nil
-	eq(GreatPeopleText_Item(p), "Great Scientist: Hypatia, 0 of 480 points, you earn 3 per turn")
+test("item: class + name, progress, gold price", function()
+	eq(GreatPeopleText_Item(person()), "Great Scientist Hypatia, 120 of 480 points, 640 gold")
+	local p = person(); p.gold.can = true
+	eq(GreatPeopleText_Item(p), "Great Scientist Hypatia, 120 of 480 points, 640 gold, can buy")
+	p.gold.shown = false
+	eq(GreatPeopleText_Item(p), "Great Scientist Hypatia, 120 of 480 points")
 end)
 
 test("item recruitable and none left", function()
@@ -35,8 +32,14 @@ test("item recruitable and none left", function()
 	eq(GreatPeopleText_Item({ className = "Great Admiral", none = true }), "Great Admiral: none left, all claimed")
 end)
 
-test("detail has abilities, era and standings", function()
-	eq(GreatPeopleText_Detail(person()), "Great Scientist: Hypatia. Ancient era. Boosts a library. Charges 2. Points: Rome (you) 120 of 480, 3 per turn; Phoenicia 300 of 480, 5 per turn")
+test("era name is not doubled", function()
+	eq(GreatPeopleText_Era("Atomic Era"), "Atomic Era")
+	eq(GreatPeopleText_Era("Ancient"), "Ancient era")
+	eq(GreatPeopleText_Era(""), nil)
+end)
+
+test("detail has rate, leader, patronage, era, abilities and standings", function()
+	eq(GreatPeopleText_Detail(person()), "Great Scientist Hypatia. You earn 3 points per turn. Phoenicia leads with 300. 640 gold, can't afford, need 120 more gold. 320 faith, affordable. Ancient era. Boosts a library. Charges 2. Points: Rome (you) 120 of 480, 3 per turn; Phoenicia 300 of 480, 5 per turn")
 end)
 
 test("actions: patronize with reasons", function()
