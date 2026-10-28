@@ -7,9 +7,12 @@ expect (?i)enter to begin voting
 key Enter -Settle 2500
 expect Resolutions: \d+ to vote on
 key Down -Settle 600
-expect \d+ of \d+
+# View (F18) is the key-help key here, as H (blind-written 2026-10-28)
+key F18 -Settle 800
+expect (?i)move between resolutions and proposals
 key Right -Settle 600
-expect option B
+# a Left/Right switch speaks only the new option, not the resolution name (blind-written)
+expect ^Option B: 
 key OemPlus -Settle 600
 expect (?i)vote for B
 key T -Settle 800

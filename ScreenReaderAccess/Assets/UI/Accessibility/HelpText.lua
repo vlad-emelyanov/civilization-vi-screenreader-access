@@ -173,7 +173,7 @@ local m_sections:table = {
 		{ keys = "Left and Right",		text = "deal screen: change a gold or resource amount by 1, with Shift by 10" },
 		{ keys = "Delete",				text = "deal screen, your items: remove the focused item from the deal (controller: LT)" },
 		{ keys = "Left and Right",		text = "world congress: choose option A or B; equals or Shift+Up adds a vote (controller: X), minus removes (controller: LT)" },
-		{ keys = "T, N and H",			text = "world congress: T chooses the target of a resolution, N goes forward (controller: RT), H reads the help" },
+		{ keys = "T, N and H",			text = "world congress: T chooses the target of a resolution, N goes forward (controller: RT), H reads the help (controller: View)" },
 	} },
 	{ title = "Controller", entries = {
 		{ keys = "A",					text = "activate or confirm; on the map Next Action; in a target mode confirm the tile" },
