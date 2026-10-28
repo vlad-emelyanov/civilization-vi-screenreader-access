@@ -645,7 +645,7 @@ function HubPlaces.ForeignLandsItems( ctx:table )
 	end
 	for owner, o in pairs( ctx.owned or {} ) do
 		local player:table = Players[ owner ];
-		if player ~= nil and not player:IsBarbarian() and ( diplomacy == nil or diplomacy:HasMet( owner ) ) then
+		if player ~= nil and not player:IsBarbarian() and not ( player.IsFreeCities ~= nil and player:IsFreeCities() ) and ( diplomacy == nil or diplomacy:HasMet( owner ) ) then
 			local text:string = PlotDescription_GetCivName( owner ) .. ( player:IsMajor() and ", border, " or ", city-state border, " ) .. Where( o.plot, ctx );
 			if not hasCity[ owner ] then text = text .. ", no city known"; end
 			local item:table = MakeItem( "l:" .. owner, "land", PlotDescription_GetCivName( owner ), text, o.plot, ctx );
