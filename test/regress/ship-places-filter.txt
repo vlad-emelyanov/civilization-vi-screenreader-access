@@ -12,7 +12,7 @@ expect ^Places\.
 key Tab -Settle 800
 key Tab -Settle 800
 key Tab -Settle 800
-expect (?i)unreachable by sea left out
+expect (?i)out of this ship's reach left out
 expect Rome
 expect-not Antium
 key Escape -Settle 1200

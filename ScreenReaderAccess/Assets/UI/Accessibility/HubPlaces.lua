@@ -686,9 +686,9 @@ local function ThreatItems( ctx:table )
 end
 
 -- Move To with a ship: keeps the items a ship could sail to. An item stays when its plot is water of the ship's body of water
--- (area id), or some plot within 2 tiles is (the radius MoveTargetNear searches), or when its plot is not revealed (no leak).
+-- (area ids: a set), or some plot within 2 tiles is (the radius MoveTargetNear searches), or when its plot is not revealed (no leak).
 -- plotAt( x, y ) -> plot or nil; isRevealed( plot ) -> boolean (nil: everything counts as revealed). Returns kept, number left out.
-function HubPlaces.ReachableByShip( items:table, areaId:number, plotAt, isRevealed )
+function HubPlaces.ReachableByShip( items:table, areaIds:table, plotAt, isRevealed )
 	local kept:table, left:number = {}, 0;
 	for _, item in ipairs( items ) do
 		local keep:boolean = false;
@@ -700,7 +700,7 @@ function HubPlaces.ReachableByShip( items:table, areaId:number, plotAt, isReveal
 				for dx = -2, 2 do
 					local plot = plotAt( item.x + dx, item.y + dy );
 					if not keep and plot ~= nil and Map.GetPlotDistance( item.x, item.y, plot:GetX(), plot:GetY() ) <= 2
-						and plot:IsWater() and plot:GetAreaID() == areaId then
+						and plot:IsWater() and areaIds[ plot:GetAreaID() ] then
 						keep = true;
 					end
 				end
@@ -712,18 +712,22 @@ function HubPlaces.ReachableByShip( items:table, areaId:number, plotAt, isReveal
 end
 
 -- Drops from the categories what the ship cannot reach (see ReachableByShip); a category left empty goes.
-function HubPlaces.FilterForShip( cats:table, areaId:number )
+function HubPlaces.FilterForShip( cats:table, areaIds:table )
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
 	local isRevealed = function( plot:table ) return vis == nil or vis:IsRevealed( plot:GetIndex() ); end;
-	local result:table = {};
+	local result:table, gone:table = {}, {};
 	for _, cat in ipairs( cats ) do
-		local kept:table, left:number = HubPlaces.ReachableByShip( cat.items, areaId, Map.GetPlot, isRevealed );
-		if #kept > 0 then table.insert( result, { name = cat.name, items = kept, left = left } ); end
+		local kept:table, left:number = HubPlaces.ReachableByShip( cat.items, areaIds, Map.GetPlot, isRevealed );
+		if #kept > 0 then
+			table.insert( result, { name = cat.name, items = kept, left = left } );
+		else
+			table.insert( gone, cat.name .. ": all " .. left .. " out of reach" );
+		end
 	end
-	return result;
+	return result, table.concat( gone, ". " );
 end
 
--- The area id of the selected unit's water when the Move To mode is open with a ship, else nil.
+-- The set of area ids of the selected unit's water (its own plot, or all water next to its port city) when the Move To mode is open with a ship, else nil.
 local function ShipAreaInMoveTo()
 	local mode = HubTargets.GetTargetMode();
 	local unit:table = UI.GetHeadSelectedUnit();
@@ -732,15 +736,16 @@ local function ShipAreaInMoveTo()
 	if row == nil or row.Domain ~= "DOMAIN_SEA" then return nil; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil then return nil; end
-	if plot:IsWater() then return plot:GetAreaID(); end
-	-- a ship in a port city: the water next to it
+	if plot:IsWater() then return { [ plot:GetAreaID() ] = true }; end
+	-- a ship in a port city: all the water next to it (a lake and the ocean both count)
+	local ids:table, any:boolean = {}, false;
 	for dy = -1, 1 do
 		for dx = -1, 1 do
 			local near = Map.GetPlot( plot:GetX() + dx, plot:GetY() + dy );
-			if near ~= nil and near:IsWater() then return near:GetAreaID(); end
+			if near ~= nil and near:IsWater() then ids[ near:GetAreaID() ] = true; any = true; end
 		end
 	end
-	return nil;
+	return any and ids or nil;
 end
 
 -- The categories that have something in them, in this order.
@@ -772,7 +777,7 @@ end
 -- ===========================================================================
 local function CategoryHead( cat:table )
 	local head:string = cat.name .. ", " .. m_cat .. " of " .. #m_data.cats .. " categories, " .. HubCore.Plural( #cat.items, "item", "items" );
-	if cat.left ~= nil and cat.left > 0 then head = head .. ", " .. cat.left .. " unreachable by sea left out"; end
+	if cat.left ~= nil and cat.left > 0 then head = head .. ", " .. cat.left .. " out of this ship's reach left out"; end
 	return head;
 end
 
@@ -999,7 +1004,7 @@ local m_facade:table = {
 		end
 		if not found then key = cat.items[1].key; end
 		m_list.Open( title, key, true );
-		SpeakFocus( title .. ". " .. CategoryHead( cat ) .. ". " );
+		SpeakFocus( title .. ". " .. CategoryHead( cat ) .. ". " .. ( ( m_data.gone ~= nil and m_data.gone ~= "" ) and ( m_data.gone .. ". " ) or "" ) );
 		if HubTargets.GetTargetMode() ~= nil then OutputMessageToScreenReader( SRKey( "Enter" ) .. " moves the target there", true ); end
 	end,
 	Reset = function() m_list.Reset(); end,
@@ -1028,14 +1033,15 @@ function HubPlaces.Open( restore:table )
 		return;
 	end
 	local shipArea = ShipAreaInMoveTo();
+	local goneText:string = "";
 	if shipArea ~= nil then
-		cats = HubPlaces.FilterForShip( cats, shipArea );
+		cats, goneText = HubPlaces.FilterForShip( cats, shipArea );
 		if #cats == 0 then
 			OutputMessageToScreenReader( "No places this ship can reach" );
 			return;
 		end
 	end
-	m_data = { cats = cats, ctx = MakeContext() };
+	m_data = { cats = cats, ctx = MakeContext(), gone = goneText };
 	m_cat = 1;
 	if restore ~= nil and cats[ restore.cat ] ~= nil then
 		m_cat = restore.cat;

@@ -772,7 +772,7 @@ test("ship filter: keeps places on or within 2 tiles of the ship's water, drops 
 	local function item(x, y) return { x = x, y = y, text = x .. "," .. y } end
 	local items = { item(2, 16), item(4, 16), item(5, 16), item(7, 16), item(8, 16), item(9, 18) }
 	local isRevealed = function(plot) return not world.plots[plot:GetIndex()].hidden end
-	local kept, left = HubPlaces.ReachableByShip(items, 100, Map.GetPlot, isRevealed)
+	local kept, left = HubPlaces.ReachableByShip(items, { [100] = true }, Map.GetPlot, isRevealed)
 	local t = {}
 	for _, i in ipairs(kept) do t[#t + 1] = i.text end
 	eq(table.concat(t, " "), "2,16 4,16 5,16 9,18")
@@ -781,9 +781,21 @@ end)
 
 test("ship filter: categories lose items, empty ones go, the head says how many", function()
 	local cats = { { name = "Cities", items = { { x = 2, y = 16 }, { x = 7, y = 16 } } }, { name = "Camps", items = { { x = 7, y = 16 } } } }
-	local out = HubPlaces.FilterForShip(cats, 100)
+	local out, gone = HubPlaces.FilterForShip(cats, { [100] = true })
 	eq(#out, 1)
 	eq(out[1].name, "Cities")
 	eq(#out[1].items, 1)
 	eq(out[1].left, 1)
+	eq(gone, "Camps: all 1 out of reach")
+end)
+
+test("ship filter: a port city touching a lake and the ocean keeps ocean places (area set)", function()
+	-- city at (12,18) with a lake at (11,18); ocean place far away is reachable only via the ocean id 100
+	world:set(11, 18, { terrain = "water", lake = true, area = 7 })
+	world:set(14, 18, { terrain = "water" })
+	local items = { { x = 14, y = 18 }, { x = 11, y = 18 } }
+	local kept = HubPlaces.ReachableByShip(items, { [7] = true, [100] = true }, Map.GetPlot)
+	eq(#kept, 2)
+	local only = HubPlaces.ReachableByShip(items, { [7] = true }, Map.GetPlot)
+	eq(#only, 1)
 end)
