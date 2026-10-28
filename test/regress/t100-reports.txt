@@ -5,7 +5,7 @@
 load medieval-t100
 clear-advisors
 key F8 -Settle 2500
-expect ^Reports\. Yields, 1 of 4 tabs\. City income: .+: .+, 1 of \d+
+expect ^Reports\. Yields, 1 of 4 tabs\. City income: .+, .+, 1 of \d+
 key Down -Settle 600
 expect , 2 of \d+
 key Space -Settle 600

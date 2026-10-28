@@ -40,7 +40,7 @@ test("available items", function()
 	eq(DealSpeech_AvailableText({ kind = "gold", amount = 8, duration = 30 }), "Gold per turn, 8 available")
 	eq(DealSpeech_AvailableText({ kind = "gold", duration = 30 }), "Gold per turn")
 	eq(DealSpeech_AvailableText({ kind = "resource", class = "Luxury", name = "Silk", amount = 2, otherNone = "they" }),
-		"Luxury: Silk, 2 available, they have none")
+		"Silk, luxury, 2 available, they have none")
 	eq(DealSpeech_AvailableText({ kind = "agreement", name = "Research Agreement", duration = 30, enabled = false, reason = "no tech" }),
 		"Research Agreement, 30 turns, unavailable: no tech")
 	eq(DealSpeech_AvailableText({ kind = "agreement", name = "Alliance", enabled = false }), "Alliance, unavailable")

@@ -72,14 +72,14 @@ end)
 test("ProposalLine: hint and next step", function()
 	local costs = { [0] = 0, [1] = 10, [2] = 30, MaxVotes = 3 }
 	eq(WCText_ProposalLine("Denounce Rome", nil, 0, 0, costs, true), "Denounce Rome, no votes yet, equals votes for, minus votes against")
-	eq(WCText_ProposalLine("Denounce Rome", nil, 2, 10, costs, false), "Denounce Rome, your votes: 2 votes for, costs 10 favor, equals adds a vote for 20 favor, minus removes one")
-	eq(WCText_ProposalLine("Denounce Rome", nil, -1, 0, costs, false), "Denounce Rome, your votes: 1 vote against, minus adds a vote against for 10 favor")
+	eq(WCText_ProposalLine("Denounce Rome", nil, 2, 10, costs, false), "Denounce Rome, your votes: 2 votes for it, costs 10 favor, equals adds a vote for 20 favor, minus removes one")
+	eq(WCText_ProposalLine("Denounce Rome", nil, -1, 0, costs, false), "Denounce Rome, your votes: 1 vote against it, minus adds a vote against for 10 favor")
 end)
 
 test("ProposalLine", function()
 	eq(WCText_ProposalLine("Denounce Rome", "Everybody does.", 0, 0), "Denounce Rome: Everybody does, no votes yet")
-	eq(WCText_ProposalLine("Denounce Rome", "", -2, 10), "Denounce Rome, your votes: 2 votes against, costs 10 favor")
-	eq(WCText_ProposalLine("Denounce Rome", nil, 1, 0), "Denounce Rome, your votes: 1 vote for")
+	eq(WCText_ProposalLine("Denounce Rome", "", -2, 10), "Denounce Rome, your votes: 2 votes against it, costs 10 favor")
+	eq(WCText_ProposalLine("Denounce Rome", nil, 1, 0), "Denounce Rome, your votes: 1 vote for it")
 end)
 
 test("Missing lists what is needed", function()

@@ -2850,6 +2850,12 @@ local SRA_ROW_NAMES:table = {
 	[ROW_INDEX.WILDCARD]	= "LOC_GOVT_POLICY_TYPE_WILDCARD",
 };
 
+local function SRA_Cap( s:string ) return string.upper( string.sub( s, 1, 1 ) ) .. string.sub( s, 2 ); end
+local SRA_ROW_SHORT:table = {
+	[ROW_INDEX.MILITARY] = "military", [ROW_INDEX.ECONOMIC] = "economic",
+	[ROW_INDEX.DIPLOMAT] = "diplomatic", [ROW_INDEX.WILDCARD] = "wildcard",
+};
+
 -- Slots left empty by the player's changes (Confirm is disabled until none is empty): "Diplomatic slot" / "Military and Wildcard slots", or nil
 -- when nothing would be lost silently (nothing changed, no empty slot). Works on every tab (the slot rows exist regardless).
 function SRA_UnfilledRows()
@@ -2882,7 +2888,7 @@ local function SRA_SlotLabel( nRowIndex:number, tSlot:table )
 	for i, tOther in ipairs( m_ActivePolicyRows[nRowIndex].SlotArray ) do
 		if tOther.GC_SlotIndex == tSlot.GC_SlotIndex then number = i; break; end
 	end
-	return Locale.Lookup( SRA_ROW_NAMES[nRowIndex] ) .. " slot " .. number;
+	return SRA_ROW_SHORT[nRowIndex] .. " slot " .. number;
 end
 
 -- The current slot table for a slot index (the tables are replaced on every data refresh).
@@ -2914,13 +2920,13 @@ local function SRA_SlotItems()
 			local policy:table = nil;
 			if tSlot.GC_PolicyType ~= EMPTY_POLICY_TYPE then policy = m_kPolicyCatalogData[ tSlot.GC_PolicyType ]; end
 			local label:string = SRA_SlotLabel( nRowIndex, tSlot );
-			local text:string = label .. ": ";
+			local text:string = "";
 			local detail:string = "Empty. " .. SRKey( "Enter" ) .. " to choose a policy.";
 			if policy ~= nil then
-				text = text .. policy.Name .. ", " .. CleanTextForSpeech( policy.Description );
+				text = policy.Name .. ", " .. label .. ", " .. CleanTextForSpeech( policy.Description );
 				detail = policy.Name .. ". " .. CleanTextForSpeech( policy.Description );
 			else
-				text = text .. "empty";
+				text = "Empty, " .. label;
 			end
 			table.insert( items, { key = "slot:" .. tSlot.GC_SlotIndex, kind = "slot", slot = tSlot, row = nRowIndex, label = label, policy = policy, text = text, detail = detail } );
 		end
@@ -3075,7 +3081,7 @@ local function SRA_OnActivate( item:table )
 			return;
 		end
 		m_srList.Reset();
-		m_srList.Open( item.label .. ", choose a policy" .. ( item.policy ~= nil and ( ", replaces " .. item.policy.Name ) or "" ) );
+		m_srList.Open( SRA_Cap( item.label ) .. ", choose a policy" .. ( item.policy ~= nil and ( ", replaces " .. item.policy.Name ) or "" ) );
 	elseif item.kind == "policy" then
 		local slot:table = SRA_FindSlot( m_srCatalogSlotIndex );
 		if slot == nil then
@@ -3112,7 +3118,7 @@ local function SRA_OnDelete()
 	local focusKey = m_srList.GetFocusKey();
 	for _, item in ipairs( items ) do
 		if item.key == focusKey and item.kind == "slot" then
-			if item.policy == nil then OutputMessageToScreenReader( item.label .. " is already empty" ); return; end
+			if item.policy == nil then OutputMessageToScreenReader( SRA_Cap( item.label ) .. " is already empty" ); return; end
 			if not IsAbleToChangePolicies() then OutputMessageToScreenReader( "Policies can't be changed now" ); return; end
 			RemoveActivePolicyAtSlotIndex( item.slot.GC_SlotIndex );
 			SRA_RefreshSlots();

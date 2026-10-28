@@ -19,13 +19,13 @@ end)
 
 test("city income skips zero yields", function()
 	eq(ReportText_CityIncome("Rome", { { label = "production", value = 12 }, { label = "gold", value = 8 }, { label = "tourism", value = 0 } }),
-		"Rome: production plus 12, gold plus 8")
-	eq(ReportText_CityIncome("Rome", { { label = "gold", value = 0 } }), "Rome: no yields")
+		"Rome, production plus 12, gold plus 8")
+	eq(ReportText_CityIncome("Rome", { { label = "gold", value = 0 } }), "Rome, no yields")
 end)
 
 test("line item from screen texts", function()
 	eq(ReportText_LineItem("Library", { { label = "science", value = "+2" }, { label = "gold", value = " " }, { label = "culture", value = "+1" } }),
-		"Library: science plus 2, culture plus 1")
+		"Library, science plus 2, culture plus 1")
 	eq(ReportText_LineItem("Barracks", { { label = "gold", value = " " } }), "Barracks")
 end)
 
@@ -37,7 +37,7 @@ end)
 test("expenses", function()
 	eq(ReportText_UnitExpense("Warrior", 3, 3), "Warrior, 3 units, minus 3 gold")
 	eq(ReportText_UnitExpense("Archer", 1, 1), "Archer, 1 unit, minus 1 gold")
-	eq(ReportText_BuildingExpense("Rome", "Library", 1), "Rome, Library: minus 1 gold")
+	eq(ReportText_BuildingExpense("Rome", "Library", 1), "Rome, Library, minus 1 gold")
 end)
 
 test("deals", function()

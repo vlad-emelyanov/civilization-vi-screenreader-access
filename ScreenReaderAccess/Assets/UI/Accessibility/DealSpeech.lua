@@ -67,7 +67,7 @@ function DealSpeech_Intro( leader, civ, mode )
 	return "Deal with " .. who .. ".";
 end
 
--- Entry of the available lists: "Gold, 120 available", "Luxury: Silk, 2 available, they have none", "City: Rome",
+-- Entry of the available lists: "Gold, 120 available", "Silk, luxury, 2 available, they have none", "City: Rome",
 -- "Research Agreement, unavailable: they have no technology to share".
 function DealSpeech_AvailableText( item )
 	local kind = item.kind;
@@ -82,7 +82,7 @@ function DealSpeech_AvailableText( item )
 	elseif kind == "favor" then
 		text = "Diplomatic favor, " .. ( item.amount or 0 ) .. " available";
 	elseif kind == "resource" then
-		text = ( item.class ~= nil and ( item.class .. ": " ) or "" ) .. ( item.name or "Resource" ) .. ", " .. ( item.amount or 0 ) .. " available";
+		text = ( item.name or "Resource" ) .. ", " .. ( item.class ~= nil and ( string.lower( item.class ) .. ", " ) or "" ) .. ( item.amount or 0 ) .. " available";
 		if item.otherNone ~= nil then text = text .. ", " .. item.otherNone .. " have none"; end
 	elseif kind == "agreement" then
 		text = item.name or "Agreement";

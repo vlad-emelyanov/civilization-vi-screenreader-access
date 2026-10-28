@@ -3173,7 +3173,7 @@ function SRA_OverviewEntries()
 
 	local function MakeEntry( selection:table )
 		local key:string = selection.Key;
-		local parts:table = { CleanTextForSpeech( Locale.Lookup( selection.Text ) ) };
+		local parts:table = { ( string.gsub( CleanTextForSpeech( Locale.Lookup( selection.Text ) ), "[%.%s]+$", "" ) ) };
 		local cost:number = GetGoldCost( key );
 		if cost > 0 then table.insert( parts, cost .. " gold" ); end
 		if GameInfo.DiplomaticActions_XP2 ~= nil and GameInfo.DiplomaticActions_XP2[ selection.DiplomaticActionType ] ~= nil then
