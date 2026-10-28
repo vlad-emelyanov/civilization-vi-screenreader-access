@@ -311,7 +311,16 @@ function HubEvents.OnCityAddedToMap( ownerID:number, cityID:number, x:number, y:
 	local name:string = ( city ~= nil ) and Locale.Lookup( city:GetName() ) or "City";
 	-- CityAddedToMap also fires for a captured or traded city: its original owner is then another civ
 	local verb:string = "founded";
-	local original:number = ( city ~= nil and city.GetOriginalOwner ~= nil ) and city:GetOriginalOwner() or ownerID;
+	local original:number = ownerID;
+	if city ~= nil then
+		local okC:boolean, loser = pcall( function() return city:GetJustConqueredFrom(); end );		-- the loser (RazeCity.lua uses it too)
+		if okC and type( loser ) == "number" and loser >= 0 and loser ~= ownerID then
+			original = loser;
+		else
+			local okO:boolean, orig = pcall( function() return city:GetOriginalOwner(); end );
+			if okO and type( orig ) == "number" then original = orig; end
+		end
+	end
 	if original ~= nil and original ~= ownerID and original >= 0 then
 		verb = "captured";
 		local cfg:table = PlayerConfigurations[ original ];
