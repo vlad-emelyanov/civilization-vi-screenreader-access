@@ -73,6 +73,17 @@ public class KeyHintsTests
         Assert.Equal(keyboardExpected, KeyHints.Expand(input, false));
     }
 
+    [Theory]
+    [InlineData("Fortify[KB:, key D]", "Fortify", "Fortify, key D")]
+    [InlineData("[KEY:Enter] chooses[KB: or T]", "A chooses", "Enter chooses or T")]
+    [InlineData("a[KB:x][PAD:y]b", "ayb", "axb")]
+    [InlineData("open [KB:x", "open [KB:x", "open [KB:x")]
+    public void KeyboardOnlyText(string input, string padExpected, string keyboardExpected)
+    {
+        Assert.Equal(padExpected, KeyHints.Expand(input, true));
+        Assert.Equal(keyboardExpected, KeyHints.Expand(input, false));
+    }
+
     [Fact]
     public void TwoTokensInOneLine()
     {

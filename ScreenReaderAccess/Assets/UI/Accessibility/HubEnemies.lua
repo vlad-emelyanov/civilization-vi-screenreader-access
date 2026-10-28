@@ -854,7 +854,7 @@ function HubEnemies.AloneWarning( unit:table, plot:table )
 	if best == nil then return nil; end
 	local danger:string = best.name .. " " .. HubEnemies.FromPathText( best.d, best.target );
 	return HubEnemies.AloneText( Locale.Lookup( unit:GetName() ), path.turns[ #path.turns ] or 1, danger,
-		HubEnemies.KeyText( "ExtraHotkeysEnterFormation", "Shift+E" ) );
+		HubEnemies.KeyHint( "ExtraHotkeysEnterFormation", "Shift+E", "D-pad right, Create Escort Formation," ) );
 end
 
 -- Added to the announcement of a selected unit: "escorted by Warrior" / "escorting Settler" in a formation (HYPOTHESIS: the
@@ -885,7 +885,7 @@ function HubEnemies.EscortText( unit:table )
 	local key:string = unit:GetID() .. ":" .. partners[1]:GetID();
 	if HubEnemies.m_escortHinted[ key ] then return nil; end
 	HubEnemies.m_escortHinted[ key ] = true;
-	return HubEnemies.EscortHintText( name, HubEnemies.KeyText( "ExtraHotkeysEnterFormation", "Shift+E" ) );
+	return HubEnemies.EscortHintText( name, HubEnemies.KeyHint( "ExtraHotkeysEnterFormation", "Shift+E", "D-pad right, Create Escort Formation," ) );
 end
 
 -- ---------------------------------------------------------------------------

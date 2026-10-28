@@ -114,7 +114,15 @@ function HubMenus.FetchMenuItems( refresh:boolean )
 	local keyCount:table = {};
 	for _, action in ipairs( m_unitActions ) do
 		local text:string = action.name;
-		if action.hotkey ~= nil and action.hotkey ~= "" then text = text .. ", key " .. ( string.find( action.hotkey, "[%]|]" ) == nil and SRKey( action.hotkey, action.hotkeyButton ) or action.hotkey ); end
+		if action.hotkey ~= nil and action.hotkey ~= "" then
+			if string.find( action.hotkey, "[%]|]" ) ~= nil then
+				text = text .. ", key " .. action.hotkey;
+			elseif action.hotkeyButton ~= nil and action.hotkeyButton ~= "" then
+				text = text .. ", key " .. SRKey( action.hotkey, action.hotkeyButton );		-- Move To / Attack: LT and RT run them
+			else
+				text = text .. SRKbHint( ", key " .. action.hotkey );		-- the pad runs the entry with A: the key name is noise there
+			end
+		end
 		if action.disabled then
 			text = text .. ", unavailable" .. ( action.reason ~= "" and ( ": " .. action.reason ) or "" );
 		end
@@ -153,6 +161,11 @@ function HubMenus.ConfirmText( unit:table, typeName:string )
 		if res ~= nil then resName = Locale.Lookup( res.Name ); end
 	end );
 	local text:string;
+	if string.find( typeName, "ACTIVATE_GREAT_PERSON", 1, true ) ~= nil then
+		local name:string = "the great person";
+		pcall( function() name = Locale.Lookup( unit:GetName() ); end );
+		return "Retire " .. name .. " ends the unit for good and cannot be undone. " .. SRKey( "Enter" ) .. " again to confirm";
+	end
 	if string.find( typeName, "HARVEST", 1, true ) ~= nil then
 		text = "Harvest destroys the " .. resName .. " on this tile for a one-time yield";
 	elseif string.find( typeName, "PILLAGE", 1, true ) ~= nil then

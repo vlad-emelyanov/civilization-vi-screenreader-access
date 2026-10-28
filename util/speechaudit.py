@@ -24,6 +24,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ITEM = re.compile(r"^(.*), (\d+) of (\d+)$", re.S)
 KEY_TOKEN = re.compile(r"\[KEY:([^\]|]*)(?:\|[^\]]*)?\]")
 PAD_TOKEN = re.compile(r"\[PAD:[^\]]*\]")
+KB_TOKEN = re.compile(r"\[KB:([^\]]*)\]")
 LOG_LINE = re.compile(r"#SCREENREADER(?:\[NOINTERRUPT\])? - (.*)$")
 SR_LINE = re.compile(r"^(?:\(earlier\) )?SR> (?:\[NOINTERRUPT\] )?(.*)$")
 REC_LINE = re.compile(r"^#\s+\| (.*)$")
@@ -35,6 +36,7 @@ def clean(text):
     """[KEY:kb|button] -> kb, [PAD:...] dropped."""
     text = KEY_TOKEN.sub(lambda m: m.group(1), text)
     text = PAD_TOKEN.sub("", text)
+    text = KB_TOKEN.sub(lambda m: m.group(1), text)
     return re.sub(r"\s+", " ", text).strip()
 
 

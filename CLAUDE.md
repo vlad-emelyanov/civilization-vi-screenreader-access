@@ -11,7 +11,7 @@ Civ VI mods can't call DLLs, make HTTP calls or write files, so the only channel
 
 | Prefix (printed by) | Console app does |
 |---|---|
-| `#SCREENREADER - text` / `#SCREENREADER[NOINTERRUPT] - text` (`Accessibility/ScreenReader.lua`, `OutputMessageToScreenReader(msg, nointerrupt)`) | speaks it via AccessibleOutput; the text may contain `[KEY:keyboard]` / `[KEY:keyboard\|button]` tokens (Lua `SRKey`) that the console app expands to the keyboard or controller button name, and `[PAD:text]` (Lua `SRPadHint`, spoken only when the pad is current, removed otherwise) (`KeyHints.cs`) |
+| `#SCREENREADER - text` / `#SCREENREADER[NOINTERRUPT] - text` (`Accessibility/ScreenReader.lua`, `OutputMessageToScreenReader(msg, nointerrupt)`) | speaks it via AccessibleOutput; the text may contain `[KEY:keyboard]` / `[KEY:keyboard\|button]` tokens (Lua `SRKey`) that the console app expands to the keyboard or controller button name, and `[PAD:text]` (Lua `SRPadHint`, spoken only when the pad is current, removed otherwise), and `[KB:text]` (Lua `SRKbHint`, the mirror: spoken only when the pad is not current) (`KeyHints.cs`) |
 | `#KEYNAV_MOVE - x,y` (`KeyNavMoveMouse(control)`) | moves the real mouse there |
 | `#KEYNAV_CLICK - L` (`KeyNavLeftClick()`) | real left click at the mouse position |
 | `#KEYNAV - <id> START/…/END` (`PrintKeyboardNavigationElements`) | older nav-set protocol, mostly unused now |

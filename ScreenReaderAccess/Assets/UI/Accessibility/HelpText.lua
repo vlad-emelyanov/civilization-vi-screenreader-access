@@ -67,7 +67,7 @@ local m_sections:table = {
 		{ keys = "Turn start",			text = "after the turn line: what visible enemies near your cities and units did, moved toward or away, new, wounded, out of sight" },
 	} },
 	{ title = "Units", entries = {
-		{ action = "KeyNavUnitActions",			default = "Tab",		text = "menu of everything the selected unit can do: Enter runs, Space reads the tooltip. Actions that destroy something (Remove Improvement, Harvest, Pillage) come after the normal ones and ask first: Enter again on the same item within 5 seconds to confirm (their own hotkeys act at once)" },
+		{ action = "KeyNavUnitActions",			default = "Tab",		text = "menu of everything the selected unit can do: Enter runs, Space reads the tooltip. Actions that destroy something (Remove Improvement, Harvest, Pillage) come after the normal ones, and a great general's Retire comes last; they ask first: Enter again on the same item within 5 seconds to confirm (their own hotkeys act at once)" },
 		{ action = "MoveTo",					default = "M",			text = "move to: choose a tile" },
 		{ action = "Attack",					default = "W",			text = "attack: jumps to the nearest enemy and previews it" },
 		{ action = "RangedAttack",				default = "R",			text = "ranged attack, also for a city" },

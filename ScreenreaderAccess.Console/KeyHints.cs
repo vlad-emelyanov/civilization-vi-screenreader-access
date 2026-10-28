@@ -9,6 +9,7 @@ public static class KeyHints
 {
     private const string Open = "[KEY:";
     private const string PadOpen = "[PAD:";
+    private const string KbOpen = "[KB:";
 
     private static readonly Dictionary<string, string> ButtonNames = new(StringComparer.Ordinal)
     {
@@ -38,11 +39,12 @@ public static class KeyHints
     private static readonly HashSet<string> ShiftKeys = new(StringComparer.OrdinalIgnoreCase)
         { "Enter", "Home", "End", "Up", "Down", "Left", "Right", "Arrows", "arrow keys" };
 
-    /// <summary>Also handles [PAD:text] (Lua SRPadHint): pad = the text itself, keyboard = removed. The text holds no ']'.</summary>
+    /// <summary>Also handles [PAD:text] (Lua SRPadHint): pad = the text itself, keyboard = removed. [KB:text] (Lua SRKbHint) is the mirror: keyboard = the text, pad = removed. The text holds no ']'.</summary>
     public static string Expand(string text, bool pad)
     {
         if (string.IsNullOrEmpty(text)) return text;
-        if (text.Contains(PadOpen, StringComparison.Ordinal)) text = ExpandPad(text, pad);
+        if (text.Contains(PadOpen, StringComparison.Ordinal)) text = ExpandPad(text, PadOpen, pad);
+        if (text.Contains(KbOpen, StringComparison.Ordinal)) text = ExpandPad(text, KbOpen, !pad);
         if (!text.Contains(Open, StringComparison.Ordinal)) return text;
         StringBuilder sb = new();
         int pos = 0;
@@ -67,18 +69,19 @@ public static class KeyHints
         return sb.ToString();
     }
 
-    private static string ExpandPad(string text, bool pad)
+    /// <summary>Keeps (keep) or removes every [open...] token; [KB:text] (Lua SRKbHint) is the mirror of [PAD:text]: kept for the keyboard only.</summary>
+    private static string ExpandPad(string text, string open, bool keep)
     {
         StringBuilder sb = new();
         int pos = 0;
         while (pos < text.Length)
         {
-            int start = text.IndexOf(PadOpen, pos, StringComparison.Ordinal);
+            int start = text.IndexOf(open, pos, StringComparison.Ordinal);
             if (start < 0) break;
-            int end = text.IndexOf(']', start + PadOpen.Length);
+            int end = text.IndexOf(']', start + open.Length);
             if (end < 0) break;   // unclosed: the rest stays as is
             sb.Append(text, pos, start - pos);
-            if (pad) sb.Append(text, start + PadOpen.Length, end - start - PadOpen.Length);
+            if (keep) sb.Append(text, start + open.Length, end - start - open.Length);
             pos = end + 1;
         }
         sb.Append(text, pos, text.Length - pos);

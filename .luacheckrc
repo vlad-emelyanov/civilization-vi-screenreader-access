@@ -46,7 +46,7 @@ globals = {
 	"KeyNavSetup_ButtonItem", "KeyNavSetup_GetDriver", "KeyNavSetup_GetOptions", "KeyNavSetup_GetValueByOffset",
 	"KeyNavSetup_IsUsable", "KeyNavSetup_LeaderItem", "KeyNavSetup_MapItem", "KeyNavSetup_NewController",
 	"KeyNavSetup_OpenPicker", "KeyNavSetup_ParameterItem", "KeyNavSetup_PulldownItem", "KeyNavSetup_SectionPrefix",
-	"KeyNavSetup_SortByPosition", "KeyNavToggleDontShow", "KeyNav_Tick", "OutputMessageToScreenReader", "SRKey", "SRPadHint", "SRActionResultText", "SRPlotResourceHidden", "SRHiddenHarvestSentence", "SRStripHiddenHarvest", "SRMenuRank", "SRTribalVillageReason", "SRGreatPersonActivateName", "SRFoundReligionRefusal", "SRTryFoundReligionHotkey",
+	"KeyNavSetup_SortByPosition", "KeyNavToggleDontShow", "KeyNav_Tick", "OutputMessageToScreenReader", "SRKey", "SRPadHint", "SRKbHint", "SRActionResultText", "SRPlotResourceHidden", "SRHiddenHarvestSentence", "SRStripHiddenHarvest", "SRMenuRank", "SRTribalVillageReason", "SRGreatPersonActivateName", "SRFoundReligionRefusal", "SRTryFoundReligionHotkey",
 	"DistrictAdvice_Line", "DistrictAdvice_BestSpot", "DistrictAdvice_Entry", "DistrictAdvice_Spots",
 	"PlacementScan_Blockers", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
 	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_GetDirectionWord",

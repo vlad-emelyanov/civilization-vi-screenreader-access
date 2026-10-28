@@ -4598,10 +4598,11 @@ function SRIsDestructiveBuild( typeName:string )
 end
 
 -- Tab menu order. 0 promotions; builders: 1 enabled build actions, 2 other main actions, 3 disabled build actions
--- ("not possible on this tile"), 3.5 destructive ones (remove improvement, harvest, pillage), 4 formation / upgrade / delete. Non-builders: 0, 2 (main), 4. Stable within a rank (caller sorts by index).
+-- ("not possible on this tile"), 3.5 destructive ones (remove improvement, harvest, pillage), 4 formation / upgrade / delete, 4.5 a general's Retire. Non-builders: 0, 2 (main), 4. Stable within a rank (caller sorts by index).
 function SRMenuRank( entry:table, isBuilder:boolean )
 	local typeName:string = entry.typeName or "";
 	if typeName == "PROMOTION" or typeName == "UNITCOMMAND_PROMOTE" then return 0; end
+	if entry.retire == true then return 4.5; end		-- irreversible (a general's Retire): last, after Delete, and it asks first
 	for _, word in ipairs( { "FORMATION", "ESCORT", "CORPS", "ARMY", "UPGRADE", "DELETE", "DISBAND" } ) do
 		if string.find( typeName, word, 1, true ) ~= nil then return 4; end
 	end
@@ -4691,8 +4692,22 @@ local function SRBuildActions()
 							detail = detail .. ". " .. reason;
 						end
 					end
-					if reason == "not possible on this tile" then
-						table.remove( m_srActions ); -- noise: a build action that cannot be done on this tile
+					-- Retire (a great general's ability): irreversible, so the Tab menu asks first (like the destructive builder actions)
+					local isRetire:boolean = false;
+					local isTransfer:boolean = false;
+					if action.userTag ~= nil then
+						local okR:boolean, typeNameR = pcall( SRTypeName, action.userTag );
+						if okR and typeNameR == "UNITCOMMAND_ACTIVATE_GREAT_PERSON" and unit ~= nil then
+							local _, verbR = SRGreatPersonActivateName( unit );
+							isRetire = ( verbR == "Retire" );
+						elseif okR and string.find( typeNameR, "TELEPORT_TO_CITY", 1, true ) ~= nil and action.Disabled == true then
+							-- Transfer to Another City is for traders and great persons; "the trader must be in one of your cities" is noise for the others
+							local rowU = ( unit ~= nil ) and GameInfo.Units[ unit:GetUnitType() ] or nil;
+							isTransfer = ( rowU ~= nil and rowU.MakeTradeRoute ~= true );
+						end
+					end
+					if reason == "not possible on this tile" or isTransfer then
+						table.remove( m_srActions ); -- noise: a build action that cannot be done on this tile / a disabled Transfer for a unit that is no trader
 					else
 					table.insert( plain, {
 						id = #m_srActions, name = SRActionName( action, tooltip ), hotkey = hotkey, hotkeyButton = SRHotkeyButton( action.HotkeyId ),
@@ -4700,7 +4715,8 @@ local function SRBuildActions()
 						detail = detail, category = category,
 					tag = action.userTag, typeName = SRTypeName( action.userTag ), build = ( action.SRName ~= nil ),
 						improvement = ( action.SRName ~= nil and GameInfo.Improvements[ action.CallbackVoid1 ] ~= nil ) and GameInfo.Improvements[ action.CallbackVoid1 ].ImprovementType or nil,
-						destructive = ( action.Disabled ~= true and SRIsDestructiveBuild( SRTypeName( action.userTag ) ) ) } );
+						retire = isRetire,
+						destructive = ( action.Disabled ~= true and ( isRetire or SRIsDestructiveBuild( SRTypeName( action.userTag ) ) ) ) } );
 					end
 				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
 				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil
