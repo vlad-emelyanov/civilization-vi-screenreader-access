@@ -223,7 +223,20 @@ end
 -- ---------------------------------------------------------------------------
 -- A power source name can reach us as "Rome Rome" (the game's source key is a composed string); say a repeated
 -- word sequence once ("Rome Rome" -> "Rome", "Coal Plant Coal Plant" -> "Coal Plant").
+-- The game's resource power source key is "[ICON_RESOURCE_COAL] Rome [ICON_PowerRight] Rome" (the city that supplies the
+-- resource, then the city it powers): say "Coal in Rome" / "Coal from Rome to Antium".
+local function ResourcePowerLabel( label:string )
+	local res, from, to = string.match( tostring( label or "" ), "^%[ICON_RESOURCE_([%w_]+)%]%s*(.-)%s*%[ICON_PowerRight%]%s*(.-)%s*$" );
+	if res == nil then return label; end
+	local name:string = string.upper( string.sub( res, 1, 1 ) ) .. string.lower( string.sub( res, 2 ) );
+	local ok:boolean, row = pcall( function() return GameInfo.Resources[ "RESOURCE_" .. res ]; end );
+	if ok and row ~= nil and row.Name ~= nil then name = Locale.Lookup( row.Name ); end
+	if from == to or to == "" then return name .. " in " .. from; end
+	return name .. " from " .. from .. " to " .. to;
+end
+
 local function CollapseRepeat( label:string )
+	label = ResourcePowerLabel( label );
 	label = string.gsub( tostring( label or "" ), "%s+", " " );
 	label = string.gsub( label, "^ ", "" );
 	label = string.gsub( label, " $", "" );

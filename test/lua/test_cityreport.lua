@@ -196,6 +196,13 @@ test("power: doubled source name is said once", function()
 	contains(find(CityReport_BuildItems(d), "power").detail, "From: Rome 2, Coal Power Plant 1, Rome Hall 1")
 end)
 
+test("power: resource source key reads as Coal in / from", function()
+	local d = city()
+	d.power = { current = 3, required = 3, generatedTotal = 0, status = "powered",
+		consumed = { { label = "[ICON_RESOURCE_COAL] Rome [ICON_PowerRight] Rome", value = 2 }, { label = "[ICON_RESOURCE_OIL] Antium [ICON_PowerRight] Rome", value = 1 } } }
+	contains(find(CityReport_BuildItems(d), "power").detail, "From: Coal in Rome 2, Oil from Antium to Rome 1")
+end)
+
 test("power comes right after loyalty", function()
 	local d = city()
 	d.loyalty = { current = 100, max = 100, perTurn = 8, level = "Loyal", sources = {}, influence = {} }
