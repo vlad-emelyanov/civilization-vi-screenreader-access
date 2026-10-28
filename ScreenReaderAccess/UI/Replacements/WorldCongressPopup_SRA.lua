@@ -2651,23 +2651,60 @@ end
 -- ---------------------------------------------------------------------------
 --	Proposals (discussions, emergencies)
 -- ---------------------------------------------------------------------------
--- Title and description of a proposal; the target player's name is a parameter of the game's text.
+-- Effect lines of an emergency proposal (competitions: how to score, buffs, rewards), from the data the game's own
+-- proposal card shows. Returns the short effect (first lines, for the list item) and the full text (for Space), "" for none.
+local function SRA_EmergencyInfo( kProposal:table )
+	local target = kProposal.Target or kProposal.TargetPlayer;
+	if target == nil or kProposal.EmergencyType == nil then return "", ""; end
+	local ok:boolean, short, full = pcall( function()
+		local emergency:table = Game.GetEmergencyManager():GetSingleEmergency( target, kProposal.EmergencyType );
+		if emergency == nil then return "", ""; end
+		local data:table = ProcessEmergency_WorldCongressPopup( emergency );
+		local main:table, all:table = {}, {};
+		for _, line in ipairs( data.crisisDetails or {} ) do
+			local text:string = SRA_Clean( line.string );
+			if text ~= "" then
+				table.insert( all, text );
+				if line.align ~= "center" then table.insert( main, text ); end		-- centered lines are headers
+			end
+		end
+		if #main == 0 then main = all; end
+		for _, line in ipairs( data.rewardsDetails or {} ) do
+			local text:string = SRA_Clean( line.string );
+			if text ~= "" then table.insert( all, text ); end
+		end
+		local shortParts:table = {};
+		for i = 1, math.min( #main, 2 ) do table.insert( shortParts, WCText_Strip( main[ i ] ) ); end
+		local descr:string = SRA_Clean( emergency.ShortDescriptionText );
+		if #all == 0 and descr ~= "" then all = { descr }; end
+		return table.concat( shortParts, ", " ), table.concat( all, ". " );
+	end );
+	if not ok then return "", ""; end
+	return short, full;
+end
+
+-- Title, effect and flavor text of a proposal; the target player's name is a parameter of the game's text.
+-- Emergency proposals: the effect is what the competition does (SRA_EmergencyInfo), the game's Description is only a
+-- flavor quote (returned third, for the detail); a target missing from the title is added ("Aid Request for Dido").
 local function SRA_ProposalTexts( kProposal:table, targetID )
-	if targetID ~= nil and targetID >= 0 and PlayerConfigurations[ targetID ] ~= nil then
-		local name:string = GetVisiblePlayerName( targetID );
-		return SRA_Clean( Locale.Lookup( kProposal.Name, name ) ), SRA_Clean( Locale.Lookup( kProposal.Description, name ) );
+	local title:string, desc:string;
+	local hasTarget:boolean = targetID ~= nil and targetID >= 0 and PlayerConfigurations[ targetID ] ~= nil;
+	local name:string = hasTarget and GetVisiblePlayerName( targetID ) or nil;
+	if hasTarget then
+		title, desc = SRA_Clean( Locale.Lookup( kProposal.Name, name ) ), SRA_Clean( Locale.Lookup( kProposal.Description, name ) );
+	else
+		title, desc = SRA_Clean( kProposal.Name ), SRA_Clean( kProposal.Description );
 	end
-	return SRA_Clean( kProposal.Name ), SRA_Clean( kProposal.Description );
+	if kProposal.EmergencyType == nil then return title, desc, ""; end
+	if hasTarget and not string.find( title, SRA_Clean( name ), 1, true ) then title = title .. " for " .. SRA_Clean( name ); end
+	local short:string = SRA_EmergencyInfo( kProposal );
+	if short == "" then return title, desc, ""; end
+	return title, short, desc;
 end
 
 local function SRA_EmergencyText( kProposal:table )
-	local target = kProposal.Target or kProposal.TargetPlayer;
-	if target == nil or kProposal.EmergencyType == nil then return ""; end
-	local ok:boolean, text = pcall( function()
-		local emergency:table = Game.GetEmergencyManager():GetSingleEmergency( target, kProposal.EmergencyType );
-		return ( emergency ~= nil ) and SRA_Clean( emergency.ShortDescriptionText ) or "";
-	end );
-	return ok and text or "";
+	local _, full = SRA_EmergencyInfo( kProposal );
+	return full;
 end
 
 local function SRA_PcallCostData()
@@ -2676,13 +2713,13 @@ local function SRA_PcallCostData()
 end
 
 local function SRA_ProposalVoteItem( voteKey, kVote:table )
-	local title:string, desc:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
+	local title:string, desc:string, flavor:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
 	local signed:number = ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 );
 	return { key = "prop:" .. voteKey, kind = "prop", voteKey = voteKey,
 		text = WCText_ProposalLine( title, desc, signed, kVote.cost, kVote.sraCostData or SRA_PcallCostData(), m_sraHintCount < 3 ),
 		detail = function()
 			local extra:string = SRA_EmergencyText( kVote.data );
-			return title .. ". " .. desc .. ( extra ~= "" and ( ". " .. extra ) or "" ) ..
+			return title .. ". " .. ( extra ~= "" and extra or desc ) .. ( flavor ~= "" and ( ". " .. flavor ) or "" ) ..
 				". " .. SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it";
 		end };
 end
@@ -2823,7 +2860,7 @@ end
 -- A proposal of the last session (with PlayerVotes) or of the current effects.
 local function SRA_ReviewProposalItem( kProposal:table, withVotes:boolean )
 	local target = kProposal.TargetPlayer or kProposal.Target;
-	local title:string, desc:string = SRA_ProposalTexts( kProposal, target );
+	local title:string, desc:string, flavor:string = SRA_ProposalTexts( kProposal, target );
 	local upVotes, downVotes = nil, nil;
 	local voters:table = {};
 	local unmetTails:table = {};
@@ -2847,7 +2884,7 @@ local function SRA_ReviewProposalItem( kProposal:table, withVotes:boolean )
 	return { key = "rprop:" .. tostring( kProposal.TypeName ) .. "_" .. tostring( target ) .. "_" .. tostring( kProposal.Sender ),
 		kind = "info", text = text, detail = function()
 			local extra:string = SRA_EmergencyText( kProposal );
-			return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ( #voters > 0 and ( ". " .. table.concat( voters, ". " ) ) or "" );
+			return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ( flavor ~= "" and ( ". " .. flavor ) or "" ) .. ( #voters > 0 and ( ". " .. table.concat( voters, ". " ) ) or "" );
 		end };
 end
 
@@ -2882,7 +2919,7 @@ local function SRA_AvailableItems()
 			local voteKey:string = GetProposalVoteKey( kProposal );
 			local kVote:table = m_kProposalVotes ~= nil and m_kProposalVotes[ voteKey ] or nil;
 			if kVote ~= nil and kVote.instance ~= nil then
-				local title:string, desc:string = SRA_ProposalTexts( kProposal, kProposal.Target );
+				local title:string, desc:string, flavor:string = SRA_ProposalTexts( kProposal, kProposal.Target );
 				local blocked:boolean = kVote.instance.SelectBox:IsDisabled();
 				local state:string = ( kVote.votes ~= 0 ) and "selected" or "not selected";
 				if kVote.sraFavorCost ~= nil and kVote.sraFavorCost > 0 then state = state .. ", costs " .. kVote.sraFavorCost .. " favor"; end
@@ -2891,7 +2928,7 @@ local function SRA_AvailableItems()
 				table.insert( items, { key = "eprop:" .. voteKey, kind = "eprop", voteKey = voteKey, text = text,
 					detail = function()
 						local extra:string = SRA_EmergencyText( kProposal );
-						return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ". " .. SRKey( "Enter" ) .. " selects or unselects it";
+						return text .. ( extra ~= "" and ( ". " .. extra ) or "" ) .. ( flavor ~= "" and ( ". " .. flavor ) or "" ) .. ". " .. SRKey( "Enter" ) .. " selects or unselects it";
 					end } );
 			end
 		end
@@ -3039,9 +3076,10 @@ local function SRA_KeyHorizontal( delta:number )
 		SRA_SwitchTab( delta );
 		return;
 	end
-	if mode ~= "vote" then return; end
+	if mode ~= "vote" then SRA_Say( "No options to switch here" ); return; end
 	local item:table = SRA_FindItem( m_sraMainList.GetFocusKey() );
-	if item == nil or item.kind ~= "res" then return; end
+	if item == nil then return; end
+	if item.kind ~= "res" then SRA_Say( "No options to switch here" ); return; end
 	local f:table = SRA_ResolutionFacts( item.index );
 	m_sraFocusOption[ f.hash ] = ( delta < 0 ) and 1 or 2;
 	m_sraOmitNameHash = f.hash;

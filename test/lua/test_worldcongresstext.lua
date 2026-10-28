@@ -76,6 +76,11 @@ test("ProposalLine: hint and next step", function()
 	eq(WCText_ProposalLine("Denounce Rome", nil, -1, 0, costs, false), "Denounce Rome, your votes: 1 vote against it, minus adds a vote against for 10 favor")
 end)
 
+test("ProposalLine: name, effect, then votes (Climate Accords, Aid Request for a target)", function()
+	eq(WCText_ProposalLine("Climate Accords", "Earn points by cutting CO2, Decommission power plants", 0, 0), "Climate Accords: Earn points by cutting CO2, Decommission power plants, no votes yet")
+	eq(WCText_ProposalLine("Aid Request for Dido", "Dido was ravaged by a disaster", 1, 0), "Aid Request for Dido: Dido was ravaged by a disaster, your votes: 1 vote for it")
+end)
+
 test("ProposalLine", function()
 	eq(WCText_ProposalLine("Denounce Rome", "Everybody does.", 0, 0), "Denounce Rome: Everybody does, no votes yet")
 	eq(WCText_ProposalLine("Denounce Rome", "", -2, 10), "Denounce Rome, your votes: 2 votes against it, costs 10 favor")
@@ -96,7 +101,8 @@ test("ReviewResolution: passed, tie, in effect", function()
 end)
 
 test("ReviewProposal", function()
-	eq(WCText_ReviewProposal("Emergency", "Help.", 5, 2), "Emergency passed, 5 for, 2 against. Help")
+	eq(WCText_ReviewProposal("Emergency", "Help.", 5, 2), "Emergency: Help, passed, 5 for, 2 against")
+	eq(WCText_ReviewProposal("Climate Accords", "Earn points by cutting CO2.", 3, 3), "Climate Accords: Earn points by cutting CO2, failed, 3 for, 3 against")
 	eq(WCText_ReviewProposal("Emergency", nil, 1, 4), "Emergency failed, 1 for, 4 against")
 end)
 
