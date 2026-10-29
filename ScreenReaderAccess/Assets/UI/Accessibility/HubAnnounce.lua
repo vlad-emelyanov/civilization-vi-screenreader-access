@@ -214,6 +214,47 @@ function HubAnnounce.PositionWording( plot:table, own:table, foreign:table )
 	return ownText;
 end
 
+local m_foreignCities:table = nil;		-- cache of RevealedForeignCities
+local m_foreignKey:string = nil;
+local m_foreignTime:number = -100;
+
+-- The cities of other civilizations and city-states whose plot we have revealed: { name, x, y, civ }. Cached for the game turn,
+-- the number of cities and about a second (lists ask once per item).
+function HubAnnounce.RevealedForeignCities()
+	local localID:number = Game.GetLocalPlayer();
+	local okIDs:boolean, ids = pcall( function()
+		local list:table = {};
+		for _, id in ipairs( PlayerManager.GetAliveMajorIDs() ) do table.insert( list, id ); end
+		for _, id in ipairs( PlayerManager.GetAliveMinorIDs() ) do table.insert( list, id ); end
+		return list;
+	end );
+	if not okIDs then return {}; end
+	local count:number = 0;
+	for _, id in ipairs( ids ) do
+		if id ~= localID and Players[ id ] ~= nil then count = count + Players[ id ]:GetCities():GetCount(); end
+	end
+	local key:string = localID .. ":" .. Game.GetCurrentGameTurn() .. ":" .. count;
+	local now:number = UI.GetElapsedTime();
+	if m_foreignCities ~= nil and key == m_foreignKey and now - m_foreignTime < 1 and now >= m_foreignTime then return m_foreignCities; end
+	local list:table = {};
+	local vis:table = PlayersVisibility ~= nil and PlayersVisibility[ localID ] or nil;
+	if vis ~= nil then
+		for _, id in ipairs( ids ) do
+			local player:table = Players[ id ];
+			if id ~= localID and player ~= nil then
+				for _, city in player:GetCities():Members() do
+					local cityPlot:table = Map.GetPlot( city:GetX(), city:GetY() );
+					if cityPlot ~= nil and vis:IsRevealed( cityPlot:GetIndex() ) then
+						table.insert( list, { name = Locale.Lookup( city:GetName() ), x = city:GetX(), y = city:GetY(), civ = PlotDescription_GetCivName( id ) } );
+					end
+				end
+			end
+		end
+	end
+	m_foreignCities, m_foreignKey, m_foreignTime = list, key, now;
+	return list;
+end
+
 -- "in Rome" / "2 tiles south-east of Rome": where a plot is, seen from the nearest own city, and from the nearest foreign
 -- city (of a civilization or city-state we have revealed) when that one is closer. nil without cities.
 function HubAnnounce.PositionText( plot:table )
@@ -228,26 +269,10 @@ function HubAnnounce.PositionText( plot:table )
 			own = { name = Locale.Lookup( city:GetName() ), x = city:GetX(), y = city:GetY(), distance = distance };
 		end
 	end
-	local okIDs:boolean, ids = pcall( function()
-		local list:table = {};
-		for _, id in ipairs( PlayerManager.GetAliveMajorIDs() ) do table.insert( list, id ); end
-		for _, id in ipairs( PlayerManager.GetAliveMinorIDs() ) do table.insert( list, id ); end
-		return list;
-	end );
-	local vis:table = PlayersVisibility ~= nil and PlayersVisibility[ localID ] or nil;
-	if okIDs and vis ~= nil then
-		for _, id in ipairs( ids ) do
-			local player:table = Players[ id ];
-			if id ~= localID and player ~= nil then
-				for _, city in player:GetCities():Members() do
-					local distance:number = Map.GetPlotDistance( px, py, city:GetX(), city:GetY() );
-					local cityPlot:table = Map.GetPlot( city:GetX(), city:GetY() );
-					if ( foreign == nil or distance < foreign.distance ) and ( own == nil or distance < own.distance )
-							and cityPlot ~= nil and vis:IsRevealed( cityPlot:GetIndex() ) then
-						foreign = { name = Locale.Lookup( city:GetName() ), x = city:GetX(), y = city:GetY(), distance = distance, civ = PlotDescription_GetCivName( id ) };
-					end
-				end
-			end
+	for _, city in ipairs( HubAnnounce.RevealedForeignCities() ) do
+		local distance:number = Map.GetPlotDistance( px, py, city.x, city.y );
+		if ( foreign == nil or distance < foreign.distance ) and ( own == nil or distance < own.distance ) then
+			foreign = { name = city.name, x = city.x, y = city.y, distance = distance, civ = city.civ };
 		end
 	end
 	return HubAnnounce.PositionWording( plot, own, foreign );
