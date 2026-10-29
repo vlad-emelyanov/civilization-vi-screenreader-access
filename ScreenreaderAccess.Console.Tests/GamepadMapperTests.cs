@@ -191,6 +191,28 @@ public class GamepadMapperTests
     }
 
     [Fact]
+    public void PageUsedFlag_IsPerBumper()
+    {
+        GamepadMapper m = new();
+        GamepadState lb = S(buttons: GamepadState.LeftShoulder);
+        m.Update(default, lb, 0);
+        GamepadState lbDown = S(ly: -30000, buttons: GamepadState.LeftShoulder);
+        Assert.Equal("PageDown:Tap", FmtS(m.Update(lb, lbDown, 20)));
+        Assert.Empty(m.Update(lbDown, default, 40));   // LB up suppressed
+        // RB pressed and released alone afterwards, while LB is pressed again without paging: both Ups go out
+        GamepadState both = S(buttons: GamepadState.LeftShoulder | GamepadState.RightShoulder);
+        Assert.Equal("LB:Down,RB:Down", FmtS(m.Update(default, both, 100)));
+        Assert.Equal("RB:Up", FmtS(m.Update(both, lb, 120)));
+        Assert.Equal("LB:Up", FmtS(m.Update(lb, default, 140)));
+        // LB pages while RB is released first: RB (held during paging) stays suppressed too, but a later fresh RB press is clean
+        m.Update(default, both, 200);
+        m.Update(both, S(ly: 30000, buttons: GamepadState.LeftShoulder | GamepadState.RightShoulder), 220);
+        Assert.Empty(m.Update(S(ly: 30000, buttons: GamepadState.LeftShoulder | GamepadState.RightShoulder), default, 240));
+        Assert.Equal("RB:Down", FmtS(m.Update(default, S(buttons: GamepadState.RightShoulder), 300)));
+        Assert.Equal("RB:Up", FmtS(m.Update(S(buttons: GamepadState.RightShoulder), default, 320)));
+    }
+
+    [Fact]
     public void BumperHeld_LeftRightStayArrows_AndBumperAloneStillSendsItsUp()
     {
         GamepadMapper m = new();

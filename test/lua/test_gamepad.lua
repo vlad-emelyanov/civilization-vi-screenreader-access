@@ -132,14 +132,25 @@ test("PageKey and the Page map entries", function()
 	eq(Gamepad.ButtonOf(Keys.VK_PRIOR, false), nil)
 end)
 
-test("NoteModeKey follows F22 / F23 without firing the event; Follow tolerates a context without SRListen", function()
+test("NoteModeKey follows F22 / F23 and tells the others once per change (no loop); Follow tolerates a context without SRListen", function()
 	Gamepad.SetActive(false)
 	fired = {}
 	Gamepad.NoteModeKey(Keys.VK_F22, false)
 	eq(Gamepad.IsActive(), true)
+	eq(#fired, 1)
+	eq(fired[1].name, "SRA_GamepadMode")
+	eq(fired[1].args[1], true)
+	Gamepad.NoteModeKey(Keys.VK_F22, false)		-- no change, no event
+	eq(#fired, 1)
 	Gamepad.NoteModeKey(Keys.VK_F23, false)
 	eq(Gamepad.IsActive(), false)
-	eq(#fired, 0)
+	eq(#fired, 2)
+	eq(fired[2].args[1], false)
+	-- the request for the mode fires one request event and nothing else
+	fired = {}
+	Gamepad.RequestMode()
+	eq(#fired, 1)
+	eq(fired[1].name, "SRA_GamepadModeRequest")
 	Gamepad.Follow()
 	Gamepad.Follow()
 end)
@@ -158,4 +169,13 @@ test("WrapInput translates GetKey / IsControlDown in controller mode only", func
 	eq(wrapped{ key = Keys.VK_HOME, shift = true }:GetKey(), Keys.VK_HOME)		-- Shift: the keyboard's meaning
 	eq(wrapped{ key = Keys.VK_TAB, ctrl = true }:GetKey(), Keys.VK_LEFT)
 	Gamepad.SetActive(false)
+end)
+
+test("catcher: PageUp / PageDown never reach the game in controller mode, the keyboard keeps them", function()
+	for _, key in ipairs({ Keys.VK_PRIOR, Keys.VK_NEXT }) do
+		eq(Gamepad_CatchKey(DOWN, key, false, false), nil)
+		eq(Gamepad_CatchKey(UP, key, false, false), nil)
+		eq(Gamepad_CatchKey(DOWN, key, false, true).event, "swallow")
+		eq(Gamepad_CatchKey(UP, key, false, true).consume, true)
+	end
 end)

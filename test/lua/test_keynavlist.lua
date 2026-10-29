@@ -269,6 +269,18 @@ test("sectionCounts: the group name comes with its item count", function()
 	listeq(Spoken(), { "B, 3: Beta one, 3 of 6" })
 end)
 
+test("entering a group does not repeat its name when the item starts with it", function()
+	local s = newList({
+		{ key = "a", text = "Alpha one", section = "Alpha" }, { key = "b", text = "Builder, 5 tiles east of Rome", section = "Builder" },
+		{ key = "c", text = "Builder, 7 tiles west", section = "Builder" },
+	}, { sectionCounts = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_NEXT)
+	listeq(Spoken(), { "Builder, 2: 5 tiles east of Rome, 2 of 3" })
+	press(s.list, Keys.VK_DOWN)		-- inside the group the full text
+	listeq(Spoken(), { "Builder, 7 tiles west, 3 of 3" })
+end)
+
 test("controller mode: D-pad up / down move one item, left / right are Left / Right, bumpers are the sections", function()
 	local log = {}
 	local s = newList(abc(), { extraKeys = { [Keys.VK_TAB] = function() table.insert(log, "next") end },

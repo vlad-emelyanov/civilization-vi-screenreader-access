@@ -26,13 +26,13 @@ expect ^Places\. Your cities
 key Tab -Settle 1000
 expect ^Your units, 2 of \d+ categories
 key PageDown -Settle 1000
-expect ^Great General, 2: Great General,
+expect ^Great General, 2: .*, \d+ of \d+
 key PageDown -Settle 1000
-expect ^Scout, 2: Scout,
+expect ^Scout, 2: .*, \d+ of \d+
 key PageDown -Settle 1000
-expect ^Spearman, 1: Spearman,
+expect ^Spearman, 1: .*, \d+ of \d+
 key PageUp -Settle 1000
-expect ^Scout, 2: Scout,
+expect ^Scout, 2: .*, \d+ of \d+
 # a list without groups: Your cities
 key Control+Tab -Settle 1000
 key PageDown -Settle 800

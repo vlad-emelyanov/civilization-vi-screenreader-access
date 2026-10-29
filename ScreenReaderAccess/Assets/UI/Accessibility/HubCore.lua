@@ -127,6 +127,26 @@ function HubCore.IsGamePopupOpen()
 	return false;
 end
 
+-- The context ids of the open game screens and popups (the options menu as "TopOptionsMenu"); empty when none. Same scan as IsGamePopupOpen.
+function HubCore.OpenScreenIds()
+	local ids:table = {};
+	local menu = ContextPtr:LookUpControl( "/InGame/TopOptionsMenu" );
+	if menu ~= nil and not menu:IsHidden() then table.insert( ids, "TopOptionsMenu" ); end
+	for _, name in ipairs( { "WorldPopups", "FakePopups", "Screens", "PartialScreens", "Diplomacy", "EndGame" } ) do
+		local parent = ContextPtr:LookUpControl( "/InGame/" .. name );
+		if parent ~= nil then
+			for _, child in ipairs( parent:GetChildren() ) do
+				if not child:IsHidden() and not ALWAYS_SHOWN[ child:GetID() ] then table.insert( ids, child:GetID() ); end
+			end
+		end
+	end
+	for _, name in ipairs( { "EraReviewPopup", "DedicationPopup", "WorldCongressPopup", "WorldCongressIntro", "WorldCongressBetweenTurns" } ) do
+		local popup = ContextPtr:LookUpControl( "/InGame/" .. name );
+		if popup ~= nil and not popup:IsHidden() then table.insert( ids, name ); end
+	end
+	return ids;
+end
+
 -- ===========================================================================
 --	TEST HARNESS (util/civregress.py): between two regression scripts on one loaded fixture. TestResetState says whether the
 --	game is back in the state a fresh load gives and puts the cheap state (map cursor, selection) back. It never changes

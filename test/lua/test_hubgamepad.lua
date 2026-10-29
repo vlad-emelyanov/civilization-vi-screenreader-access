@@ -134,6 +134,7 @@ test("screen open: LB / RB reach the screen; Menu closes the production panel an
 	end }
 	LuaEvents = setmetatable({}, { __index = function(_, name) return function() table.insert(calls, name) end end })
 	HubCore.IsGamePopupOpen = function() return true end
+	HubCore.OpenScreenIds = function() return { "ProductionPanel" } end
 	HubCore.CloseMode = function() table.insert(calls, "closemode") end
 	eq(press("Menu"), true)
 	eq(table.concat(calls, ","), "CityPanel_ProductionClose,closemode,InGame_OpenInGameOptionsMenu")
@@ -141,9 +142,13 @@ test("screen open: LB / RB reach the screen; Menu closes the production panel an
 	eq(press("Menu"), true)
 	eq(table.concat(calls, ","), "")
 	eq(said[1], "Close the screen first, " .. SRKey("Escape") .. " closes it")
-	eq(press("LB"), false)		-- LB / RB pass through to the screen (its sections)
+	eq(press("LB"), false)		-- LB / RB pass through to a screen that handles them (its sections)
 	eq(press("RB"), false)
 	eq(#said, 1)
+	HubCore.OpenScreenIds = function() return { "ProductionPanel", "SomeUnknownPopup" } end
+	eq(press("LB"), true)		-- a screen that does not: the old hint, never silent
+	eq(said[2], "Close the screen first, " .. SRKey("Escape") .. " closes it")
+	HubCore.OpenScreenIds = function() return {} end
 	HubCore.IsGamePopupOpen = function() return false end
 end)
 
@@ -175,4 +180,21 @@ test("an open hub list with sections: LB / RB move them, the ring only past the 
 	eq(table.concat(calls, ","), "can:nil,ring")
 	HubCore.m_mode = nil
 	mode = 7
+end)
+
+test("PageUp / PageDown: swallowed in controller mode while a screen without a list is open, passed otherwise", function()
+	Keys.VK_PRIOR, Keys.VK_NEXT = 33, 34
+	HubCore.IsGamePopupOpen = function() return true end
+	Gamepad.SetActive(true)
+	HubCore.OpenScreenIds = function() return { "SomeUnknownPopup" } end
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_NEXT, false), true)
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyUp, Keys.VK_PRIOR, false), true)
+	HubCore.OpenScreenIds = function() return { "ProductionPanel" } end		-- a KeyNavList screen consumes them itself
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_NEXT, false), false)
+	HubCore.OpenScreenIds = function() return { "ClimateScreen" } end		-- Climate hands PageDown to the game: swallowed
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_NEXT, false), true)
+	Gamepad.SetActive(false)		-- keyboard: PageDown still reaches the game
+	HubCore.OpenScreenIds = function() return { "SomeUnknownPopup" } end
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_NEXT, false), false)
+	HubCore.IsGamePopupOpen = function() return false end
 end)

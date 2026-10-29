@@ -103,6 +103,11 @@ function KeyNavList_Create( config:table )
 				end
 				head = head .. ", " .. count;
 			end
+			-- the item names its own group ("Builder, 5 tiles east"): say it once
+			local own:string = item.text;
+			if string.lower( string.sub( own, 1, #item.section + 2 ) ) == string.lower( item.section ) .. ", " then
+				text = string.sub( own, #item.section + 3 );
+			end
 			text = head .. ": " .. text;
 		end
 		m_lastSection = item.section;
@@ -122,6 +127,7 @@ function KeyNavList_Create( config:table )
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
 	function list.Open( title:string, initialKey, silent:boolean, keepGuard:boolean )
 		if not keepGuard and UI ~= nil and UI.GetElapsedTime ~= nil then m_openedAt = UI.GetElapsedTime(); end
+		Gamepad.RequestMode();
 		local items:table = Build();
 		m_lastSection = nil;
 		if initialKey ~= nil then m_focusKey = initialKey; end

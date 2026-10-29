@@ -26,7 +26,7 @@ public sealed class GamepadMapper
 
     private readonly Repeater _left = new(350, 110), _dpad = new(350, 110), _right = new(500, 350);
 
-    private bool _rtShiftUsed, _aShift, _bumperPageUsed;
+    private bool _rtShiftUsed, _aShift, _lbPageUsed, _rbPageUsed;
 
     public InputSource Source { get; private set; } = InputSource.Keyboard;
 
@@ -49,8 +49,8 @@ public sealed class GamepadMapper
         bool rtWas = prev.RightTrigger >= TriggerThreshold;
         if (rtNow && !rtWas) _rtShiftUsed = false;
         bool bumperNow = (cur.Buttons & (GamepadState.LeftShoulder | GamepadState.RightShoulder)) != 0;
-        bool bumperWas = (prev.Buttons & (GamepadState.LeftShoulder | GamepadState.RightShoulder)) != 0;
-        if (bumperNow && !bumperWas) _bumperPageUsed = false;
+        if ((cur.Buttons & GamepadState.LeftShoulder) != 0 && (prev.Buttons & GamepadState.LeftShoulder) == 0) _lbPageUsed = false;
+        if ((cur.Buttons & GamepadState.RightShoulder) != 0 && (prev.Buttons & GamepadState.RightShoulder) == 0) _rbPageUsed = false;
 
         foreach ((ushort mask, PadButton b) in ToggleButtons)
         {
@@ -61,7 +61,7 @@ public sealed class GamepadMapper
                 Edge(events, b, was, now, _aShift);
                 if (!now) _aShift = false;
             }
-            else if (b is PadButton.LB or PadButton.RB && !now && was && _bumperPageUsed) { }   // the bumper was a modifier for PageUp / PageDown: no KeyUp
+            else if (!now && was && ((b == PadButton.LB && _lbPageUsed) || (b == PadButton.RB && _rbPageUsed))) { }   // that bumper was a modifier for PageUp / PageDown: no KeyUp
             else Edge(events, b, was, now);
         }
         Edge(events, PadButton.LT, prev.LeftTrigger >= TriggerThreshold, cur.LeftTrigger >= TriggerThreshold);
@@ -72,7 +72,11 @@ public sealed class GamepadMapper
         Direction(events, _dpad, DPadDir(cur.Buttons), nowMs, rtNow, bumperNow);
         Direction(events, _right, StickDir(cur.RX, cur.RY, PadButton.RSUp, PadButton.RSDown, PadButton.RSLeft, PadButton.RSRight), nowMs, false);
         if (events.Exists(e => e.Shift)) _rtShiftUsed = true;
-        if (events.Exists(e => e.Button is PadButton.PageUp or PadButton.PageDown)) _bumperPageUsed = true;
+        if (events.Exists(e => e.Button is PadButton.PageUp or PadButton.PageDown))
+        {
+            if ((cur.Buttons & GamepadState.LeftShoulder) != 0) _lbPageUsed = true;   // every bumper held while paging is a modifier now
+            if ((cur.Buttons & GamepadState.RightShoulder) != 0) _rbPageUsed = true;
+        }
 
         if (Source == InputSource.Keyboard && events.Exists(e => e.Action != KeyAction.Up))
         {
