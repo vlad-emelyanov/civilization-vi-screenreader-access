@@ -1,0 +1,19 @@
+# Controller mode in the research chooser (a TopLevelHUD side panel, not a game screen): LB / RB say "No tabs here" instead of opening the
+# ring's Notifications list on top of it (HubGamepad.IsChooserOpen). Written blind (2026-10-29, not verified in game; run with --record first).
+# Fixture bug-research-chooser-bumper (turn 121, a research choice is due: Enter = Next Action opens the chooser).
+# covers: **/HubGamepad.lua **/ResearchChooser.lua **/KeyNavList.lua **/Gamepad.lua
+# no-share-load: opens the research chooser
+load bug-research-chooser-bumper
+clear-advisors
+key F22 -Settle 800
+key Enter -Settle 2000
+expect (?i)choose research
+key F15 -Settle 1200
+expect (?i)no tabs here
+expect-not (?i)notifications
+key F14 -Settle 1200
+expect (?i)no tabs here
+key Escape -Settle 1500
+expect (?i)research closed
+key F23 -Settle 500
+no-lua-errors

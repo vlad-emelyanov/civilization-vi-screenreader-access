@@ -74,6 +74,12 @@ local function IsControlShown( path:string )
 	return control ~= nil and not control:IsHidden();
 end
 
+-- The research / civics chooser side panels (TopLevelHUD, not counted as game screens): an open one owns LB / RB (its KeyNavList says
+-- "No tabs here"; PageUp / PageDown are its groups), so the ring must not open on top of it.
+local function IsChooserOpen()
+	return IsControlShown( "/InGame/TopLevelHUD/ResearchChooser" ) or IsControlShown( "/InGame/TopLevelHUD/CivicsChooser" );
+end
+
 local function CloseFirstText()
 	return "Close the screen first, " .. SRKey( "Escape" ) .. " closes it";
 end
@@ -86,6 +92,7 @@ local BUMPER_SCREENS:table = {
 	EspionageOverview = true, WorldRankings = true, ClimateScreen = true, TechTree = true, CivicsTree = true, GovernmentScreen = true,
 	ReligionScreen = true, GreatPeoplePopup = true, EndGameMenu = true, CityStates = true, Civilopedia = true,
 	DiplomacyDealView = true, DiplomacyActionView = true,
+	LeaderScene = true,		-- shown beside the diplomacy and deal views (same container, no input of its own); without it the deal said "Close the screen first"
 };
 
 -- The same screens minus the Climate screen (it hands PageDown to the game on purpose: its toggle key): the ones that consume
@@ -220,6 +227,10 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 
 	local action = GLOBAL_ACTIONS[ button ];
 	if action ~= nil then
+		if ( button == "LB" or button == "RB" ) and HubCore.m_mode == nil and IsChooserOpen() then
+			if suppressed then return true; end
+			return false;		-- the chooser's list handles it (Control+Tab / Tab)
+		end
 		if button == "LB" or button == "RB" then
 			-- an open hub list with sections moves them (KeyDown consumed, the Tab handler acts on KeyUp)
 			if suppressed then return true; end

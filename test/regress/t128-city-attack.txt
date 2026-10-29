@@ -14,7 +14,7 @@ wait Turn 129 -Timeout 90
 clear-advisors
 lua GameCore_Tuner local n=0; for i=0,63 do local p=Players[i]; if p and p:IsBarbarian() then for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then u:SetDamage(70); n=n+1 end end end end return n
 key Enter -Settle 1500
-expect ^City ranged attack: choose a tile
+expect ^City ranged attack: choose a target
 expect valid target, Ranged strength \d+ against \d+.*Barbarian Crossbowman
 # G2/G5 (verified 2026-10-26): the city preview comes from the city's district component (as the game's UnitPanel), so the line has strengths.
 key Space -Settle 800
