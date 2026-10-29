@@ -3254,7 +3254,8 @@ function SRA_OverviewEntries()
 	if #war > 0 then
 		table.insert( top, { key = "sub:war", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ) .. ", " .. #war .. " options", sub = "war", title = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ), detail = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI_TT" ) ) } );
 	end
-	return top, discuss, war;
+	-- available entries first (like the Tab unit menu): "Send Delegation, unavailable" does not lead the list
+	return SRAvailableFirst( top ), SRAvailableFirst( discuss ), SRAvailableFirst( war );
 end
 
 local function SRA_OverviewBuild()

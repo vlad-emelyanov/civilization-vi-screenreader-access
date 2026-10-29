@@ -138,3 +138,8 @@ test("menu key hint: keyboard-only unless the action has a pad button; Retire as
 	local unit = { GetName = function() return "Hannibal" end, GetX = function() return 1 end, GetY = function() return 1 end }
 	eq(HubMenus.ConfirmText(unit, "UNITCOMMAND_ACTIVATE_GREAT_PERSON"), "Retire Hannibal ends the unit for good and cannot be undone. [KEY:Enter] again to confirm")
 end)
+
+test("SRAvailableFirst is the shared stable partition (diplomacy overview too)", function()
+	local r = SRAvailableFirst({ { key = "deleg", choosable = false }, { key = "sub" }, { key = "x", choosable = true } })
+	eq(r[1].key, "sub"); eq(r[2].key, "x"); eq(r[3].key, "deleg")
+end)

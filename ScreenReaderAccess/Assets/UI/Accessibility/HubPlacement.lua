@@ -47,7 +47,10 @@ local function PlacementEffects( c:table, withBuy:boolean )
 	for _, text in ipairs( c.adjacency ) do table.insert( parts, text ); end
 	if #c.removes > 0 then table.insert( parts, "removes " .. table.concat( c.removes, " and " ) ); end
 	for _, text in ipairs( c.notes ) do table.insert( parts, text ); end
-	if withBuy and not c.owned then table.insert( parts, "buy tile " .. c.tileCost .. " gold" ); end
+	if withBuy and not c.owned then
+		table.insert( parts, "buy tile " .. c.tileCost .. " gold" );
+		if ( c.shortBy or 0 ) > 0 then table.insert( parts, "needs " .. c.shortBy .. " more gold" ); end		-- listed after the placeable tiles
+	end
 	return table.concat( parts, ", " );
 end
 
@@ -71,7 +74,7 @@ HubCore.PlacementPlotText = function( plot:table )
 	if c.owned then
 		text = "valid";
 	else
-		text = "purchasable, " .. c.tileCost .. " gold";
+		text = "purchasable, " .. c.tileCost .. " gold" .. ( ( c.shortBy or 0 ) > 0 and ( ", needs " .. c.shortBy .. " more gold" ) or "" );
 	end
 	local effects:string = PlacementEffects( c, false );
 	if effects ~= "" then text = text .. ", " .. effects; end
