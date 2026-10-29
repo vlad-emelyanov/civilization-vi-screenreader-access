@@ -10,7 +10,7 @@ public sealed class GamepadService : IDisposable
     private readonly bool _log;
     private readonly XInputReader _reader = new();
     private readonly GamepadMapper _mapper = new();
-    private readonly KeyInjector _injector = new();
+    private readonly KeyInjector _injector;
     private readonly ForegroundGuard _guard = new();
     private readonly HashSet<PadButton> _heldDown = new();
     private readonly object _lock = new();
@@ -19,7 +19,12 @@ public sealed class GamepadService : IDisposable
     private InputDeviceTracker? _tracker;
     private volatile bool _modeOffPending;
 
-    public GamepadService(bool log) { _log = log; }
+    public GamepadService(bool log, bool post = true)
+    {
+        _log = log;
+        _injector = new KeyInjector(post);
+        if (!post) Console.WriteLine("Gamepad: keys via SendInput (--gamepad-sendinput; screen readers hear them)");
+    }
 
     public void Start()
     {

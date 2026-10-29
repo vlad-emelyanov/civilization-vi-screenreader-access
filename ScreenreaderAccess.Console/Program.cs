@@ -107,7 +107,7 @@ public static class Program
         }
         try
         {
-            Gamepad.GamepadService service = new(args.Contains("--gamepad-log"));
+            Gamepad.GamepadService service = new(args.Contains("--gamepad-log"), post: !args.Contains("--gamepad-sendinput"));
             service.Start();
             return service;
         }
