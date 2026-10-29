@@ -3805,6 +3805,8 @@ local function SRA_Announce()
 	elseif ms_bIsDemand then
 		mode = "demand";
 	end
+	-- diagnostic for multiplayer reports ("no goods appeared"): what the Populate* functions delivered
+	print( "DiplomacyDealView open: other=" .. tostring( g_OtherPlayer:GetID() ) .. " otherHuman=" .. tostring( ms_OtherPlayerIsHuman ) .. " avail mine=" .. tostring( #m_srAvail[ LOCAL_PLAYER ] ) .. " theirs=" .. tostring( #m_srAvail[ OTHER_PLAYER ] ) .. " netMP=" .. tostring( GameConfiguration.IsNetworkMultiplayer() ) );
 	local summary:string = SRA_Summary();
 	local parts:table = { DealSpeech_Intro( leader, civ, mode ) };
 	-- a statement handed over while nobody opened the deal screen is stale: only use one from the last 3 seconds
