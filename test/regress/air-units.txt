@@ -16,9 +16,9 @@ key Escape -Settle 800
 key Shift+R -Settle 1500
 expect ^Rebase: choose a tile
 key X -Settle 1500
-expect valid target. Mediolanum, city
+expect valid target. (\d+ tiles? [a-z-]+, )?Mediolanum, city
 key X -Settle 1500
-expect valid target. Lugdunum, city
+expect valid target. (\d+ tiles? [a-z-]+, )?Lugdunum, city
 key Enter -Settle 3000
 expect ^Rebasing
 expect Historic moment: Taking Flight

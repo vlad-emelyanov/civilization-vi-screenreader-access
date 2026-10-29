@@ -14,13 +14,13 @@ key Down -Settle 600
 key Down -Settle 600
 expect Re-Base, key Shift\+R
 key End -Settle 600
-expect ^Deploy.*unavailable
+expect unavailable: 
 key Escape -Settle 800
 key Shift+R -Settle 1500
 expect ^Rebase: choose a tile
 key X -Settle 1200
 key X -Settle 1200
-expect valid target. Aircraft Carrier
+expect valid target. (\d+ tiles? [a-z-]+, )?Aircraft Carrier
 key Enter -Settle 3000
 expect ^Rebasing
 lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetMovesRemaining()==0 and u:GetX()==54 and u:GetY()==33 then return 'on carrier' end end

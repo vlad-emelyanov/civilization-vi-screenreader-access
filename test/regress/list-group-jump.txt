@@ -18,7 +18,6 @@ key PageUp -Settle 1000
 expect ^[^,]+: .*, \d+ of \d+
 expect-not (?i)climate
 key Escape -Settle 1200
-key Escape -Settle 1200
 # Places, Your units (category 2 once the two barbarians are gone)
 lua InGame UI.DeselectAllUnits()
 action KeyNavPlaces -Settle 1500
@@ -26,13 +25,13 @@ expect ^Places\. Your cities
 key Tab -Settle 1000
 expect ^Your units, 2 of \d+ categories
 key PageDown -Settle 1000
-expect ^Great General, 2: .*, \d+ of \d+
+expect ^Builder, 1: .*, \d+ of \d+
+key PageDown -Settle 1000
+expect ^Hannibal Barca, 1: .*, \d+ of \d+
 key PageDown -Settle 1000
 expect ^Scout, 2: .*, \d+ of \d+
-key PageDown -Settle 1000
-expect ^Spearman, 1: .*, \d+ of \d+
 key PageUp -Settle 1000
-expect ^Scout, 2: .*, \d+ of \d+
+expect ^Hannibal Barca, 1: .*, \d+ of \d+
 # a list without groups: Your cities
 key Control+Tab -Settle 1000
 key PageDown -Settle 800

@@ -140,7 +140,7 @@ function HubCore.OpenScreenIds()
 			end
 		end
 	end
-	for _, name in ipairs( { "EraReviewPopup", "DedicationPopup", "WorldCongressPopup", "WorldCongressIntro", "WorldCongressBetweenTurns" } ) do
+	for _, name in ipairs( { "Civilopedia", "EraReviewPopup", "DedicationPopup", "WorldCongressPopup", "WorldCongressIntro", "WorldCongressBetweenTurns" } ) do
 		local popup = ContextPtr:LookUpControl( "/InGame/" .. name );
 		if popup ~= nil and not popup:IsHidden() then table.insert( ids, name ); end
 	end

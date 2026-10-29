@@ -15,7 +15,7 @@ expect ^Form corps: choose a tile
 key Enter -Settle 1200
 expect ^No unit here can join a corps
 key X -Settle 1200
-expect ^valid target, unit to join. Field Cannon
+expect ^valid target, unit to join. (\d+ tiles? [a-z-]+, )?Field Cannon
 key Enter -Settle 2500
 expect ^Forming a corps with Field Cannon
 wait Field Cannon Corps formed -Timeout 8
