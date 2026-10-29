@@ -1,0 +1,77 @@
+# Merged scripts (one load instead of three), fixture pt-ai-deal-offer: Dido's deal screen opened through V, parts in this order:
+#  - pad-deal: controller X reads the deal summary (blind-written, never run)
+#  - pad-deal-bumpers: LB / RB switch sections on the deal screen (blind-written, never run)
+#  - deal-change-once (verified 2026-10-24): the changed-deal line does not repeat its tail; Tab into Actions focuses the first enabled action
+# Every part leaves the deal and the diplomacy session with Escape, Escape (and controller mode off with F23) before the next one starts.
+# The first Enter (reselect / next action) is only sent once, at the start; later parts start from the map the Escapes return to.
+# was: pad-deal pad-deal-bumpers deal-change-once
+# covers: **/SRA_DealView.lua **/DealSpeech.lua **/HubGamepad.lua **/Gamepad.lua
+# no-share-load: opens diplomacy and changes the deal (the AI answers an offered item)
+load pt-ai-deal-offer
+clear-advisors
+# --- part from pad-deal ---
+key F22 -Settle 500
+key Enter -Settle 800
+action KeyNavDiplomacy -Settle 2500
+expect ^Diplomacy, met civilizations
+key Enter -Settle 2500
+expect ^Diplomacy with
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect ^Make Deal, 4 of 8
+key Enter -Settle 3500
+expect ^Deal with
+# X = F13 reads the summary
+key F13 -Settle 1000
+expect ^Deal is empty. .*Actions:
+key Escape -Settle 1500
+key Escape -Settle 1500
+key F23 -Settle 500
+# --- part from pad-deal-bumpers ---
+key F22 -Settle 500
+action KeyNavDiplomacy -Settle 2500
+expect ^Diplomacy, met civilizations
+key Enter -Settle 2500
+expect ^Diplomacy with
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect ^Make Deal, 4 of 8
+key Enter -Settle 3500
+expect ^Deal with
+# RB: next section (Your items), LB: back
+key F15 -Settle 1000
+expect (?i)your items
+expect-not (?i)close the screen first
+key F15 -Settle 1000
+expect (?i)their items
+key F14 -Settle 1000
+expect (?i)your items
+key Escape -Settle 1500
+key Escape -Settle 1500
+key F23 -Settle 500
+# --- part from deal-change-once ---
+action KeyNavDiplomacy -Settle 2500
+expect ^Diplomacy, met civilizations
+key Enter -Settle 2500
+expect ^Diplomacy with
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+expect ^Make Deal, 4 of 8
+key Enter -Settle 3500
+expect ^Deal with
+key Tab -Settle 800
+expect ^Your items, \d+ items?
+key Enter -Settle 2000
+expect ^Added: You give
+# the player stays in Your items after the AI answer; Control+Tab goes back to Deal
+expect (?i)Actions: Give Gift, What would you give me\?, Never mind
+key Control+Tab -Settle 800
+key Right -Settle 1500
+expect ^2 diplomatic favor
+expect-not (?i)(You give: [^.]*)\..*\1\.\s*$
+key Escape -Settle 1500
+key Escape -Settle 1500
+no-lua-errors

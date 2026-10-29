@@ -1,6 +1,6 @@
 # Rewritten 2026-10-26. Fixture pt-modes-t94: a barbarian camp lies on a revealed plot in the fog (64,33). Since bug-camps-not-in-places the memory is seeded from revealed plots on load, so the settle browser and the places list (J > Points of interest) BOTH name it.
 # covers: Accessibility/SettleScan.lua Accessibility/HubPlaces.lua Accessibility/HubSettle.lua
-# no-share-load: selects the settler
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load pt-modes-t94
 lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(917509)) return 1
 key X -Settle 1500

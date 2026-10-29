@@ -1,6 +1,6 @@
 # Controller mode on the bare map (Gamepad.lua catcher in WorldInput + HubGamepad): arrows move the cursor, Space reads details, Escape opens nothing, Home / End are What is next / cursor to selection, Menu opens the game menu, View opens the help; with the mode off Escape opens the menu again. UNVERIFIED, blind-written: run once with civregress --record.
 # covers: **/Gamepad.lua **/HubGamepad.lua **/WorldInput.lua
-# no-share-load: toggles controller mode and opens the game menu
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(), c:GetY(), true, true); UI.SelectNextReadyUnit(); return 1

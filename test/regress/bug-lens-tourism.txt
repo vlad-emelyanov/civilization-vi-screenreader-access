@@ -1,6 +1,6 @@
 # Verified 2026-10-24. Fixture bug-lens-silent (turn 128, Rome). Key 7 (LensTourism) used to be silent.
 # covers: **/LensText.lua UI/Additions/InGameAccess.lua
-# no-share-load: toggles the lens (interface mode)
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load bug-lens-silent
 clear-advisors
 action LensTourism -Settle 2500

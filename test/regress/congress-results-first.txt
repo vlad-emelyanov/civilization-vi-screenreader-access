@@ -1,6 +1,6 @@
 # Written blind (2026-10-26): the congress results screen interrupts (the player just finished the congress and wants the results before the unit line) and holds the hub's own announcements until it closes (SRA_SpeechHold "WorldCongressResults"). Fixture bug-congress-result-unmet (turn 151).
 # covers: **/WorldCongressPopup_SRA.lua **/WorldCongressText.lua **/HubCore.lua
-# no-share-load: opens and closes the congress results
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load bug-congress-result-unmet
 clear-advisors
 # the popup is not restored by a load: open it like the results notification does

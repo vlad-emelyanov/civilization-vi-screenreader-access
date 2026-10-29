@@ -63,6 +63,14 @@ process, as does exit 5; if it cannot start or the protocol breaks, the steps ru
 (no SR line at all = the full -Settle). `-Quiet <ms>` raises the window for a late second line, `-NoQuiet` is the old fixed wait.
 civctl reports the real wait as `@@waited <ms>` (the runner strips and sums it): "settle" in TIMING/BREAKDOWN is the time really waited.
 
+Merged scripts: a `# was: <old name> [<old name> ...]` header lists the scripts that were merged into this one; `regress <old name>`
+runs the merged script.
+`# dirty-group: <tag>`: scripts with the same tag on one fixture run one after the other on ONE load (their game change is the same and
+idempotent, e.g. the tuner removing the two barbarians next to Rome); the reset check still runs between members (cursor/selection
+reset, a member that dirtied more than the group's change makes the next one load fresh), the last member ends the sharing. A member
+that also has `# no-share-load:` (it changes more) runs last in its group.
+`# options:` scripts with identical options on one fixture share one load as well (the options are switched when they change).
+
 Selective runs: every script carries a header `# covers: <glob> [<glob> ...]` naming the mod files it exercises (globs on repo-relative
 paths with / ; `**/` = any directories, `*` = within one name; a glob without a leading `**/` matches as a path suffix).
   python util/civregress.py changed [--base <rev>]    run only the scripts the changes since <rev> can affect
@@ -144,6 +152,8 @@ class Steps(list):
     text = ""      # the script source (record mode rewrites it)
     manual = False # '# manual' in the script: only run when named (all / changed skip it)
     options = frozenset()  # '# options: animations advisor' headers: option groups this script wants at the USER's values
+    group_last = False  # '# dirty-group:' together with '# no-share-load:': ordered after the other members of its group
+    dirty_group = None  # '# dirty-group: <tag>': scripts with the same tag on one fixture run consecutively on one load (same idempotent state change)
     covers = ()    # globs of '# covers:' headers (empty = none given: `regress changed` always runs the script)
 
 
@@ -176,13 +186,24 @@ def script_needs_fresh(steps):
 
 
 def must_load_itself(steps):
-    """True when the script may not START on a shared game: '# own-load' (checks the load's own speech) and '# options:'."""
+    """True when the script may not START on a game loaded under the default test options: '# own-load' (checks the load's own
+    speech) and '# options:' (a game loaded with the same options may be shared, see can_start_shared)."""
     return bool(getattr(steps, "own_load", False) or getattr(steps, "options", ()))
 
 
 def dirties_game(steps):
-    """True when the game this script leaves must not be shared: '# no-share-load', a scenario, '# options:'."""
-    return bool(getattr(steps, "fresh", False) or getattr(steps, "options", ()))
+    """True when the game this script leaves must not be shared: '# no-share-load', a scenario, '# dirty-group:' (only the group
+    may reuse it, see group_continues)."""
+    return bool(getattr(steps, "fresh", False))
+
+
+def group_continues(steps, nxt):
+    """True when the next script is in the same '# dirty-group:' on the same fixture (and the same options): it runs on this game."""
+    if nxt is None:
+        return False
+    tag = getattr(steps, "dirty_group", None)
+    return bool(tag and tag == getattr(nxt, "dirty_group", None) and first_fixture(steps) == first_fixture(nxt)
+                and getattr(steps, "options", frozenset()) == getattr(nxt, "options", frozenset()) and not getattr(nxt, "own_load", False))
 
 
 def parse_script(text, name="script"):
@@ -194,8 +215,11 @@ def parse_script(text, name="script"):
     steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
     steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
     steps.options = parse_options(text, name)
-    if steps.options:
-        steps.fresh = True   # needs its own load (the options are switched before it)
+    m = re.search(r"^#\s*dirty-group:\s*([\w.-]+)", text, re.M)
+    if m:
+        steps.dirty_group = m.group(1)
+        steps.group_last = steps.fresh   # also '# no-share-load:' = visible changes beyond the group's (the reset check would flag them): run last in the group
+        steps.fresh = True   # the script dirties the game; only a script of the same group may reuse it
     scenario = False
     for no, raw in enumerate(text.splitlines(), 1):
         line = raw.strip().lstrip("﻿")
@@ -524,14 +548,16 @@ def clear_advisors(runner, out=print, line=0):
 
 
 def shares_game(steps):
-    """May the next script run on the game this one leaves? Not after '# no-share-load', a scenario or an '# options:' header."""
+    """May the next script run on the game this one leaves? Not after '# no-share-load', a scenario or a '# dirty-group:' header
+    (a script of the same group may, see group_continues)."""
     return not dirties_game(steps)
 
 
-def can_start_shared(steps):
-    """May this script skip its load and start on a clean shared game? Not with '# own-load' or '# options:'. A '# no-share-load' or
-    scenario script may (it just dirties the game afterwards)."""
-    return not must_load_itself(steps)
+def can_start_shared(steps, game_options=frozenset()):
+    """May this script skip its load and start on a clean shared game, which was loaded under `game_options` (the '# options:' of
+    the script that loaded it, default none)? Not with '# own-load'; a script with '# options:' only on a game loaded with the same
+    options. A '# no-share-load' or scenario script may (it just dirties the game afterwards)."""
+    return not getattr(steps, "own_load", False) and getattr(steps, "options", frozenset()) == frozenset(game_options)
 
 
 _RESET_ANSWER = re.compile(r"^(clean|dirty|snap)\b\s*(.*)$")
@@ -753,7 +779,7 @@ def run_script(name, steps, runner, out=print, skip_load=False, on_settled=None)
             capture_due = on_settled is not None
     if capture_due and not res.aborted:
         on_settled()    # the script only loaded and checked: the game is still as the load left it
-    if res.aborted or not shares_game(steps):
+    if res.aborted or not (shares_game(steps) or getattr(steps, "dirty_group", None)):   # run_all decides whether a group continues
         res.loaded = None
     res.skipped_all = res.skipped > 0 and res.passed + res.failed == 0
     if res.skipped_all:
@@ -851,12 +877,58 @@ def order_scripts(scripts):
     # inside a fixture group: own-load scripts that leave the game clean first (their load serves the whole group), then the
     # plain sharing scripts, then the ones that dirty the game but may start on a shared one (no-share-load, scenario; each ends
     # the sharing), then those that need their own load AND dirty it (options). sorted() is stable.
+    # Scripts with '# options:' come last, clustered by identical options (one load serves them all while the reset check is clean).
+    # '# dirty-group:' scripts stay together (at the position of the first member), they run consecutively on one load.
     def rank(it):
         s = it[1]
+        if getattr(s, "options", None):
+            return 3
         if not dirties_game(s):
             return 0 if must_load_itself(s) else 1
-        return 3 if must_load_itself(s) else 2
-    return [item for f in order for item in sorted(groups[f], key=rank)]
+        return 2
+    out = []
+    for f in order:
+        items = groups[f]
+        first_pos = {}
+        for i, it in enumerate(items):
+            tag = getattr(it[1], "dirty_group", None)
+            if tag and tag not in first_pos:
+                first_pos[tag] = i
+
+        def key(pair, first_pos=first_pos):
+            i, it = pair
+            s = it[1]
+            tag = getattr(s, "dirty_group", None)
+            opts = tuple(sorted(getattr(s, "options", ())))
+            return (rank(it), opts, 1 if dirties_game(s) else 0, first_pos.get(tag, i) if tag else i, 1 if getattr(s, "group_last", False) else 0, i)
+        out += [it for _, it in sorted(enumerate(items), key=key)]
+    return out
+
+
+def simulate_loads(scripts, share_load=True):
+    """Offline model of run_all's load sharing (every reset check answers clean, nothing aborts or fails): returns
+    (number of game loads, {fixture: loads}, [names of the scripts that load]). scripts: ordered [(name, steps)]."""
+    total, per, loaders = 0, {}, []
+    current, current_opts = None, frozenset()
+    for idx, (name, steps) in enumerate(scripts):
+        f = first_fixture(steps)
+        skip = share_load and f is not None and f == current and can_start_shared(steps, current_opts)
+        all_loads = [s.arg for s in steps if s.kind == "load"]
+        loads = all_loads[1:] if skip else all_loads
+        for fx in loads:
+            total += 1
+            per[fx] = per.get(fx, 0) + 1
+        if loads:
+            loaders.append(name)
+        nxt = scripts[idx + 1][1] if idx + 1 < len(scripts) else None
+        opts = getattr(steps, "options", frozenset())
+        loaded = all_loads[-1] if all_loads else None
+        if (share_load and loaded is not None and nxt is not None and (shares_game(steps) or group_continues(steps, nxt))
+                and can_start_shared(nxt, opts) and first_fixture(nxt) == loaded and len(all_loads) <= 1):
+            current, current_opts = loaded, opts
+        else:
+            current, current_opts = None, frozenset()
+    return total, per, loaders
 
 
 def retry_failed(results, scripts, runner, out=print, switch=None):
@@ -915,14 +987,18 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=Fal
     clear-advisors steps are skipped unless the script opted out of the advisor-off test option."""
     results = []
     current = None   # fixture the game is in, if known to be clean
+    current_opts = frozenset()   # '# options:' groups the clean game was loaded under
+    active_opts = frozenset()    # option groups switched to the user's values right now
     baseline = None  # state text taken right after the load of that game (the reset check compares with it)
     holder = {}
     for idx, (name, steps) in enumerate(scripts):
         f = first_fixture(steps)
-        skip = share_load and f is not None and f == current and can_start_shared(steps)
+        skip = share_load and f is not None and f == current and can_start_shared(steps, current_opts)
         nxt = scripts[idx + 1][1] if idx + 1 < len(scripts) else None
-        want_baseline = (share_load and f is not None and shares_game(steps) and nxt is not None
-                         and first_fixture(nxt) == f and can_start_shared(nxt))
+        # the next script may run on the game this one leaves: a sharing script, or the next member of its '# dirty-group:'
+        passes_on = shares_game(steps) or group_continues(steps, nxt)
+        want_baseline = (share_load and f is not None and passes_on and nxt is not None
+                         and first_fixture(nxt) == f and can_start_shared(nxt, steps.options))
 
         def settled():
             holder["baseline"] = None
@@ -938,8 +1014,9 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=Fal
         opts = getattr(steps, "options", frozenset())
         steps.advisor_off = switch is not None and "advisor" not in opts
         try:
-            if switch is not None and opts:
-                _switch_options(switch, opts, out)
+            if switch is not None and opts != active_opts:
+                _switch_options(switch, opts, out)   # scripts with identical options in a row keep them (one load serves them)
+                active_opts = opts
             r = run_script(name, steps, runner, out, skip_load=skip, on_settled=on_settled)
             if skip and not r.ok and not r.aborted and r.failed:
                 out("  RETRY %s with its own load (it failed on the game left by the previous script)" % name)
@@ -952,7 +1029,7 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=Fal
             r.clean_checks += 1 if "secs" in holder else 0
             # can the next script run on this game?
             current = None
-            if (share_load and r.loaded and not r.aborted and shares_game(steps) and nxt is not None and can_start_shared(nxt)
+            if (share_load and r.loaded and not r.aborted and passes_on and nxt is not None and can_start_shared(nxt, opts)
                     and first_fixture(nxt) == r.loaded):
                 if baseline is None:
                     out("  reset check skipped: no baseline of the loaded game -> the next script loads fresh")
@@ -962,6 +1039,7 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=Fal
                     r.clean_checks += 1
                     if verdict == "clean":
                         current = r.loaded
+                        current_opts = opts
                         out("  reset check: clean")
                         # the reset may speak (selection, cursor): drain it so it never shows up as "(earlier)" in the next script
                         t_drain = time.time()
@@ -976,11 +1054,11 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=Fal
             r.seconds = time.time() - t0
             results.append(r)
             break
-        finally:
-            if switch is not None and opts:
-                _switch_options(switch, (), out)
         r.seconds = time.time() - t0
         results.append(r)
+    if switch is not None and active_opts:
+        _switch_options(switch, (), out)
+        active_opts = frozenset()
     if retry:
         retry_failed(results, scripts, runner, out, switch)
     return results
@@ -1016,6 +1094,38 @@ def _switch_options(switch, groups, out):
         out("  (options: %s)" % (", ".join(sorted(groups)) + " at the user's values" if groups else "back to the test values"))
     except Exception as e:  # a failed switch must not kill the run; the script then runs with the other options
         out("  WARNING: could not switch the test options (%s)" % e)
+
+
+def timing_dir():
+    return os.path.join(tempfile.gettempdir(), "civctl")
+
+
+def write_timing(lines, directory=None, stamp=None):
+    """Persists the TIMING table + BREAKDOWN of an `all` / `changed` run: regress-timing-<date>_<time>.txt (kept per run) and
+    regress-last-timing.txt (always the latest), both in %TEMP%/civctl. Returns the paths."""
+    directory = directory or timing_dir()
+    os.makedirs(directory, exist_ok=True)
+    stamp = stamp or time.strftime("%Y-%m-%d_%H%M%S")
+    text = "\n".join(lines) + "\n"
+    paths = []
+    for name in ("regress-timing-%s.txt" % stamp, "regress-last-timing.txt"):
+        path = os.path.join(directory, name)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        paths.append(path)
+    return paths
+
+
+def load_cost_per_fixture(results, steps_by_name):
+    """'fixture: <loads>x, <seconds>' summed over the results (the load time of a script goes to its first fixture), costliest first."""
+    per = {}
+    for r in results:
+        f = first_fixture(steps_by_name[r.name]) if r.name in steps_by_name else None
+        if f is None:
+            continue
+        n, sec = per.get(f, (0, 0.0))
+        per[f] = (n + r.loads, sec + _bucket(r.times)["load"])
+    return "; ".join("%s: %dx, %d s" % (f, n, round(sec)) for f, (n, sec) in sorted(per.items(), key=lambda kv: -kv[1][1])) or "-"
 
 
 def format_duration(sec):
@@ -1303,6 +1413,22 @@ def git_changed_since(base):
     return sorted(set(diff + (git_out(["ls-files", "--others", "--exclude-standard"]) or [])))
 
 
+def find_alias(name):
+    """The merged script whose '# was: <old names>' header lists `name` (so `regress <oldname>` still finds it), or None."""
+    for p in sorted(glob.glob(os.path.join(REGRESS_DIR, "*.txt"))):
+        if p.endswith(".recorded.txt"):
+            continue
+        try:
+            with open(p, encoding="utf-8-sig") as f:
+                text = f.read()
+        except OSError:
+            continue
+        for m in re.finditer(r"^#\s*was:(.*)$", text, re.M):
+            if name in m.group(1).replace(",", " ").split():
+                return p
+    return None
+
+
 def discover(names):
     if not names or names == ["all"]:
         files = sorted(f for f in glob.glob(os.path.join(REGRESS_DIR, "*.txt")) if not f.endswith(".recorded.txt"))
@@ -1310,6 +1436,8 @@ def discover(names):
         files = []
         for n in names:
             p = n if os.path.isfile(n) else os.path.join(REGRESS_DIR, n[:-4] if n.endswith(".txt") else n) + ".txt"
+            if not os.path.isfile(p):
+                p = find_alias(n[:-4] if n.endswith(".txt") else n) or p
             if not os.path.isfile(p):
                 raise ScriptError("no such script: %s" % p)
             files.append(p)
@@ -1451,7 +1579,12 @@ def main(argv=None):
         return 2
     if a.dry_run or a.list:
         for n, steps in scripts:
-            print("%s: fixture %s, %d steps" % (n, first_fixture(steps) or "-", len(steps)))
+            tag = getattr(steps, "dirty_group", None)
+            print("%s: fixture %s, %d steps%s" % (n, first_fixture(steps) or "-", len(steps), ", dirty-group " + tag if tag else ""))
+        sharing = not a.no_share_load and (a.share_load or not a.names or a.names in (["all"], ["changed"]))
+        total, per, _ = simulate_loads(scripts, share_load=sharing)
+        print("simulated game loads (all reset checks clean): %d for %d scripts; per fixture: %s" % (
+            total, len(scripts), ", ".join("%s %d" % kv for kv in sorted(per.items(), key=lambda kv: -kv[1])[:12])))
         return 0
     owner = a.owner or os.environ.get("CIVCTL_OWNER")
     if not owner:
@@ -1484,9 +1617,17 @@ def main(argv=None):
         steps_by_name = dict(scripts)
         for r in results:
             write_record(r.name, steps_by_name[r.name], r, a.update)
-    print("\nTIMING:   (per script: wall time, verdict, [where it went, seconds])")
-    print("\n".join(timing_table(results)))
-    print(breakdown_total(results))
+    header = "TIMING:   (per script: wall time, verdict, [where it went, seconds])"
+    table = timing_table(results) + [breakdown_total(results)]
+    print("\n" + header)
+    print("\n".join(table))
+    if (run_everything or changed_mode) and not record:
+        try:
+            paths = write_timing(["run: %s, %d scripts" % (time.strftime("%Y-%m-%d %H:%M:%S"), len(results)), header] + table
+                                 + ["LOADCOST (per first fixture): " + load_cost_per_fixture(results, dict(scripts))])
+            print("timing written to: %s" % ", ".join(paths))
+        except OSError as e:
+            print("WARNING: could not write the timing file (%s)" % e)
     p = sum(r.passed for r in results)
     f = sum(r.failed for r in results)
     print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (

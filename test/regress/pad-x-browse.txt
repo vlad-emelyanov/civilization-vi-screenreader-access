@@ -1,6 +1,6 @@
 # Controller X on the bare map with a settler selected and the cursor on it opens the settle browser (the selection hint says "X to browse"). UNVERIFIED, blind-written: run once with civregress --record.
 # covers: **/HubGamepad.lua **/HubSettle.lua **/HubCursor.lua
-# no-share-load: selects the settler and changes the controller mode
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-start
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_SETTLER" then UI.SelectUnit(u) break end end return 1

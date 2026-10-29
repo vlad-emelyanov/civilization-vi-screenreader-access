@@ -140,7 +140,7 @@ class RunAllTests(unittest.TestCase):
                    ("b", cr.parse_script("# options: animations\nload x\nclear-advisors\n")),
                    ("c", cr.parse_script("# options: advisor\nload x\nclear-advisors\n"))]
         res = cr.run_all(scripts, FakeRunner(), share_load=True, out=quiet, switch=calls.append)
-        self.assertEqual(calls, [("animations",), (), ("advisor",), ()])
+        self.assertEqual(calls, [("animations",), ("advisor",), ()])   # switched when the options change, back once at the end
         self.assertEqual(len(self.seen), 1)    # only the advisor opt-out clears advisors
         self.assertNotIn("clear-advisors", res[0].times)
         self.assertEqual(len(res), 3)

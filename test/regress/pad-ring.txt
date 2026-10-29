@@ -2,7 +2,7 @@
 # F22 = controller mode on, F15 = RB (next list of the ring), F14 = LB (previous). Order: Notifications, Top panel, Lenses,
 # Diplomacy, Screens, Places. Diplomacy may be skipped on this save when no civilization is met ("You have not met ...").
 # covers: **/HubPad.lua **/HubLenses.lua **/HubScreens.lua **/HubRegions.lua **/HubMenus.lua **/HubPlaces.lua
-# no-share-load: switches a map lens on and off
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 key F22 -Settle 800

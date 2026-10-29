@@ -1,5 +1,7 @@
 # Written blind 2026-10-26 (not yet recorded). A Settler stands 2-3 tiles from the Warrior. J on the selected settler: Your units starts with the settler (distance 0); M opens "Send an escort to Settler, N options" (soldiers only, fastest first); Enter orders the move and says this turn / N turns; Escape goes back to the places list.
 # no-share-load: spawns a unit and gives an order
+# dirty-group: t60-no-barbarians (the tuner removes the two barbarians that the fixture has next to Rome: they add a Threats category to J; the same idempotent change in every member, so the members run one after the other on one load)
+# (also changes visible state: ordered last in its group; the reset check after it is dirty)
 # covers: **/HubPlaces.lua **/HubTargets.lua **/HubEnemies.lua UI/Additions/InGameAccess.lua
 load early-t60
 clear-advisors

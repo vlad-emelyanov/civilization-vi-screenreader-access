@@ -153,6 +153,8 @@ end
 --	game state (no orders, no turn); anything it cannot restore is reported as "dirty <reason>" and the next script loads fresh.
 -- ===========================================================================
 local TEST_SCREEN_PARENTS:table = { "WorldPopups", "FakePopups", "Screens", "PartialScreens", "Diplomacy", "EndGame", "AdditionalUserInterfaces" };
+-- The side panels of TopLevelHUD (not counted as game screens above; the launch bar there is always shown): an open one is state a script leaves behind.
+local TEST_HUD_PANELS:table = { "ResearchChooser", "CivicsChooser", "TradeRouteChooser", "TradeOriginChooser", "EspionageChooser", "PantheonChooser", "CityPanelOverview", "ModalLensPanel" };
 local TEST_SCREEN_SINGLES:table = { "Civilopedia", "EraReviewPopup", "DedicationPopup", "WorldCongressPopup", "WorldCongressIntro", "WorldCongressBetweenTurns", "AdvisorPopup" };
 
 -- The names of the open popups and screens (the options menu included), empty when none.
@@ -173,6 +175,10 @@ function HubCore.TestOpenScreens()
 			local c = ContextPtr:LookUpControl( path );
 			if c ~= nil and not c:IsHidden() then table.insert( open, name ); break; end
 		end
+	end
+	for _, name in ipairs( TEST_HUD_PANELS ) do
+		local c = ContextPtr:LookUpControl( "/InGame/TopLevelHUD/" .. name );
+		if c ~= nil and not c:IsHidden() then table.insert( open, "TopLevelHUD/" .. name ); end
 	end
 	return open;
 end
@@ -263,6 +269,8 @@ local function TestResetStateInner( baseline )
 		end
 	end
 	HubCursor.ResetCursor();
+	-- controller mode off (a pad script switched it on: F22 / F23 do the same), so the next script starts like after a load
+	if Gamepad ~= nil and Gamepad.IsActive() then Gamepad.SetActive( false ); end
 	return "clean " .. snapshot .. "|" .. TestSelectionTag();
 end
 

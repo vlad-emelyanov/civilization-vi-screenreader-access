@@ -1,0 +1,55 @@
+# Merged scripts (one load instead of three), fixture pt-modes-t75 (Barbarian Clans), the scenario part last:
+#  - clan-camp-places (recorded 2026-10-24): a camp is only listed while visible, so a Scout is spawned next to the known camp at 64,33; the places list names the clan, T opens the Treat With Clan popup
+#  - clan-camp-t-on-map (blind 2026-10-26): Enter in the places list puts the cursor on the camp, T on the map treats with the clan instead of opening the tech tree (away from the camp T opens the tech tree)
+#  - places-village-event (blind 2026-10-26): a tribal village is in the places list (Points of interest) as soon as it was seen (scenario goody-hut puts a hut next to a unit)
+# The Scout is spawned once, between the parts the hub list is closed (CloseMode) so that each part starts on the bare map; the scenario goes last because it adds a village.
+# was: clan-camp-places clan-camp-t-on-map places-village-event
+# covers: **/HubPlaces.lua **/PlotDescription.lua **/TreatClanText.lua **/TreatWithTribePopup_SRA.lua **/HelpText.lua **/LaunchBar.lua UI/Additions/InGameAccess.lua
+# no-share-load: spawns a unit, scenario places a hut
+load pt-modes-t75
+clear-advisors
+# --- part from clan-camp-places ---
+lua GameCore_Tuner return Players[0]:GetUnits():Create(GameInfo.Units["UNIT_SCOUT"].Index, 65, 33) ~= nil
+clear-advisors
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 1000
+key Tab -Settle 1200
+expect ^Points of interest.*Tribal Village
+key Down -Settle 1000
+expect (?i)\w+ clan, .*Barbarian Outpost.*T to treat with the clan, 2 of 2
+key T -Settle 2500 -Quiet 800
+expect (?i)^Treat With .* Clan
+expect (?i)\d options?
+expect (?i)^(Hire|Incite|Bribe|Ransom)\b.*, 1 of \d
+key Down -Settle 800
+expect , 2 of \d
+key Up -Settle 800
+expect , 1 of \d
+key Escape -Settle 1000
+expect ^Closed
+lua InGameAccess HubCore.CloseMode( false, true ) return 1
+# --- part from clan-camp-t-on-map ---
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 1000
+key Tab -Settle 1200
+expect ^Points of interest.*Tribal Village
+key Down -Settle 1000
+expect (?i)\w+ clan, .*Barbarian Outpost
+key Enter -Settle 1500
+expect (?i)clan
+action ToggleTechTree -Settle 2500 -Quiet 800
+expect (?i)^Treat With .* Clan
+key Escape -Settle 1200
+action KeyNavMoveCellLeft -Settle 800
+action ToggleTechTree -Settle 2500
+expect ^Tech tree\.
+key Escape -Settle 1200
+lua InGameAccess HubCore.CloseMode( false, true ) return 1
+# --- part from places-village-event ---
+scenario goody-hut
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 1000
+key Tab -Settle 1200
+expect ^Points of interest.*Tribal Village,
+key Escape -Settle 1200
+no-lua-errors

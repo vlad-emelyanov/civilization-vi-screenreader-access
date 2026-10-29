@@ -447,15 +447,90 @@ class ResetCheckTests(unittest.TestCase):
         self.assertEqual(self.loads(r), 2)
         self.assertFalse(res[1].load_skipped)
 
-    def test_options_header_never_shares(self):
+    def test_options_header_starts_only_on_a_game_loaded_with_the_same_options(self):
         mk = cr.parse_script
-        self.assertFalse(cr.shares_game(mk("# options: animations\nload x")))
+        self.assertTrue(cr.shares_game(mk("# options: animations\nload x")))
+        self.assertFalse(cr.dirties_game(mk("# options: animations\nload x")))
         self.assertTrue(cr.shares_game(mk("# covers: **/X.lua\nload x")))
         r = HubRunner()
         cr.run_all([("a", mk("load x\nkey A")), ("b", mk("# options: animations\nload x\nkey B"))], r, share_load=True, out=lambda s: None)
         self.assertEqual(self.loads(r), 2)
         self.assertTrue(cr.must_load_itself(mk("# options: animations\nload x")))
-        self.assertTrue(cr.dirties_game(mk("# options: animations\nload x")))
+        self.assertFalse(cr.can_start_shared(mk("# options: animations\nload x")))
+        self.assertTrue(cr.can_start_shared(mk("# options: animations\nload x"), frozenset({"animations"})))
+        self.assertFalse(cr.can_start_shared(mk("load x"), frozenset({"animations"})))
+
+    def test_identical_options_share_one_load(self):
+        mk = cr.parse_script
+        switched = []
+        scripts = [("a", mk("# options: animations\nload x\nkey A")), ("b", mk("# options: animations\nload x\nkey B")),
+                   ("c", mk("# options: advisor\nload x\nkey C")), ("d", mk("load x\nkey D"))]
+        r = HubRunner()
+        res = cr.run_all(scripts, r, share_load=True, out=lambda s: None, switch=switched.append)
+        self.assertEqual(self.loads(r), 3)            # a+b share; c and d (other options) load
+        self.assertTrue(res[1].load_skipped)
+        self.assertEqual(switched, [("animations",), ("advisor",), ()])
+
+    def test_order_clusters_options_scripts(self):
+        mk = cr.parse_script
+        scripts = [("a1", mk("# options: animations\nload x")), ("v", mk("# options: advisor\nload x")),
+                   ("a2", mk("# options: animations\nload x")), ("p", mk("load x"))]
+        self.assertEqual([n for n, _ in cr.order_scripts(scripts)], ["p", "v", "a1", "a2"])
+
+    def test_dirty_group_runs_consecutively_on_one_load_then_loads_fresh(self):
+        mk = cr.parse_script
+        scripts = [("g1", mk("# dirty-group: bar\nload x\nkey A")), ("n", mk("# no-share-load: x\nload x\nkey N")),
+                   ("g2", mk("# dirty-group: bar\nload x\nkey B")), ("s", mk("load x\nkey S")), ("g3", mk("# dirty-group: bar\nload x\nkey C")),
+                   ("t", mk("# dirty-group: other\nload x\nkey T"))]
+        self.assertEqual(scripts[0][1].dirty_group, "bar")
+        self.assertTrue(cr.dirties_game(scripts[0][1]))
+        ordered = cr.order_scripts(scripts)
+        self.assertEqual([n for n, _ in ordered], ["s", "g1", "g2", "g3", "n", "t"])
+        self.assertTrue(cr.group_continues(ordered[1][1], ordered[2][1]))
+        self.assertFalse(cr.group_continues(ordered[3][1], ordered[4][1]))
+        r = HubRunner()
+        res = cr.run_all(ordered, r, share_load=True, out=lambda s: None)
+        # s loads; g1 shares s's game; g2 and g3 continue the group (reset check clean); n (no group) and t load fresh
+        self.assertEqual(self.loads(r), 3)
+        self.assertEqual([x.load_skipped for x in res], [False, True, True, True, False, False])
+        self.assertEqual(cr.simulate_loads(ordered)[0], 3)
+
+    def test_dirty_group_dirty_check_loads_fresh(self):
+        mk = cr.parse_script
+        r = HubRunner(verdicts=[(0, ["dirty open: Civilopedia"])])
+        res = cr.run_all([("g1", mk("# dirty-group: bar\nload x\nkey A")), ("g2", mk("# dirty-group: bar\nload x\nkey B"))], r,
+                         share_load=True, out=lambda s: None)
+        self.assertEqual(self.loads(r), 2)
+        self.assertFalse(res[1].load_skipped)
+
+    def test_group_last_orders_visibly_dirty_members_after_the_others(self):
+        mk = cr.parse_script
+        scripts = [("v", mk("# no-share-load: moves\n# dirty-group: g\nload x")), ("c1", mk("# dirty-group: g\nload x")),
+                   ("c2", mk("# dirty-group: g\nload x"))]
+        self.assertTrue(scripts[0][1].group_last)
+        self.assertFalse(scripts[1][1].group_last)
+        self.assertEqual([n for n, _ in cr.order_scripts(scripts)], ["c1", "c2", "v"])
+
+    def test_old_script_names_resolve_to_the_merged_script(self):
+        # every merged script lists its old names in '# was:'
+        self.assertTrue(cr.find_alias("pad-deal").endswith("deal-flow.txt"))
+        self.assertTrue(cr.find_alias("bug-delete-unit-says").endswith("bug-settler-no-skip-flow.txt"))
+        self.assertIsNone(cr.find_alias("no-such-script-anywhere"))
+        self.assertEqual(cr.discover(["pad-deal"])[0][0], "deal-flow")
+
+    def test_dirty_group_other_fixture_does_not_continue(self):
+        mk = cr.parse_script
+        a, b = mk("# dirty-group: bar\nload x"), mk("# dirty-group: bar\nload y")
+        self.assertFalse(cr.group_continues(a, b))
+
+    def test_timing_is_written_to_a_file(self):
+        import tempfile
+        res = cr.run_all([("a", cr.parse_script("key A"))], FakeRunner(), out=lambda s: None)
+        with tempfile.TemporaryDirectory() as d:
+            paths = cr.write_timing(["TIMING:"] + cr.timing_table(res), d, stamp="2026-01-02")
+            self.assertTrue(paths[0].endswith("regress-timing-2026-01-02.txt") and paths[1].endswith("regress-last-timing.txt"))
+            with open(paths[1], encoding="utf-8") as f:
+                self.assertIn("PASS", f.read())
 
     def test_lock_during_check_stops_the_run(self):
         r = HubRunner(verdicts=[(6, ["game in use by x"])])

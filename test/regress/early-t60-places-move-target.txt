@@ -1,5 +1,5 @@
 # Written blind 2026-10-23 (round 8, not yet recorded). The places list opens inside the Move To target mode: Enter on a city only moves the target cursor (with the turns), Escape in the list closes the list and keeps the mode.
-# no-share-load: the tuner removes the two barbarians that the fixture has next to Rome (they add a Threats category to J)
+# dirty-group: t60-no-barbarians (the tuner removes the two barbarians that the fixture has next to Rome: they add a Threats category to J; the same idempotent change in every member, so the members run one after the other on one load)
 # covers: **/HubPlaces.lua **/HubTargets.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
 load early-t60
 clear-advisors

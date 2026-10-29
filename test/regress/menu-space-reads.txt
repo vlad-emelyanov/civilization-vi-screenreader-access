@@ -1,6 +1,6 @@
 # UNVERIFIED (blind-written). In-game menu: opening says the first item once, Space reads the focused item and never activates it (Save Game used to open the Save screen), closing says only Menu closed.
 # covers: **/InGameTopOptionsMenu.lua
-# no-share-load: opens the game menu
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 key Escape -Settle 2000

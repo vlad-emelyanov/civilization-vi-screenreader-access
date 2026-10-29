@@ -1,7 +1,7 @@
 # Written blind 2026-10-26 (G10, not yet recorded; run with civregress --record first). J has a "Blind spots" category after Points of interest: clusters of
 # land 4 to 8 tiles from our cities that are revealed but out of sight, and unexplored plots near them. Space gives the game's spawn rule, Enter jumps the cursor.
 # The category index depends on what the fixture has (huts, notifications), so Tab and Space walk every category; the checks look at the whole window.
-# no-share-load: the tuner removes the two barbarians that the fixture has next to Rome (they add a Threats category to J)
+# dirty-group: t60-no-barbarians (the tuner removes the two barbarians that the fixture has next to Rome: they add a Threats category to J; the same idempotent change in every member, so the members run one after the other on one load)
 # covers: **/HubPlaces.lua **/BlindSpots.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
 load early-t60
 clear-advisors
