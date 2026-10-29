@@ -1,0 +1,20 @@
+# Blind-written 2026-10-27 (round 28, F1): N says what Enter does. After a builder arrives armed, N says "Enter builds <improvement> with the <unit>"
+# (not "Choose research" / the end-turn label), and Enter then does exactly that. Same setup as builder-x-builds-on-arrival.
+# covers: **/HubSettle.lua **/HubEvents.lua **/HubAnnounce.lua **/BuildScan.lua UI/Additions/InGameAccess.lua
+# no-share-load: sends a unit and builds
+load bug-builder-x-list-no-build
+clear-advisors
+lua GameCore_Tuner for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UnitManager.RestoreMovement(u) end end
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key X -Settle 2000
+expect ^Tiles to improve near
+key Enter -Settle 4000
+expect (?i)Arrived.*Enter builds \w+
+action KeyNavWhatsNext -Settle 1500
+expect (?i)^Enter builds \w+ with the Builder
+key Enter -Settle 3000
+expect (?i)\w+ built, \d charges? left
+# built: nothing armed any more, N is the plain next action again
+action KeyNavWhatsNext -Settle 1500
+expect-not (?i)^Enter builds
+no-lua-errors

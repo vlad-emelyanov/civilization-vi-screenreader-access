@@ -1,0 +1,17 @@
+# Verified 2026-10-26 (the fixture builder has no moves left: the script restores them with the tuner). Fixture bug-builder-x-list-no-build: Builder X > Wheat/Farm tile > Enter moves it; on arrival "Enter builds Farm", Enter builds (same path as Tab).
+# Which tile is first depends on the fixture: the script takes the first item and accepts any improvement name.
+# covers: **/HubSettle.lua **/HubEvents.lua **/BuildScan.lua **/UnitPanel.lua UI/Additions/InGameAccess.lua
+# no-share-load: sends a unit and builds
+load bug-builder-x-list-no-build
+clear-advisors
+lua GameCore_Tuner for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UnitManager.RestoreMovement(u) end end
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key X -Settle 2000
+expect ^Tiles to improve near
+key Enter -Settle 4000
+expect (?i)Arrived.*(Enter builds \w+|can be built next turn: select it and press Enter)
+key Enter -Settle 3000
+expect (?i)\w+ built, \d charges? left
+lua GameCore_Tuner for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" and u:GetMovesRemaining()==0 then local i=Map.GetPlot(u:GetX(),u:GetY()):GetImprovementType(); return i>=0 and "improved" or "none" end end
+expect-lua ^improved$
+no-lua-errors
