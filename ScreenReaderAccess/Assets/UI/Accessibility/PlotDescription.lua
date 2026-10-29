@@ -233,6 +233,13 @@ local function _ResourceText( plot:table )
 	return text;
 end
 
+-- True for a strategic or luxury resource that is visible to the player (these lead the cursor line, bonus ones do not).
+local function _IsLeadResource( plot:table )
+	if _ResourceText( plot ) == nil then return false; end
+	local row:table = GameInfo.Resources[ plot:GetResourceType() ];
+	return row ~= nil and ( row.ResourceClassType == "RESOURCECLASS_STRATEGIC" or row.ResourceClassType == "RESOURCECLASS_LUXURY" );
+end
+
 -- ResourceTech phrase for the plot's resource ("needs Bronze Working", "pasture possible"), or nil. Never fails the description.
 local function _ResourceTechText( plot:table, full:boolean )
 	if ResourceTech_Short == nil then return nil; end
@@ -385,7 +392,10 @@ end
 -- ===========================================================================
 -- options.excludeUnitId: leave this (own) unit out of the unit list (the selected unit's own plot).
 -- options.resourceTech: add what the resource needs ("Iron, needs Bronze Working"); GetDetailed adds the full form itself.
--- Order: city, units, terrain/feature, resource, river/coast, improvement/district/wonder, owner, yields, fogged.
+-- options.leadResource: a strategic or luxury resource is spoken first ("Iron (strategic), needs Bronze Working"), before the rest.
+-- options.position: where the plot is ("3 tiles north-east"), spoken right after that resource, before the description.
+-- Order: [strategic/luxury resource], [position], city, units, terrain/feature, [bonus] resource, river/coast,
+-- improvement/district/wonder, owner, yields, fogged.
 -- Fogged plots: owner, improvement and yields are spoken exactly as the game's own plot tooltip (PlotToolTip.lua)
 -- shows them for revealed plots, so nothing is told that a sighted player would not see; units are only named while
 -- the plot is visible.
@@ -396,6 +406,16 @@ function PlotDescription_GetShort( plot:table, options:table )
 	if visibility == "unexplored" then return "Unexplored"; end
 
 	local parts:table = {};
+
+	-- Strategic or luxury resource first (with what it needs), then the position
+	local leadResource:boolean = options.leadResource == true and _IsLeadResource(plot);
+	if leadResource then
+		local text:string = _ResourceText(plot);
+		local tech:string = options.resourceTech and _ResourceTechText(plot, false) or nil;
+		if tech ~= nil then text = text .. ", " .. tech; end
+		table.insert(parts, text);
+	end
+	if options.position ~= nil and options.position ~= "" then table.insert(parts, options.position); end
 
 	-- City
 	if plot:IsCity() then
@@ -421,6 +441,7 @@ function PlotDescription_GetShort( plot:table, options:table )
 	-- Terrain, feature, resource, rivers
 	local terrain:table = _TerrainParts(plot);
 	local resource:string = _ResourceText(plot);
+	if leadResource then resource = nil; end
 	local line:table = {};
 	-- options.resourceFirst (places list details): the resource is what the line is about, so it leads the terrain
 	if resource ~= nil and options.resourceFirst then table.insert(line, resource); end
@@ -434,7 +455,7 @@ function PlotDescription_GetShort( plot:table, options:table )
 	if plot:IsRiver() then table.insert(line, _Lower(Locale.Lookup("LOC_TOOLTIP_RIVER"))); end
 	if plot:IsCoastalLand() then table.insert(line, "coastal"); end
 	if plot:IsImpassable() then table.insert(line, _Lower(Locale.Lookup("LOC_TOOLTIP_PLOT_IMPASSABLE_TEXT"))); end
-	table.insert(parts, table.concat(line, ", "));
+	if #line > 0 then table.insert(parts, table.concat(line, ", ")); end
 
 	-- Improvement, district, wonder
 	for _, text in ipairs(_ImprovementParts(plot)) do table.insert(parts, text); end

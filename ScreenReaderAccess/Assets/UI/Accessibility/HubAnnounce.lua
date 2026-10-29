@@ -186,21 +186,71 @@ function HubAnnounce.UnitText( unit:table )
 	return table.concat( parts, ", " );
 end
 
--- "in Rome" / "2 tiles south-east of Rome": where a plot is, seen from the nearest own city (nil without cities).
-function HubAnnounce.PositionText( plot:table )
-	local owner:table = Players[ Game.GetLocalPlayer() ];
-	if owner == nil or plot == nil then return nil; end
-	local bestDistance:number, bestCity:table = 99, nil;
-	for _, city in owner:GetCities():Members() do
-		local distance:number = Map.GetPlotDistance( plot:GetX(), plot:GetY(), city:GetX(), city:GetY() );
-		if distance < bestDistance then bestDistance, bestCity = distance, city; end
-	end
-	if bestCity == nil then return nil; end
-	local name:string = Locale.Lookup( bestCity:GetName() );
-	if bestDistance == 0 then return "in " .. name; end
-	local relative:string = PlotDescription_GetRelative( Map.GetPlot( bestCity:GetX(), bestCity:GetY() ), plot );
+-- Phrase for one city: "in Rome" / "2 tiles south-east of Rome" (nil when the direction cannot be told). label: the name as spoken
+-- ("Seoul (Korea)" for a foreign city).
+local function CityPhrase( plot:table, city:table, label:string )
+	if city.distance == 0 then return "in " .. label; end
+	local relative:string = PlotDescription_GetRelative( Map.GetPlot( city.x, city.y ), plot );
 	if relative == nil then return nil; end
-	return relative .. " of " .. name;
+	return relative .. " of " .. label;
+end
+
+-- Pure wording of the position: own = nearest city of ours, foreign = nearest revealed city of another player, each
+-- { name, x, y, distance, civ } or nil. A foreign city strictly closer than ours comes first, with its owner:
+-- "1 tile east of Seoul (Korea), 4 tiles east of Aquileia"; in a foreign city "in Seoul (Korea)".
+function HubAnnounce.PositionWording( plot:table, own:table, foreign:table )
+	if plot == nil then return nil; end
+	local ownText:string = nil;
+	if own ~= nil then ownText = CityPhrase( plot, own, own.name ); end
+	if foreign ~= nil and ( own == nil or foreign.distance < own.distance ) then
+		local label:string = foreign.name;
+		if foreign.civ ~= nil and foreign.civ ~= "" and foreign.civ ~= foreign.name then label = label .. " (" .. foreign.civ .. ")"; end
+		local foreignText:string = CityPhrase( plot, foreign, label );
+		if foreignText ~= nil then
+			if foreign.distance == 0 or ownText == nil then return foreignText; end
+			return foreignText .. ", " .. ownText;
+		end
+	end
+	return ownText;
+end
+
+-- "in Rome" / "2 tiles south-east of Rome": where a plot is, seen from the nearest own city, and from the nearest foreign
+-- city (of a civilization or city-state we have revealed) when that one is closer. nil without cities.
+function HubAnnounce.PositionText( plot:table )
+	local localID:number = Game.GetLocalPlayer();
+	local owner:table = Players[ localID ];
+	if owner == nil or plot == nil then return nil; end
+	local px:number, py:number = plot:GetX(), plot:GetY();
+	local own:table, foreign:table = nil, nil;
+	for _, city in owner:GetCities():Members() do
+		local distance:number = Map.GetPlotDistance( px, py, city:GetX(), city:GetY() );
+		if own == nil or distance < own.distance then
+			own = { name = Locale.Lookup( city:GetName() ), x = city:GetX(), y = city:GetY(), distance = distance };
+		end
+	end
+	local okIDs:boolean, ids = pcall( function()
+		local list:table = {};
+		for _, id in ipairs( PlayerManager.GetAliveMajorIDs() ) do table.insert( list, id ); end
+		for _, id in ipairs( PlayerManager.GetAliveMinorIDs() ) do table.insert( list, id ); end
+		return list;
+	end );
+	local vis:table = PlayersVisibility ~= nil and PlayersVisibility[ localID ] or nil;
+	if okIDs and vis ~= nil then
+		for _, id in ipairs( ids ) do
+			local player:table = Players[ id ];
+			if id ~= localID and player ~= nil then
+				for _, city in player:GetCities():Members() do
+					local distance:number = Map.GetPlotDistance( px, py, city:GetX(), city:GetY() );
+					local cityPlot:table = Map.GetPlot( city:GetX(), city:GetY() );
+					if ( foreign == nil or distance < foreign.distance ) and ( own == nil or distance < own.distance )
+							and cityPlot ~= nil and vis:IsRevealed( cityPlot:GetIndex() ) then
+						foreign = { name = Locale.Lookup( city:GetName() ), x = city:GetX(), y = city:GetY(), distance = distance, civ = PlotDescription_GetCivName( id ) };
+					end
+				end
+			end
+		end
+	end
+	return HubAnnounce.PositionWording( plot, own, foreign );
 end
 
 -- " Promotion available, Shift+U" for a unit that can be promoted (empty otherwise).

@@ -1,0 +1,11 @@
+# Written blind 2026-10-29 (not yet recorded; run with civregress --record first). Cursor tile speech order after a jump: a strategic or luxury resource leads ("Iron (strategic), needs Bronze Working"), then the position ("3 tiles north-east" from the selection, "7 tiles ... of Rome"), then terrain; yields close the plot description.
+# covers: **/HubCursor.lua **/PlotDescription.lua **/HubAnnounce.lua
+load early-t60
+clear-advisors
+lua InGameAccess local rs=Players[0]:GetResources(); for i=0,Map.GetPlotCount()-1 do local pl=Map.GetPlotByIndex(i); local r=pl:GetResourceType(); if r ~= nil and r >= 0 and PlayersVisibility[0]:IsRevealed(i) then local row=GameInfo.Resources[r]; if rs:IsResourceVisible(row.Hash) and (row.ResourceClassType=="RESOURCECLASS_LUXURY" or row.ResourceClassType=="RESOURCECLASS_STRATEGIC") then HubCursor.SetCursor(pl:GetX(),pl:GetY(),true,true,false,true); return 1 end end end return 0
+wait \((luxury|strategic)\) -Timeout 8
+# resource first, then (maybe the resource's tech note and) the position, then the terrain
+expect ^[A-Z][^,]*\((luxury|strategic)\)(, [^,]*(needs|possible)[^,]*)?, (\d+ tiles? [a-z-]+|in \w+)
+# the terrain follows the position and the yields are not in front
+expect (?i)\d+ tiles? [a-z-]+( of \w+)?\.?, [A-Z]\w+
+no-lua-errors

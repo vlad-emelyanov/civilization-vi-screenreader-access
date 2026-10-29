@@ -11,5 +11,5 @@ expect , (city-state )?border, .*(tiles? |here)
 key Escape -Settle 1200
 expect ^Closed
 action KeyNavJumpCellRight -Settle 1200
-expect ^[A-Z][^,]*, .*5 tiles east
+expect ^([A-Z][^,]*, )?5 tiles east, 
 no-lua-errors
