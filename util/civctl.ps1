@@ -961,7 +961,8 @@ function Invoke-LoadOnce([string]$name) {
     }
     if ($script:PyExit -ne 0 -or ($res -join '') -notmatch 'true') { throw "Network.LoadGame failed: $($res -join ' ')" }
     if (-not (Wait-ForScreenReader 'Continue Game' 90)) { throw "'Continue Game' did not show after loading '$name'" }
-    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 3000 -NoQuiet)
+    # Settle is only the maximum: the key returns once the turn announcement lines stopped coming (was a fixed 3 s sleep); the Wait below is the fallback.
+    $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 8000 -Quiet 700)
     $o | ForEach-Object { Write-Output $_ }
     if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 60) -and -not ((Get-GameWhere) -match '^INGAME')) { throw "No turn announcement after loading '$name'" }
 }
@@ -986,10 +987,13 @@ function Invoke-Load([string]$name) {
         Invoke-Start
         Invoke-LoadOnce $name
     }
-    # A turn-1 save shows the Gathering Storm intro again after loading: close it.
-    Start-Sleep -Seconds 2
-    $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot 'civtuner.py'), 'menu')
-    if ($m -match 'ExpansionIntro') { Invoke-Key -KeyArg 'Escape' -Count 1 -Settle 1500 -NoQuiet | ForEach-Object { Write-Output $_ } }
+    # A turn-1 save shows the Gathering Storm intro again after loading: close it. Only turn-1 games are checked (the intro needs a moment to appear; was an unconditional 2 s sleep).
+    $w = Get-GameWhere
+    if ($w -and $w -match "^INGAME (d+)" -and [int]$Matches[1] -le 1) {
+        Start-Sleep -Seconds 2
+        $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot "civtuner.py"), "menu")
+        if ($m -match "ExpansionIntro") { Invoke-Key -KeyArg "Escape" -Count 1 -Settle 1500 -NoQuiet | ForEach-Object { Write-Output $_ } }
+    }
     [IO.File]::WriteAllText((Join-Path $StateDir 'loaded.txt'), $name)   # fixture-info checks that the fixture is the loaded game
     if (-not $KeepAdvisors) {
         # The nested civctl processes share cursor.txt and the lease with this one; their lines are printed above in order.
