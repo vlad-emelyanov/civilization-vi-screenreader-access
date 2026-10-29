@@ -8,6 +8,6 @@ lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:Get
 key W -Settle 1500
 expect ^Attack: choose a target
 key X -Settle 1000
-expect attack, \d+ turns, Strength \d+ against \d+ when you reach it\. Barbarian
+expect attack, \d+ turns, Strength \d+ against \d+ when you reach it\. (\d+ tiles? [a-z-]+, )?Barbarian
 key Escape -Settle 800
 no-lua-errors

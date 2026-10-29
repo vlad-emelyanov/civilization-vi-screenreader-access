@@ -10,10 +10,10 @@ action RangedAttack -Settle 1500
 expect ^City ranged attack
 # the first X may still be the Musketman the cursor starts on; the next one must be the Crossbowman, never the peaceful Builder
 key X -Settle 1500
-expect (?i)valid target(, .*)?\. Barbarian (Musketman|Crossbowman)
+expect (?i)valid target(, .*)?\. (\d+ tiles? [a-z-]+, )?Barbarian (Musketman|Crossbowman)
 expect-not Builder
 key X -Settle 1500
-expect (?i)valid target(, .*)?\. Barbarian (Musketman|Crossbowman)
+expect (?i)valid target(, .*)?\. (\d+ tiles? [a-z-]+, )?Barbarian (Musketman|Crossbowman)
 expect-not Builder
 # round 27 (M5): X walks only the plots the city can hit, so with two targets the third X wraps to the first
 key X -Settle 1500

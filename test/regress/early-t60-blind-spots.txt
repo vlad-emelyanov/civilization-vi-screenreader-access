@@ -17,7 +17,7 @@ key Tab -Settle 800
 key Space -Settle 1000
 key Tab -Settle 800
 key Space -Settle 1000
-expect (?i)^Blind spots, \d+ of \d+ categories, \d+ items?\. (Blind spot: \d+ tiles? out of sight|\d+ unexplored tiles?), \d+ tiles? [a-z-]+ of \w+, 1 of \d+
+expect (?i)^Blind spots, \d+ of \d+ categories, \d+ items?\. (Blind spot: \d+ tiles? out of sight|\d+ unexplored tiles?), \d+ tiles? [a-z-]+ of \w+(, \d+ tiles? [a-z-]+ of \w+)*, 1 of \d+
 expect Barbarians can appear where no one sees: at least \d+ tiles? from any city and \d+ from another camp
 key Escape -Settle 1000
 no-lua-errors

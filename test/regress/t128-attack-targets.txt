@@ -40,7 +40,7 @@ expect Barbarian Battering Ram
 key X -Settle 800
 key X -Settle 800
 key X -Settle 800
-expect attack, \d+ turns?(, Strength \d+ against \d+ when you reach it)?\. Barbarian Musketman, Plains
+expect attack, \d+ turns?(, Strength \d+ against \d+ when you reach it)?\. (\d+ tiles? [a-z-]+, )?Barbarian Musketman, Plains
 key Enter -Settle 2000 -NoQuiet
 expect ^Moving to attack Barbarian Crossbowman, \d+ turns?
 no-lua-errors

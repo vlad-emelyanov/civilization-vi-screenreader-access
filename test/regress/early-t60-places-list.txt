@@ -9,7 +9,7 @@ expect ^Places\. Your cities, 1 of \d+ categories, 1 item\. Rome
 key Tab -Settle 1200
 expect ^Your units, 2 of \d+ categories, \d+ items?\.
 key Down -Settle 1200
-expect , 2 of \d+
+expect , 1 of \d+
 key Space -Settle 1200
 expect (?i)rome
 key Control+Tab -Settle 1200
