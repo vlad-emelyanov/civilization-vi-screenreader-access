@@ -9,11 +9,12 @@ scenario carrier
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetX()==55 and u:GetMovesRemaining()>0 then UI.SelectUnit(u) break end end
 key Tab -Settle 1500
 expect Fighter actions
+# unavailable actions are listed after the available ones: Re-Base comes before Deploy
 key Down -Settle 600
-key Down -Settle 600
-expect ^Deploy
 key Down -Settle 600
 expect Re-Base, key Shift\+R
+key End -Settle 600
+expect ^Deploy.*unavailable
 key Escape -Settle 800
 key Shift+R -Settle 1500
 expect ^Rebase: choose a tile

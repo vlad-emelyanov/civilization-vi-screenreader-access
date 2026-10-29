@@ -75,3 +75,17 @@ test("Tab: regions get it, the unit menu opens only from the plain map", functio
 	Hub.UnitActionsKey()
 	eq(opened, 2, "the unit menu itself toggles")
 end)
+
+-- multiplayer wait label ("Waiting for players" / "Waiting for NAME"), pure
+local bodyW = src:match("(function HubAnnounce%.IsWaitingLabel.-\nend)\n")
+assert(bodyW, "IsWaitingLabel not found")
+assert(loadstring((bodyW:gsub("(%w+):(%w+)", "%1")), "IsWaitingLabel"))()
+test("IsWaitingLabel: Waiting for NAME / players, nothing else", function()
+	local w = HubAnnounce.IsWaitingLabel
+	eq(w("WAITING FOR ALICE", "waiting for "), true)
+	eq(w("Waiting for players", "waiting for "), true)
+	eq(w("UNIT NEEDS ORDERS", "waiting for "), false)
+	eq(w("", "waiting for "), false)
+	eq(w(nil, "waiting for "), false)
+	eq(w("WAITING FOR ALICE", ""), false)
+end)

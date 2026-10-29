@@ -1,0 +1,28 @@
+# UNVERIFIED, blind-written. Controller: LT (F16) enters attack mode like W and the opening line puts X (pad X = F13) first, the stick
+# second ("moves tile by tile"). Pad X in the attack mode walks the attackable targets exactly like the keyboard X (HubGamepad: target mode + X -> HubSettle.ScanKey).
+# Same fixture as attack-x-hostile-first: pt-modes-t106, the Roman Legion in Aquileia has barbarians 1-3 tiles around and peaceful Vilnius / English units farther away.
+# covers: **/HubTargets.lua **/HubGamepad.lua **/HubCursor.lua **/HubSettle.lua
+# no-share-load: selects a unit and enters a target mode
+load pt-modes-t106
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
+# ModeOn (console app: F22)
+key F22 -Settle 500
+# LT (F16): attack mode
+key F16 -Settle 1500
+expect ^Attack: choose a target with X for the next one, left stick moves tile by tile
+expect Barbarian
+expect-not would declare war
+# X (F13): the next attackable target, never the peaceful ones
+key F13 -Settle 800
+expect Barbarian
+expect-not (would declare war|Vilnius|English)
+key F13 -Settle 800
+expect-not (would declare war|Vilnius|English)
+key F13 -Settle 800
+expect-not (would declare war|Vilnius|English)
+# B: cancel the attack mode
+key Escape -Settle 800
+# ModeOff (console app: F23)
+key F23 -Settle 500
+no-lua-errors

@@ -10,6 +10,7 @@ expect (?i)cannot activate .*must stand on a completed Campus district\. Nearest
 expect-not (?i)triggers the eureka
 key Tab -Settle 1500
 expect (?i)^Browse tiles to act on
-key Down -Settle 600
+key End -Settle 600
+key Up -Settle 600
 expect (?i)activate .*unavailable: must stand on a completed Campus\. Nearest: .*Campus
 no-lua-errors

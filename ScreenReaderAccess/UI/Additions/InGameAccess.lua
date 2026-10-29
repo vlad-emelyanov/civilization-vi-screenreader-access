@@ -310,6 +310,7 @@ function Initialize()
 	HubCore.Listen( Events.LoadScreenClose, HubCore.Safe( "LoadScreenClose", HubAnnounce.OnLoadScreenClose ) );
 	HubCore.Listen( Events.LocalPlayerTurnEnd, HubCore.Safe( "LocalPlayerTurnEnd", HubAnnounce.OnLocalPlayerTurnEnd ) );
 	HubCore.Listen( Events.PlayerTurnActivated, HubCore.Safe( "PlayerTurnActivated", HubAnnounce.OnPlayerTurnActivated ) );
+	HubCore.Listen( Events.LocalPlayerTurnUnready, HubCore.Safe( "LocalPlayerTurnUnready", HubAnnounce.OnLocalPlayerTurnUnready ) );		-- multiplayer: the player un-readied the turn
 
 	HubCore.AddEvent( "InterfaceModeChanged",		HubTargets.OnInterfaceModeChanged );
 	HubCore.AddEvent( "UnitOperationStarted",		HubEvents.OnUnitOperationStarted );

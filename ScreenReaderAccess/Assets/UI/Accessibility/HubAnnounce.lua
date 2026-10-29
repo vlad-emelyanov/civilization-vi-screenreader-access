@@ -489,6 +489,8 @@ end
 -- 0.1 s, but PlayerTurnActivated(local, false) and LocalPlayerTurnBegin only follow ~3 s later and the action panel
 -- says "Please wait" until then. So after "Turn ended" (or a turn end that did not happen) we watch for it.
 local m_notEndedWatch:number = 0;		-- id of the running label wait (a new turn end cancels an older one)
+local m_mpReadiedTurn:number = -1;		-- multiplayer: game turn for which the local player ended (readied) the turn; cleared by the unready event
+local m_unreadiedTurn:number = -1;		-- multiplayer: game turn for which the local player took the end of turn back (cancels the pending checks)
 
 -- Sentence case of the action panel's blocker text ("UNIT NEEDS ORDERS" -> "Unit needs orders"), "" while it only waits.
 -- Pure: "" when the label is empty or one of the ignored lower-cased non-blocker texts.
@@ -501,9 +503,31 @@ function HubAnnounce.BlockerFromLabel( text:string, ignored:table )
 	return string.upper( string.sub( text, 1, 1 ) ) .. string.lower( string.sub( text, 2 ) );
 end
 
+-- Pure: is this action panel text the multiplayer wait label? "Waiting for players" or "Waiting for <PLAYER>" (prefix = the lower-cased
+-- LOC_ACTION_PANEL_WAITING_FOR_PLAYER_TURN text without its player, e.g. "waiting for ").
+function HubAnnounce.IsWaitingLabel( text:string, prefix:string )
+	if text == nil or text == "" or prefix == nil or prefix == "" then return false; end
+	return string.sub( string.lower( text ), 1, string.len( prefix ) ) == prefix;
+end
+
+local function WaitingPrefix()
+	local prefix:string = string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_WAITING_FOR_PLAYER_TURN", "" ) ) );
+	return ( string.gsub( prefix, "%s+$", "" ) ) .. " ";
+end
+
+-- The action panel says "Waiting for players" / "Waiting for NAME": this player has ended the turn and others are still playing (MP).
+local function IsWaitingForOthers()
+	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
+	if label == nil then return false; end
+	local text:string = CleanTextForSpeech( label:GetText() or "" );
+	return HubAnnounce.IsWaitingLabel( text, WaitingPrefix() ) or HubAnnounce.IsWaitingLabel( text, string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_WAITING_FOR_PLAYERS" ) ) ) );
+end
+
 local function BlockerText()
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
 	if label == nil then return ""; end
+	-- "Waiting for NAME" (one other player still playing, multiplayer) is no blocker either
+	if IsWaitingForOthers() then return ""; end
 	-- not blockers: "Please wait", "Next turn" (the blocker resolved), "Waiting for other players"
 	local ignored:table = {};
 	for _, key in ipairs( { "LOC_ACTION_PANEL_PLEASE_WAIT", "LOC_ACTION_PANEL_NEXT_TURN", "LOC_ACTION_PANEL_WAITING_FOR_PLAYERS" } ) do
@@ -562,6 +586,24 @@ function HubAnnounce.OnPlayerTurnActivated( playerID:number, isFirstTime:boolean
 	TurnNotEnded( m_endedTurn );
 end
 
+-- "Turn ended", in multiplayer with the others still playing "Turn ended, waiting for other players" (UNVERIFIED, MP only).
+function HubAnnounce.TurnEndedText()
+	if m_mpReadiedTurn == Game.GetCurrentGameTurn() and IsWaitingForOthers() then return "Turn ended, waiting for other players"; end
+	return "Turn ended";
+end
+
+-- Events.LocalPlayerTurnUnready (the action panel's own listener, ActionPanel.lua:1336): the player took the end of turn back
+-- (Enter / the end turn button while the panel says "Waiting for players" runs ACTION_UNREADYTURN). UNVERIFIED, MP only.
+function HubAnnounce.OnLocalPlayerTurnUnready()
+	local turn:number = Game.GetCurrentGameTurn();
+	m_notEndedWatch = m_notEndedWatch + 1;		-- the pending end-of-turn checks and a running "Turn not ended" wait are void
+	m_endedTurn = -1;
+	m_unreadiedTurn = turn;
+	m_mpReadiedTurn = -1;
+	HubAnnounce.ResetReadyWatch();		-- "All done" is said again once nothing blocks the turn
+	OutputMessageToScreenReader( "Turn resumed", false );
+end
+
 function HubAnnounce.OnLocalPlayerTurnEnd()
 	if HubEnemies ~= nil then
 		local ok:boolean, err = pcall( HubEnemies.TakeSnapshot );
@@ -578,27 +620,32 @@ function HubAnnounce.OnLocalPlayerTurnEnd()
 	local turn:number = Game.GetCurrentGameTurn();
 	m_notEndedWatch = m_notEndedWatch + 1;
 	m_endedTurn = turn;
+	m_unreadiedTurn = -1;
+	m_mpReadiedTurn = ( GameConfiguration.IsAnyMultiplayer() ) and turn or -1;		-- UNVERIFIED (MP only)
 	local player:table = Players[ Game.GetLocalPlayer() ];
 	if player == nil or not player:IsTurnActive() then
 		-- the turn is back active within 0.1 s when it was refused (a unit that finished its move during the end-of-turn
 		-- processing): do not wait for the (late) engine event, and do not say "Turn ended" first. If the game is already
 		-- in a new turn the new turn's own line covers it: "Turn ended" would land after "Turn N".
 		HubCore.After( 0.3, function()
-			if Game.GetCurrentGameTurn() ~= turn then return; end
+			if Game.GetCurrentGameTurn() ~= turn or m_unreadiedTurn == turn then return; end
 			local current:table = Players[ Game.GetLocalPlayer() ];
 			if m_endedTurn == turn and current ~= nil and current:IsTurnActive() then
 				TurnNotEnded( turn );
 			elseif m_endedTurn == turn then
-				OutputMessageToScreenReader( "Turn ended", true );
+				OutputMessageToScreenReader( HubAnnounce.TurnEndedText(), true );
 			end
 		end );
 		return;
 	end
 	HubCore.After( 0.7, function()
 		local current:table = Players[ Game.GetLocalPlayer() ];
-		if Game.GetCurrentGameTurn() ~= turn then return; end
+		if Game.GetCurrentGameTurn() ~= turn or m_unreadiedTurn == turn then return; end
 		if current == nil or not current:IsTurnActive() then
-			OutputMessageToScreenReader( "Turn ended", true );
+			OutputMessageToScreenReader( HubAnnounce.TurnEndedText(), true );
+		elseif m_endedTurn == turn and m_mpReadiedTurn == turn and IsWaitingForOthers() then
+			-- multiplayer, simultaneous turns: readied, the turn stays active while the others play (UNVERIFIED)
+			OutputMessageToScreenReader( HubAnnounce.TurnEndedText(), true );
 		elseif m_endedTurn == turn then
 			TurnNotEnded( turn );
 		end
