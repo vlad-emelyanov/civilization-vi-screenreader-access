@@ -24,6 +24,10 @@ key F15 -Settle 1500
 expect (?i)^Screens
 key F15 -Settle 1500
 expect (?i)^Places
+# Places has categories: RB changes category first. Keyboard Control+Tab goes to the last one (wraps), then RB continues the ring.
+key F23 -Settle 500
+key Control+Tab -Settle 1000
+key F22 -Settle 500
 key F15 -Settle 1500
 expect (?i)notifications
 key F14 -Settle 1500

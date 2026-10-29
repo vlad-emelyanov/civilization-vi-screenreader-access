@@ -11,6 +11,8 @@ public readonly record struct PadKey(Keys Key, bool control = false)
 /// <summary>Canonical button -> key table.
 /// RT held (>= 128) is a Shift modifier: the left stick directions, D-pad up/down (Home/End) and A (Enter) are injected with Left Shift held
 /// (Shift+Arrows, Shift+Home/End, Shift+Enter). Never Shift+Tab: D-pad left/right stay Control+Tab / Tab (Shift+Tab opens the Steam overlay).
+/// While LB or RB is held (group jump), the left stick up / down and D-pad up / down are PageUp / PageDown instead (with the same repeat, no Shift),
+/// and the held bumper's F14 / F15 KeyUp is then not sent (the same rule as RT used as Shift).
 /// B, X, Y, LB, RB, LT, the right stick and the stick clicks are not modified. A plain RT press sends F17 down, its release F17 up (the mod acts on
 /// the KeyUp). If any Shift-modified event went out while RT was held, the F17 KeyUp on release is suppressed (the Down already went out, so nothing
 /// happens) and the service treats RT as released (not in the held set: no F17 up on focus loss or exit either).
@@ -43,6 +45,8 @@ public static class GamepadMap
         ["DDown"] = new PadKey(Keys.End),
         ["DLeft"] = new PadKey(Keys.Tab, control: true),
         ["DRight"] = new PadKey(Keys.Tab),
+        ["PageUp"] = new PadKey(Keys.PageUp),
+        ["PageDown"] = new PadKey(Keys.PageDown),
         ["ModeOn"] = new PadKey(Keys.F22),
         ["ModeOff"] = new PadKey(Keys.F23),
     };

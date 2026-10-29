@@ -8,7 +8,8 @@
 --	  - ModeOn / ModeOff (F22 / F23) set the controller mode flag,
 --	  - global buttons (Menu, View, LB, RB, stick clicks, right stick) act on KeyUp, both events are consumed,
 --	  - mode-dependent buttons (X, LT, RT) go to the open hub list first, in a target mode X scans for foreign units and LT / RT are silent, and act on the bare map,
---	  - while a game screen or popup is open every button but LB / RB / Menu passes through (LB / RB say "Close the screen first, B closes it"; Menu closes the production panel and opens the game menu, other screens answer like LB / RB).
+--	  - LB / RB: a hub list with sections moves them (Places: also on to the next / previous ring list from its last / first section); otherwise the ring,
+--	  - while a game screen or popup is open every button but Menu passes through (LB / RB are the screen's sections: KeyNavList, Gamepad.WrapInput; Menu closes the production panel and opens the game menu, other screens say "Close the screen first, B closes it").
 --	Keys that no screen wanted reach WorldInput's catcher (Gamepad_CatchKey), which fires LuaEvents.SRA_PadCursor / SRA_PadDetails /
 --	SRA_PadInfo; the listeners are here.
 -- ===========================================================================
@@ -30,6 +31,18 @@ end
 local function TargetPlaces()
 	if not HubTargets.CanOpenMode( true ) then return; end
 	HubPlaces.TogglePlaces();
+end
+
+-- LB / RB while a hub list is open: its sections first (the list translates the F-key into its Tab handler), the ring where the
+-- list has none or the sections run out (HubPad.BumperAction). Returns true when the list took the button.
+local function ListSections( step:number, input:table )
+	local mode = HubCore.m_mode;
+	if mode == nil or mode.list == nil or mode.list.HasTabs == nil or not mode.list.HasTabs() then return false; end
+	local edge:boolean = ( mode.list.AtTabEdge ~= nil and mode.list.AtTabEdge( step ) ) or false;
+	if HubPad ~= nil and HubPad.BumperAction( mode.name, true, edge ) ~= "section" then return false; end
+	local ok:boolean, err = xpcall( function() return mode.list.HandleInput( input ); end, KeyNavErrorHandler );
+	if not ok then print( "InGameAccess Pad section error: " .. tostring( err ) ); end
+	return true;
 end
 
 local function Ring( step:number )
@@ -65,10 +78,39 @@ local function CloseFirstText()
 	return "Close the screen first, " .. SRKey( "Escape" ) .. " closes it";
 end
 
+-- The open screens that act on LB / RB themselves (KeyNavList screens with tabs or "No tabs here", and the screens that call
+-- Gamepad.WrapInput), by context id. Any other open screen keeps the "Close the screen first" hint (never silent). An id missing
+-- here only costs that hint, so the list can grow as screens are verified.
+local BUMPER_SCREENS:table = {
+	ProductionPanel = true, ProductionManager = true, ReportScreen = true, TradeOverview = true, GreatWorksOverview = true,
+	EspionageOverview = true, WorldRankings = true, ClimateScreen = true, TechTree = true, CivicsTree = true, GovernmentScreen = true,
+	ReligionScreen = true, GreatPeoplePopup = true, EndGameMenu = true, CityStates = true, Civilopedia = true,
+	DiplomacyDealView = true, DiplomacyActionView = true,
+};
+
+-- The same screens minus the Climate screen (it hands PageDown to the game on purpose: its toggle key): the ones that consume
+-- PageUp / PageDown in controller mode. With any other screen open the hub swallows them (PageDown would open the Climate screen).
+local PAGE_SCREENS:table = {};
+for id, _ in pairs( BUMPER_SCREENS ) do PAGE_SCREENS[ id ] = true; end
+PAGE_SCREENS.ClimateScreen = nil;
+
+-- Pure over the id list: are all open screens in the set (and at least one open)?
+function HubGamepad.AllIn( ids:table, set:table )
+	if #ids == 0 then return false; end
+	for _, id in ipairs( ids ) do
+		if set[ id ] ~= true then return false; end
+	end
+	return true;
+end
+
+local function OpenScreensIn( set:table )
+	return HubGamepad.AllIn( HubCore.OpenScreenIds(), set );
+end
+
 local GLOBAL_ACTIONS:table = {
 	Menu		= OpenGameMenu,
 	View		= function() HubHelp.Toggle(); end,
-	LB			= function() Ring( -1 ); end,
+	LB			= function() Ring( -1 ); end,		-- (HandleInput: a list with sections takes LB / RB first)
 	RB			= function() Ring( 1 ); end,
 	LSClick		= Capital,
 	RSClick		= function() LuaEvents.SRA_PadNextUnit(); end,
@@ -139,7 +181,14 @@ end
 function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:boolean )
 	local button:string = Gamepad.ButtonOf( key, isControl );
 	local suppressed:boolean = TrackEvent( button, msg, key );
-	if button == nil then return false; end
+	if button == nil then
+		-- PageUp / PageDown (the held-bumper group jump) must not reach the game as input actions (PageDown = Climate screen) while a
+		-- screen that does not consume them is open; the bare map's are swallowed by WorldInput's catcher, lists consume their own
+		if Gamepad.IsActive() and not isControl and ( key == Gamepad.PageKey( false ) or key == Gamepad.PageKey( true ) ) then
+			if HubCore.IsLocalPlayerActive() and HubCore.IsGamePopupOpen() and not OpenScreensIn( PAGE_SCREENS ) then return true; end
+		end
+		return false;
+	end
 	if button == "ModeOn" then Gamepad.SetActive( true ); return true; end
 	if button == "ModeOff" then Gamepad.SetActive( false ); return true; end
 	if not HubCore.IsLocalPlayerActive() then return false; end
@@ -148,7 +197,9 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 
 	if HubCore.IsGamePopupOpen() then
 		if button == "LB" or button == "RB" then
-			if isUp then Say( CloseFirstText() ); end
+			if suppressed then return true; end
+			if OpenScreensIn( BUMPER_SCREENS ) then return false; end		-- the screen's own sections / tabs (KeyNavList: LB / RB = Control+Tab / Tab; "No tabs here")
+			if isUp then Say( CloseFirstText() ); end		-- a screen that does not handle them: never silent
 			return true;
 		end
 		if button == "Menu" and not IsControlShown( "/InGame/TopOptionsMenu" ) then
@@ -169,6 +220,12 @@ function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:
 
 	local action = GLOBAL_ACTIONS[ button ];
 	if action ~= nil then
+		if button == "LB" or button == "RB" then
+			-- an open hub list with sections moves them (KeyDown consumed, the Tab handler acts on KeyUp)
+			if suppressed then return true; end
+			if isUp and ListSections( button == "RB" and 1 or -1, input ) then return true; end
+			if not isUp and HubCore.m_mode ~= nil and HubCore.m_mode.list ~= nil and HubCore.m_mode.list.HasTabs ~= nil and HubCore.m_mode.list.HasTabs() then return true; end
+		end
 		if isUp then HubCore.Safe( "Pad" .. button, action )(); end
 		return true;
 	end

@@ -630,6 +630,7 @@ end
 
 function SRA_HandleInput( input:table )
 	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() then return false; end
+	input = Gamepad.WrapInput( input );		-- ScreenReaderAccess: controller mode (D-pad = arrows, LB / RB = Control+Tab / Tab)
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 	local key:number = input:GetKey();

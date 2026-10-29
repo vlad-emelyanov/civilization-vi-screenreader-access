@@ -480,6 +480,7 @@ end
 
 local function SRA_HandleInput( input:table )
 	if ContextPtr:IsHidden() then return false; end
+	input = Gamepad.WrapInput( input );		-- ScreenReaderAccess: controller mode (D-pad = arrows, LB / RB = Control+Tab / Tab)
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 	local key:number = input:GetKey();

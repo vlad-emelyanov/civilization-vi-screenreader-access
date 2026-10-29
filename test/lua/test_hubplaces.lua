@@ -165,6 +165,21 @@ test("units category lists every unit with its activity and position", function(
 	units[1].activity = 1
 end)
 
+test("units category is grouped by unit type, sorted by type name then distance", function()
+	local before = #units
+	addUnit(90, "Warrior", 6, 5)
+	addUnit(91, "Builder", 20, 5)
+	addUnit(92, "Scout", 5, 6)		-- nearer to Rome than the first scout
+	local cats = HubPlaces.BuildCategories({ plot = Map.GetPlot(5, 5) })
+	local list
+	for _, c in ipairs(cats) do if c.name == "Your units" then list = c end end
+	local sections = {}
+	for _, item in ipairs(list.items) do table.insert(sections, item.section) end
+	eq(table.concat(sections, ","), "Builder,Scout,Scout,Warrior")
+	eq(list.items[2].key, "u:92")		-- within a type: nearest first
+	for _ = before + 1, #units do table.remove(units) end
+end)
+
 test("cancel hint is given once, for a fresh pick", function()
 	local u = unitObject(units[1])
 	HubPlaces.m_hintUnit, HubPlaces.m_hintTime = 1, Clock.now

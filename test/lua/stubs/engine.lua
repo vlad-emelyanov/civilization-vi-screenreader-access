@@ -19,7 +19,8 @@ Locale = {
 }
 
 Keys = { VK_UP = 38, VK_DOWN = 40, VK_LEFT = 37, VK_RIGHT = 39, VK_HOME = 36, VK_END = 35, VK_RETURN = 13,
-	VK_SPACE = 32, VK_ESCAPE = 27, VK_DELETE = 46, VK_TAB = 9 }
+	VK_SPACE = 32, VK_ESCAPE = 27, VK_DELETE = 46, VK_TAB = 9, VK_PRIOR = 33, VK_NEXT = 34 }
+for i = 13, 24 do Keys["VK_F" .. i] = 100 + i end
 KeyEvents = { KeyDown = 1, KeyUp = 2 }
 
 -- A fake input struct: Input{ key = Keys.VK_UP, up = true, shift = true }

@@ -1,0 +1,29 @@
+# Written blind (2026-10-29, not yet verified in game; run with --record first). Controller mode in a hub list: the D-pad up / down (the console app sends Home / End) move ONE item
+# like the stick, the keyboard's Home / End (after F23) still jump to the first / last. The Screens list of the ring is the list (Tech tree, Civics tree, Government, ... Civilopedia).
+# From the bare map LB opens Places (the last list), a second LB (Places is on its first category) goes on to Screens.
+# covers: **/KeyNavList.lua **/Gamepad.lua **/HubScreens.lua **/HubGamepad.lua **/HubPad.lua
+# no-share-load: opens ring lists
+load early-t60
+clear-advisors
+key F22 -Settle 800
+key F14 -Settle 1500
+key F14 -Settle 1500
+expect (?i)^Screens
+expect (?i)^Tech tree
+# D-pad down (End): one item, not the last
+key End -Settle 800
+expect (?i)^Civics tree
+key End -Settle 800
+expect (?i)^Government
+# D-pad up (Home): one item back, not the first
+key Home -Settle 800
+expect (?i)^Civics tree
+# keyboard again (F23): Home / End are first / last
+key F23 -Settle 500
+key End -Settle 800
+expect (?i)civilopedia
+key Home -Settle 800
+expect (?i)^Tech tree
+key Escape -Settle 1000
+expect ^Closed
+no-lua-errors

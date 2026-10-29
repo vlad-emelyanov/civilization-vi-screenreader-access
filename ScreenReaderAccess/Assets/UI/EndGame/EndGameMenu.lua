@@ -664,7 +664,7 @@ end
 local function SRTryOpen()
 	if not m_srOpenPending or not SRIsActive() then return; end
 	m_srOpenPending = false;
-	SREnsureList().Open( "End game menu, " .. SRKey( "Tab" ) .. " switches pages" );
+	SREnsureList().Open( "End game menu, " .. SRKey( "Tab", "RB" ) .. " switches pages" );
 end
 
 local function SROnShow()

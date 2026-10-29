@@ -17,15 +17,16 @@ lua InGameAccess UI.DeselectAll()
 action KeyNavPlaces -Settle 1500
 key Tab -Settle 600
 expect ^Your units
-key Down -Settle 400 -Count 4
-expect ^Spearman, fortified
+key Down -Settle 400 -Count 5
+expect Spearman, fortified
 key Enter -Settle 1500
 expect fortified\. Shift\+C cancels it
 lua InGameAccess UI.DeselectAll()
 action KeyNavPlaces -Settle 1500
 key Tab -Settle 600
-key Down -Settle 400 -Count 6
+key Down -Settle 400 -Count 4
 expect Scout, exploring
-# The Enter on the exploring scout is not checked: where the explorer sits in the distance-sorted list differs from run to run (a builder or the scout is 7th).
+# Your units is grouped by unit type (Builder, Great General, Scout, Spearman, Warrior), so the scouts are items 4 and 5; Spearman is the 6th.
+# The Enter on the exploring scout is not checked: which of the two scouts explores differs from run to run.
 # The window of the Down presses holds every item, so only the item text is checked.
 no-lua-errors

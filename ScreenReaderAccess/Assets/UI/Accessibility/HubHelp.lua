@@ -4,7 +4,7 @@
 --	The text is Accessibility/HelpText.lua (the one place for shortcut descriptions, keep it up to date); this module
 --	only shows it, in the pattern of the places list (HubPlaces): sections with entries.
 --
---	Tab / Control+Tab change the section (wraps), Up/Down/Home/End the entry, a letter jumps to the next section whose title
+--	Tab / Control+Tab (the pad: RB / LB) change the section (wraps), Up/Down/Home/End the entry, a letter jumps to the next section whose title
 --	starts with it, Space repeats the entry, Escape or Control+H closes. Opens inside a target mode too (it only reads).
 --	Front end: not needed now (the front-end screens say their keys themselves).
 -- ===========================================================================
@@ -68,6 +68,8 @@ local m_facade:table = {
 	end,
 	Reset = function() m_list.Reset(); end,
 	HandleInput = function( input:table ) return m_list.HandleInput( input ); end,
+	HasTabs = function() return m_list.HasTabs(); end,
+	AtTabEdge = function( step:number ) return m_list.AtTabEdge( step ); end,
 };
 
 local function CloseHelp()

@@ -11,6 +11,8 @@
 --		ctrlKeys   = { [Keys.VK_TAB] = function() ... end },    -- optional: Control+key (acted on at KeyUp; Shift+Tab is Steam's overlay, so Control+Tab = previous)
 --		horizontal = true,                                -- optional: Left/Right also move (like Up/Down)
 --		noDetailHint = true,                              -- optional: no pad-only ", Y for details" after the first item when the list opens
+--		sectionCounts = true,                             -- optional: a group's name is spoken with its item count ("Builder, 3: ...") when the focus enters it
+--		tabEdge    = function(step) return bool end,      -- optional: true when the sections cannot go further in that direction (+1 / -1); the hub then moves the LB / RB ring on
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
@@ -20,15 +22,44 @@
 --	                                     -- consumed the key (both KeyDown and KeyUp of the keys it uses are consumed)
 --
 --	Focus is tracked by item.key, never by index (the list is rebuilt from visible state on every key).
+--	PageUp / PageDown (the pad: a held bumper plus up / down) jump to the first item of the previous / next group (item.section) and are
+--	always consumed ("No groups in this list"), so PageDown never opens the Climate screen underneath.
+--	In controller mode (Gamepad.Follow) D-pad up / down (Home / End) are Up / Down, D-pad right / left (Tab / Control+Tab) are Right /
+--	Left, LB / RB are Control+Tab / Tab ("No tabs here" when the list has no Tab handler): Gamepad.TranslateListKey.
 --	Up/Down act on KeyDown (so holding the key repeats), Enter/Space on KeyUp (the game's ActionPanel acts on the
 --	KeyUp of Enter; consuming both keeps Next Action from firing).
 -- ===========================================================================
 
 include( "ScreenReader" );
 include( "KeyboardNavigation" );
+include( "SRListen" );
+include( "Gamepad" );
+
+-- Pure. The index of the first item of the next (delta > 0) or previous (delta < 0) group, a group being a run of items with the same
+-- item.section. Wraps. Returns nil, "none" when no item has a section and nil, "one" when there is only one group.
+function KeyNavList_GroupTarget( items:table, index:number, delta:number )
+	local starts:table = {};
+	local previous = nil;
+	for i, item in ipairs( items ) do
+		if item.section ~= nil and item.section ~= previous then table.insert( starts, i ); end
+		previous = item.section;
+	end
+	if #starts == 0 then return nil, "none"; end
+	if #starts == 1 then return nil, "one"; end
+	local current:number = 0;
+	for g, start in ipairs( starts ) do
+		if start <= index then current = g; end
+	end
+	if delta > 0 then
+		return starts[ current + 1 ] or starts[ 1 ];
+	end
+	if current == 0 then return starts[ #starts ]; end
+	return starts[ current - 1 ] or starts[ #starts ];
+end
 
 function KeyNavList_Create( config:table )
 	local list:table = {};
+	Gamepad.Follow();
 	local m_focusKey = nil;
 	local m_lastSection:string = nil;
 	local m_openedAt:number = -100;
@@ -64,7 +95,20 @@ function KeyNavList_Create( config:table )
 		end
 		local text:string = item.text;
 		if item.section ~= nil and ( withSection or item.section ~= m_lastSection ) then
-			text = item.section .. ": " .. text;
+			local head:string = item.section;
+			if config.sectionCounts then
+				local count:number = 0;
+				for _, other in ipairs( items ) do
+					if other.section == item.section then count = count + 1; end
+				end
+				head = head .. ", " .. count;
+			end
+			-- the item names its own group ("Builder, 5 tiles east"): say it once
+			local own:string = item.text;
+			if string.lower( string.sub( own, 1, #item.section + 2 ) ) == string.lower( item.section ) .. ", " then
+				text = string.sub( own, #item.section + 3 );
+			end
+			text = head .. ": " .. text;
 		end
 		m_lastSection = item.section;
 		text = text .. ", " .. index .. " of " .. #items;
@@ -83,6 +127,7 @@ function KeyNavList_Create( config:table )
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
 	function list.Open( title:string, initialKey, silent:boolean, keepGuard:boolean )
 		if not keepGuard and UI ~= nil and UI.GetElapsedTime ~= nil then m_openedAt = UI.GetElapsedTime(); end
+		Gamepad.RequestMode();
 		local items:table = Build();
 		m_lastSection = nil;
 		if initialKey ~= nil then m_focusKey = initialKey; end
@@ -146,6 +191,33 @@ function KeyNavList_Create( config:table )
 		Speak( items, target, true, false );
 	end
 
+	-- PageUp / PageDown: the first item of the previous / next group, spoken with its group name.
+	local function GroupJump( delta:number )
+		m_lostGuard = false;
+		local items:table = Build();
+		if #items == 0 then
+			OutputMessageToScreenReader( "Nothing available" );
+			return;
+		end
+		local target, why = KeyNavList_GroupTarget( items, FindIndex( items ) or 1, delta );
+		if target == nil then
+			OutputMessageToScreenReader( why == "one" and "Only one group in this list" or "No groups in this list" );
+			return;
+		end
+		Speak( items, target, true, true );
+	end
+
+	-- Sections: does the list have a Tab handler, and can it not go further in that direction (the hub's ring takes over then)?
+	function list.HasTabs()
+		return config.extraKeys ~= nil and config.extraKeys[ Keys.VK_TAB ] ~= nil;
+	end
+
+	function list.AtTabEdge( step:number )
+		if config.tabEdge == nil then return false; end
+		local ok:boolean, edge = xpcall( function() return config.tabEdge( step ); end, KeyNavErrorHandler );
+		return ok and edge == true;
+	end
+
 	-- The focused item may have vanished (list rebuilt from the game's state): say so and refocus.
 	local function FocusLost( items:table )
 		if #items == 0 then
@@ -204,6 +276,10 @@ function KeyNavList_Create( config:table )
 
 	-- Returns true when the key was consumed.
 	function list.HandleInput( input:table )
+		local msg:number = input:GetMessageType();
+		if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+		local rawKey = input:GetKey();
+		Gamepad.NoteModeKey( rawKey, input:IsControlDown() );		-- (no hub in the front end: F22 / F23 are seen here)
 		if config.isActive ~= nil then
 			local ok:boolean, active = xpcall( config.isActive, KeyNavErrorHandler );
 			if not ok then
@@ -212,18 +288,33 @@ function KeyNavList_Create( config:table )
 			end
 			if not active then return false; end
 		end
-		local msg:number = input:GetMessageType();
-		if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
-		local key:number = input:GetKey();
 		local isDown:boolean = ( msg == KeyEvents.KeyDown );
-		if input:IsControlDown() and not input:IsShiftDown() and not input:IsAltDown() and config.ctrlKeys ~= nil and config.ctrlKeys[ key ] ~= nil then
+		local key = rawKey;
+		local isControl:boolean = input:IsControlDown();
+		local bumper:boolean = false;
+		if not input:IsShiftDown() and not input:IsAltDown() then
+			key, isControl, bumper = Gamepad.TranslateListKey( rawKey, isControl, Gamepad.IsActive() );
+		end
+		if bumper then
+			-- LB / RB are the previous / next section: a list without a Tab handler says so (never silent)
+			local handler = ( isControl and config.ctrlKeys or config.extraKeys );
+			if handler == nil or handler[ Keys.VK_TAB ] == nil then
+				if not isDown then
+					local other = ( isControl and config.extraKeys or config.ctrlKeys );
+					local hasOther:boolean = other ~= nil and other[ Keys.VK_TAB ] ~= nil;
+					OutputMessageToScreenReader( hasOther and ( isControl and "No previous tab" or "No next tab" ) or "No tabs here" );
+				end
+				return true;
+			end
+		end
+		if isControl and not input:IsShiftDown() and not input:IsAltDown() and config.ctrlKeys ~= nil and config.ctrlKeys[ key ] ~= nil then
 			if not isDown then
 				local ok:boolean, err = xpcall( config.ctrlKeys[ key ], KeyNavErrorHandler );
 				if not ok then print( "KeyNavList error: " .. tostring(err) ); end
 			end
 			return true;
 		end
-		if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
+		if input:IsShiftDown() or isControl or input:IsAltDown() then return false; end
 
 		local action = nil;
 		if key == Keys.VK_UP then			if isDown then action = function() Move( -1 ); end end
@@ -232,6 +323,8 @@ function KeyNavList_Create( config:table )
 		elseif config.horizontal and key == Keys.VK_RIGHT then	if isDown then action = function() Move( 1 ); end end
 		elseif key == Keys.VK_HOME then		if isDown then action = function() Move( 0, "home" ); end end
 		elseif key == Keys.VK_END then		if isDown then action = function() Move( 0, "end" ); end end
+		elseif key == Gamepad.PageKey( false ) then	if isDown then action = function() GroupJump( -1 ); end end
+		elseif key == Gamepad.PageKey( true ) then	if isDown then action = function() GroupJump( 1 ); end end
 		elseif key == Keys.VK_RETURN then	if not isDown then action = Activate; end
 		elseif key == Keys.VK_SPACE then	if not isDown then action = ReadDetail; end
 		elseif key == Keys.VK_ESCAPE and config.onClose ~= nil then

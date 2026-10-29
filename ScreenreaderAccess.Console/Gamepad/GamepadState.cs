@@ -5,7 +5,7 @@ public enum PadButton
 {
     A, B, X, Y, LB, RB, LT, RT, View, Menu, LSClick, RSClick,
     RSUp, RSDown, RSLeft, RSRight, LUp, LDown, LLeft, LRight, DUp, DDown, DLeft, DRight,
-    ModeOn, ModeOff,
+    PageUp, PageDown, ModeOn, ModeOff,
 }
 
 public enum KeyAction { Down, Up, Tap }
