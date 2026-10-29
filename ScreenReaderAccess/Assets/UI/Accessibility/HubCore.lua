@@ -153,8 +153,8 @@ end
 --	game state (no orders, no turn); anything it cannot restore is reported as "dirty <reason>" and the next script loads fresh.
 -- ===========================================================================
 local TEST_SCREEN_PARENTS:table = { "WorldPopups", "FakePopups", "Screens", "PartialScreens", "Diplomacy", "EndGame", "AdditionalUserInterfaces" };
--- The side panels of TopLevelHUD (not counted as game screens above; the launch bar there is always shown): an open one is state a script leaves behind.
-local TEST_HUD_PANELS:table = { "ResearchChooser", "CivicsChooser", "TradeRouteChooser", "TradeOriginChooser", "EspionageChooser", "PantheonChooser", "CityPanelOverview", "ModalLensPanel" };
+-- The side panels of TopLevelHUD (not counted as game screens above; the launch bar there is always shown): an open one is state a script leaves behind. CityPanelOverview is not listed: its context is always shown on the map (a selected city is covered by the selection tag).
+local TEST_HUD_PANELS:table = { "ResearchChooser", "CivicsChooser", "TradeRouteChooser", "TradeOriginChooser", "EspionageChooser", "PantheonChooser", "ModalLensPanel" };
 local TEST_SCREEN_SINGLES:table = { "Civilopedia", "EraReviewPopup", "DedicationPopup", "WorldCongressPopup", "WorldCongressIntro", "WorldCongressBetweenTurns", "AdvisorPopup" };
 
 -- The names of the open popups and screens (the options menu included), empty when none.
