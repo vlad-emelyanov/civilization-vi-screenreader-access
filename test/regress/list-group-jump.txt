@@ -3,7 +3,7 @@
 # Production groups say their count ("Units, 12: Warrior, ..."), like Your units. A list without groups says so, and PageDown never reaches the game (it would open the Climate screen). Keyboard run; the pad sends the same keys while LB / RB is held.
 # Fixture early-t60: units BUILDER x1, GREAT_GENERAL x2, SCOUT x2, SPEARMAN x1, WARRIOR x1 (types sort Builder, Great General, Scout, Spearman, Warrior).
 # covers: **/KeyNavList.lua **/ProductionPanel.lua **/HubPlaces.lua
-# no-share-load: opens the production panel and J
+# dirty-group: t60-no-barbarians (the tuner removes the two barbarians that the fixture has next to Rome: they add a Threats category to J; the same idempotent change in every member, so the members run one after the other on one load)
 load early-t60
 clear-advisors
 lua GameCore_Tuner for _, u in Players[63]:GetUnits():Members() do local x, y = u:GetX(), u:GetY(); if x == 63 and (y == 33 or y == 34) then Players[63]:GetUnits():Destroy(u) end end return 1

@@ -1,6 +1,6 @@
 # Written blind 2026-10-24 (batch A, not yet recorded). A Crossbowman in an escort formation with a target the engine will not accept: R gives a reason (no moves / no enemy it can target in range, or the engine's text), not a bare "Cannot ranged attack". Then W: attack mode opens or says why.
 # covers: **/UnitPanel.lua **/HubTargets.lua **/HubCursor.lua
-# no-share-load: enters a target mode
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load bug-ranged-no-reason
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then UI.SelectUnit(u) end end

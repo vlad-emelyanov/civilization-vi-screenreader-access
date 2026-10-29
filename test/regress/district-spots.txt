@@ -1,7 +1,7 @@
 # Written blind 2026-10-26 (not yet recorded). G7: the city report's "District spots" item and Space on a district in the production panel.
 # medieval-t100: Rome has Campus and Theater Square, so other districts (Holy Site, Commercial Hub, Industrial Zone, Harbor ...) are offered.
 # covers: **/DistrictAdvice.lua **/CityReportData.lua **/CityReportGather.lua **/HubCityReport.lua **/ProductionPanel.lua **/PlacementScan.lua
-# no-share-load: opens the production panel
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load medieval-t100
 clear-advisors
 action CapitalCity -Settle 1500

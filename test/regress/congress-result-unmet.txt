@@ -1,6 +1,6 @@
 # Written blind (2026-10-24): the congress results spoke "target Unmet Player" for a target we know (our own civ) and listed every unmet voter alone. Fixture bug-congress-result-unmet (turn 151, results popup open at the start).
 # covers: **/WorldCongressPopup_SRA.lua **/WorldCongressText.lua
-# no-share-load: reads the congress results
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load bug-congress-result-unmet
 clear-advisors
 # the popup is not restored by a load: open it like the results notification does
@@ -10,4 +10,5 @@ expect-not (?i)target Unmet Player
 key Space -Settle 1000
 expect (?i)\d+ unmet players?: 1 vote for A
 expect-not (?i)(Unmet Player: [^.]*\. ){2}
+key Escape -Settle 1500
 no-lua-errors

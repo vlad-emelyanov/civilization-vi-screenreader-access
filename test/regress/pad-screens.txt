@@ -3,7 +3,7 @@
 # known there (see early-t60-screens-open). From the bare map LB opens Places, a second LB Screens (Diplomacy may be skipped, so RB is not used).
 # Items: Tech tree, Civics tree, Government, Religion, Great People, Great Works, Governors, City-States, ...
 # covers: **/HubScreens.lua **/LaunchBar.lua **/PartialScreenHooks.lua
-# no-share-load: opens game screens
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 key F22 -Settle 800

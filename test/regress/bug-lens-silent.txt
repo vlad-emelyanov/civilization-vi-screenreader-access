@@ -1,7 +1,7 @@
 # Written blind (2026-10-23, not yet verified in game; run with --record first). Fixture bug-lens-silent (turn 128, Rome).
 # The number keys toggle the map lenses; LensText.lua + InGameAccess say on/off, the legend, and the lens value of the cursor plot.
 # covers: **/LensText.lua **/HubCursor.lua UI/Additions/InGameAccess.lua
-# no-share-load: toggles the lens (interface mode)
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load bug-lens-silent
 clear-advisors
 action KeyNavCursorToSelection -Settle 1500

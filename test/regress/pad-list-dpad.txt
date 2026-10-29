@@ -2,7 +2,7 @@
 # like the stick, the keyboard's Home / End (after F23) still jump to the first / last. The Screens list of the ring is the list (Tech tree, Civics tree, Government, ... Civilopedia).
 # From the bare map LB opens Places (the last list), a second LB (Places is on its first category) goes on to Screens.
 # covers: **/KeyNavList.lua **/Gamepad.lua **/HubScreens.lua **/HubGamepad.lua **/HubPad.lua
-# no-share-load: opens ring lists
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 key F22 -Settle 800

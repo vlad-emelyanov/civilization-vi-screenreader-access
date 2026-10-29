@@ -1,6 +1,6 @@
 # Written blind (2026-10-23, round 9): WorldCrisisPopup (Scored Competition) was completely silent. Fixture bug-crisis-popup-silent (turn 132, popup open after the congress results).
 # covers: **/WorldCrisisPopup_SRA.lua
-# no-share-load: closes the popup
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load bug-crisis-popup-silent
 clear-advisors
 # the popup is not restored by a load: open it the way the notification does (emergency type 9 = Scored Competition, target player 2)

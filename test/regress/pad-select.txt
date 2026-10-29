@@ -1,6 +1,6 @@
 # Controller selection buttons: right stick click = next ready unit, right stick up / down = previous / next of all units, right stick left / right = city, left stick click = capital, X = select at cursor. UNVERIFIED, blind-written: run once with civregress --record.
 # covers: **/Gamepad.lua **/HubGamepad.lua **/WorldInput.lua **/HubCursor.lua
-# no-share-load: changes the selection and the controller mode
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(), c:GetY(), true, true); return 1

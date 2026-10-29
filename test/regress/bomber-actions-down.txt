@@ -1,8 +1,8 @@
-# Fixture bug-bomber-actions-stuck: a Bomber's Tab menu has one WMD Strike item per warhead type; they shared a menu key, so Down
+# Fixture air-ready (was bug-bomber-actions-stuck: the same save): a Bomber's Tab menu has one WMD Strike item per warhead type; they shared a menu key, so Down
 # stopped at item 4 and repeated it. Now each is named by its warhead ("Nuclear Device strike") and Down reaches items 5+.
 # covers: **/UnitPanel.lua **/HubMenus.lua
-# no-share-load: selects the bomber, Tab menu
-load bug-bomber-actions-stuck
+# shares its load (UI-only: selects the bomber, opens and closes its Tab menu). Fixture air-ready = the bug-bomber-actions-stuck save (Bomber in Lugdunum, same facts).
+load air-ready
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BOMBER" then UI.SelectUnit(u) end end
 key Tab -Settle 1500
@@ -14,4 +14,5 @@ expect (?i)thermonuclear device strike
 expect (?i)9 of 9
 key Up -Settle 600
 expect (?i)[5-8] of 9
+key Escape -Settle 800
 no-lua-errors

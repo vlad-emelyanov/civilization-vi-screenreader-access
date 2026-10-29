@@ -1,6 +1,6 @@
 # Written blind 2026-10-26 (G6/G8). Fixture pt-modes-t94 (own cities exist, settler 917509): the settle browser items end with the distance to the nearest own city; Space may add Between/Behind, hills, sides; the selection line compares here with the best.
 # covers: Accessibility/SettleScan.lua Accessibility/HubSettle.lua Accessibility/HubCore.lua
-# no-share-load: selects the settler
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load pt-modes-t94
 lua InGame UI.SelectUnit(Players[0]:GetUnits():FindID(917509)) return 1
 key X -Settle 1500

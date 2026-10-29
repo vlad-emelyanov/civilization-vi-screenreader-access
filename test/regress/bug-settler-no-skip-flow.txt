@@ -1,0 +1,62 @@
+# Merged scripts (one load instead of four), fixture bug-settler-no-skip (turn 106, a Settler in Rome under barbarian siege, stacked with a Builder);
+# every part starts with Enter, which reselects the settler (the game lets it neither skip nor sleep). Parts in this order, the destructive one last:
+#  - bug-settler-no-skip-item1 (verified 2026-10-23): the line says why it cannot be dismissed; SkipTurn / Sleep hotkeys are not silent; Tab lists Skip Turn as unavailable
+#  - bug-settler-cannot-skip-only (verified 2026-10-23): the stacked-unit reason, Skip Turn kept as unavailable in the Tab menu
+#  - bug-settler-no-skip-delete-confirm (verified 2026-10-23): the Delete Unit confirmation starts on No; Enter on No keeps the unit
+#  - bug-delete-unit-says: Delete Unit, Yes: the unit is named as deleted, then the next unit is spoken (last: it deletes the settler)
+# was: bug-settler-no-skip-item1 bug-settler-cannot-skip-only bug-settler-no-skip-delete-confirm bug-delete-unit-says
+# covers: **/UnitPanel.lua **/WorldInput.lua **/HubMenus.lua **/HubAnnounce.lua **/InGamePopup.lua **/PopupDialog.lua **/HubEvents.lua
+# no-share-load: deletes the unit (last part)
+load bug-settler-no-skip
+clear-advisors
+# --- part from bug-settler-no-skip-item1 ---
+# Enter reselects the settler; the line must now say why it cannot be dismissed
+key Enter -Settle 1500
+expect ^Settler\b
+expect (?i)needs orders
+expect (?i)cannot skip
+# the hotkeys say something instead of staying silent
+action SkipTurn -Settle 1000
+expect (?i)^(cannot skip|skip)
+action Sleep -Settle 1000
+expect (?i)^(cannot sleep|sleep)
+# the Tab menu (Browse settle spots first, then the actions) lists Skip Turn as unavailable with the reason
+key Tab -Settle 1000
+expect (?i)actions
+key End -Settle 300
+key Up -Settle 300
+key Up -Settle 300
+key Up -Settle 300
+expect (?i)skip turn.*unavailable
+key Escape -Settle 500
+# --- part from bug-settler-cannot-skip-only ---
+key Enter -Settle 1500
+expect Cannot skip: stacked with Builder
+key Tab -Settle 1200
+expect ^Settler actions
+expect-not (?i)fortify
+key Escape -Settle 600
+# --- part from bug-settler-no-skip-delete-confirm ---
+key Enter -Settle 1500
+action DeleteUnit -Settle 1500
+expect (?i)^Popup: .*sure
+expect (?i)^No\b
+# Down = Yes, Up = No again; Enter on No keeps the unit
+key Down -Settle 800
+expect ^Yes
+key Up -Settle 800
+expect ^No
+key Enter -Settle 1500
+expect-not (?i)deleted
+# the settler is still selected: Space says it cannot skip
+action SkipTurn -Settle 1000
+expect (?i)skip turn
+# --- part from bug-delete-unit-says ---
+key Enter -Settle 1500
+action DeleteUnit -Settle 1500
+expect (?i)^Popup: .*sure
+key Down -Settle 800
+expect ^Yes
+key Enter -Settle 2500
+expect (?i)\w+ deleted
+no-lua-errors

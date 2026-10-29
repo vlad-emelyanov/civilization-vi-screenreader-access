@@ -2,7 +2,7 @@
 # covers: **/UnitPanel.lua **/WorldInput.lua **/NotificationPanel.lua
 # options: animations
 # Fixture bug-city-ranged-attack: turn 103, barbarian archers next to Rome, City Ranged Attack notification.
-# no-share-load: selects the city, ranged-attack target mode
+# shares its load with the next '# options: animations' script (UI-only: selects the city, enters and leaves the ranged-attack target mode)
 load bug-city-ranged-attack
 clear-advisors
 lua InGameAccess UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())

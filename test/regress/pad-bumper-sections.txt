@@ -2,7 +2,7 @@
 # in the Places list (J) the categories (and past the first category LB goes on to the previous ring list, Screens), in the production panel the tabs.
 # F22 = controller mode on. Fixture early-t60 (Rome; the production panel opens with Tab on the selected city).
 # covers: **/KeyNavList.lua **/HubGamepad.lua **/HubPad.lua **/HubPlaces.lua **/ProductionPanel.lua **/Gamepad.lua
-# no-share-load: opens the production panel
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 action KeyNavPlaces -Settle 1500
