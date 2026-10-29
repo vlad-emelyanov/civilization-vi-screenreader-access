@@ -1,4 +1,6 @@
 """Offline tests: `regress changed` selection, expect-lua, timing breakdown, endturn blocker text, key aliases, advance check."""
+import contextlib
+import io
 import os
 import re
 import sys
@@ -197,7 +199,9 @@ class AdvanceTests(unittest.TestCase):
 
     def test_cli(self):
         self.assertEqual(ct.main(["advance-check", "5", "2", "7"]), 0)
-        self.assertEqual(ct.main(["advance-check", "5", "2", "6"]), 1)
+        with contextlib.redirect_stdout(io.StringIO()) as out:  # the expected failure prints "advance FAILED"
+            self.assertEqual(ct.main(["advance-check", "5", "2", "6"]), 1)
+        self.assertIn("advance FAILED", out.getvalue())
 
 
 class KeyAliasTests(unittest.TestCase):
