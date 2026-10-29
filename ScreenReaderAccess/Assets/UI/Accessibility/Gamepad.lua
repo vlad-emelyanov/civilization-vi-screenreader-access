@@ -51,8 +51,9 @@ function Gamepad.Key( name:string )
 end
 
 -- The button an F-key press stands for (X, LB, ... RSRight, ModeOn, ModeOff), or nil. Plain keys (Enter, arrows) are no buttons.
-function Gamepad.ButtonOf( key, isControl:boolean )
-	if key == nil then return nil; end
+-- With Shift the F-keys are the wheel's slots (Gamepad.WheelOf), never buttons.
+function Gamepad.ButtonOf( key, isControl:boolean, isShift:boolean )
+	if key == nil or isShift == true then return nil; end
 	local control:boolean = ( isControl == true );
 	for name, entry in pairs( Gamepad.Map ) do
 		if string.sub( entry.key, 1, 4 ) == "VK_F" and entry.control == control and Keys[ entry.key ] == key then return name; end
@@ -70,6 +71,28 @@ function Gamepad.SetActive( active:boolean )
 	if active == m_active then return; end
 	m_active = active;
 	LuaEvents.SRA_GamepadMode( active );
+end
+
+-- The wheel (experiment, docs/controller-plan.md "The wheel"): while LT is held the console app turns the left stick's direction into
+-- one of WHEEL_SLOTS slots, clockwise from straight up (slot 0 = up, 6 = right, 12 = down, 18 = left), sent as Shift+F13..F24
+-- (slots 0..11) and Control+Shift+F13..F24 (slots 12..23), one tap per slot change. A list maps the slot to one of its items.
+Gamepad.WHEEL_SLOTS = 24;
+
+-- The slot (0..23) of a wheel key, or nil. Pure apart from the engine key codes.
+function Gamepad.WheelOf( key, isControl:boolean, isShift:boolean )
+	if key == nil or isShift ~= true then return nil; end
+	for n = 13, 24 do
+		if Keys[ "VK_F" .. n ] == key then return ( n - 13 ) + ( isControl == true and 12 or 0 ); end
+	end
+	return nil;
+end
+
+-- Pure. The item (1..count) a wheel slot points at: the items sit evenly around the wheel, clockwise, item 1 straight up
+-- (4 items: up, right, down, left). More items than slots: the slot lands on the nearest item, every count / slots-th one is reachable
+-- (a coarse jump; the stick then moves one by one).
+function Gamepad.WheelIndex( slot:number, count:number )
+	if count == nil or count < 1 or slot == nil then return nil; end
+	return math.floor( slot * count / Gamepad.WHEEL_SLOTS + 0.5 ) % count + 1;
 end
 
 -- The engine key of PageUp (down = false) / PageDown (true): the console app sends them while LB or RB is held (group jump).
@@ -105,8 +128,8 @@ end
 -- F22 / F23 passing a handler (a popup above the hub, the front end): remember the mode and tell the others on a change, so the
 -- hub and the other contexts do not keep a stale flag. No loop: the listeners (Follow, WorldInput) only store, the hub's answer to
 -- a request is an event of the same kind that changes nothing here (no change, no event).
-function Gamepad.NoteModeKey( key, isControl:boolean )
-	local button:string = Gamepad.ButtonOf( key, isControl );
+function Gamepad.NoteModeKey( key, isControl:boolean, isShift:boolean )
+	local button:string = Gamepad.ButtonOf( key, isControl, isShift );
 	local want = nil;
 	if button == "ModeOn" then want = true;
 	elseif button == "ModeOff" then want = false;
@@ -145,7 +168,7 @@ function Gamepad.WrapInput( input:table )
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return input; end
 	local rawKey = input:GetKey();
 	local rawControl:boolean = input:IsControlDown();
-	Gamepad.NoteModeKey( rawKey, rawControl );
+	Gamepad.NoteModeKey( rawKey, rawControl, input:IsShiftDown() );
 	if not m_active or input:IsShiftDown() or input:IsAltDown() then return input; end
 	local key, ctrl = Gamepad.TranslateListKey( rawKey, rawControl, true );
 	if key == rawKey and ctrl == rawControl then return input; end

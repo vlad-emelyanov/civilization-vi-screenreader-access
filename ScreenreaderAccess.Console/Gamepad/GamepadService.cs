@@ -107,6 +107,7 @@ public sealed class GamepadService : IDisposable
         if ((cur.Buttons & GamepadState.LeftShoulder) == 0) _heldDown.Remove(PadButton.LB);		// a suppressed F14 / F15 up (bumper used for PageUp / PageDown) leaves nothing to release later
         if ((cur.Buttons & GamepadState.RightShoulder) == 0) _heldDown.Remove(PadButton.RB);
         if (cur.RightTrigger < GamepadMapper.TriggerThreshold) _heldDown.Remove(PadButton.RT);   // a suppressed F17 up (RT used as Shift) leaves nothing to release later
+        if (cur.LeftTrigger < GamepadMapper.TriggerThreshold) _heldDown.Remove(PadButton.LT);   // a suppressed F16 up (LT used as the wheel)
     }
 
     private void ReleaseAllHeld()
@@ -120,14 +121,14 @@ public sealed class GamepadService : IDisposable
 
     private void Inject(KeyEvent e)
     {
-        PadKey key = GamepadMap.Get(e.Button);
+        PadKey key = GamepadMap.KeyOf(e);
         switch (e.Action)
         {
             case KeyAction.Down: _injector.KeyDown(key, e.Shift); _heldDown.Add(e.Button); break;
             case KeyAction.Up: _injector.KeyUp(key, e.Shift); _heldDown.Remove(e.Button); break;
             default: _injector.Tap(key, e.Shift); break;
         }
-        if (_log) Console.WriteLine($"Gamepad: {e.Button} -> {(e.Shift ? "Shift+" : "")}{key.Key} {(e.Action == KeyAction.Tap ? "tap" : e.Down ? "down" : "up")}");
+        if (_log) Console.WriteLine($"Gamepad: {e.Button}{(e.Button == PadButton.Wheel ? " " + e.Slot : "")} -> {(e.Shift || key.Shift ? "Shift+" : "")}{(key.Control ? "Control+" : "")}{key.Key} {(e.Action == KeyAction.Tap ? "tap" : e.Down ? "down" : "up")}");
     }
 
     public void Dispose()

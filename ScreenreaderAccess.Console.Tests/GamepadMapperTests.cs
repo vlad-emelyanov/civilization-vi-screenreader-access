@@ -123,7 +123,7 @@ public class GamepadMapperTests
     [Fact]
     public void EveryButtonName_IsInTheMap()
     {
-        foreach (PadButton b in Enum.GetValues<PadButton>()) Assert.True(GamepadMap.Table.ContainsKey(b.ToString()), b.ToString());
+        foreach (PadButton b in Enum.GetValues<PadButton>()) if (b != PadButton.Wheel) Assert.True(GamepadMap.Table.ContainsKey(b.ToString()), b.ToString());   // the wheel has 24 keys: GamepadMap.WheelKey
     }
 
     private static string FmtS(List<KeyEvent> e) => string.Join(",", e.Select(x => $"{x.Button}:{x.Action}{(x.Shift ? "+S" : "")}"));
@@ -238,5 +238,71 @@ public class GamepadMapperTests
         m.Update(default, rt, 0);
         Assert.Equal("A:Down+S", FmtS(m.Update(rt, rtA, 20)));
         Assert.Equal("A:Up+S", FmtS(m.Update(rtA, default, 40)));   // RT released first or together: Up still shifted
+    }
+
+    // ---- the wheel: hold LT, point the left stick ----
+    private static string FmtW(List<KeyEvent> e) => string.Join(",", e.Select(x => x.Button == PadButton.Wheel ? $"Wheel{x.Slot}" : $"{x.Button}:{x.Action}"));
+
+    [Theory]
+    [InlineData(0, 30000, 0)]        // up
+    [InlineData(30000, 0, 6)]        // right
+    [InlineData(0, -30000, 12)]      // down
+    [InlineData(-30000, 0, 18)]      // left
+    [InlineData(21000, 21000, 3)]    // up-right
+    [InlineData(-8000, 30000, 23)]   // just left of up (-15 degrees)
+    public void WheelSlot_ClockwiseFromUp(int x, int y, int slot)
+        => Assert.Equal(slot, GamepadMapper.WheelSlot((short)x, (short)y, null));
+
+    [Fact]
+    public void WheelSlot_CentredOrHalfway_KeepsTheCurrentSlot()
+    {
+        Assert.Null(GamepadMapper.WheelSlot(0, 0, null));
+        Assert.Equal(5, GamepadMapper.WheelSlot(0, 0, 5));
+        Assert.Equal(5, GamepadMapper.WheelSlot(-15000, -15000, 5));   // springing back through the other side
+    }
+
+    [Fact]
+    public void WheelSlot_Hysteresis_AtTheBorder()
+    {
+        // 9 degrees right of up: past the 7.5 border of slot 0, but within the 4 degree margin
+        short x = (short)(30000 * Math.Sin(9 * Math.PI / 180)), y = (short)(30000 * Math.Cos(9 * Math.PI / 180));
+        Assert.Equal(0, GamepadMapper.WheelSlot(x, y, 0));
+        Assert.Equal(1, GamepadMapper.WheelSlot(x, y, null));
+        short x2 = (short)(30000 * Math.Sin(13 * Math.PI / 180)), y2 = (short)(30000 * Math.Cos(13 * Math.PI / 180));
+        Assert.Equal(1, GamepadMapper.WheelSlot(x2, y2, 0));
+    }
+
+    [Fact]
+    public void LtHeld_StickSendsWheelSlots_NoArrows_AndNoF16Up()
+    {
+        GamepadMapper m = new();
+        GamepadState lt = S(lt: 255);
+        Assert.Equal("ModeOn:Tap,LT:Down", FmtW(m.Update(default, lt, 0)));
+        GamepadState right = S(lx: 30000, lt: 255);
+        Assert.Equal("Wheel6", FmtW(m.Update(lt, right, 20)));
+        Assert.Empty(m.Update(right, right, 400));   // no repeat, no arrows
+        GamepadState down = S(ly: -30000, lt: 255);
+        Assert.Equal("Wheel12", FmtW(m.Update(right, down, 450)));
+        Assert.Empty(m.Update(down, S(ly: -30000), 500));   // LT released while pointing: no F16 up, and no arrow
+        Assert.Empty(m.Update(S(ly: -30000), S(ly: -30000), 1000));   // still deflected: silent until centred
+        m.Update(S(ly: -30000), default, 1100);
+        Assert.Equal("LDown:Tap", FmtW(m.Update(default, S(ly: -30000), 1200)));   // centred once: the stick is the stick again
+    }
+
+    [Fact]
+    public void LtPressedAlone_StillSendsF16DownAndUp()
+    {
+        GamepadMapper m = new();
+        m.Update(default, S(lt: 255), 0);
+        Assert.Equal("LT:Up", FmtW(m.Update(S(lt: 255), default, 100)));
+    }
+
+    [Fact]
+    public void WheelKeys_AreShiftedFKeys()
+    {
+        Assert.Equal(new PadKey(Keys.F13, control: false, shift: true), GamepadMap.WheelKey(0));
+        Assert.Equal(new PadKey(Keys.F24, control: false, shift: true), GamepadMap.WheelKey(11));
+        Assert.Equal(new PadKey(Keys.F13, control: true, shift: true), GamepadMap.WheelKey(12));
+        Assert.Equal(new PadKey(Keys.F24, control: true, shift: true), GamepadMap.WheelKey(23));
     }
 }

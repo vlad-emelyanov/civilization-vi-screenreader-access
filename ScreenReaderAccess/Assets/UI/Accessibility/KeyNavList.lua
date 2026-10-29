@@ -26,6 +26,8 @@
 --	always consumed ("No groups in this list"), so PageDown never opens the Climate screen underneath.
 --	In controller mode (Gamepad.Follow) D-pad up / down (Home / End) are Up / Down, D-pad right / left (Tab / Control+Tab) are Right /
 --	Left, LB / RB are Control+Tab / Tab ("No tabs here" when the list has no Tab handler): Gamepad.TranslateListKey.
+--	The pad's wheel (hold LT, point the left stick; Shift+F13..F24 / Control+Shift+F13..F24, Gamepad.WheelOf) jumps to the item in that
+--	direction, the items spread clockwise around the wheel from straight up (Gamepad.WheelIndex); the same item is not spoken twice.
 --	Up/Down act on KeyDown (so holding the key repeats), Enter/Space on KeyUp (the game's ActionPanel acts on the
 --	KeyUp of Enter; consuming both keeps Next Action from firing).
 -- ===========================================================================
@@ -191,6 +193,19 @@ function KeyNavList_Create( config:table )
 		Speak( items, target, true, false );
 	end
 
+	-- The pad's wheel pointed at a slot: the item in that direction (silent when the focus is already there).
+	local function WheelPick( slot:number )
+		m_lostGuard = false;
+		local items:table = Build();
+		if #items == 0 then
+			OutputMessageToScreenReader( "Nothing available" );
+			return;
+		end
+		local target:number = Gamepad.WheelIndex( slot, #items );
+		if items[ target ].key == m_focusKey and FindIndex( items ) == target then return; end
+		Speak( items, target, true, false );
+	end
+
 	-- PageUp / PageDown: the first item of the previous / next group, spoken with its group name.
 	local function GroupJump( delta:number )
 		m_lostGuard = false;
@@ -279,7 +294,7 @@ function KeyNavList_Create( config:table )
 		local msg:number = input:GetMessageType();
 		if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 		local rawKey = input:GetKey();
-		Gamepad.NoteModeKey( rawKey, input:IsControlDown() );		-- (no hub in the front end: F22 / F23 are seen here)
+		Gamepad.NoteModeKey( rawKey, input:IsControlDown(), input:IsShiftDown() );		-- (no hub in the front end: F22 / F23 are seen here)
 		if config.isActive ~= nil then
 			local ok:boolean, active = xpcall( config.isActive, KeyNavErrorHandler );
 			if not ok then
@@ -289,6 +304,14 @@ function KeyNavList_Create( config:table )
 			if not active then return false; end
 		end
 		local isDown:boolean = ( msg == KeyEvents.KeyDown );
+		local slot:number = Gamepad.WheelOf( rawKey, input:IsControlDown(), input:IsShiftDown() );
+		if slot ~= nil then
+			if isDown then
+				local ok:boolean, err = xpcall( function() WheelPick( slot ); end, KeyNavErrorHandler );
+				if not ok then print( "KeyNavList wheel error: " .. tostring(err) ); end
+			end
+			return true;
+		end
 		local key = rawKey;
 		local isControl:boolean = input:IsControlDown();
 		local bumper:boolean = false;

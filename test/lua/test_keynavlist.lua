@@ -336,3 +336,24 @@ test("HasTabs and AtTabEdge", function()
 	eq(t.list.AtTabEdge(1), true)
 	eq(t.list.AtTabEdge(-1), false)
 end)
+
+test("pad wheel: a slot jumps to the item in that direction, once", function()
+	local s = newList({ { key = "n", text = "North" }, { key = "e", text = "East" }, { key = "s", text = "South" }, { key = "w", text = "West" } })
+	s.list.Open("T")
+	ClearPrinted()
+	eq(s.list.HandleInput(Input{ key = Keys.VK_F19, shift = true }), true)		-- slot 6: right
+	listeq(Spoken(), { "East, 2 of 4" })
+	ClearPrinted()
+	s.list.HandleInput(Input{ key = Keys.VK_F19, shift = true, up = true })
+	s.list.HandleInput(Input{ key = Keys.VK_F20, shift = true })				-- slot 7: still East
+	listeq(Spoken(), {})
+	s.list.HandleInput(Input{ key = Keys.VK_F19, ctrl = true, shift = true })	-- slot 18: left
+	listeq(Spoken(), { "West, 4 of 4" })
+	ClearPrinted()
+	press(s.list, Keys.VK_DOWN)														-- the stick still moves on from there
+	listeq(Spoken(), { "North, 1 of 4" })
+	ClearPrinted()
+	s.list.HandleInput(Input{ key = Keys.VK_F13, ctrl = true, shift = true })	-- slot 12: down
+	listeq(Spoken(), { "South, 3 of 4" })
+	eq(s.activated, nil)															-- pointing never activates
+end)

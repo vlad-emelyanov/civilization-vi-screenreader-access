@@ -23,21 +23,35 @@ public sealed class KeyInjector
     [DllImport("user32.dll")] private static extern uint SendInput(uint n, INPUT[] inputs, int size);
     [DllImport("user32.dll")] private static extern uint MapVirtualKey(uint code, uint mapType);
 
+    // Shift (RT held, or a wheel key) and Control (second bank); RT-as-Shift never meets a second-bank key, the wheel's keys may have both.
+    private static List<Keys> Modifiers(PadKey k, bool shift)
+    {
+        List<Keys> mods = new();
+        if (k.Control && !(shift && !k.Shift)) mods.Add(Keys.LControlKey);
+        if (shift || k.Shift) mods.Add(Keys.LShiftKey);
+        return mods;
+    }
+
     public void KeyDown(PadKey k, bool shift = false)
     {
-        Keys? mod = shift ? Keys.LShiftKey : k.Control ? Keys.LControlKey : null;
-        if (mod is null) { Send(k.Key, false); return; }
-        Send(mod.Value, false);
-        try { Thread.Sleep(ModifierDelayMs); Send(k.Key, false); }
-        catch { Send(mod.Value, true); throw; }
+        List<Keys> mods = Modifiers(k, shift);
+        if (mods.Count == 0) { Send(k.Key, false); return; }
+        int sent = 0;
+        try
+        {
+            foreach (Keys mod in mods) { Send(mod, false); sent++; }
+            Thread.Sleep(ModifierDelayMs);
+            Send(k.Key, false);
+        }
+        catch { for (int i = sent - 1; i >= 0; i--) Send(mods[i], true); throw; }
     }
 
     public void KeyUp(PadKey k, bool shift = false)
     {
-        Keys? mod = shift ? Keys.LShiftKey : k.Control ? Keys.LControlKey : null;
-        if (mod is null) { Send(k.Key, true); return; }
+        List<Keys> mods = Modifiers(k, shift);
+        if (mods.Count == 0) { Send(k.Key, true); return; }
         try { Send(k.Key, true); Thread.Sleep(ModifierDelayMs); }
-        finally { Send(mod.Value, true); }
+        finally { for (int i = mods.Count - 1; i >= 0; i--) Send(mods[i], true); }
     }
 
     public void Tap(PadKey k, bool shift = false)

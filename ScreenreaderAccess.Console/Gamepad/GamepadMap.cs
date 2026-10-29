@@ -2,10 +2,11 @@ using System.Windows.Forms;
 
 namespace ScreenreaderAccess.Console.Gamepad;
 
-/// <summary>A key to inject: virtual key plus an optional held Left Control.</summary>
-public readonly record struct PadKey(Keys Key, bool control = false)
+/// <summary>A key to inject: virtual key plus an optional held Left Control (and Left Shift: the wheel's keys).</summary>
+public readonly record struct PadKey(Keys Key, bool control = false, bool shift = false)
 {
     public bool Control => control;
+    public bool Shift => shift;
 }
 
 /// <summary>Canonical button -> key table.
@@ -52,4 +53,12 @@ public static class GamepadMap
     };
 
     public static PadKey Get(PadButton button) => Table[button.ToString()];
+
+    /// <summary>The wheel (held LT + left stick, see GamepadMapper.WheelSlot): slot 0..23 clockwise from straight up is Shift+F13..F24 (0..11)
+    /// and Control+Shift+F13..F24 (12..23). Mirrored in Accessibility/Gamepad.lua (Gamepad.WheelOf); with Shift the F-keys are never buttons there.</summary>
+    public const int WheelSlots = 24;
+
+    public static PadKey WheelKey(int slot) => new((Keys)((int)Keys.F13 + slot % 12), control: slot >= 12, shift: true);
+
+    public static PadKey KeyOf(KeyEvent e) => e.Button == PadButton.Wheel ? WheelKey(e.Slot) : Get(e.Button);
 }

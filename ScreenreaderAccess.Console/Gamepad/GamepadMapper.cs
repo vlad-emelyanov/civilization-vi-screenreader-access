@@ -7,6 +7,8 @@ public sealed class GamepadMapper
 {
     public const int StickThreshold = 16384;   // 50 % deflection
     public const int TriggerThreshold = 128;   // 50 %
+    public const int WheelThreshold = 24000;   // ~73 %: the wheel only reads a clearly pointed stick (a stick springing back keeps the slot)
+    public const double WheelHysteresisDeg = 4;   // the pointed slot changes only this far past the border between two slots
 
     private sealed class Repeater
     {
@@ -27,6 +29,8 @@ public sealed class GamepadMapper
     private readonly Repeater _left = new(350, 110), _dpad = new(350, 110), _right = new(500, 350);
 
     private bool _rtShiftUsed, _aShift, _lbPageUsed, _rbPageUsed;
+    private bool _wheelUsed, _leftLatched;   // LT was a wheel this press (no F16 up) / the left stick stays silent until it is centred again
+    private int? _wheelSlot;
 
     public InputSource Source { get; private set; } = InputSource.Keyboard;
 
@@ -64,11 +68,27 @@ public sealed class GamepadMapper
             else if (!now && was && ((b == PadButton.LB && _lbPageUsed) || (b == PadButton.RB && _rbPageUsed))) { }   // that bumper was a modifier for PageUp / PageDown: no KeyUp
             else Edge(events, b, was, now);
         }
-        Edge(events, PadButton.LT, prev.LeftTrigger >= TriggerThreshold, cur.LeftTrigger >= TriggerThreshold);
+        bool ltNow = cur.LeftTrigger >= TriggerThreshold, ltWas = prev.LeftTrigger >= TriggerThreshold;
+        if (ltNow && !ltWas) { _wheelUsed = false; _wheelSlot = null; events.Add(new KeyEvent(PadButton.LT, KeyAction.Down)); }
+        else if (!ltNow && ltWas && !_wheelUsed) events.Add(new KeyEvent(PadButton.LT, KeyAction.Up));
+        if (ltNow)
+        {
+            // the wheel: the left stick's direction picks a slot, one tap per change; no arrows meanwhile
+            int? slot = WheelSlot(cur.LX, cur.LY, _wheelSlot);
+            if (slot is not null && slot != _wheelSlot)
+            {
+                _wheelSlot = slot;
+                _wheelUsed = _leftLatched = true;
+                events.Add(new KeyEvent(PadButton.Wheel, KeyAction.Tap, Slot: slot.Value));
+            }
+        }
         if (rtNow && !rtWas) events.Add(new KeyEvent(PadButton.RT, KeyAction.Down));
         else if (!rtNow && rtWas && !_rtShiftUsed) events.Add(new KeyEvent(PadButton.RT, KeyAction.Up));
 
-        Direction(events, _left, StickDir(cur.LX, cur.LY, PadButton.LUp, PadButton.LDown, PadButton.LLeft, PadButton.LRight), nowMs, rtNow, bumperNow);
+        PadButton? leftDir = StickDir(cur.LX, cur.LY, PadButton.LUp, PadButton.LDown, PadButton.LLeft, PadButton.LRight);
+        if (leftDir is null) _leftLatched = false;
+        if (ltNow || _leftLatched) leftDir = null;   // the wheel has the stick; after it, the stick must come back to the centre first
+        Direction(events, _left, leftDir, nowMs, rtNow, bumperNow);
         Direction(events, _dpad, DPadDir(cur.Buttons), nowMs, rtNow, bumperNow);
         Direction(events, _right, StickDir(cur.RX, cur.RY, PadButton.RSUp, PadButton.RSDown, PadButton.RSLeft, PadButton.RSRight), nowMs, false);
         if (events.Exists(e => e.Shift)) _rtShiftUsed = true;
@@ -98,6 +118,25 @@ public sealed class GamepadMapper
         if (Math.Max(ax, ay) < StickThreshold) return null;
         if (ay > ax) return y > 0 ? up : down;   // dominant axis only; a tie goes horizontal
         return x > 0 ? right : left;
+    }
+
+    /// <summary>Pure. The wheel slot (0..23, clockwise from straight up, 15 degrees each) the stick points at, or <paramref name="current"/>
+    /// when it is not pointed far enough (centred or springing back). Hysteresis: the current slot is kept until the stick is
+    /// <see cref="WheelHysteresisDeg"/> past its border.</summary>
+    public static int? WheelSlot(short x, short y, int? current)
+    {
+        double mag = Math.Sqrt((double)x * x + (double)y * y);
+        if (mag < WheelThreshold) return current;
+        double deg = Math.Atan2(x, y) * 180.0 / Math.PI;   // 0 = up, 90 = right
+        if (deg < 0) deg += 360;
+        const double width = 360.0 / GamepadMap.WheelSlots;
+        if (current is not null)
+        {
+            double diff = Math.Abs(deg - current.Value * width) % 360;
+            if (diff > 180) diff = 360 - diff;
+            if (diff <= width / 2 + WheelHysteresisDeg) return current;
+        }
+        return (int)Math.Round(deg / width) % GamepadMap.WheelSlots;
     }
 
     private static PadButton? DPadDir(ushort buttons)

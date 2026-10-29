@@ -91,7 +91,7 @@ function Hub.HandleInput( input:table )
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 	-- controller buttons (F-keys) first: they must not reset the end-turn guard or the settle prompt; the mode keys work on AI turns too
-	if HubGamepad.HandleInput( input, msg, input:GetKey(), input:IsControlDown() ) then return true; end
+	if HubGamepad.HandleInput( input, msg, input:GetKey(), input:IsControlDown(), input:IsShiftDown() ) then return true; end
 	if not HubCore.IsLocalPlayerActive() then return false; end
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
 	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN then

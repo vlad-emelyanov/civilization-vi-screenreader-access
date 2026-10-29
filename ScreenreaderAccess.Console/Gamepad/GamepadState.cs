@@ -6,12 +6,13 @@ public enum PadButton
     A, B, X, Y, LB, RB, LT, RT, View, Menu, LSClick, RSClick,
     RSUp, RSDown, RSLeft, RSRight, LUp, LDown, LLeft, LRight, DUp, DDown, DLeft, DRight,
     PageUp, PageDown, ModeOn, ModeOff,
+    Wheel,   // held LT + left stick: KeyEvent.Slot (0..23), see GamepadMap.WheelKey
 }
 
 public enum KeyAction { Down, Up, Tap }
 
-/// <summary>Shift: inject with Left Shift held (RT-held modifier; the Up of a Shift Down carries the same flag).</summary>
-public readonly record struct KeyEvent(PadButton Button, KeyAction Action, bool Shift = false)
+/// <summary>Shift: inject with Left Shift held (RT-held modifier; the Up of a Shift Down carries the same flag). Slot: the wheel's direction (Button = Wheel).</summary>
+public readonly record struct KeyEvent(PadButton Button, KeyAction Action, bool Shift = false, int Slot = 0)
 {
     public bool Down => Action == KeyAction.Down;
 }

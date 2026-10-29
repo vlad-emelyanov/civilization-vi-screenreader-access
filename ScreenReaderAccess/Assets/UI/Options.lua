@@ -2566,6 +2566,7 @@ function InputHandler( pInputStruct )
 				return;
 			end
 
+			if Gamepad.WheelOf(uiKey, pInputStruct:IsControlDown(), pInputStruct:IsShiftDown()) ~= nil then return; end	-- the pad wheel (Shift+F-keys): not a button here
 			if HandleOptionsKey(uiKey, pInputStruct:IsControlDown()) then
 				result = true;
 				return;

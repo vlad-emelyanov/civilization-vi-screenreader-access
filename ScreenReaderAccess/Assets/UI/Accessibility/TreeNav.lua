@@ -422,7 +422,7 @@ function TreeNav_Create( a:table )
 		local isDown:boolean = ( msg == KeyEvents.KeyDown );
 		local ctrl:boolean = input:IsControlDown();
 		local shift:boolean = input:IsShiftDown();
-		local pad = Gamepad.ButtonOf( key, ctrl );		-- X, LT, RT; the right stick is the same F-keys with Control
+		local pad = Gamepad.ButtonOf( key, ctrl, shift );		-- X, LT, RT; the right stick is the same F-keys with Control
 
 		local action = nil;
 		if m_resList ~= nil then

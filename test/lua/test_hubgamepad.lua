@@ -215,3 +215,32 @@ end)
 test("leader scene beside the deal view counts as a bumper screen", function()
 	eq(HubGamepad.AllIn({ "LeaderScene", "DiplomacyDealView" }, { LeaderScene = true, DiplomacyDealView = true }), true)
 end)
+
+test("wheel keys: to the open list, on the bare map 'No list to point at' once per sweep", function()
+	HubCore.m_mode = nil
+	HubCore.IsGamePopupOpen = function() return false end
+	local said = {}
+	OutputMessageToScreenReader = function(t) table.insert(said, t) end
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_F13, false, true), true)
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyUp, Keys.VK_F13, false, true), true)
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_F14, false, true), true)
+	listeq(said, { "No list to point at" })
+	calls = {}
+	HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_F13, false, true)
+	eq(#calls, 0)															-- never X
+	HubCore.m_mode = { name = "places", list = {} }
+	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_F13, true, true), false)	-- the hub passes it to the list
+	HubCore.m_mode = nil
+end)
+
+test("wheel refusal: the Shift and Control keys between two slots do not repeat it", function()
+	HubCore.m_mode = nil
+	local said = {}
+	OutputMessageToScreenReader = function(t) table.insert(said, t) end
+	HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_RETURN, false, false)		-- another key first: a new sweep
+	HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_F13, false, true)
+	HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_SHIFT, false, true)
+	HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_CONTROL, true, true)
+	HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_F19, true, true)
+	listeq(said, { "No list to point at" })
+end)

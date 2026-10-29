@@ -163,6 +163,7 @@ local MAP_ACTIONS:table = {
 -- A held button (RT is Shift for the console app) acts on its KeyUp only if no other key event came between its KeyDown and KeyUp
 -- (modifier keys and the mode keys do not count). m_held[ button ] = true once tainted. A KeyUp with no known KeyDown acts.
 local m_held:table = {};
+local m_wheelRefused:boolean = false;		-- "No list to point at" was said; again only after another key
 
 local function TaintHeld()
 	for held, _ in pairs( m_held ) do m_held[ held ] = true; end
@@ -185,9 +186,23 @@ local function TrackEvent( button:string, msg:number, key:number )
 	return tainted;
 end
 
-function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:boolean )
-	local button:string = Gamepad.ButtonOf( key, isControl );
+function HubGamepad.HandleInput( input:table, msg:number, key:number, isControl:boolean, isShift:boolean )
+	local button:string = Gamepad.ButtonOf( key, isControl, isShift );
 	local suppressed:boolean = TrackEvent( button, msg, key );
+	local slot:number = Gamepad.WheelOf( key, isControl, isShift );
+	if slot ~= nil then
+		-- the wheel (held LT + left stick): an open list points with it (KeyNavList); without one say so once per sweep
+		if HubCore.m_mode ~= nil or HubCore.IsGamePopupOpen() or IsChooserOpen() then
+			m_wheelRefused = false;
+			return false;
+		end
+		if msg == KeyEvents.KeyDown and not m_wheelRefused and HubCore.IsLocalPlayerActive() then
+			m_wheelRefused = true;
+			Say( "No list to point at" );
+		end
+		return true;
+	end
+	if msg == KeyEvents.KeyDown and key ~= Keys.VK_SHIFT and key ~= Keys.VK_CONTROL and key ~= Keys.VK_ALT then m_wheelRefused = false; end
 	if button == nil then
 		-- PageUp / PageDown (the held-bumper group jump) must not reach the game as input actions (PageDown = Climate screen) while a
 		-- screen that does not consume them is open; the bare map's are swallowed by WorldInput's catcher, lists consume their own

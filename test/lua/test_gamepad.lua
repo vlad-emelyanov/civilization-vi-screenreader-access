@@ -179,3 +179,44 @@ test("catcher: PageUp / PageDown never reach the game in controller mode, the ke
 		eq(Gamepad_CatchKey(UP, key, false, true).consume, true)
 	end
 end)
+
+test("wheel keys: Shift+F13..F24 are slots 0..11, Control+Shift 12..23, never buttons", function()
+	eq(Gamepad.WheelOf(Keys.VK_F13, false, true), 0)
+	eq(Gamepad.WheelOf(Keys.VK_F24, false, true), 11)
+	eq(Gamepad.WheelOf(Keys.VK_F13, true, true), 12)
+	eq(Gamepad.WheelOf(Keys.VK_F24, true, true), 23)
+	eq(Gamepad.WheelOf(Keys.VK_F13, false, false), nil)
+	eq(Gamepad.WheelOf(Keys.VK_UP, false, true), nil)
+	eq(Gamepad.ButtonOf(Keys.VK_F13, false, true), nil)
+	eq(Gamepad.ButtonOf(Keys.VK_F22, false, true), nil)		-- slot 9, not ModeOn
+	eq(Gamepad.ButtonOf(Keys.VK_F13, false, false), "X")
+end)
+
+test("WheelIndex: items clockwise from straight up", function()
+	-- 4 items: up, right, down, left
+	eq(Gamepad.WheelIndex(0, 4), 1)
+	eq(Gamepad.WheelIndex(6, 4), 2)
+	eq(Gamepad.WheelIndex(12, 4), 3)
+	eq(Gamepad.WheelIndex(18, 4), 4)
+	eq(Gamepad.WheelIndex(23, 4), 1)		-- just left of up
+	eq(Gamepad.WheelIndex(2, 4), 1)
+	eq(Gamepad.WheelIndex(4, 4), 2)
+	-- every item of a list up to 24 is reachable, and the slots go round in order
+	for count = 1, 24 do
+		local seen, last = {}, 1
+		for slot = 0, 23 do
+			local i = Gamepad.WheelIndex(slot, count)
+			assert(i >= 1 and i <= count)
+			seen[i] = true
+		end
+		for i = 1, count do assert(seen[i], "count " .. count .. " item " .. i) end
+	end
+	eq(Gamepad.WheelIndex(12, 48), 25)		-- more items than slots: a coarse jump
+	eq(Gamepad.WheelIndex(0, 0), nil)
+end)
+
+test("NoteModeKey: Shift+F22 is a wheel slot, not the mode", function()
+	Gamepad.SetActive(false)
+	Gamepad.NoteModeKey(Keys.VK_F22, false, true)
+	eq(Gamepad.IsActive(), false)
+end)
