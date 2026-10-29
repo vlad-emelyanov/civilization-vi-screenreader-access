@@ -1,6 +1,7 @@
 # Written blind (2026-10-24, batch F, not run in game). Was: a World Crisis popup that opened right after the Congress closed was silent (the congress' "World Congress closed" line cut its opening off). The congress now fires LuaEvents.SRA_CongressClosedSpoken; an unread crisis popup then says its opening again.
 # covers: **/WorldCrisisPopup_SRA.lua **/WorldCongressPopup_SRA.lua
-# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
+# no-share-load: first-open expectations (results not yet seen, spoken-once latches, notification and emergency state that the reset check cannot see): needs a fresh load
+# own-load: first-open expectations run on a fresh load
 load bug-crisis-popup-silent
 clear-advisors
 lua InGame local e; for _, x in pairs(Game.GetEmergencyManager():GetEmergencyInfoTable(Game.GetLocalPlayer())) do e = e or x end; LuaEvents.NotificationPanel_EmergencyClicked(e.TargetID, e.EmergencyType, 0)

@@ -245,6 +245,8 @@ def parse_script(text, name="script"):
         steps.append(Step(kind, arg, no))
         scenario = scenario or kind == "scenario"
     if scenario:
+        if steps.dirty_group:
+            steps.group_last = True   # a scenario changes more than the group's change: run last in the group
         steps.fresh = True   # a scenario changes the game: such a script always loads fresh, and the next one does not share its game
     return steps
 

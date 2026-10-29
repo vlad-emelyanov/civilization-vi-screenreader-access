@@ -518,6 +518,48 @@ class ResetCheckTests(unittest.TestCase):
         self.assertIsNone(cr.find_alias("no-such-script-anywhere"))
         self.assertEqual(cr.discover(["pad-deal"])[0][0], "deal-flow")
 
+    def test_scenario_member_of_a_group_runs_last(self):
+        mk = cr.parse_script
+        s = mk("# dirty-group: g\nload x\nscenario foo")
+        self.assertTrue(s.group_last)
+        self.assertEqual([n for n, _ in cr.order_scripts([("s", s), ("c", mk("# dirty-group: g\nload x"))])], ["c", "s"])
+
+    def test_changed_subset_of_a_group_still_runs_consecutively(self):
+        mk = cr.parse_script
+        # `changed` selects only some members: the subset (and a non-member between them) is ordered and shared as usual
+        subset = [("g3", mk("# dirty-group: g\nload x\nkey C")), ("p", mk("load x\nkey P")), ("g1", mk("# dirty-group: g\nload x\nkey A"))]
+        ordered = cr.order_scripts(subset)
+        self.assertEqual([n for n, _ in ordered], ["p", "g3", "g1"])
+        r = HubRunner()
+        res = cr.run_all(ordered, r, share_load=True, out=lambda s: None)
+        self.assertEqual(self.loads(r), 1)
+        self.assertEqual([x.load_skipped for x in res], [False, True, True])
+        alone = cr.order_scripts([("g1", mk("# dirty-group: g\nload x\nkey A"))])
+        self.assertEqual(cr.simulate_loads(alone)[0], 1)
+
+    def test_group_member_retried_with_its_own_load(self):
+        mk = cr.parse_script
+        outputs = iter([(0, ["SR> drifted"]), (0, ["SR> ok"])])
+        scripts = [("g1", mk("# dirty-group: g\nload x\nkey A")), ("g2", mk("# dirty-group: g\nload x\nkey B\nexpect ^ok$"))]
+        r = HubRunner([(["key", "B"], lambda: next(outputs))])
+        res = cr.run_all(scripts, r, share_load=True, out=lambda s: None)
+        self.assertTrue(res[1].ok and res[1].retried)
+        self.assertEqual(self.loads(r), 2)
+
+    def test_group_with_options_needs_identical_options(self):
+        mk = cr.parse_script
+        a = mk("# dirty-group: g\n# options: animations\nload x\nkey A")
+        b = mk("# dirty-group: g\n# options: animations\nload x\nkey B")
+        c = mk("# dirty-group: g\n# options: advisor\nload x\nkey C")
+        self.assertTrue(cr.group_continues(a, b))
+        self.assertFalse(cr.group_continues(b, c))
+        switched = []
+        r = HubRunner()
+        res = cr.run_all([("a", a), ("b", b), ("c", c)], r, share_load=True, out=lambda s: None, switch=switched.append)
+        self.assertEqual(self.loads(r), 2)            # a+b share, c has other options
+        self.assertTrue(res[1].load_skipped)
+        self.assertEqual(switched, [("animations",), ("advisor",), ()])
+
     def test_dirty_group_other_fixture_does_not_continue(self):
         mk = cr.parse_script
         a, b = mk("# dirty-group: bar\nload x"), mk("# dirty-group: bar\nload y")
