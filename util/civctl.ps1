@@ -39,7 +39,8 @@
   keep it between commands. No owner = REFUSED (exit 7). Another owner gets "game in use by X, last used N s ago" (exit 6) while
   the owner's last use is younger than 3 min (long commands refresh it every 30 s); after that the lease is taken over with a
   warning. `unlock` (no owner needed) releases it and prints whose lease it was.
-  No lock, no owner needed: build, menu, shot, keymap, status, fixtures, states, unlock. `regress` needs an owner (passes it on).
+  No lock, no owner needed: build, menu, regress-status, shot, keymap, status, fixtures, states, unlock. `regress` needs an owner (passes it on).
+  .\util\civctl.ps1 regress-status       # progress of a running `regress` (reads %TEMP%\civctl\regress-progress.txt; no owner, no lock, never touches the game)
   .\util\civctl.ps1 regress all           # speech regression scripts (python util\civregress.py; extra words are passed on: regress all --share-load)
   Crash / hang: key, wait, sr, lua, save, load print GAME CRASHED / GAME HUNG (with the crash dump path) and exit 5.
 
@@ -48,7 +49,7 @@
 #>
 param(
     [Parameter(Position = 0, Mandatory)]
-    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance', 'batch')]
+    [ValidateSet('build', 'deploy', 'reload', 'lua', 'states', 'menu', 'start', 'stop', 'key', 'sr', 'wait', 'shot', 'status', 'keymap', 'action', 'save', 'load', 'fixtures', 'newgame', 'unlock', 'autoplay', 'regress', 'regress-status', 'scenario', 'key-release', 'endturn', 'wait-turn', 'clear-advisors', 'fixture-info', 'advance', 'batch')]
     [string]$Command,
     [Parameter(Position = 1)]
     [string]$Arg,
@@ -1209,6 +1210,7 @@ switch ($Command) {
         if (-not (Test-Path $File)) { throw "No such scenario: $File" }
         $Arg = 'GameCore_Tuner'; Invoke-Tuner
     }
+    'regress-status' { Quit-Civctl (Invoke-Python @((Join-Path $PSScriptRoot 'civregress.py'), '--progress')) }
     'regress' { $env:CIVCTL_OWNER = Get-Owner; Quit-Civctl (Invoke-Python (@('-u', (Join-Path $PSScriptRoot 'civregress.py')) + @(($Arg -split '\s+') | Where-Object { $_ }))) }
     'wait' {
         if (-not (Wait-ForScreenReader $Arg $Timeout)) { Write-Output "Timed out waiting for '$Arg'"; Quit-Civctl 1 }
