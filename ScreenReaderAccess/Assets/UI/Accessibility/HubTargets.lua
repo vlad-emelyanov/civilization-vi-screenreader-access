@@ -884,7 +884,12 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 		OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "X", "X" ) .. " for the next one, " .. SRKey( "Shift+Arrows", "LStick" ) .. " moves tile by tile, " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
 		return;
 	end
-	OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows", "LStick" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
+	-- the other attack modes: X walks the foreign units there too
+	if newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK or IsCityMode( newMode ) then
+		OutputMessageToScreenReader( label .. ": choose a target with " .. SRKey( "X", "X" ) .. " for the next one, " .. SRKey( "Shift+Arrows", "LStick" ) .. " moves tile by tile, " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
+	else
+		OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows", "LStick" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
+	end
 	if IsCityMode( newMode ) then HubCore.After( 0.3, HubTargets.CursorToNearestCityTarget ); end
 	if newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK then
 		local startX:number, startY:number = HubCursor.GetCursor();

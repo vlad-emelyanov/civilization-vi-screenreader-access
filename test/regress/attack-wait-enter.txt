@@ -6,7 +6,7 @@ load bug-enter-opens-governors
 clear-advisors
 lua InGameAccess UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
 action RangedAttack -Settle 1500
-expect (?i)^City ranged attack: choose a tile
+expect (?i)^City ranged attack: choose a target
 expect (?i)valid target
 key Enter -Settle 50 -NoQuiet
 expect ^Attacking

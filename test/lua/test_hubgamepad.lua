@@ -4,6 +4,8 @@ for i = 13, 24 do Keys["VK_F" .. i] = 100 + i end
 LuaEvents = setmetatable({}, { __index = function() return function() end end })
 include("Gamepad")
 
+local shownControls = {}
+ContextPtr = { LookUpControl = function(_, path) if shownControls[path] then return { IsHidden = function() return false end } end end }
 UI.GetHeadSelectedUnit = function() return nil end
 local calls = {}
 local mode = 7
@@ -197,4 +199,19 @@ test("PageUp / PageDown: swallowed in controller mode while a screen without a l
 	HubCore.OpenScreenIds = function() return { "SomeUnknownPopup" } end
 	eq(HubGamepad.HandleInput({}, KeyEvents.KeyDown, Keys.VK_NEXT, false), false)
 	HubCore.IsGamePopupOpen = function() return false end
+end)
+
+test("research chooser open (not a game screen): LB / RB pass to its list, the ring stays closed", function()
+	for k in pairs(calls) do calls[k] = nil end
+	mode = nil
+	HubCore.IsGamePopupOpen = function() return false end
+	ContextPtr = { LookUpControl = function(_, path) if path == "/InGame/TopLevelHUD/ResearchChooser" then return { IsHidden = function() return false end } end end }
+	eq(press("RB"), false)
+	eq(press("LB"), false)
+	eq(table.concat(calls, ","), "")
+	ContextPtr = { LookUpControl = function() return nil end }
+end)
+
+test("leader scene beside the deal view counts as a bumper screen", function()
+	eq(HubGamepad.AllIn({ "LeaderScene", "DiplomacyDealView" }, { LeaderScene = true, DiplomacyDealView = true }), true)
 end)
