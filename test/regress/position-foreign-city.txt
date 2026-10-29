@@ -1,0 +1,9 @@
+# Written blind 2026-10-29 (not yet recorded; run with civregress --record first). Position text names the nearest revealed FOREIGN city when it is closer than the nearest own city: "1 tile west of Seoul (Korea), 4 tiles east of Aquileia".
+# covers: **/HubAnnounce.lua **/HubCursor.lua
+load pt-medieval-t115
+clear-advisors
+lua InGameAccess local vis=PlayersVisibility[0]; local own=Players[0]:GetCities():GetCapitalCity(); for _,id in ipairs(PlayerManager.GetAliveIDs()) do if id ~= 0 and id < 62 then for _,c in Players[id]:GetCities():Members() do local cp=Map.GetPlot(c:GetX(),c:GetY()); if cp ~= nil and vis:IsRevealed(cp:GetIndex()) then local n=Map.GetAdjacentPlot(c:GetX(),c:GetY(),0); if n ~= nil and not n:IsCity() and Map.GetPlotDistance(n:GetX(),n:GetY(),own:GetX(),own:GetY()) > 1 then HubCursor.SetCursor(n:GetX(),n:GetY(),true,true,false,true); return 1 end end end end end return 0
+wait 1 tile -Timeout 8
+# foreign city first (its owner in brackets unless it is a city-state named like its city), then the own city
+expect \b1 tile [a-z-]+ of [^,.]+?( \([^)]+\))?, \d+ tiles? [a-z-]+ of \w+
+no-lua-errors

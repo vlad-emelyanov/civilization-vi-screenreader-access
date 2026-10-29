@@ -87,7 +87,7 @@ function HubCursor.GetCursor()
 end
 
 -- ===========================================================================
--- jump: the cursor was sent here (a list, a scan, a notification), not stepped: the position from the nearest own city follows,
+-- jump: the cursor was sent here (a list, a scan, a notification), not stepped: the position from the nearest city follows the resource,
 -- the frame of reference a single Shift+Arrow step does not need.
 local function DescribeCursorPlot( plot:table, jump:boolean )
 	local selectionPlot:table, unit:table = HubCore.GetSelectionPlot();
@@ -95,6 +95,16 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 	local localPlayer:number = Game.GetLocalPlayer();
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
 	options.resourceTech = true;
+	options.leadResource = true;		-- strategic and luxury resources first, then the position, then the description
+	-- position: from the selected unit or city ("3 tiles north-east"), after a jump also from the nearest city ("7 tiles north-west of Rome")
+	local positions:table = {};
+	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
+	if relative ~= nil then table.insert( positions, relative ); end
+	if jump and HubTargets.GetTargetMode() == nil then
+		local position:string = HubAnnounce.PositionText( plot );
+		if position ~= nil and string.sub( position, 1, 3 ) ~= "in " then table.insert( positions, position ); end		-- "in Rome" is the plot description already
+	end
+	if #positions > 0 then options.position = table.concat( positions, ". " ); end
 	local text:string = PlotDescription_GetShort( plot, options );
 	local mode:number = HubTargets.GetTargetMode();
 	local placement:string = HubCore.PlacementPlotText( plot );
@@ -119,12 +129,6 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 		if build ~= nil then text = text .. ", " .. build; end
 	end
 	text = LensText_Prefix( text, plot, HubCore.IsSettler( unit ) );		-- a map lens is on: its value first
-	local relative:string = PlotDescription_GetRelative( selectionPlot, plot );
-	if relative ~= nil then text = text .. ". " .. relative; end
-	if jump and mode == nil then
-		local position:string = HubAnnounce.PositionText( plot );
-		if position ~= nil and string.sub( position, 1, 3 ) ~= "in " then text = text .. ". " .. position; end		-- "in Rome" is the plot description already
-	end
 	return text;
 end
 
