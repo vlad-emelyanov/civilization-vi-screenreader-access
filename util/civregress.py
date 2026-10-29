@@ -1852,12 +1852,13 @@ def main(argv=None):
     t0 = time.time()
     retrying = (run_everything or changed_mode) and not a.no_retry and not record
     label = "all" if run_everything else "changed" if changed_mode else " ".join(a.names) if len(" ".join(a.names)) < 60 else "%d scripts" % len(scripts)
-    progress = Progress(scripts, share, label, retry=retrying)
     ok, lock = acquire_run_lock()
     if not ok:
         print(lock)
         return 8
+    progress = None   # only after the lock: a refused second run must not touch the live run's progress / results files
     try:
+        progress = Progress(scripts, share, label, retry=retrying)
         runner = CivctlRunner(owner=owner, batch=not a.no_batch)
         try:
             results = run_with_test_options(scripts, runner, share, not a.real_options,
@@ -1866,7 +1867,7 @@ def main(argv=None):
             runner.close()
     finally:
         release_run_lock(lock)
-        if progress.finished is None:
+        if progress is not None and progress.finished is None:
             progress.end("run ended early (no SUMMARY: aborted, crashed or refused)")
     if run_everything and not record and results and all(r.ok for r in results) and len(results) == len(scripts):
         head = git_head()

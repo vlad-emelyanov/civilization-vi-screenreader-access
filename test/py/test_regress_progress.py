@@ -189,5 +189,21 @@ class ResultsLogTests(unittest.TestCase):
         self.assertIn("regress-results.txt", txt)
 
 
+class RefusedRunTests(unittest.TestCase):
+    def test_refused_run_leaves_live_files_untouched(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            prog, res = os.path.join(d, "regress-progress.txt"), os.path.join(d, "regress-results.txt")
+            live = {prog: "live progress runner pid: 99", res: "live results"}
+            for path, text in live.items():
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(text)
+            with mock.patch.object(cr, "timing_dir", return_value=d),                     mock.patch.object(cr, "acquire_run_lock", return_value=(False, "REFUSED: another run")),                     mock.patch.dict(os.environ, {"CIVCTL_OWNER": "t"}):
+                self.assertEqual(cr.main(["advisor-popup"]), 8)
+            for path, text in live.items():
+                with open(path, encoding="utf-8") as fh:
+                    self.assertEqual(fh.read(), text)
+
+
 if __name__ == "__main__":
     unittest.main()
