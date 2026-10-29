@@ -1,0 +1,7 @@
+turn: 117
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: deal screen with Dido: LB/RB say Close the screen first instead of switching sections
+mod commit: f44e04a
+created: 2026-10-29
+size: 1014 KB

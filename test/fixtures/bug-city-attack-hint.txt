@@ -1,0 +1,7 @@
+turn: 115
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: city ranged attack mode opening line lacks X hint
+mod commit: f44e04a
+created: 2026-10-29
+size: 998 KB

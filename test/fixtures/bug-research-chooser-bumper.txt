@@ -1,0 +1,7 @@
+turn: 121
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: research chooser open: F15 opens Notifications ring list on top of it, Escape then says Research closed
+mod commit: f44e04a
+created: 2026-10-29
+size: 1035 KB
