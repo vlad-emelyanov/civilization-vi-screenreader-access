@@ -989,7 +989,7 @@ function Invoke-Load([string]$name) {
     }
     # A turn-1 save shows the Gathering Storm intro again after loading: close it. Only turn-1 games are checked (the intro needs a moment to appear; was an unconditional 2 s sleep).
     $w = Get-GameWhere
-    if ($w -and $w -match "^INGAME (d+)" -and [int]$Matches[1] -le 1) {
+    if ($w -and $w -match "^INGAME (\d+)" -and [int]$Matches[1] -le 1) {
         Start-Sleep -Seconds 2
         $m = Invoke-PythonCapture @((Join-Path $PSScriptRoot "civtuner.py"), "menu")
         if ($m -match "ExpansionIntro") { Invoke-Key -KeyArg "Escape" -Count 1 -Settle 1500 -NoQuiet | ForEach-Object { Write-Output $_ } }
