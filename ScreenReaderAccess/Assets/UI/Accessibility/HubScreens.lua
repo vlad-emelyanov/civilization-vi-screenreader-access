@@ -67,6 +67,7 @@ end
 m_list = KeyNavList_Create{
 	build		= BuildItems,
 	isActive	= function() return HubCore.IsModeOpen( "screens" ); end,
+	wheel		= true,		-- the pad wheel: a short list of the main interface
 	onActivate	= Activate,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
 };

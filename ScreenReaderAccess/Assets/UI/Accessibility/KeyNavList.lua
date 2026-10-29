@@ -13,6 +13,7 @@
 --		noDetailHint = true,                              -- optional: no pad-only ", Y for details" after the first item when the list opens
 --		sectionCounts = true,                             -- optional: a group's name is spoken with its item count ("Builder, 3: ...") when the focus enters it
 --		tabEdge    = function(step) return bool end,      -- optional: true when the sections cannot go further in that direction (+1 / -1); the hub then moves the LB / RB ring on
+--		wheel      = true,                                -- optional: the pad's wheel (hold LT, point the left stick) works here; short lists of the main interface only
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
@@ -26,8 +27,9 @@
 --	always consumed ("No groups in this list"), so PageDown never opens the Climate screen underneath.
 --	In controller mode (Gamepad.Follow) D-pad up / down (Home / End) are Up / Down, D-pad right / left (Tab / Control+Tab) are Right /
 --	Left, LB / RB are Control+Tab / Tab ("No tabs here" when the list has no Tab handler): Gamepad.TranslateListKey.
---	The pad's wheel (hold LT, point the left stick; Shift+F13..F24 / Control+Shift+F13..F24, Gamepad.WheelOf) jumps to the item in that
---	direction, the items spread clockwise around the wheel from straight up (Gamepad.WheelIndex); the same item is not spoken twice.
+--	The pad's wheel (hold LT, point the left stick; Shift+F13..F24 / Control+Shift+F13..F24, Gamepad.WheelOf), in lists with wheel = true:
+--	jumps to the item in that direction, the items spread clockwise around the wheel from straight up (Gamepad.WheelIndex); the same
+--	item is not spoken twice. Other lists consume the wheel keys and say "No wheel in this list" once per sweep.
 --	Up/Down act on KeyDown (so holding the key repeats), Enter/Space on KeyUp (the game's ActionPanel acts on the
 --	KeyUp of Enter; consuming both keeps Next Action from firing).
 -- ===========================================================================
@@ -66,6 +68,7 @@ function KeyNavList_Create( config:table )
 	local m_lastSection:string = nil;
 	local m_openedAt:number = -100;
 	local m_lostGuard:boolean = false;		-- focusLostSafe: the focus was moved after a loss; the next Enter only reads it
+	local m_wheelRefused:boolean = false;	-- "No wheel in this list" was said; again only after another key
 
 	local function Build()
 		local items:table = {};
@@ -305,6 +308,14 @@ function KeyNavList_Create( config:table )
 		end
 		local isDown:boolean = ( msg == KeyEvents.KeyDown );
 		local slot:number = Gamepad.WheelOf( rawKey, input:IsControlDown(), input:IsShiftDown() );
+		if slot == nil and isDown and rawKey ~= Keys.VK_SHIFT and rawKey ~= Keys.VK_CONTROL and rawKey ~= Keys.VK_ALT then m_wheelRefused = false; end
+		if slot ~= nil and not config.wheel then
+			if isDown and not m_wheelRefused then
+				m_wheelRefused = true;
+				OutputMessageToScreenReader( "No wheel in this list" );
+			end
+			return true;
+		end
 		if slot ~= nil then
 			if isDown then
 				local ok:boolean, err = xpcall( function() WheelPick( slot ); end, KeyNavErrorHandler );

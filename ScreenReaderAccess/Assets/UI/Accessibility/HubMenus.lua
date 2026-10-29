@@ -356,6 +356,7 @@ end
 m_civMenu = KeyNavList_Create{
 	build		= BuildCivItems,
 	isActive	= function() return HubCore.IsModeOpen( "civ" ); end,
+	wheel		= true,		-- the pad wheel: a short list of the main interface
 	onActivate	= function( item )
 		if item.isYou then
 			HubCore.SayResult( "That is you" );

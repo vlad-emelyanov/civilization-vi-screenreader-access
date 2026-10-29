@@ -53,6 +53,7 @@ HubLenses.Toggle = Toggle;		-- (tests)
 m_list = KeyNavList_Create{
 	build		= BuildItems,
 	isActive	= function() return HubCore.IsModeOpen( "lenses" ); end,
+	wheel		= true,		-- the pad wheel: a short list of the main interface
 	onActivate	= Toggle,
 	onClose		= function() HubCore.CloseMode( true, false ); end,
 };

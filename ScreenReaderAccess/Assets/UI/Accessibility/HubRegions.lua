@@ -19,6 +19,7 @@ local m_notifList:table;
 m_topList = KeyNavList_Create{
 	build		= function() return TopPanelData_BuildItems(); end,
 	isActive	= function() return HubCore.IsModeOpen( "top" ); end,
+	wheel		= true,		-- the pad wheel: a short list of the main interface
 	horizontal	= true,
 	onActivate	= function( item )
 		if item.open == "research" then

@@ -338,7 +338,7 @@ test("HasTabs and AtTabEdge", function()
 end)
 
 test("pad wheel: a slot jumps to the item in that direction, once", function()
-	local s = newList({ { key = "n", text = "North" }, { key = "e", text = "East" }, { key = "s", text = "South" }, { key = "w", text = "West" } })
+	local s = newList({ { key = "n", text = "North" }, { key = "e", text = "East" }, { key = "s", text = "South" }, { key = "w", text = "West" } }, { wheel = true })
 	s.list.Open("T")
 	ClearPrinted()
 	eq(s.list.HandleInput(Input{ key = Keys.VK_F19, shift = true }), true)		-- slot 6: right
@@ -356,4 +356,20 @@ test("pad wheel: a slot jumps to the item in that direction, once", function()
 	s.list.HandleInput(Input{ key = Keys.VK_F13, ctrl = true, shift = true })	-- slot 12: down
 	listeq(Spoken(), { "South, 3 of 4" })
 	eq(s.activated, nil)															-- pointing never activates
+end)
+
+test("pad wheel: a list without wheel = true says so once per sweep and keeps its focus", function()
+	local s = newList(abc())
+	s.list.Open("T")
+	ClearPrinted()
+	eq(s.list.HandleInput(Input{ key = Keys.VK_F19, shift = true }), true)
+	s.list.HandleInput(Input{ key = Keys.VK_F19, shift = true, up = true })
+	s.list.HandleInput(Input{ key = Keys.VK_SHIFT, shift = true })
+	s.list.HandleInput(Input{ key = Keys.VK_F13, ctrl = true, shift = true })
+	listeq(Spoken(), { "No wheel in this list" })
+	press(s.list, Keys.VK_DOWN)
+	listeq(Spoken(), { "Beta, 2 of 3" })		-- still on Alpha before
+	ClearPrinted()
+	s.list.HandleInput(Input{ key = Keys.VK_F19, shift = true })
+	listeq(Spoken(), { "No wheel in this list" })		-- a new sweep after another key
 end)
