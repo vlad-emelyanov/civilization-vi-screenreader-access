@@ -1,0 +1,35 @@
+# Written blind (2026-10-29, not yet verified in game; run with --record first). LB / RB (F14 / F15) are the sections of a list or screen:
+# in the Places list (J) the categories (and past the first category LB goes on to the previous ring list, Screens), in the production panel the tabs.
+# F22 = controller mode on. Fixture early-t60 (Rome; the production panel opens with Tab on the selected city).
+# covers: **/KeyNavList.lua **/HubGamepad.lua **/HubPad.lua **/HubPlaces.lua **/ProductionPanel.lua **/Gamepad.lua
+# no-share-load: opens the production panel
+load early-t60
+clear-advisors
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+key F22 -Settle 800
+# RB: the next category; LB: back to the first
+key F15 -Settle 1200
+expect (?i), 2 of \d+ categories
+key F14 -Settle 1200
+expect (?i), 1 of \d+ categories
+# LB on the first category: the ring goes on to the previous list (Screens); RB from there comes back to Places, first category
+key F14 -Settle 1500
+expect (?i)^Screens
+key F15 -Settle 1500
+expect (?i)^Places\.
+expect (?i), 1 of \d+ categories
+key Escape -Settle 1000
+expect ^Closed
+# the production panel: RB next tab, LB previous tab
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2000
+expect (?i)choose production
+key F15 -Settle 1200
+expect (?i)queue|purchase with
+key F14 -Settle 1200
+expect (?i)choose production
+key Escape -Settle 1200
+key Escape -Settle 1200
+key F23 -Settle 500
+no-lua-errors

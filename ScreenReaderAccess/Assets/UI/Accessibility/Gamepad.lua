@@ -5,6 +5,8 @@
 --	bank is the same keys with Control. Included by the hub (HubGamepad) and by WorldInput (the catcher).
 --	Pure functions only; the engine key codes are looked up when called.
 -- ===========================================================================
+-- (include() may run this file again in a context that already has it: keep the first copy, with its mode flag)
+if Gamepad ~= nil and Gamepad.Map ~= nil then return; end
 Gamepad = {};
 
 -- One entry per line in exactly this form (a Python test parses it).
@@ -33,6 +35,8 @@ Gamepad.Map = {
 	DDown = { key = "VK_END", control = false },
 	DRight = { key = "VK_TAB", control = false },
 	DLeft = { key = "VK_TAB", control = true },
+	PageUp = { key = "VK_PRIOR", control = false },
+	PageDown = { key = "VK_NEXT", control = false },
 	ModeOn = { key = "VK_F22", control = false },
 	ModeOff = { key = "VK_F23", control = false },
 };
@@ -66,6 +70,74 @@ function Gamepad.SetActive( active:boolean )
 	if active == m_active then return; end
 	m_active = active;
 	LuaEvents.SRA_GamepadMode( active );
+end
+
+-- The engine key of PageUp (down = false) / PageDown (true): the console app sends them while LB or RB is held (group jump).
+-- The engine's names for them are not verified; the first one this engine has wins.
+function Gamepad.PageKey( down:boolean )
+	local names:table = down and { "VK_NEXT", "VK_PAGEDOWN", "VK_PGDN" } or { "VK_PRIOR", "VK_PAGEUP", "VK_PGUP" };
+	for _, name in ipairs( names ) do
+		if Keys[ name ] ~= nil then return Keys[ name ]; end
+	end
+	return nil;
+end
+
+-- Pad state in contexts without the hub (game screens, popups, the front end): the hub broadcasts LuaEvents.SRA_GamepadMode when
+-- the mode changes and answers SRA_GamepadModeRequest with the current mode; Follow() listens (the listener only stores, it never
+-- fires the event again) and asks once. Idempotent per context. Where no hub exists (front end), NoteModeKey sees F22 / F23 itself.
+local m_followed:boolean = false;
+
+function Gamepad.Follow()
+	if m_followed then return; end
+	m_followed = true;
+	if SRListen == nil or LuaEvents == nil then return; end
+	SRListen( LuaEvents.SRA_GamepadMode, function( active ) m_active = ( active == true ); end );
+	LuaEvents.SRA_GamepadModeRequest();
+end
+
+-- F22 / F23 passing a handler: remember the mode in this context (no event; the hub is the one that broadcasts).
+function Gamepad.NoteModeKey( key, isControl:boolean )
+	local button:string = Gamepad.ButtonOf( key, isControl );
+	if button == "ModeOn" then m_active = true;
+	elseif button == "ModeOff" then m_active = false;
+	end
+end
+
+-- Pure. A list or screen with sections sees the pad's keys as the keys it already knows (docs/controller-plan.md):
+-- D-pad up / down (Home / End) = Up / Down, D-pad right / left (Tab / Control+Tab) = Right / Left (the left stick's keys),
+-- LB / RB (F14 / F15) = Control+Tab / Tab (previous / next section). Returns key, isControl, fromBumper. Inactive (keyboard):
+-- unchanged, so Home / End / Tab keep their keyboard meaning. Not for the bare map (WorldInput's catcher).
+function Gamepad.TranslateListKey( key, isControl:boolean, active:boolean )
+	isControl = ( isControl == true );
+	if not active or key == nil then return key, isControl, false; end
+	if isControl then
+		if key == Keys.VK_TAB then return Keys.VK_LEFT, false, false; end
+		return key, isControl, false;
+	end
+	if key == Keys.VK_HOME then return Keys.VK_UP, false, false; end
+	if key == Keys.VK_END then return Keys.VK_DOWN, false, false; end
+	if key == Keys.VK_TAB then return Keys.VK_RIGHT, false, false; end
+	local button:string = Gamepad.ButtonOf( key, false );
+	if button == "LB" then return Keys.VK_TAB, true, true; end
+	if button == "RB" then return Keys.VK_TAB, false, true; end
+	return key, isControl, false;
+end
+
+-- An input struct as the pad-aware screen sees it: GetKey / IsControlDown translated by TranslateListKey (only in controller mode,
+-- only without Shift / Alt); every other method passes through. Screens with their own Tab / Home / End handling call this first.
+function Gamepad.WrapInput( input:table )
+	Gamepad.Follow();
+	if input == nil then return input; end
+	local msg:number = input:GetMessageType();
+	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return input; end
+	local rawKey = input:GetKey();
+	local rawControl:boolean = input:IsControlDown();
+	Gamepad.NoteModeKey( rawKey, rawControl );
+	if not m_active or input:IsShiftDown() or input:IsAltDown() then return input; end
+	local key, ctrl = Gamepad.TranslateListKey( rawKey, rawControl, true );
+	if key == rawKey and ctrl == rawControl then return input; end
+	return setmetatable( { GetKey = function() return key; end, IsControlDown = function() return ctrl; end },
+		{ __index = function( _, name ) return function( _, ... ) return input[ name ]( input, ... ); end; end } );
 end
 
 -- The catcher decision for a key that reached WorldInput's default handlers (nothing wanted it). Returns nil (not caught) or

@@ -117,7 +117,7 @@ public class GamepadMapperTests
         PadKey k = GamepadMap.Table["RSUp"];
         Assert.Equal(Keys.F13, k.Key);
         Assert.True(k.Control);
-        Assert.Equal(26, GamepadMap.Table.Count);
+        Assert.Equal(28, GamepadMap.Table.Count);
     }
 
     [Fact]
@@ -156,6 +156,56 @@ public class GamepadMapperTests
         GamepadState right = S(rt: 255, buttons: GamepadState.DPadRight);
         Assert.Equal("DRight:Tap", FmtS(m.Update(rt, right, 20)));
         Assert.Equal("DDown:Tap+S", FmtS(m.Update(right, S(rt: 255, buttons: GamepadState.DPadDown), 40)));
+    }
+
+    [Fact]
+    public void BumperHeld_StickAndDPadUpDown_ArePageUpDown_AndBumperUpIsSuppressed()
+    {
+        GamepadMapper m = new();
+        GamepadState lb = S(buttons: GamepadState.LeftShoulder);
+        Assert.Equal("ModeOn:Tap,LB:Down", FmtS(m.Update(default, lb, 0)));
+        GamepadState down = S(ly: -30000, buttons: GamepadState.LeftShoulder);
+        Assert.Equal("PageDown:Tap", FmtS(m.Update(lb, down, 20)));
+        GamepadState up = S(buttons: GamepadState.LeftShoulder | GamepadState.DPadUp);
+        Assert.Equal("PageUp:Tap", FmtS(m.Update(down, up, 40)));
+        Assert.Empty(m.Update(up, default, 60));   // everything released at once: no LB up
+        Assert.Equal("LB:Down", FmtS(m.Update(default, lb, 100)));   // a fresh press starts clean
+        Assert.Equal("LB:Up", FmtS(m.Update(lb, default, 140)));
+    }
+
+    [Fact]
+    public void BumperHeld_PageKeysRepeatLikeTheStick_RightBumperToo()
+    {
+        GamepadMapper m = new();
+        GamepadState rb = S(ly: 30000, buttons: GamepadState.RightShoulder);
+        m.Update(default, S(buttons: GamepadState.RightShoulder), 0);
+        List<long> times = new();
+        GamepadState prev = S(buttons: GamepadState.RightShoulder);
+        for (long t = 10; t <= 600; t += 10)
+        {
+            foreach (KeyEvent e in m.Update(prev, rb, t)) if (e.Button == PadButton.PageUp && e.Action == KeyAction.Tap) times.Add(t);
+            prev = rb;
+        }
+        Assert.Equal(new long[] { 10, 360, 470, 580 }, times);
+        Assert.Empty(m.Update(rb, default, 700));   // RB up suppressed
+    }
+
+    [Fact]
+    public void BumperHeld_LeftRightStayArrows_AndBumperAloneStillSendsItsUp()
+    {
+        GamepadMapper m = new();
+        GamepadState lb = S(buttons: GamepadState.LeftShoulder);
+        m.Update(default, lb, 0);
+        Assert.Equal("LRight:Tap", FmtS(m.Update(lb, S(lx: 30000, buttons: GamepadState.LeftShoulder), 20)));
+        Assert.Equal("LB:Up", FmtS(m.Update(S(lx: 30000, buttons: GamepadState.LeftShoulder), default, 40)));
+    }
+
+    [Fact]
+    public void NoBumper_UpDownStayHomeEnd_AndPageKeysMapToPageKeys()
+    {
+        Assert.Equal("ModeOn:Tap,DUp:Tap", Fmt(new GamepadMapper().Update(default, S(buttons: GamepadState.DPadUp), 0)));
+        Assert.Equal(Keys.PageUp, GamepadMap.Get(PadButton.PageUp).Key);
+        Assert.Equal(Keys.PageDown, GamepadMap.Get(PadButton.PageDown).Key);
     }
 
     [Fact]

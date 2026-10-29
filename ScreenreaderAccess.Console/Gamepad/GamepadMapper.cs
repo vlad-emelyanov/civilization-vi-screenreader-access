@@ -26,7 +26,7 @@ public sealed class GamepadMapper
 
     private readonly Repeater _left = new(350, 110), _dpad = new(350, 110), _right = new(500, 350);
 
-    private bool _rtShiftUsed, _aShift;
+    private bool _rtShiftUsed, _aShift, _bumperPageUsed;
 
     public InputSource Source { get; private set; } = InputSource.Keyboard;
 
@@ -48,6 +48,9 @@ public sealed class GamepadMapper
         bool rtNow = cur.RightTrigger >= TriggerThreshold;
         bool rtWas = prev.RightTrigger >= TriggerThreshold;
         if (rtNow && !rtWas) _rtShiftUsed = false;
+        bool bumperNow = (cur.Buttons & (GamepadState.LeftShoulder | GamepadState.RightShoulder)) != 0;
+        bool bumperWas = (prev.Buttons & (GamepadState.LeftShoulder | GamepadState.RightShoulder)) != 0;
+        if (bumperNow && !bumperWas) _bumperPageUsed = false;
 
         foreach ((ushort mask, PadButton b) in ToggleButtons)
         {
@@ -58,16 +61,18 @@ public sealed class GamepadMapper
                 Edge(events, b, was, now, _aShift);
                 if (!now) _aShift = false;
             }
+            else if (b is PadButton.LB or PadButton.RB && !now && was && _bumperPageUsed) { }   // the bumper was a modifier for PageUp / PageDown: no KeyUp
             else Edge(events, b, was, now);
         }
         Edge(events, PadButton.LT, prev.LeftTrigger >= TriggerThreshold, cur.LeftTrigger >= TriggerThreshold);
         if (rtNow && !rtWas) events.Add(new KeyEvent(PadButton.RT, KeyAction.Down));
         else if (!rtNow && rtWas && !_rtShiftUsed) events.Add(new KeyEvent(PadButton.RT, KeyAction.Up));
 
-        Direction(events, _left, StickDir(cur.LX, cur.LY, PadButton.LUp, PadButton.LDown, PadButton.LLeft, PadButton.LRight), nowMs, rtNow);
-        Direction(events, _dpad, DPadDir(cur.Buttons), nowMs, rtNow);
+        Direction(events, _left, StickDir(cur.LX, cur.LY, PadButton.LUp, PadButton.LDown, PadButton.LLeft, PadButton.LRight), nowMs, rtNow, bumperNow);
+        Direction(events, _dpad, DPadDir(cur.Buttons), nowMs, rtNow, bumperNow);
         Direction(events, _right, StickDir(cur.RX, cur.RY, PadButton.RSUp, PadButton.RSDown, PadButton.RSLeft, PadButton.RSRight), nowMs, false);
         if (events.Exists(e => e.Shift)) _rtShiftUsed = true;
+        if (events.Exists(e => e.Button is PadButton.PageUp or PadButton.PageDown)) _bumperPageUsed = true;
 
         if (Source == InputSource.Keyboard && events.Exists(e => e.Action != KeyAction.Up))
         {
@@ -103,20 +108,35 @@ public sealed class GamepadMapper
     // Shift applies to the left stick (all four) and D-pad up/down only; D-pad left/right stay plain (Shift+Tab opens the Steam overlay).
     private static bool CanShift(PadButton b) => b is PadButton.LUp or PadButton.LDown or PadButton.LLeft or PadButton.LRight or PadButton.DUp or PadButton.DDown;
 
-    private static void Direction(List<KeyEvent> events, Repeater r, PadButton? dir, long now, bool shiftHeld)
+    // A held bumper turns up / down (left stick and D-pad) into PageUp / PageDown: the group jump of the lists.
+    private static PadButton PageOf(PadButton b) => b switch
+    {
+        PadButton.LUp or PadButton.DUp => PadButton.PageUp,
+        PadButton.LDown or PadButton.DDown => PadButton.PageDown,
+        _ => b,
+    };
+
+    private static void Direction(List<KeyEvent> events, Repeater r, PadButton? dir, long now, bool shiftHeld, bool bumperHeld = false)
     {
         if (dir is null) { r.Current = null; return; }
         if (r.Current != dir)
         {
             r.Current = dir;
             r.NextAt = now + r.FirstMs;
-            events.Add(new KeyEvent(dir.Value, KeyAction.Tap, shiftHeld && CanShift(dir.Value)));
+            events.Add(Make(dir.Value, shiftHeld, bumperHeld));
         }
         else if (now >= r.NextAt)
         {
             r.NextAt += r.EveryMs;
             if (r.NextAt <= now) r.NextAt = now + r.EveryMs;   // fell behind: no burst
-            events.Add(new KeyEvent(dir.Value, KeyAction.Tap, shiftHeld && CanShift(dir.Value)));
+            events.Add(Make(dir.Value, shiftHeld, bumperHeld));
         }
+    }
+
+    private static KeyEvent Make(PadButton dir, bool shiftHeld, bool bumperHeld)
+    {
+        PadButton page = bumperHeld ? PageOf(dir) : dir;
+        if (page != dir) return new KeyEvent(page, KeyAction.Tap);
+        return new KeyEvent(dir, KeyAction.Tap, shiftHeld && CanShift(dir));
     }
 }

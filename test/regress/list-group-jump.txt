@@ -1,0 +1,41 @@
+# Written blind (2026-10-29, not yet verified in game; run with --record first). PageDown / PageUp in a list jump to the first item of the next / previous group (item.section):
+# the production panel (districts and buildings / wonders / units / projects) and the Places list, Your units (grouped by unit type, spoken with the count: "Builder, 1: Builder, ...").
+# A list without groups says so, and PageDown never reaches the game (it would open the Climate screen). Keyboard run; the pad sends the same keys while LB / RB is held.
+# Fixture early-t60: units BUILDER x1, GREAT_GENERAL x2, SCOUT x2, SPEARMAN x1, WARRIOR x1 (types sort Builder, Great General, Scout, Spearman, Warrior).
+# covers: **/KeyNavList.lua **/ProductionPanel.lua **/HubPlaces.lua
+# no-share-load: opens the production panel and J
+load early-t60
+clear-advisors
+lua GameCore_Tuner for _, u in Players[63]:GetUnits():Members() do local x, y = u:GetX(), u:GetY(); if x == 63 and (y == 33 or y == 34) then Players[63]:GetUnits():Destroy(u) end end return 1
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2000
+expect (?i)choose production
+key PageDown -Settle 1000
+expect ^[^,]+: .*, \d+ of \d+
+key PageDown -Settle 1000
+expect ^[^,]+: .*, \d+ of \d+
+key PageUp -Settle 1000
+expect ^[^,]+: .*, \d+ of \d+
+expect-not (?i)climate
+key Escape -Settle 1200
+key Escape -Settle 1200
+# Places, Your units (category 2 once the two barbarians are gone)
+lua InGame UI.DeselectAllUnits()
+action KeyNavPlaces -Settle 1500
+expect ^Places\. Your cities
+key Tab -Settle 1000
+expect ^Your units, 2 of \d+ categories
+key PageDown -Settle 1000
+expect ^Great General, 2: Great General,
+key PageDown -Settle 1000
+expect ^Scout, 2: Scout,
+key PageDown -Settle 1000
+expect ^Spearman, 1: Spearman,
+key PageUp -Settle 1000
+expect ^Scout, 2: Scout,
+# a list without groups: Your cities
+key Control+Tab -Settle 1000
+key PageDown -Settle 800
+expect ^No groups in this list
+key Escape -Settle 1000
+no-lua-errors

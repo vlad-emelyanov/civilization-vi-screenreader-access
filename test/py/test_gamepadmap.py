@@ -1,5 +1,5 @@
 """The controller key table must agree between the Lua side (Accessibility/Gamepad.lua) and the console app
-(ScreenreaderAccess.Console/Gamepad/GamepadMap.cs): same 26 button names, same key, same Control flag.
+(ScreenreaderAccess.Console/Gamepad/GamepadMap.cs): same 28 button names, same key, same Control flag.
 
 Lua lines:  	X = { key = "VK_F13", control = false },
 C# lines:   ["RSUp"] = new PadKey(Keys.F13, control: true),
@@ -15,12 +15,13 @@ CS = ROOT / "ScreenreaderAccess.Console" / "Gamepad" / "GamepadMap.cs"
 NAMES = {
 	"A", "B", "X", "Y", "LB", "RB", "LT", "RT", "View", "Menu", "LSClick", "RSClick",
 	"RSUp", "RSDown", "RSLeft", "RSRight", "LUp", "LDown", "LLeft", "LRight",
-	"DUp", "DDown", "DLeft", "DRight", "ModeOn", "ModeOff",
+	"DUp", "DDown", "DLeft", "DRight", "PageUp", "PageDown", "ModeOn", "ModeOff",
 }
 # Lua engine key name -> C# System.Windows.Forms.Keys name
 LUA_TO_CS = {
 	"VK_RETURN": "Enter", "VK_ESCAPE": "Escape", "VK_SPACE": "Space", "VK_UP": "Up", "VK_DOWN": "Down",
 	"VK_LEFT": "Left", "VK_RIGHT": "Right", "VK_HOME": "Home", "VK_END": "End", "VK_TAB": "Tab",
+	"VK_PRIOR": "PageUp", "VK_NEXT": "PageDown",
 }
 for _n in range(1, 25):
 	LUA_TO_CS["VK_F%d" % _n] = "F%d" % _n

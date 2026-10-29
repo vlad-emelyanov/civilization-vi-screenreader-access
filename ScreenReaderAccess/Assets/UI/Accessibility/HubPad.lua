@@ -33,6 +33,26 @@ function HubPad.RingStep( currentModeName, step:number )
 	return 1;
 end
 
+-- Pure: is this hub list one of the ring's?
+function HubPad.IsRingMode( modeName )
+	if modeName == nil then return false; end
+	for _, entry in ipairs( HubPad.RING ) do
+		if entry.mode == modeName then return true; end
+	end
+	return false;
+end
+
+-- Pure: what LB / RB do while a hub list is open. "section": the list's own Tab handler moves (wrapping where it wraps).
+-- "ring": the ring steps. A list without sections is a ring stop (RB opens the next list of the ring); a ring list WITH sections
+-- (Places) treats its sections as sub-stops of the ring: sections until the last / first one (atEdge), then the ring continues;
+-- a list with sections outside the ring (help) just moves its sections.
+function HubPad.BumperAction( modeName, hasTabs:boolean, atEdge:boolean )
+	if not hasTabs then return "ring"; end
+	if not HubPad.IsRingMode( modeName ) then return "section"; end
+	if atEdge then return "ring"; end
+	return "section";
+end
+
 -- Opens the next entry in the direction. An entry that cannot open (no civilization met, no notifications: the module
 -- says why) is skipped, so RB / LB never stay stuck on it; a missing module says "not available" and is skipped too.
 -- (_G does not exist in the game's UI Lua: look the global up by name explicitly.)

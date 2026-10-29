@@ -3517,7 +3517,7 @@ local function SRA_DealItems()
 	for _, rec in ipairs( get ) do Add( rec, false ); end
 	if #items == 0 then
 		items[1] = { key = "empty", empty = true, text = "Deal is empty", choosable = false, reason = "Deal is empty. Add items from Your items or Their items",
-			detail = SRKey( "Tab" ) .. " switches to Your items and Their items, " .. SRKey( "Enter" ) .. " on an item adds it to the deal" };
+			detail = SRKey( "Tab", "RB" ) .. " switches to Your items and Their items, " .. SRKey( "Enter" ) .. " on an item adds it to the deal" };
 	end
 	return items;
 end
@@ -3745,7 +3745,7 @@ local function SRA_EnterSection( n:number )
 	if n == 1 and count == 1 and items[1].empty then count = 0; end
 	local name:string = SRA_SECTIONS[ n ];
 	if n == 1 and count == 0 then
-		SRA_Say( "Deal, empty. " .. SRKey( "Tab" ) .. " to Your items or Their items to add something" );
+		SRA_Say( "Deal, empty. " .. SRKey( "Tab", "RB" ) .. " to Your items or Their items to add something" );
 		return;
 	end
 	if count == 0 then
@@ -3818,7 +3818,7 @@ local function SRA_Announce()
 		local actions:string = SRA_ActionNames();
 		if actions ~= "" then table.insert( parts, "Actions: " .. actions .. "." ); end
 	end
-	table.insert( parts, SRKey( "Tab" ) .. " switches sections: Deal, Your items, Their items, Actions. " .. SRKey( "S", "X" ) .. " reads the summary. " .. SRKey( "Control+Tab" ) .. " goes back a section." );
+	table.insert( parts, SRKey( "Tab", "RB" ) .. " switches sections: Deal, Your items, Their items, Actions. " .. SRKey( "S", "X" ) .. " reads the summary. " .. SRKey( "Control+Tab", "LB" ) .. " goes back a section." );
 	local focusText:string, focusItem:table = SRA_OpenFocusText();
 	table.insert( parts, focusText );
 	-- the list's focus must equal the spoken one: without it Down jumped to the first item (Accept Deal, "1 of 2") and Enter said
@@ -4058,6 +4058,7 @@ end
 -- diplomacy screen behind); mouse events pass on.
 function SRA_HandleInput( pInputStruct:table )
 	if ContextPtr:IsHidden() or m_srLists[1] == nil then return false; end
+	pInputStruct = Gamepad.WrapInput( pInputStruct );		-- ScreenReaderAccess: controller mode (D-pad = arrows, LB / RB = Control+Tab / Tab)
 	local msg:number = pInputStruct:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 	local isUp:boolean = ( msg == KeyEvents.KeyUp );

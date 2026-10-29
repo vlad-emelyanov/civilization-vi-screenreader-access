@@ -3070,7 +3070,7 @@ local function SRA_OnActivate( item:table )
 			return;
 		end
 		if SRA_CurrentTab() ~= "policies" then
-			OutputMessageToScreenReader( "Policies are changed on the Policies tab. " .. SRKey( "Tab" ) .. " to switch." );
+			OutputMessageToScreenReader( "Policies are changed on the Policies tab. " .. SRKey( "Tab", "RB" ) .. " to switch." );
 			return;
 		end
 		m_srCatalogSlotIndex = item.slot.GC_SlotIndex;

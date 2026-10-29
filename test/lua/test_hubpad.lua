@@ -92,3 +92,19 @@ test("an entry that refuses to open (no civilization met) is skipped", function(
 	HubPad.RingNext()		-- nothing opens at all: no endless loop
 	eq(HubCore.m_mode, nil)
 end)
+
+test("IsRingMode", function()
+	eq(HubPad.IsRingMode("places"), true)
+	eq(HubPad.IsRingMode("notifications"), true)
+	eq(HubPad.IsRingMode("help"), false)
+	eq(HubPad.IsRingMode(nil), false)
+end)
+
+test("BumperAction: sections of a ring list are sub-stops, the ring continues at the edges", function()
+	eq(HubPad.BumperAction("lenses", false, false), "ring")			-- no sections: a plain ring stop
+	eq(HubPad.BumperAction("places", true, false), "section")
+	eq(HubPad.BumperAction("places", true, true), "ring")			-- last / first section: on to the next / previous ring list
+	eq(HubPad.BumperAction("help", true, false), "section")
+	eq(HubPad.BumperAction("help", true, true), "section")			-- outside the ring the sections wrap
+	eq(HubPad.BumperAction(nil, false, false), "ring")
+end)

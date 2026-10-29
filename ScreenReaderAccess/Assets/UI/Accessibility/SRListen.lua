@@ -10,6 +10,9 @@
 --	ContextPtr:SetShutdown( function() SRUnlistenAll(); end );
 --------------------------------------------------------------
 
+-- (include() may run this file again in a context that already has it: keep the first copy and its listeners)
+if SRListen ~= nil then return; end
+
 local m_listeners:table = {};
 
 -- event: Events.X or LuaEvents.X (anything with .Add / .Remove taking the function)

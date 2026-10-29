@@ -102,3 +102,60 @@ test("catcher: other keys and other messages are not caught", function()
 	eq(Gamepad_CatchKey(DOWN, Keys.VK_DELETE, false, true), nil)
 	eq(Gamepad_CatchKey(99, Keys.VK_UP, false, true), nil)
 end)
+
+test("TranslateListKey: inactive leaves every key alone", function()
+	for _, key in ipairs({ Keys.VK_HOME, Keys.VK_END, Keys.VK_TAB, Keys.VK_F14, Keys.VK_F15, Keys.VK_UP }) do
+		local k, c, b = Gamepad.TranslateListKey(key, false, false)
+		eq(k, key); eq(c, false); eq(b, false)
+	end
+	local k, c = Gamepad.TranslateListKey(Keys.VK_TAB, true, false)
+	eq(k, Keys.VK_TAB); eq(c, true)
+end)
+
+test("TranslateListKey: the D-pad becomes the stick's keys, the bumpers the sections", function()
+	local function T(key, ctrl) local k, c, b = Gamepad.TranslateListKey(key, ctrl, true); return { k, c, b } end
+	listeq(T(Keys.VK_HOME, false), { Keys.VK_UP, false, false })
+	listeq(T(Keys.VK_END, false), { Keys.VK_DOWN, false, false })
+	listeq(T(Keys.VK_TAB, false), { Keys.VK_RIGHT, false, false })		-- D-pad right
+	listeq(T(Keys.VK_TAB, true), { Keys.VK_LEFT, false, false })		-- D-pad left
+	listeq(T(Keys.VK_F14, false), { Keys.VK_TAB, true, true })		-- LB: previous section
+	listeq(T(Keys.VK_F15, false), { Keys.VK_TAB, false, true })		-- RB: next section
+	listeq(T(Keys.VK_F14, true), { Keys.VK_F14, true, false })		-- right stick down (Control+F14) is no bumper
+	listeq(T(Keys.VK_UP, false), { Keys.VK_UP, false, false })
+	listeq(T(Keys.VK_F13, false), { Keys.VK_F13, false, false })		-- X stays
+end)
+
+test("PageKey and the Page map entries", function()
+	eq(Gamepad.PageKey(false), Keys.VK_PRIOR)
+	eq(Gamepad.PageKey(true), Keys.VK_NEXT)
+	eq(Gamepad.Key("PageUp"), Keys.VK_PRIOR)
+	eq(Gamepad.ButtonOf(Keys.VK_PRIOR, false), nil)
+end)
+
+test("NoteModeKey follows F22 / F23 without firing the event; Follow tolerates a context without SRListen", function()
+	Gamepad.SetActive(false)
+	fired = {}
+	Gamepad.NoteModeKey(Keys.VK_F22, false)
+	eq(Gamepad.IsActive(), true)
+	Gamepad.NoteModeKey(Keys.VK_F23, false)
+	eq(Gamepad.IsActive(), false)
+	eq(#fired, 0)
+	Gamepad.Follow()
+	Gamepad.Follow()
+end)
+
+test("WrapInput translates GetKey / IsControlDown in controller mode only", function()
+	local function wrapped(spec) return Gamepad.WrapInput(Input(spec)) end
+	Gamepad.SetActive(false)
+	eq(wrapped{ key = Keys.VK_HOME }:GetKey(), Keys.VK_HOME)
+	Gamepad.SetActive(true)
+	local w = wrapped{ key = Keys.VK_HOME }
+	eq(w:GetKey(), Keys.VK_UP)
+	eq(w:IsControlDown(), false)
+	eq(w:GetMessageType(), KeyEvents.KeyDown)
+	local l = wrapped{ key = Keys.VK_F14, up = true }
+	eq(l:GetKey(), Keys.VK_TAB); eq(l:IsControlDown(), true); eq(l:GetMessageType(), KeyEvents.KeyUp)
+	eq(wrapped{ key = Keys.VK_HOME, shift = true }:GetKey(), Keys.VK_HOME)		-- Shift: the keyboard's meaning
+	eq(wrapped{ key = Keys.VK_TAB, ctrl = true }:GetKey(), Keys.VK_LEFT)
+	Gamepad.SetActive(false)
+end)

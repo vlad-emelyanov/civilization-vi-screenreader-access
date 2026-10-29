@@ -214,3 +214,113 @@ test("focusLostSafe: an arrow key clears the guard", function()
 	press(s.list, Keys.VK_RETURN, true)
 	eq(s.activated, "c")
 end)
+
+local function pressC(list, key, up)
+	ClearPrinted()
+	return list.HandleInput(Input{ key = key, up = up, ctrl = true })
+end
+
+local function grouped()
+	return {
+		{ key = "a1", text = "Alpha one", section = "A" }, { key = "a2", text = "Alpha two", section = "A" },
+		{ key = "b1", text = "Beta one", section = "B" }, { key = "b2", text = "Beta two", section = "B" }, { key = "b3", text = "Beta three", section = "B" },
+		{ key = "c1", text = "Gamma one", section = "C" },
+	}
+end
+
+test("KeyNavList_GroupTarget: next / previous group start, wrapping", function()
+	local items = grouped()
+	eq(KeyNavList_GroupTarget(items, 1, 1), 3)
+	eq(KeyNavList_GroupTarget(items, 4, 1), 6)
+	eq(KeyNavList_GroupTarget(items, 6, 1), 1)		-- wraps
+	eq(KeyNavList_GroupTarget(items, 4, -1), 1)
+	eq(KeyNavList_GroupTarget(items, 3, -1), 1)
+	eq(KeyNavList_GroupTarget(items, 1, -1), 6)		-- wraps
+	local t, why = KeyNavList_GroupTarget(abc(), 1, 1)
+	eq(t, nil); eq(why, "none")
+	t, why = KeyNavList_GroupTarget({ { key = "x", text = "X", section = "S" }, { key = "y", text = "Y", section = "S" } }, 1, 1)
+	eq(t, nil); eq(why, "one")
+end)
+
+test("PageDown / PageUp jump between groups and speak the group", function()
+	local s = newList(grouped())
+	s.list.Open("T")
+	eq(press(s.list, Keys.VK_NEXT), true)
+	listeq(Spoken(), { "B: Beta one, 3 of 6" })
+	press(s.list, Keys.VK_NEXT)
+	listeq(Spoken(), { "C: Gamma one, 6 of 6" })
+	press(s.list, Keys.VK_PRIOR)
+	listeq(Spoken(), { "B: Beta one, 3 of 6" })
+	eq(press(s.list, Keys.VK_NEXT, true), true)		-- KeyUp consumed silently
+	listeq(Spoken(), {})
+end)
+
+test("PageDown in a list without groups is consumed and says so", function()
+	local s = newList(abc())
+	s.list.Open("T")
+	eq(press(s.list, Keys.VK_NEXT), true)
+	listeq(Spoken(), { "No groups in this list" })
+end)
+
+test("sectionCounts: the group name comes with its item count", function()
+	local s = newList(grouped(), { sectionCounts = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_NEXT)
+	listeq(Spoken(), { "B, 3: Beta one, 3 of 6" })
+end)
+
+test("controller mode: D-pad up / down move one item, left / right are Left / Right, bumpers are the sections", function()
+	local log = {}
+	local s = newList(abc(), { extraKeys = { [Keys.VK_TAB] = function() table.insert(log, "next") end },
+		ctrlKeys = { [Keys.VK_TAB] = function() table.insert(log, "prev") end } })
+	s.list.Open("T")
+	press(s.list, Keys.VK_END)		-- keyboard: last
+	listeq(Spoken(), { "Gamma, 3 of 3" })
+	press(s.list, Keys.VK_F22)		-- controller mode on
+	press(s.list, Keys.VK_END)		-- D-pad down: one item (wraps to the first)
+	listeq(Spoken(), { "Alpha, 1 of 3" })
+	press(s.list, Keys.VK_HOME)		-- D-pad up
+	listeq(Spoken(), { "Gamma, 3 of 3" })
+	eq(press(s.list, Keys.VK_TAB), false)		-- D-pad right = Right: this list has no horizontal movement
+	eq(pressC(s.list, Keys.VK_TAB), false)
+	eq(#log, 0)
+	press(s.list, Keys.VK_F15); press(s.list, Keys.VK_F15, true)
+	listeq(log, { "next" })
+	ClearPrinted()
+	s.list.HandleInput(Input{ key = Keys.VK_F14, up = true })
+	listeq(log, { "next", "prev" })
+	s.list.HandleInput(Input{ key = Keys.VK_F23 })		-- keyboard again
+	press(s.list, Keys.VK_END)
+	listeq(Spoken(), { "Gamma, 3 of 3" })
+end)
+
+test("controller mode: D-pad right / left move in a horizontal list", function()
+	local s = newList(abc(), { horizontal = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_F22)
+	press(s.list, Keys.VK_TAB)
+	listeq(Spoken(), { "Beta, 2 of 3" })
+	pressC(s.list, Keys.VK_TAB)		-- Left
+	listeq(Spoken(), { "Alpha, 1 of 3" })
+end)
+
+test("controller mode: LB / RB in a list without tabs say so", function()
+	local s = newList(abc())
+	s.list.Open("T")
+	press(s.list, Keys.VK_F22)
+	eq(press(s.list, Keys.VK_F15), true)
+	listeq(Spoken(), {})
+	press(s.list, Keys.VK_F15, true)
+	listeq(Spoken(), { "No tabs here" })
+	press(s.list, Keys.VK_F14, true)
+	listeq(Spoken(), { "No tabs here" })
+end)
+
+test("HasTabs and AtTabEdge", function()
+	local s = newList(abc())
+	eq(s.list.HasTabs(), false)
+	local t = newList(abc(), { extraKeys = { [Keys.VK_TAB] = function() end }, tabEdge = function(step) return step > 0 end })
+	eq(t.list.HasTabs(), true)
+	eq(t.list.AtTabEdge(1), true)
+	eq(t.list.AtTabEdge(-1), false)
+end)

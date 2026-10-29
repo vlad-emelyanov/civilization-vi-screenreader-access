@@ -415,6 +415,7 @@ function TreeNav_Create( a:table )
 		local handled = KeyNavEditBox_HandleInput( input );
 		if handled ~= nil then return handled; end
 		local msg:number = input:GetMessageType();
+		input = Gamepad.WrapInput( input );		-- controller mode: D-pad = arrows (up / down one item), LB / RB = eras
 		if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
 		if input:IsAltDown() then return false; end
 		local key:number = input:GetKey();

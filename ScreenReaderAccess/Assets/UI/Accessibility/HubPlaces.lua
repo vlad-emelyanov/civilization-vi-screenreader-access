@@ -225,9 +225,16 @@ local function UnitItems( ctx:table )
 		if position ~= nil then text = text .. ", " .. position; end
 		local item:table = MakeItem( "u:" .. unit:GetID(), "unit", name, text, plot, ctx );
 		item.unitId = unit:GetID();
+		item.section = name;		-- the unit type: PageUp / PageDown (a held bumper plus up / down) jump from type to type
 		table.insert( items, item );
 	end
-	return SortItems( items );
+	-- by type name, then as everywhere (nearest first)
+	table.sort( items, function( a, b )
+		if a.section ~= b.section then return a.section < b.section; end
+		if a.distance ~= b.distance then return a.distance < b.distance; end
+		return a.key < b.key;
+	end );
+	return items;
 end
 
 -- The names of the visible barbarian soldiers on a (visible) plot: the guards of a camp.
@@ -834,11 +841,22 @@ local function SpeakFocus( prefix:string )
 	end
 end
 
+-- The item a category opens on: the first, except Your units (sorted by type) with a unit selected: that unit.
+local function DefaultFocusKey( cat:table )
+	if cat.name == "Your units" and m_data ~= nil and m_data.ctx ~= nil and m_data.ctx.unit ~= nil then
+		local key:string = "u:" .. m_data.ctx.unit:GetID();
+		for _, item in ipairs( cat.items ) do
+			if item.key == key then return key; end
+		end
+	end
+	return cat.items[1].key;
+end
+
 local function SwitchCategory( delta:number )
 	if m_data == nil then return; end
 	m_cat = ( m_cat - 1 + delta ) % #m_data.cats + 1;
 	local cat:table = m_data.cats[ m_cat ];
-	m_list.Open( "Places", cat.items[1].key, true, true );
+	m_list.Open( "Places", DefaultFocusKey( cat ), true, true );
 	SpeakFocus( CategoryHead( cat ) .. ". " );
 end
 
@@ -1043,13 +1061,15 @@ local m_facade:table = {
 		for _, item in ipairs( cat.items ) do
 			if item.key == key then found = true; end
 		end
-		if not found then key = cat.items[1].key; end
+		if not found then key = DefaultFocusKey( cat ); end
 		m_list.Open( title, key, true );
 		SpeakFocus( title .. ". " .. CategoryHead( cat ) .. ". " .. ( ( m_data.gone ~= nil and m_data.gone ~= "" ) and ( m_data.gone .. ". " ) or "" ) );
 		if HubTargets.GetTargetMode() ~= nil then OutputMessageToScreenReader( SRKey( "Enter" ) .. " moves the target there", true ); end
 	end,
 	Reset = function() m_list.Reset(); end,
 	HandleInput = function( input:table ) return m_list.HandleInput( input ); end,
+	HasTabs = function() return m_list.HasTabs(); end,
+	AtTabEdge = function( step:number ) return m_list.AtTabEdge( step ); end,
 };
 
 -- X on the controller sends a unit there (what M does)
@@ -1063,6 +1083,9 @@ m_list = KeyNavList_Create{
 	onClose		= function() HubCore.CloseMode( true, false ); end,
 	extraKeys	= m_placesKeys,
 	ctrlKeys	= { [Keys.VK_TAB] = function() SwitchCategory( -1 ); end },
+	sectionCounts = true,		-- "Builder, 3: ..." when the focus enters a unit type of Your units
+	-- LB / RB: the categories are sub-stops of the ring; past the last / first one the ring continues (HubPad.BumperAction)
+	tabEdge		= function( step:number ) return m_data == nil or ( step > 0 and m_cat >= #m_data.cats ) or ( step < 0 and m_cat <= 1 ); end,
 };
 
 -- restore: { cat, key } to come back to a category and item (from the unit chooser)

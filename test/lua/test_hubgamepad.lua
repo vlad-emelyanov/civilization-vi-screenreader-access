@@ -22,7 +22,9 @@ HubSettle = { ScanKey = function() table.insert(calls, "scan") end, BrowserFor =
 HubPlaces = { TogglePlaces = function() table.insert(calls, "places") end }
 local cursorX, cursorY = 3, 4
 HubCursor = { GetCursor = function() return cursorX, cursorY end, SelectAtCursor = function() table.insert(calls, "select") end }
-HubPad = { RingNext = function() table.insert(calls, "ring") end, RingPrev = function() table.insert(calls, "ring") end }
+include("HubPad")
+HubPad.RingNext = function() table.insert(calls, "ring") end
+HubPad.RingPrev = function() table.insert(calls, "ring") end
 include("HubGamepad")
 
 local function press(button)
@@ -122,7 +124,7 @@ test("bare map: X opens the selected unit's browser when the cursor is on it, el
 	eq(table.concat(calls, ","), "select")
 end)
 
-test("screen open: LB / RB say how to close it; Menu closes the production panel and opens the game menu", function()
+test("screen open: LB / RB reach the screen; Menu closes the production panel and opens the game menu", function()
 	local said = {}
 	OutputMessageToScreenReader = function(t) table.insert(said, t) end
 	local shown = { ["/InGame/PartialScreens/ProductionPanel"] = true }
@@ -139,7 +141,38 @@ test("screen open: LB / RB say how to close it; Menu closes the production panel
 	eq(press("Menu"), true)
 	eq(table.concat(calls, ","), "")
 	eq(said[1], "Close the screen first, " .. SRKey("Escape") .. " closes it")
-	press("LB")
-	eq(#said, 2)
+	eq(press("LB"), false)		-- LB / RB pass through to the screen (its sections)
+	eq(press("RB"), false)
+	eq(#said, 1)
 	HubCore.IsGamePopupOpen = function() return false end
+end)
+
+test("an open hub list with sections: LB / RB move them, the ring only past the last / first section of a ring list", function()
+	mode = nil
+	local handled = {}
+	local edge = false
+	local list = {
+		HasTabs = function() return true end,
+		AtTabEdge = function() return edge end,
+		HandleInput = function(input) table.insert(handled, "list") return true end,
+	}
+	HubCore.m_mode = { name = "places", list = list }
+	eq(press("RB"), true)
+	eq(table.concat(handled, ","), "list")		-- KeyUp only
+	eq(#calls, 0)
+	edge = true
+	handled = {}
+	eq(press("RB"), true)
+	eq(#handled, 0)
+	eq(table.concat(calls, ","), "can:nil,ring")		-- on to the next ring list
+	HubCore.m_mode = { name = "help", list = list }		-- not a ring list: sections wrap, never the ring
+	handled = {}
+	press("LB")
+	eq(table.concat(handled, ","), "list")
+	eq(#calls, 0)
+	HubCore.m_mode = { name = "lenses", list = { HasTabs = function() return false end } }		-- no sections: the ring
+	press("RB")
+	eq(table.concat(calls, ","), "can:nil,ring")
+	HubCore.m_mode = nil
+	mode = 7
 end)
