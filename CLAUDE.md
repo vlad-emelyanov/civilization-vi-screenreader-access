@@ -21,7 +21,7 @@ The console app must be running for clicks/mouse moves to happen, and for any an
 ## Layout
 
 - `ScreenReaderAccess/Assets/UI/Accessibility/`: mod-only helpers (`ScreenReader.lua`, `KeyboardNavigation.lua`, plot utils, `PlotDescription.lua`). Always read the first two. `HelpText.lua` is the text of the Control+H help list: every new shortcut gets an entry there (Workflow rules).
-- `ScreenReaderAccess/UI/Additions/InGameAccess.{xml,lua}`: the in-game hub context (wiring only: input handler, update loop, `Initialize`); its code is in `Assets/UI/Accessibility/Hub*.lua` modules (map cursor, target modes, placement, menus, regions, city report, events ...; one global table each), see `docs/ingame-plan.md` Architecture and `docs/keynav-guide.md` (where new hub code goes).
+- `ScreenReaderAccess/UI/Additions/InGameAccess.{xml,lua}`: the in-game hub context (wiring only: input handler, update loop, `Initialize`); its code is in `Assets/UI/Accessibility/Hub*.lua` modules (map cursor, target modes, placement, menus, regions, city report, events ...; one global table each), see `docs/features.md` Architecture and `docs/keynav-guide.md` (where new hub code goes).
 - `ScreenReaderAccess/Assets/UI/Frontend/`: front-end screens (MainMenu, AdvancedSetup = Create Game + Advanced Setup, LoadScreen, LoadGameMenu, FrontEndPopup).
 - `ScreenReaderAccess/Assets/UI/{Panels,Popups,ToolTips,Menus}/`, `WorldInput.lua`: in-game UI.
 - `ScreenReaderAccess/Database/*.sql`: input actions / default hotkeys.
@@ -30,37 +30,20 @@ The console app must be running for clicks/mouse moves to happen, and for any an
 
 ## Build and test loop
 
-Lua changes can only be verified in the real game. Use the harness (details in the `civ-test` skill, `.claude/skills/civ-test/SKILL.md`):
+Lua changes can only be verified in the real game. The harness is `util/civctl` (Git Bash; keeps quotes) / `util\civctl.cmd`; **every command, option, exit code and the regress runner are documented in the `civ-test` skill (`.claude/skills/civ-test/SKILL.md`): read it before driving the game.** The commands you use most:
 
 ```
-util\civctl.cmd deploy               # FAST LOOP (~4 s): lints the changed .lua files (util/lint.py; errors refuse the deploy, -NoLint skips), copies them into the running game, which hot-reloads the UI context
-util\civctl.cmd build                # ModBuddy build + deploy to My Games\...\Mods; must print "1 succeeded"; refuses while the game runs (-Force overrides)
-util\civctl.cmd reload InGameAccess.lua   # force a hot reload of a file without content change
-util\civctl.cmd menu                 # is the in-game options menu / a popup open? (Escape with nothing open opens the menu)
-util\civctl.cmd stop; util\civctl.cmd start -Timeout 180   # full restart (~35 s to main menu, ~65 s back in a game)
-util\civctl.cmd key Down             # sends a key, prints the resulting "SR> ..." lines (plain navigation keys inside our own screens: Up, Down, Enter, Escape, Tab, letters)
-util\civctl.cmd action NextUnit      # sends the CURRENT key of a game/mod hotkey (user's InputSettings.json, else the default from Database/*.sql / the game), same output/lock/owner rules as key; errors if the action is unbound. Prefer it to `key` for rebindable hotkeys, also as an `action <Id>` step in test\regress scripts
-util\civctl.cmd keymap              # regenerates .claude/skills/civ-test/keymap.md from InputSettings.json + defaults (no game needed; python util/keybindings.py [--json] [ActionId] prints one binding)
-util/civctl lua InGame 'Game.GetCurrentGameTurn()'   # (Git Bash: `util/civctl`, keeps quotes/spaces; expressions and `return x` are printed) run Lua in a game state via FireTuner (GameCore_Tuner, InGame, InGameAccess, ...); `states` lists them
-util\civctl.cmd autoplay 29 -Save medieval-t100   # AI plays n turns for us (~5-20 s/turn, prints turn numbers every 30 s; run in background), then saves the fixture
-util\civctl.cmd shot                 # screenshot path, view only when output is confusing
-util\civctl.cmd load early-t60       # named fixtures (test\fixtures); also `save <name>`, `newgame <profile>`, `autoplay <n>`
-util\civctl.cmd scenario governor-title   # set up one situation (util\scenarios\*.lua) on a loaded fixture
-util\civctl.cmd regress changed [--base <rev>]  # ONLY the scripts the changes since the last green `regress all` (or --base) can affect: each script has a `# covers: <glob>...` header; core files (ScreenReader/KeyNavList/SRListen/KeyboardNavigation/InGameAccess/HubCore) select all (unless the diff only adds single-line include/AddEvent/Listen/RegisterAction/`.Add(` registrations), other Hub*.lua go by `# covers:` (the end-of-round `regress all` backs this up; if it fails a script `changed` skipped, add the file to that script's `# covers:`); no-header scripts always run; `--dry-run` shows why. The verifier runs this per item
-util\civctl.cmd regress all [--no-share-load] [--no-batch]   # (key/action: -Settle is the max wait, returns after -Quiet ms (default 150; 700 when -Settle >= 1500; explicit wins) without a new SR line, -NoQuiet = fixed wait; the runner uses one `civctl batch` process, --no-batch = one powershell.exe per step) speech regression scripts (test\regress\*.txt), exit 1 on a failed check; a green run records the commit for `changed` (once per round, at the end, after the last merge; ~1 h for 48 scripts, fewer loads since browse-only scripts share). TIMING shows load/keys/settle/wait per script + BREAKDOWN. `all` shares ONE load per fixture, but a script only skips its load when a reset check (one tuner call, `HubCore.TestResetState`: no popup/menu/target mode, turn/gold/units/cities as after the load; it restores cursor and selection) says the game is clean, else it loads fresh; `# options:` and `# own-load: <reason>` scripts (they check the load's own speech) load themselves; `# no-share-load: <reason>` and scenario scripts (anything that changes game state the check cannot see) may start on a clean shared game but the next script loads fresh; a script failing on a shared game is retried fresh. BREAKDOWN shows loads saved and reset-check time. After a mid-round fix rerun only the failing script + `regress changed`. Prints a TIMING table + TOTAL (18 scripts took ~22 min with a load each). One script: `regress <name>`
-CIVCTL_OWNER=<your agent name> util/civctl <command> ...   # REQUIRED for every command that drives the game. Git Bash: PREFIX every call (an `export` does not persist between tool calls). PowerShell: $env:CIVCTL_OWNER='name'. Without it: REFUSED, exit 7 (the message prints this form)
-util\civctl.cmd advance 5            # SETUP/VERIFICATION only (play-tests never use it): the autoplay AI plays our civ for exactly n turns (it resolves every blocker), control returns, turn counter checked
-util\civctl.cmd endturn              # SETUP/VERIFICATION only: request the end of turn (what the End Turn button does; refuses while a blocker is pending and names it with the ActionPanel text, e.g. "Unit needs orders"). Play-tests end turns with Enter like a player
-util\civctl.cmd wait-turn 62 -Timeout 300   # wait until the game is at turn 62 and your turn is active (prints SR> lines, REPORTS open popups, never presses keys); exit 1 on timeout / already past
-util\civctl.cmd clear-advisors       # close advisor popups (Enter only while AdvisorPopup is visible); `load` does this by default (-KeepAdvisors skips it)
-util\civctl.cmd key-release          # release Shift/Control/Alt, both sides (`key` does it after every chord; Shift+Tab is refused: Steam overlay, use Control+Tab)
-util\civctl.cmd fixture-info early-t60   # with that fixture loaded: appends a `facts:` block (cities, districts, buildings, units, trade slots, spies, religion, governors, blockers...) to test\fixtures\early-t60.txt; read these before writing a scenario
-util\civctl.cmd status              # game/console/lock + "in game, turn N" or "front end"
-util\civctl.cmd save bug-foo -Purpose "why"   # named save -> test/fixtures/bug-foo.Civ6Save + .txt (turn, civ, commit)
-util\civctl.cmd load early-start    # load a fixture by name (~30-45 s, from in game or main menu; never LoadGame from InGame)
-util\civctl.cmd fixtures            # list fixtures; util\civctl.cmd newgame <early|crowded|medieval|industrial|modern|modes>  # new game from util/profiles/*.lua (~70 s), saves <profile>-start
-util\civctl.cmd unlock              # release the lease (no owner needed, frees a dead agent's too). Other owners get "game in use by X" (exit 6) until it is released or idle 3 min
-# exit 5 + "GAME CRASHED/HUNG" (key, wait, sr, lua, save, load): stop guessing, `stop`, `start`, `load` the latest fixture. `key` refuses Add/Subtract/numpad keys (JAWS).
+CIVCTL_OWNER=<agent name> util/civctl <cmd> ...   # REQUIRED for every command that drives the game (Git Bash: prefix EVERY call, an export does not persist; PowerShell: $env:CIVCTL_OWNER='name'). Without it: exit 7. Another owner: exit 6 until `unlock` or 3 min idle
+util\civctl.cmd deploy               # FAST LOOP (~4 s): lints changed .lua, copies them into the running game, which hot-reloads the context
+util\civctl.cmd build                # ModBuddy build + deploy; must print "1 succeeded"; refuses while the game runs
+util\civctl.cmd stop; util\civctl.cmd start -Timeout 180   # full restart (~35 s to main menu)
+util\civctl.cmd load early-t60       # load a named fixture (test\fixtures; `fixtures` lists them, sidecar .txt has a facts: block)
+util\civctl.cmd key Down             # send a plain key of our own screens, print the resulting "SR> ..." lines
+util\civctl.cmd action NextUnit      # send the CURRENT binding of a rebindable hotkey (the user rebinds keys: prefer this to `key`)
+util/civctl lua InGame 'Game.GetCurrentGameTurn()'   # run Lua in a game state via FireTuner (`states` lists them)
+util\civctl.cmd regress changed      # speech regression scripts the changes can affect; `regress <name>` one script; `regress all` ONCE per round, at the end
+util\civctl.cmd status | menu | unlock   # where the game is / is a menu or popup open / release the lease
+# exit 5 + "GAME CRASHED/HUNG": stop guessing; stop, start, load the latest fixture
 ```
 
 - **Hot reload (verified):** the game watches the deployed mod folder and re-initialises a UI context ~1 s after one of its Lua files is rewritten in place. It works for the hub (`InGameAccess.lua`), game-file overrides (`NotificationPanel.lua`, `UnitPanel.lua`) and front-end files (`MainMenu.lua`), with or without `EnableTuner`. Use `civctl deploy` (it copies repo -> deployed folder in place and reports Lua errors from the following 2.5 s). A changed included helper (`Hub*.lua`, `HelpText.lua`, ...) does not re-init the contexts that `include` it, so `deploy`/`reload` also rewrite those includers in place (`util/includers.py`, transitive; prints `reloaded <file> (includes <helper>)`). Do NOT run `build` in between: ModBuddy deletes and recreates the whole deployed folder, and the game's file watcher is dead until the game is restarted (edits then silently do nothing). So: `build` once before `start`, then only `deploy` while the game runs. A reload resets that context's state (e.g. the map cursor); the first key after a front-end reload may be swallowed.
@@ -98,6 +81,22 @@ python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install
 - **`.civ6proj`** often contains the user's uncommitted work. Never commit their hunks. Stage only your lines by building the index blob (`git hash-object -w` + `git update-index --cacheinfo`). The file has a UTF-8 BOM; keep it.
 - Keep edits to game files minimal and localized (they're copies of upstream code); put reusable logic in `Accessibility/`. Match the surrounding Lua style (type annotations like `local x:number`, tabs, semicolons).
 - Don't touch untracked personal scripts at the repo root (`build.cmd`, `run.cmd`, `open_log.cmd`, `util/update_assets.bat` which points at the user's other PC).
+
+## Docs map
+
+| Read | When |
+|---|---|
+| `docs/keynav-guide.md` | making a screen or list accessible; where new hub code goes |
+| `docs/speech-guidelines.md` | writing any spoken text (reviewers check against it) |
+| `docs/engine-notes.md` | before calling an engine API you have not used; FORBIDDEN calls; tuner recipes |
+| `docs/features.md` | what the mod does today per area, hub architecture, known gaps |
+| `docs/backlog.md` | open work and accepted limitations |
+| `docs/controller-plan.md` | controller button map and design |
+| `docs/game-content.md` | before planning tests or features (owned content) |
+| `.claude/skills/civ-test/SKILL.md` | driving the game (`civctl`, regress, fixtures) |
+| `.claude/skills/team-lead/SKILL.md` | leading a round of agents |
+
+Where new knowledge goes: engine facts -> `engine-notes.md` (by topic); behaviour and gaps of a feature -> its section in `features.md` (edit in place, present tense, no round logs: history is git); open items -> `backlog.md` (delete them when done); harness usage -> the civ-test skill. Do not add new plan or status files to `docs/`.
 
 ## Implementing keyboard navigation
 

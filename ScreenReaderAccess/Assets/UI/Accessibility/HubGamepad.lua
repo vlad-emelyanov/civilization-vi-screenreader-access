@@ -1,7 +1,7 @@
 -- luacheck: globals HubPad
 -- ===========================================================================
 --	HubGamepad: the controller buttons that are F-keys (docs/controller-plan.md, button map).
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by UI/Additions/InGameAccess.lua, which calls
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by UI/Additions/InGameAccess.lua, which calls
 --	HubGamepad.HandleInput first thing in its input handler and HubGamepad.Init() from Initialize.
 --
 --	The console app sends buttons without a keyboard equivalent as F13..F24 (Gamepad.lua has the table). Here:

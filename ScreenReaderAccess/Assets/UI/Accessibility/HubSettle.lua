@@ -1,7 +1,7 @@
 -- ===========================================================================
 --	HubSettle: settle spot browser (X with a settler), tile browser (X with a builder) and action tile browser
 --	(X with a great person, archaeologist, naturalist or rock band).
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by
 --	UI/Additions/InGameAccess.lua. State and functions other hub modules use are fields of HubSettle.
 -- ===========================================================================
 HubSettle = {};

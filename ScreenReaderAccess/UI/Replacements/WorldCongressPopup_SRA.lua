@@ -2514,7 +2514,7 @@ end
 
 -- ===========================================================================
 -- Begin ScreenReaderAccess mod change
---	Keyboard access and speech for the World Congress (docs/ingame-plan.md, World Congress).
+--	Keyboard access and speech for the World Congress (docs/features.md, World Congress).
 --	Modes (SRA_Mode): "vote" (stage 1 / 2, phase 1: resolutions and proposals to vote on), "summary" (phase 2: review
 --	before submitting), "review" (stage 4: last results / current effects / available proposals tabs). One KeyNavList
 --	per mode, rebuilt from the popup's own state (m_kResolutionVotes, m_kProposalVotes, Game.GetWorldCongress())

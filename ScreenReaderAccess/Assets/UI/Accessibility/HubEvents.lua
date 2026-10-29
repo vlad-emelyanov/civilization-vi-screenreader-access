@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	HubEvents: results of orders, combat and map event announcements.
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by
 --	UI/Additions/InGameAccess.lua. State and functions other hub modules use are fields of HubEvents.
 -- ===========================================================================
 HubEvents = {};

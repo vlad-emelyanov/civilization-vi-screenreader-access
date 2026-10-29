@@ -1,0 +1,43 @@
+# Backlog
+
+Every known open item, one bullet each: why it matters, where to look. Current behaviour is in `docs/features.md`; engine facts in `docs/engine-notes.md`. IDs in brackets (M12, G3d, C4 ...) are the original report IDs, searchable in git history. Remove an item when it is done and verified.
+
+## Open bugs
+
+- **Ranged unit in a city cannot fire (cause unknown).** A Crossbowman and a Catapult in Rome are refused ("no enemy it can target in range") with a barbarian Archer on an adjacent district tile; the city's own ranged attack works. Fixture `bug-ranged-unit-cannot-fire-in-city` (turn 104). Probe `GetAttackTargets` / `GetOperationTargets` for that unit and compare with the game's own highlight; the refusal text is our derived reason (`SRRefusalReason` in `UnitPanel.lua`), the engine gives none.
+- **Enter opens Governors right after a city attack** (`bug-enter-opens-governors`): not reproduced, only mitigation (a 5 s hold-back logs "Enter held back, end-turn label ..."). Check Lua.log for that line if it recurs.
+- **Lugdunum double attack:** an Encampment district attack may fire twice; cause unknown.
+
+## Open features
+
+- **Load screen: browse by paragraph instead of reading everything [M12].** `Frontend/LoadScreen.lua` `AnnounceLoadScreenContent()` queues the whole text (civ, leader, era, leader info, every `m_featureTexts` entry) while the game's narrator ("Dawn of Man" speech, stopped by `STOP_SPEECH_DAWNOFMAN`) reads the era and leader text, so both talk at once. Wanted: speak one short line ("Loading Rome, Trajan. Up and Down read the civilization details, N paragraphs"), keep "Begin Game. Press Enter to start." after loading, and build a paragraph list in screen order (civ and leader, era info, leader info, then one "Name: description" per ability, unique unit and unique building, normal case not `Locale.ToUpper`). Down/Up/Home/End move and interrupt, no auto-reading, keys keep working after loading until Enter. `OnInput` currently handles only Escape and Enter on KeyUp, arrows are free. Check that KeyDown arrives during loading and that the first key after a front-end reload is not swallowed. Add a `HelpText.lua` `keys` entry (help is in game only, so the hint line is the way to learn it). Regress: `# own-load: load screen speech`, Down before the harness presses Enter.
+- **Camp experience hint [G3d]:** one sentence in the camp's Space text in J ("Fighting near it gives your units experience"). Low priority.
+- **Combat preview, better tile [G5 stretch]:** "Attacking from the north would add plus 2 flanking"; needs a `SimulateAttackInto` per neighbour tile.
+- **District spots, purchasable tiles [G7]:** the "District spots" city report line and production Space only consider owned tiles; the positive wording ("Campus plus 3 ...") is unit-tested only. Check a city that could buy a better tile (`DistrictAdvice.lua`, `PlacementScan.lua`).
+- **City-in-danger warning:** the raid line (2+ barbarian soldiers near a city) and the enemy summary exist, but Ostia was captured by England with only attack lines as warning. Needs a rule for at-war civ units near a weakly defended city.
+- **Keyboard path for corps/armies from the production panel, queue reordering/removal, the Manager tab** (`Panels/ProductionPanel.lua`).
+- **Small speech gaps from play-tests:** government screen Down wraps from Confirm to slot 1; End opens the full-screen map silently; a pillaged Library blocking Great Library is not said at pillage time; a purchase blocked by stacking should name the blocking unit; no danger hint before a Barbarian Galley attack; a city production auto-swap to a newer unit is not announced; F2 says "meet a city-state first" while only Free Cities are met; Control+I reads the selected city, not the one under the cursor; "Victor appointed" is spoken before a city is chosen; the front-end `PlotToolTip` includes `ScreenReaderPlotUtils.lua`, which is missing from `FrontEndActionData` (lint warning); auto-explore end is not announced (HubPlaces keeps "exploring" until a player order); WMD/ICBM and PRIORITY_TARGET still use a click.
+- **Silent or thin popups:** Suleiman "remove your spies" popup and Escape behaviour unchecked; advisor re-shown over a completed popup not reached.
+
+## Unverified in game (code and unit tests only)
+
+- **Units:** archaeologist, naturalist and rock band activation tiles (no fixture; spawn after Natural History with revealed antiquity sites); blocked-upgrade hint for an unresearched target tech; Deploy/Patrol to a real carrier or airstrip; "Launching" before a real nuke; war-confirm cancel during a nuke strike; corps -> army, fleet/armada names, fleets in real play; coastal raid, sacrifice, hero commands; the `HubPlaces.OrderHint` "Shift+W wakes it" branch (Sleep is refused for every unit tried); which `GetActivityType` an auto-exploring unit has.
+- **Barbarians:** scout "escaped" / "killed" lines and "Raid near Rome continues" over real turns (scenario scouts have no tribe and are never flagged: use a fixture's own scout, e.g. `pt-early-t78`); auto-explore "Too close to Tribal Village"; clan conversion; goody hut rewards other than faith and the boost-from-hut line (text function only).
+- **Screens:** an actual government change and its anarchy variant; World Congress "You have no vote in this session" (`bug-congress-skipped` is saved after the session), "Proposals submitted", "Joined/Rejected the emergency"; congress turn-start line when a unit is selected (blocker branch verified); deal when Accept vanishes ("names the invalid items", offline only); help entries S (deal) and the congress keys (read in code only); Make peace with a city-state; wonder built popup (`WonderBuiltPopup.lua`, no fixture); end-game victory variant (`Events.TeamVictory`; defeat variant verified); advisor "Tell me more" into the Civilopedia (only the event was fired); Coal/Niter stockpiles, power plants' tile text, railroads; Staging Room client side.
+- **Fixtures to build:** Oil + Flight (air and carriers beyond the scenario), an archaeologist with antiquity sites, a wonder built by you.
+- **Real pad needed [controller]:** the held-RT-as-Shift rule (Shift+Right while F17 is held), the console app's RT-as-Shift, and the pad aliases of government, religion, trade, great works, rankings, civilopedia and options screens (unit tests only); whether the engine reacts to a pad by itself; Steam Input must be off.
+- **Numpad Divide** (closes the era panel, lens keys) never reaches the game from the harness; the real keyboard is untested (Control+E works). A lens turned on with the mouse and the same-frame lens key race cannot be tested.
+- **Hotseat / multiplayer** in game, and game modes the user does not own (see `docs/game-content.md`).
+
+## Accepted limitations (do not chase)
+
+- Trade routes have no "turns left" (no field in the route data); the Trade overview filter pulldown, the Reports gossip filters and World Rankings overflow tabs are unreachable.
+- Civilopedia reads stats before the description; city specialist "+N each" and builder yield changes are base values; secret-society governors are skipped (not owned).
+- The settle browser reads live owner/resource/feature of revealed fogged plots; deal items do not repeat the section name; the deal open focus names the first choosable item; Enter in the Deal section removes an item by design.
+- The Religion screen shows stale faith until the next turn (engine); an AI deal "Item no longer available" and an AI deal rejection give no reason (game text); the turn-start block is re-spoken after a popup cut it off (by design).
+- Rebase range is not exposed by the engine; the unit-experience API `UnitExperience:CanPromote` does not exist.
+- Two upstream Runtime Errors in non-mod files (`CityPanel.lua:1149`, `StrategicView_MapPlacement.lua:321`); upstream `EraReviewPopup.OnGameDebugReturn` errors if hot-reloaded while open.
+- A production panel open during a hot reload goes dead (reopen works); the tuner on a hot-reloaded context can reach a stale duplicate state (restart first).
+- A city created by a tuner scenario shows a raw `LOC_CITY_NAME_*`; the city capture popup opens through the notification, not by itself.
+- Natural disaster popups have counts only (`GameRandomEvents.GetCurrentTurnEventAtPlot`), no list of pillaged buildings.
+- Harness: a contaminated `UserOptions.txt` (`TutorialLevel -1`) makes advisor scripts fail with no advisor popup; check with `python util/testopts.py status`.

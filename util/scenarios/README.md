@@ -25,23 +25,12 @@ then the code. Rules:
 - Do not save over the play-through chain; setup is for the loaded test game only.
 - Each script is self-contained (no `include`) and idempotent where possible.
 
-## Fixtures
+## Scripts
 
-All four scripts are verified on `early-t60` (turn 60, AI-played: capital, builder-capable land, nine met-able city-states,
-Gathering Storm). Advisor popups of that game can swallow the first keys: close them with Enter (`civctl menu` does not list
-them). Never save a scenario-modified game over a fixture.
-
-## Scripts (all verified 2026-10-22 on `early-t60`; run with `civctl scenario <name>`)
-
-| Script | Fixture | Situation | Press afterwards |
-|---|---|---|---|
-| `enemy-at-capital` | `early-t60` | barbarian warrior next to the capital | `X` (nearest foreign unit), `W` |
-| `governor-title` | `early-t60` | 1 governor title ready | `F10` |
-| `envoys-to-give` | `early-t60` | 3 envoy tokens, all city-states met | `F2` |
-| `builder-by-forest` | `early-t60` | builder on an owned tile next to a forest | `Tab` on the builder / `I` on the forest |
-| `trader-in-capital` (unverified) | `medieval-t100` | a Trader in the capital | select it: the game opens its trade route chooser by itself (see `t100-trade-route`) |
-| `prophet-ready` | `medieval-t100` (needs a pantheon + a completed Holy Site) | UNVERIFIED: a Great Prophet on the Holy Site | select it, `Tab`, Found Religion |
-| `end-game` (unverified) | any loaded game | the end-game screen (defeat variant) via `LuaEvents.ShowEndGame`; UI state: `civctl lua InGameAccess -File util\scenarios\end-game.lua` | Escape ends the movie, then Tab / Control+Tab switch pages |
+Each script's header names its fixture, its status (verified or written blind) and the keys to press afterwards:
+`head -4 util/scenarios/*.lua`. Most also have a `test/regress/<name>.txt` script that runs them. Advisor popups queued by a
+load or by the scenario can swallow the first keys: close them with Enter (`civctl menu` does not list them). Never save a
+scenario-modified game over a fixture.
 
 ## Know the fixture before assuming
 

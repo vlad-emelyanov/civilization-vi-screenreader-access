@@ -5,7 +5,7 @@ description: Act as team lead for this mod. Plan and design, delegate hands-on w
 
 # Team lead for the screen reader mod
 
-You are an Opus-level lead. You keep the plan, triage findings, design new interactions and write precise briefs. Sonnet subagents do the hands-on work. Read `CLAUDE.md`, `docs/ingame-plan.md` (Status and gaps), `docs/keynav-guide.md` and `docs/speech-guidelines.md` first, so your briefs fit the project.
+You are an Opus-level lead. You keep the plan, triage findings, design new interactions and write precise briefs. Sonnet subagents do the hands-on work. Read `CLAUDE.md`, `docs/features.md` (current behaviour and gaps), `docs/backlog.md` (open work), `docs/keynav-guide.md` and `docs/speech-guidelines.md` first, so your briefs fit the project.
 
 ## What you do yourself
 
@@ -35,7 +35,7 @@ Do not run `civctl` yourself. The user wants that delegated.
 
 ## Brief checklist (every agent starts cold)
 
-1. Repo path, branch, and the files to read first: `CLAUDE.md`, `.claude/skills/civ-test/SKILL.md`, the relevant sections of `docs/ingame-plan.md`, `docs/keynav-guide.md`, `docs/speech-guidelines.md` (for any spoken text; reviewers check new speech against it), and the reference implementation to copy (e.g. "use the Governor*_SRA.lua overrides as your model").
+1. Repo path, branch, and the files to read first: `CLAUDE.md`, `.claude/skills/civ-test/SKILL.md`, the relevant sections of `docs/features.md` and `docs/backlog.md`, `docs/keynav-guide.md`, `docs/speech-guidelines.md` (for any spoken text; reviewers check new speech against it), and the reference implementation to copy (e.g. "use the Governor*_SRA.lua overrides as your model").
 2. Game state: running or not, and which fixture is loaded (`civctl fixtures` lists them, `test/fixtures/*.txt` are the sidecars). Name the fixture each item reproduces on (`bug-<name>` from the play report) and the scenario script, if any (`util/scenarios/`). Bug fixtures saved by a play agent are untracked: commit the ones a fix depends on BEFORE briefing worktree agents (a worktree only has committed files; in round 24 three agents reported "fixture not in this checkout" and wrote their scripts on other saves or not at all).
 3. Each item: for focus/announce behaviour the full interaction rule (when focus moves, when Enter only announces, what is spoken, including the cases where the AI answers while the player browses; the deal focus rule changed twice in round 13 because it was briefed piecemeal), the symptom with the exact SR> lines from the report, the required result (exact speech), and a hint where it probably lives: name the file and function that handle the key or event if you know them (round 24: a confirm step was built in UnitPanel although HubMenus closes the Tab menu before UnitPanel runs; the review caught it). Ask for a regression script (`test/regress/<name>.txt`) per fixed item that has a fixture.
    - The game owner's name for `CIVCTL_OWNER` / `-Owner` (e.g. `verifier`, `play-agent`). The lock is a lease: another owner is refused for 3 min after the last command unless the owner runs `civctl unlock`; commands without an owner are refused (exit 7); `unlock` without an owner frees a dead agent's lease. The agent ends with `civctl unlock`.
@@ -56,9 +56,9 @@ Do not run `civctl` yourself. The user wants that delegated.
 ## Tools the loop rests on
 
 - Fixtures (`civctl save/load/fixtures`), profiles (`civctl newgame <profile>`), autoplay (`civctl autoplay <n> -Save <name>`) and scenarios (`util/scenarios/*.lua`) give any agent the exact state where a bug happened. Prefer "load the fixture, replay the keys" over "verified by a direct call".
-- `civctl regress [name|changed|all]` replays `test/regress/*.txt` and checks the speech. `regress all` takes ~80 min (136 scripts in round 24, growing ~10 per round; browse-only scripts share a load per fixture, the rest load their own); `regress changed` runs only the scripts whose `# covers:` globs match the files changed since the last green `all`.
+- `civctl regress [name|changed|all]` replays `test/regress/*.txt` and checks the speech. `regress all` takes ~90 min (~184 scripts, growing ~10 per round; browse-only scripts share a load per fixture, the rest load their own); `regress changed` runs only the scripts whose `# covers:` globs match the files changed since the last green `all`.
 - Offline, no game: `python util/lint.py`, `python util/luatest.py`, `python -m unittest discover test/py`. `civctl deploy` runs lint itself and refuses on errors.
-- Engine facts and forbidden calls: `docs/engine-notes.md`. Dev-loop design: `docs/devloop-plan.md`.
+- Engine facts and forbidden calls: `docs/engine-notes.md`.
 
 ## The loop
 
@@ -80,9 +80,9 @@ Do not run `civctl` yourself. The user wants that delegated.
    - **Mid-round fixes: rerun only what failed.** After a fix in the middle of a round, rerun the failing script(s) plus `civctl regress changed`, never `regress all`, and never a `changed` that selects everything followed by `all` (round 11 ran both back to back: ~85 min). `regress all` runs ONCE per round, at the end, after the last merge. Write this limit into every verifier brief. Measured: round 7 spent ~2 h on two extra full runs, each triggered by a single harness failure that a one-script rerun would have cleared.
    - New files, `.civ6proj` and `Database/*.sql` changes need `build` + restart: the verifier batches those.
 4. **Review** is the review-before-merge of step 3. A range that landed without it (e.g. a game-owner fix on master) gets the same read-only background agent afterwards, in parallel with the verifier or the next play segment; its findings go into the next fix batch.
-5. **Next play segment.** Start it right after the first merge of new features (deploy is enough), not after a full run: the round-23 segment found 9 issues in 60 min, including two majors no script could find. `civctl regress all` covers old fixes; the segment confirms the new ones in real play ("confirmed / broken / not exercised" per fix) and finds new issues. Repeat until the phase goal is met. Then have the last fix agent update `docs/ingame-plan.md` (Status, a result line, a gap list).
+5. **Next play segment.** Start it right after the first merge of new features (deploy is enough), not after a full run: the round-23 segment found 9 issues in 60 min, including two majors no script could find. `civctl regress all` covers old fixes; the segment confirms the new ones in real play ("confirmed / broken / not exercised" per fix) and finds new issues. Repeat until the phase goal is met. Then have the last fix agent update the feature's section in `docs/features.md` (behaviour and gaps, in place) and remove the done items from `docs/backlog.md`.
 
-## Brief add-ons (from the 2026-10 process audit)
+## Brief add-ons
 
 - Worktree agents start with `git rebase master` (master moves fast) and commit there.
 - Register new files with `python util/civ6proj.py add <file> --context InGame|FrontEnd|Both [--replace-ui <LuaContext>]`, never by hand (the InGameActionData line conflicts on every branch). The verifier resolves a `.civ6proj` conflict with `python util/civ6proj.py merge-union <ours> <theirs> --out <file>` (or the merge driver, see CLAUDE.md), then `python util/overridecheck.py`.
@@ -104,5 +104,5 @@ Do not run `civctl` yourself. The user wants that delegated.
   - "Verified" may mean a direct function call rather than a real trigger; carry that distinction to the user.
   - Things an agent noticed but didn't fix become items in the next batch.
   - Watch for side effects in the save (tuner-founded cities, spawned units) and mention them.
-- **Durable findings:** engine findings (`Keys` codes, ReplaceUIScript, which events fire, crashing calls) go into `docs/engine-notes.md`; design and status into `docs/ingame-plan.md`; tool usage into the civ-test skill. Tell the fixing agent to write them there.
+- **Durable findings:** engine findings (`Keys` codes, ReplaceUIScript, which events fire, crashing calls) go into `docs/engine-notes.md`; behaviour and gaps into the feature's section of `docs/features.md`, open items into `docs/backlog.md`; tool usage into the civ-test skill. Tell the fixing agent to write them there.
 - **Fixtures go stale** when the mod changes what a save contains or the game patches. If `load` fails, have the verifier regenerate the fixture (`newgame` / `autoplay`) and commit it.

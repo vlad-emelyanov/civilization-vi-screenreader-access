@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	HubLenses: the lenses list (a ring list of the controller, see HubPad.lua and docs/controller-plan.md).
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by UI/Additions/InGameAccess.lua.
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by UI/Additions/InGameAccess.lua.
 --	One item per lens action that LensText knows (the number keys): "Appeal lens, off". Enter toggles the lens exactly like
 --	its number key (the same input action is triggered, so MinimapPanel switches the lens and the hub's registered action
 --	LensText_OnKey speaks the result); the list stays open, the next Up/Down shows the new state. Space: the legend.

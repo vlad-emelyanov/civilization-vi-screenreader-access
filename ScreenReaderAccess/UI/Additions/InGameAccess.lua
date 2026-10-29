@@ -1,5 +1,5 @@
 -- ===========================================================================
---	InGameAccess: screen reader hub for the in-game UI (see docs/ingame-plan.md).
+--	InGameAccess: screen reader hub for the in-game UI (see docs/features.md).
 --	A context without visuals, added to InGame (UI/Additions/InGameAccess.xml). It owns
 --	  - the map cursor (Shift+Arrows) and its plot announcements,
 --	  - the in-game hotkeys (I plot details, . cursor to selection, J places list, N what is next, Tab unit actions),
@@ -7,7 +7,7 @@
 --	    Shift+Arrows through this context's input handler (see the bottom of the file),
 --	  - the regions: top panel (Control+Y), notifications (Control+N) and the city report (Control+I), with arrivals announced,
 --	  - event announcements: unit/city selected, new turn, end of turn, unit results, enemies spotted.
---	Input order (verified, see docs/ingame-plan.md): this context's input handler runs before WorldInput and
+--	Input order (verified, see docs/features.md): this context's input handler runs before WorldInput and
 --	ActionPanel; a key it consumes (KeyDown and KeyUp) also never becomes an input action.
 -- ===========================================================================
 
@@ -85,7 +85,7 @@ function Hub.EnterFallback()
 end
 
 -- ===========================================================================
---	INPUT HANDLER: runs before WorldInput and ActionPanel (see docs/ingame-plan.md, Input order)
+--	INPUT HANDLER: runs before WorldInput and ActionPanel (see docs/features.md, Input order)
 -- ===========================================================================
 function Hub.HandleInput( input:table )
 	local msg:number = input:GetMessageType();
@@ -228,7 +228,7 @@ function Hub.RegisterAction( name:string, handler )
 	m_actions[ id ] = HubCore.Safe( name, handler );
 end
 
--- Hub modules (Accessibility/Hub*.lua), see docs/ingame-plan.md
+-- Hub modules (Accessibility/Hub*.lua), see docs/features.md
 include( "Gamepad" );		-- the controller key table (HubRegions / HubPlaces use it for X)
 include( "HubCore" );
 include( "HubCursor" );

@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	HubPlaces: the places list (J) and "send a unit here" (M), unit activity words.
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by
 --	UI/Additions/InGameAccess.lua. State and functions other hub modules use are fields of HubPlaces.
 --
 --	J opens a keyboard list in categories (empty ones are skipped), every item sorted by distance from the reference plot

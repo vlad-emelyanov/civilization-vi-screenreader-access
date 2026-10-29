@@ -1,5 +1,5 @@
 -- ===========================================================================
---	DistrictAdvice: which district fits a city best, and where (docs/beginner-guide-gaps.md G7).
+--	DistrictAdvice: which district fits a city best, and where (docs/features.md, City report).
 --
 --	Pure wording (unit tested, test/lua/test_districtadvice.lua):
 --	  DistrictAdvice_Line( entries ) -> "District spots: Campus plus 3 (2 tiles north-east), Holy Site plus 2. Theater Square: no spot with a bonus"

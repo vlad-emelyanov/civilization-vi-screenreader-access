@@ -3330,7 +3330,7 @@ include("DiplomacyDealView_", true);
 
 -- ===========================================================================
 -- Begin ScreenReaderAccess change: keyboard navigation and speech for the deal screen
--- (docs/ingame-plan.md, "Deal screen"). Four sections, Tab / Shift+Tab cycle through them:
+-- (docs/features.md, Diplomacy and deals). Four sections, Tab / Shift+Tab cycle through them:
 --   1 Deal         what is in the deal (Enter or Delete removes an item, Left/Right change an amount)
 --   2 Your items   what you can add (the records the Populate* functions keep in m_srAvail)
 --   3 Their items  the same for the other side

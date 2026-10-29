@@ -1,5 +1,5 @@
 -- ===========================================================================
---	BlindSpots: pure helpers of the places list (J) for barbarian camps and vision (docs/beginner-guide-gaps.md G3c, G10).
+--	BlindSpots: pure helpers of the places list (J) for barbarian camps and vision (docs/features.md, Places list).
 --	Needs only Map (and the plot objects it returns) and a visibility object, so test/lua/test_blindspots.lua runs it on a stub map.
 --
 --	* Camp wording: "Barbarian Camp, 7 tiles north-east of Rome, guarded by Spearman (last seen 2 turns ago)".

@@ -4,55 +4,39 @@
 
 ## Introduction
 
-Sid Meier's Civilization VI is a superb turn based empire building strategy game. It has many mechanics, systems and features to help aspiring world changing leaders work towards world domination. However, one thing it lacks, is good accessibility features to help those with low and no vision, or those who have difficulty reading large amounts of text.
+Sid Meier's Civilization VI is a superb turn based empire building strategy game. One thing it lacks is accessibility for people with low or no vision, or who have difficulty reading large amounts of text.
 
-This mod has been written with the aim of allowing people who use screen readers to read the text on screen and allowing them access to the UI so that they can play the game at an equal level to their piers.
+This mod lets people who use a screen reader play the game with the keyboard (or an Xbox controller) and speech, at an equal level to their peers. It covers the front end (main menu, game setup, load game, options, multiplayer lobby) and the game itself: a map cursor, unit orders, the production/research/civic choosers, the city report, notifications, diplomacy and deals, city-states, governors, religion, trade, World Congress and most other screens. Control+H in game lists every shortcut.
 
-## Methodology
+Content supported: the base game and Gathering Storm (which includes the Rise and Fall systems), plus the free Barbarian Clans and Tech and Civic Shuffle modes. Other DLC is untested.
 
-Civilization VI modders have access to a number of gameplay mechanics and changes, but cannot integrate with systems outside of the game very well. This has posed somewhat of a challenge for outputting screen reader information to players. These restrictions include:
+## How it works
 
-* Any DLL/FFI (library) calls. This means that screen reader specific calls cannot be made directly from a mod
-* HTTP calls. This means that a web app (local or remote) could not be used
-* Saving files to the file system, which means that messages could not be saved to a separate file and read out by an external application.
-* Writing rows to a database, which means even though the database uses databases very heavily for mod changes, we cannot use this as a place to get live changes to feed to a screen reader via a separate process.
+Civilization VI mods cannot call DLLs, make HTTP calls, write files or write database rows at run time. One of the few channels out of the game is Lua's `print`, which lands in `Lua.log`. The mod prints lines with special prefixes, so genuine log messages are never read out.
 
-One of the few options therefore left to us is to output log messages using LUA's standard print function, which is then logged into the lua.log file in a player's Civ VI game's directory. We include a special prefix so that we do not accidentally pick up and try and read out genuine, non screenreader specific log messages.
+A separate console application (`ScreenreaderAccess.Console`, .NET 10, Windows) watches `Lua.log`. It speaks the prefixed lines through the player's screen reader (using the [AccessibleOutput](https://github.com/saqibS/accessibleOutput) package) and, where a screen still needs it, moves or clicks the real mouse. The console app must be running while you play.
 
-To read this, there is a completely separate console application that has a file watch on the lua.log file. When it detects lines that match our screenreader marker, it will use a DLL call (managed by the [AccessibleOutput NuGet package](github.com/saqibS/accessibleOutput)) to tell a player's screenreader to read the message aloud.
+The mod itself consists of:
 
-The mod part of this application currently focuses on getting these key bits of information out to the players. This includes what plots are selected, what menu items are highlighted, what announcements and notifications occur and nearby enemies and cities. We do this by:
-
-* When we can, intercepting in game events and reacting accordingly
-* When no event exists for the event we'd like to respond to, we overwrite the existing base game front end LUA file and make our changes in there.
-
-The latter is more time consuming (since reading and understanding the code is therefore required), as well as introduces greater risks of incompatibilities, being broken by upstream changes, and could introduce mod incompatibilities with other mods that also modify this same file. However, it is all too often necessary.
-
-## Current blockers to release
-
-* The AccessibleOutput package we use is currently not ported to .NET Standard, and therefore the console application will require .NET Framework. It is invisioned that this could be a blocker to some installs of the mod. Currently investigation is ongoing as to whether to proceed with this package and if so, if we can port it to .NET Standard. The project has been dormant for 7 years now, but is still actively used by other mods (such as for Stardew Access), and unlike some of its rivals, actually works on my machine.
-* Having built zip for install
-* Writing out mod usage and description for Steam Workshop.
-* Making it abundantly clear that this is a work in progress and will not yet work for people without an ability to use the mouse. This is currently still mouse dependent and for some screen reader users this is a blocker. In these cases, we're not yet in a position to help.
-
-## Contributing
-
-To get this mod to the eventual end goal of this game being playable by people with all levels of sight and reading ability, it will be a significant effort, so any help is appreciated. We happily take advice, contributions and feedback.
-
-### Development environment setup
-
-Some of these are adaptable to personal taste (with the exception of Civ VI and the development kit).
-
-* Base game: [Civilization VI](https://store.steampowered.com/app/289070/Sid_Meiers_Civilization_VI/)
-* SDK: [Civilization VI Development Tools](https://steamdb.info/app/404350/).
-* [Visual Studio](https://visualstudio.microsoft.com/) or
-* [Visual Studio Code](https://code.visualstudio.com/)
-
-Note for screen reader users: Even though Modbuddy features its own mini version of Visual Studio, the code editing windows are not accessible to screen readers. This is why you will need VS or VSCode. You will also need VS or VSCode to do any work on the ScreenReader.Console. However, Modbuddy is a good way to do any changes to the mod itself.
-
+* a hub context (`ScreenReaderAccess/UI/Additions/InGameAccess`) with its modules in `ScreenReaderAccess/Assets/UI/Accessibility/Hub*.lua`: global hotkeys, the map cursor, keyboard lists and event announcements;
+* modified copies of the game's own Lua UI files where no event exists to hook into. These are more work and risk conflicts with other mods that change the same files, but are often necessary.
 
 ## Controller
 
-The console app also turns an Xbox-style controller (XInput) into keyboard input for the game: it injects Enter, Escape, Space, the arrows, Home/End, Tab and F13-F24 (and Control+F13..F16 for the right stick) while Civilization VI is in the foreground; the mod's hub then reads those keys. The button map is in `docs/controller-plan.md`. Hold RT to use the left stick, D-pad and A with Shift (Shift+Arrows, Shift+Home/End, Shift+Enter; D-pad left/right stay Tab / Control+Tab); the console app does not send the RT release after such use. F22/F23 tell the mod when controller mode switches on or off, and F13-F24 are used as the controller's extra keys, so do not bind them yourself.
+The console app also turns an Xbox-style controller (XInput) into keyboard input for the game: it injects Enter, Escape, Space, the arrows, Home/End, Tab and F13-F24 (and Control+F13..F16 for the right stick) while Civilization VI is in the foreground; the mod's hub then reads those keys. The button map is in `docs/controller-plan.md`. Hold RT to use the left stick, D-pad and A with Shift (Shift+Arrows, Shift+Home/End, Shift+Enter; D-pad left/right stay Tab / Control+Tab). F22/F23 tell the mod when controller mode switches on or off, and F13-F24 are used as the controller's extra keys, so do not bind them yourself. Spoken key hints name the controller button when the pad was used last.
 
 Steam Input must be disabled for the game (Steam library, Civilization VI, Properties, Controller, "Disable Steam Input"), otherwise every press arrives twice. Start the console app with `--no-gamepad` to turn the feature off, or `--gamepad-log` to print every key it sends.
+
+## Contributing
+
+Help, advice and feedback are welcome.
+
+### Development environment
+
+* Base game: [Civilization VI](https://store.steampowered.com/app/289070/Sid_Meiers_Civilization_VI/)
+* SDK: [Civilization VI Development Tools](https://steamdb.info/app/404350/) (ModBuddy builds the mod)
+* [Visual Studio](https://visualstudio.microsoft.com/) or [Visual Studio Code](https://code.visualstudio.com/), and the .NET 10 SDK for the console app
+
+Note for screen reader users: ModBuddy's code editing windows are not accessible to screen readers, so edit the code in VS or VS Code; ModBuddy is still the way to build the mod.
+
+Developer documentation: `CLAUDE.md` (architecture, layout, build and test loop, workflow rules) and the `docs/` folder (how to make a screen accessible, speech rules, engine notes, feature status, backlog).

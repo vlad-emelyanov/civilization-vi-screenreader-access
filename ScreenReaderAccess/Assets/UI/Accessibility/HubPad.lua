@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	HubPad: the controller ring (LB / RB), see docs/controller-plan.md ("The ring").
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by UI/Additions/InGameAccess.lua.
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by UI/Additions/InGameAccess.lua.
 --	RB opens the next list of the ring, LB the previous one. HubGamepad (the button dispatch) calls HubPad.RingNext() and
 --	HubPad.RingPrev() by global name at key time. The entries open their list through functions that always open (the
 --	keyboard shortcuts keep their toggle behaviour).

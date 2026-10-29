@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	HubOverview: the area overview list (Shift+J, action KeyNavAreaOverview).
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by UI/Additions/InGameAccess.lua.
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by UI/Additions/InGameAccess.lua.
 --
 --	A macro view of the map around the map cursor, for a player who has no minimap: items "Area" (terrain, coast, river,
 --	resources within 3 tiles), "Continent" (size known, extent, cities, unexplored edges) and one item per compass direction

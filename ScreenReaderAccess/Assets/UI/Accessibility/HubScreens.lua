@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	HubScreens: the screens list (a ring list of the controller, see HubPad.lua and docs/controller-plan.md).
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by UI/Additions/InGameAccess.lua.
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by UI/Additions/InGameAccess.lua.
 --	One item per screen of the launch bar and the partial-screen hooks. Enter closes the list and opens the screen through
 --	the function the game's own button runs: the hub fires LuaEvents.SRA_OpenScreen( name ); our LaunchBar.lua and
 --	PartialScreenHooks.lua (mod-change blocks) run that function and answer LuaEvents.SRA_ScreenOpened( name, ok ) in the

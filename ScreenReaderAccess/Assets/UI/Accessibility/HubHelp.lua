@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	HubHelp: the accessibility help list (Control+H, action KeyNavHelp), read-only.
---	Part of the InGameAccess hub (see docs/ingame-plan.md, Architecture): included by UI/Additions/InGameAccess.lua.
+--	Part of the InGameAccess hub (see docs/features.md, Architecture): included by UI/Additions/InGameAccess.lua.
 --	The text is Accessibility/HelpText.lua (the one place for shortcut descriptions, keep it up to date); this module
 --	only shows it, in the pattern of the places list (HubPlaces): sections with entries.
 --

@@ -1,6 +1,6 @@
 -- ===========================================================================
 --	ResourceTech: which tech / civic unlocks the improvement of a resource, for the tile text, the builder browser,
---	the tech and civics trees and the city report (docs/beginner-guide-gaps.md, G1).
+--	the tech and civics trees and the city report (docs/features.md, Settler and builder browsers).
 --
 --	The rule is the game's own (ToolTips/PlotToolTip.lua): Improvement_ValidResources names the improvements of a resource,
 --	the improvement's PrereqTech / PrereqCivic says what is missing. For a listed resource the engine ignores the terrain and
