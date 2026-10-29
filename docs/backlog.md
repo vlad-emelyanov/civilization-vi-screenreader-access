@@ -7,6 +7,7 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - **Ranged unit in a city cannot fire (cause unknown).** A Crossbowman and a Catapult in Rome are refused ("no enemy it can target in range") with a barbarian Archer on an adjacent district tile; the city's own ranged attack works. Fixture `bug-ranged-unit-cannot-fire-in-city` (turn 104). Probe `GetAttackTargets` / `GetOperationTargets` for that unit and compare with the game's own highlight; the refusal text is our derived reason (`SRRefusalReason` in `UnitPanel.lua`), the engine gives none.
 - **Enter opens Governors right after a city attack** (`bug-enter-opens-governors`): not reproduced, only mitigation (a 5 s hold-back logs "Enter held back, end-turn label ..."). Check Lua.log for that line if it recurs.
 - **Lugdunum double attack:** an Encampment district attack may fire twice; cause unknown.
+- **In-game Load Game hangs at the Continue Game screen** (no speech, Enter does nothing, tuner unreachable; both via Escape > Load Game > confirm and via Network.LeaveGame+LoadGame from the LoadGameMenu state; see engine-notes FORBIDDEN). Unknown whether the game or our LoadScreen.lua causes it: test with the mod disabled. Workaround: load from the main menu. The harness does not detect this hang (status stays running).
 
 ## Open features
 
