@@ -48,9 +48,20 @@ test("menu keys stay unique for items with the same tag and name (two WMD strike
 		eq(seen[item.key], nil)
 		seen[item.key] = true
 	end
-	eq(items[1].key, "7|WMD Strike")
-	eq(items[2].key, "7|WMD Strike#2")
-	eq(items[3].key, "7|WMD Strike#3")
+	-- available first (stable), then the unavailable ones
+	eq(items[1].key, "7|WMD Strike#3")
+	eq(items[2].key, "8|Delete")
+	eq(items[3].key, "7|WMD Strike")
+	eq(items[4].key, "7|WMD Strike#2")
+end)
+
+test("menu order: unavailable actions after the available ones, relative order kept", function()
+	local r = HubMenus.AvailableFirst({
+		{ key = "a", choosable = false }, { key = "b", choosable = true }, { key = "c", choosable = false },
+		{ key = "d", choosable = true }, { key = "e" } })
+	local keys = {}
+	for _, it in ipairs(r) do table.insert(keys, it.key) end
+	eq(table.concat(keys, ","), "b,d,e,a,c")
 end)
 
 test("rebase / deploy result names the target", function()

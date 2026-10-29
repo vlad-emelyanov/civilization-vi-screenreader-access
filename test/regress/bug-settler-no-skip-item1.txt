@@ -17,10 +17,10 @@ expect (?i)^(cannot sleep|sleep)
 # the Tab menu (Browse settle spots first, then the actions) lists Skip Turn as unavailable with the reason
 key Tab -Settle 1000
 expect (?i)actions
-key Down -Settle 300
-key Down -Settle 300
-key Down -Settle 300
-key Down -Settle 300
+key End -Settle 300
+key Up -Settle 300
+key Up -Settle 300
+key Up -Settle 300
 expect (?i)skip turn.*unavailable
 key Escape -Settle 500
 no-lua-errors

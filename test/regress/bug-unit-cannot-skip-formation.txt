@@ -11,6 +11,8 @@ expect (?i)cannot skip.*stacked with Crossbowman.*move one
 action Fortify -Settle 1200
 expect (?i)cannot fortify.*stacked with
 key Tab -Settle 1200
-key Down -Count 3 -Settle 600
+# unavailable actions are listed last
+key End -Settle 600
+key Up -Count 3 -Settle 600
 expect (?i)skip turn.*unavailable.*stacked with
 no-lua-errors

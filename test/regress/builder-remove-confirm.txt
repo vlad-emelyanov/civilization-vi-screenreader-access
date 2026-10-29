@@ -9,6 +9,7 @@ lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:Get
 key Tab -Settle 1500
 expect Builder actions, \d+ options
 expect ^Browse tiles to improve
+# unavailable actions are listed last now: if the builder has any, End is no longer Delete (UNVERIFIED after the available-first order; re-record)
 key End -Settle 600
 key Up -Settle 600
 expect Remove Improvement, \d+ of \d+

@@ -11,7 +11,6 @@ expect Fighter actions
 key Down -Settle 600
 key Down -Settle 600
 key Down -Settle 600
-key Down -Settle 600
 expect Re-Base, key Shift\+R
 key Escape -Settle 800
 key Shift+R -Settle 1500
