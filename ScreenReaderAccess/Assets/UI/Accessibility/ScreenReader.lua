@@ -99,6 +99,18 @@ end
 -- A key name in spoken text. The console app speaks `keyboard` when the player last used the keyboard, and the controller
 -- button when they last used the pad: `button` (a Gamepad.Map name such as "X", "LT", "RSClick", or a literal phrase),
 -- else the default button of `keyboard` (Enter = A, Escape = B, Tab = D-pad right ...), else `keyboard`.
+-- Stable partition: available entries (choosable ~= false) first, unavailable ones after them, each group in its old order.
+function SRAvailableFirst( items:table )
+	local result:table = {};
+	for _, item in ipairs( items ) do
+		if item.choosable ~= false then table.insert( result, item ); end
+	end
+	for _, item in ipairs( items ) do
+		if item.choosable == false then table.insert( result, item ); end
+	end
+	return result;
+end
+
 function SRKey( keyboard:string, button:string )
 	if button ~= nil and button ~= "" then return "[KEY:" .. keyboard .. "|" .. button .. "]"; end
 	return "[KEY:" .. keyboard .. "]";

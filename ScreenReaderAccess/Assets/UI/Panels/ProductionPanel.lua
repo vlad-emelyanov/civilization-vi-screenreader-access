@@ -2426,7 +2426,11 @@ function OnStrategicViewMapPlacementProductionOpen( bWasCancelled:boolean )
 	elseif bWasCancelled then
 		Open();
 	end
-	SRA_AnnounceIfPending();	-- ScreenReaderAccess
+	-- ScreenReaderAccess: the game reopens the panel after a placement only in queue mode (like CloseAfterNewProduction keeps it
+	-- open there). The placed item has left the list, so the old focus is stale: announce afresh (a fresh focus, the new current
+	-- production in the title) instead of leaving Enter on a vanished item ("Item no longer available").
+	if not bWasCancelled and m_srActive and not ContextPtr:IsHidden() then m_srAnnouncePending = true; end
+	SRA_AnnounceIfPending();
 end
 
 -- ===========================================================================
@@ -3481,6 +3485,7 @@ function Initialize()
 		isActive = function() return m_srActive and not ContextPtr:IsHidden() and m_CurrentListMode ~= -1; end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
+		sectionCounts = true,		-- "Units, 12: Warrior, ..." when PageUp / PageDown enter a group (like the J list)
 		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
 		extraKeys = { [Keys.VK_TAB] = SRA_NextTab },
 		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab },

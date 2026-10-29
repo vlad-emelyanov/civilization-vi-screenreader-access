@@ -66,3 +66,12 @@ test("Cannot: foreign tile, engine reasons, water, unowned", function()
 	eq(PlacementScan_Cannot(scan, plot), "")
 	eq(PlacementScan_Cannot(scan, nil), "")
 end)
+
+test("Sort: tiles needing an unaffordable purchase go after every placeable tile", function()
+	local function c(i, owned, short, total) return { plotIndex = i, owned = owned, shortBy = short, total = total, removes = {}, distance = i } end
+	local scan = { kind = "district", list = { c(1, false, 80, 5), c(2, true, nil, 0), c(3, false, 0, 1), c(4, false, 20, 9) } }
+	PlacementScan_Sort(scan)
+	local ids = {}
+	for _, it in ipairs(scan.list) do table.insert(ids, it.plotIndex) end
+	eq(table.concat(ids, ","), "3,2,4,1")
+end)

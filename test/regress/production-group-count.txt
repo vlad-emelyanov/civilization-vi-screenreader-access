@@ -1,0 +1,12 @@
+# Written blind (not verified in game; run with --record first). The production panel's PageDown group jump says the group with its item count ("Units, 12: Warrior, ..."), like the J units list.
+# covers: **/ProductionPanel.lua **/KeyNavList.lua
+# no-share-load: opens the production panel
+load pt-play-t120
+clear-advisors
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2500 -Quiet 700
+expect (?i)choose production
+key PageDown -Settle 1000
+expect ^[^,]+, \d+: .*, \d+ of \d+
+key Escape -Settle 1200
+no-lua-errors

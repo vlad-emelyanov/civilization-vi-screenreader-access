@@ -4713,6 +4713,13 @@ local function SRBuildActions()
 						reason = ( unit ~= nil and unit:GetMovesRemaining() <= 0 ) and "no moves left" or "not available for this unit now";
 						detail = detail .. ". " .. reason;
 					end
+					-- Delete Unit: the game's tooltip is only the name, so Space repeated it. Enter asks yes/no first (OnPromptToDeleteUnit).
+					if action.userTag ~= nil and SRTypeName( action.userTag ) == "UNITCOMMAND_DELETE" then
+						local bare:string = string.lower( string.gsub( detail, "[%s%.]+$", "" ) );
+						if bare == "" or bare == string.lower( SRActionName( action, tooltip ) ) then
+							detail = "Removes the unit permanently. Asks before deleting.";
+						end
+					end
 					if reason == "not possible on this tile" or isTransfer then
 						table.remove( m_srActions ); -- noise: a build action that cannot be done on this tile / a disabled Transfer for a unit that is no trader
 					else

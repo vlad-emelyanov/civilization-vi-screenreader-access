@@ -7,7 +7,7 @@
 --	scan: { kind, hash, name, typeName, city, cityName, purchaseYield, list = { candidates, best first }, byIndex = { plot index ->
 --	        candidate }, best = candidate|nil, owned = number of tiles the city owns among them }
 --	candidate: { key = "p:<plot index>", plotIndex, x, y, owned = true when the city owns the tile and can build now,
---	             tileCost = gold for the tile (only when not owned), yields = { { index, name, amount } }, total = sum of the
+--	             tileCost = gold for the tile (only when not owned), shortBy = gold missing for it (> 0: sorted after all placeable tiles), yields = { { index, name, amount } }, total = sum of the
 --	             adjacency yields (plus housing), housing = number|nil, adjacency = { yield sentence, ... } as text for
 --	             speech ("plus 3 Science"), explanation = the game's adjacency explanation (Space), removes = { "Woods", "Deer" },
 --	             notes = { other engine conditions }, relative = "2 tiles north-east", distance }
@@ -211,13 +211,18 @@ local function _MakeCandidate( scan:table, plot:table, owned:boolean )
 		candidate.removes = _Contents( plot );
 		local ok:boolean, cost = pcall( function() return city:GetGold():GetPlotPurchaseCost( plot:GetIndex() ); end );
 		candidate.tileCost = ( ok and cost ~= nil ) and cost or 0;
+		candidate.shortBy = math.max( 0, candidate.tileCost - ( scan.gold or 0 ) );		-- > 0: the purchase cannot be paid now
 	end
 	return candidate;
 end
 
-local function _Sort( scan:table )
+-- Tiles that need a purchase the player cannot afford (shortBy > 0) go after every placeable tile (owned or affordable).
+function PlacementScan_Sort( scan:table )
 	local isDistrict:boolean = ( scan.kind == "district" );
 	table.sort( scan.list, function( a, b )
+		local aShort:boolean = ( a.shortBy or 0 ) > 0;
+		local bShort:boolean = ( b.shortBy or 0 ) > 0;
+		if aShort ~= bShort then return bShort; end
 		if isDistrict and a.total ~= b.total then return a.total > b.total; end
 		if a.owned ~= b.owned then return a.owned; end
 		if #a.removes ~= #b.removes then return #a.removes < #b.removes; end
@@ -231,6 +236,8 @@ function PlacementScan_Scan( city:table, kind:string, hash:number, purchaseYield
 		kind = kind, hash = hash, city = city, cityName = Locale.Lookup( city:GetName() ), purchaseYield = purchaseYield,
 		list = {}, byIndex = {}, best = nil, owned = 0, blocked = 0, blockedReason = nil,
 	};
+	local okGold:boolean, gold = pcall( function() return math.floor( Players[ city:GetOwner() ]:GetTreasury():GetGoldBalance() ); end );
+	scan.gold = okGold and gold or 0;
 	local row:table;
 	if kind == "district" then
 		row = GameInfo.Districts[ hash ];
@@ -291,7 +298,7 @@ function PlacementScan_Scan( city:table, kind:string, hash:number, purchaseYield
 		end
 	end
 
-	_Sort( scan );
+	PlacementScan_Sort( scan );
 	scan.best = scan.list[1];
 	return scan;
 end

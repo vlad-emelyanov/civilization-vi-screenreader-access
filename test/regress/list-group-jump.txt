@@ -1,6 +1,6 @@
 # Written blind (2026-10-29, not yet verified in game; run with --record first). PageDown / PageUp in a list jump to the first item of the next / previous group (item.section):
 # the production panel (districts and buildings / wonders / units / projects) and the Places list, Your units (grouped by unit type, spoken with the count: "Builder, 1: Builder, ...").
-# A list without groups says so, and PageDown never reaches the game (it would open the Climate screen). Keyboard run; the pad sends the same keys while LB / RB is held.
+# Production groups say their count ("Units, 12: Warrior, ..."), like Your units. A list without groups says so, and PageDown never reaches the game (it would open the Climate screen). Keyboard run; the pad sends the same keys while LB / RB is held.
 # Fixture early-t60: units BUILDER x1, GREAT_GENERAL x2, SCOUT x2, SPEARMAN x1, WARRIOR x1 (types sort Builder, Great General, Scout, Spearman, Warrior).
 # covers: **/KeyNavList.lua **/ProductionPanel.lua **/HubPlaces.lua
 # no-share-load: opens the production panel and J
@@ -11,11 +11,11 @@ lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapita
 key Tab -Settle 2000
 expect (?i)choose production
 key PageDown -Settle 1000
-expect ^[^,]+: .*, \d+ of \d+
+expect ^[^,]+, \d+: .*, \d+ of \d+
 key PageDown -Settle 1000
-expect ^[^,]+: .*, \d+ of \d+
+expect ^[^,]+, \d+: .*, \d+ of \d+
 key PageUp -Settle 1000
-expect ^[^,]+: .*, \d+ of \d+
+expect ^[^,]+, \d+: .*, \d+ of \d+
 expect-not (?i)climate
 key Escape -Settle 1200
 # Places, Your units (category 2 once the two barbarians are gone)

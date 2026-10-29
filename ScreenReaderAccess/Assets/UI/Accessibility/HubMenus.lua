@@ -140,14 +140,7 @@ end
 
 -- Stable partition: available actions first, unavailable ones after them, each group in its old order.
 function HubMenus.AvailableFirst( items:table )
-	local result:table = {};
-	for _, item in ipairs( items ) do
-		if item.choosable ~= false then table.insert( result, item ); end
-	end
-	for _, item in ipairs( items ) do
-		if item.choosable == false then table.insert( result, item ); end
-	end
-	return result;
+	return SRAvailableFirst( items );
 end
 
 -- What an action says once it ran. A great person's "Activate Mary Leakey: <effect>" becomes "Mary Leakey activated: <effect>",
