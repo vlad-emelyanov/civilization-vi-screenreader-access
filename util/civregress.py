@@ -618,6 +618,7 @@ class ScriptResult:
         self.clean_checks = 0
         self.times = {}      # seconds spent in civctl per step kind (load, key, action, wait, lua, scenario, clear-advisors, ...)
         self.settle = 0.0    # seconds of the key/action time that are the scripted -Settle sleeps
+        self.log = []        # every line the script printed (the results log takes the FAIL details from it)
         self.records = []    # record mode: {"line", "kind", "pattern", "ok", "window": [text]} per check that ran
 
     @property
@@ -633,11 +634,16 @@ def settle_seconds(arg):
     return (int(m.group(1)) if m else 600) * (int(c.group(1)) if c else 1) / 1000.0
 
 
-def run_script(name, steps, runner, out=print, skip_load=False, on_settled=None):
+def run_script(name, steps, runner, out=print, skip_load=False, on_settled=None, counter=""):
     """Executes the steps. Raises LockedError on exit 6. Returns ScriptResult.
     on_settled: called once after a REAL load, when the game has settled (after the first clear-advisors, or before the first
     step that acts on the game): run_all takes the baseline of the reset check there."""
     res = ScriptResult(name)
+    raw_out = out
+
+    def out(line):
+        res.log.append(line)
+        raw_out(line)
     capture_due = False
     window = []         # [(raw, text)] since the last check
     checked = False     # the window has been looked at: the next action starts a new one
@@ -786,7 +792,7 @@ def run_script(name, steps, runner, out=print, skip_load=False, on_settled=None)
     res.skipped_all = res.skipped > 0 and res.passed + res.failed == 0
     if res.skipped_all:
         out("   WARNING: SKIPPED-ALL: every check of this script was skipped by the shared load; it checked nothing (add '# own-load: <reason>')")
-    out("   -> %d passed, %d failed%s%s" % (res.passed, res.failed, ", %d skipped" % res.skipped if res.skipped else "",
+    out("   %s-> %d passed, %d failed%s%s" % (counter, res.passed, res.failed, ", %d skipped" % res.skipped if res.skipped else "",
                                            ", ABORTED: " + res.aborted if res.aborted else ""))
     return res
 
@@ -910,7 +916,12 @@ def order_scripts(scripts):
 def simulate_loads(scripts, share_load=True):
     """Offline model of run_all's load sharing (every reset check answers clean, nothing aborts or fails): returns
     (number of game loads, {fixture: loads}, [names of the scripts that load]). scripts: ordered [(name, steps)]."""
-    total, per, loaders = 0, {}, []
+    return simulate_loads_each(scripts, share_load)[:3]
+
+
+def simulate_loads_each(scripts, share_load=True):
+    """simulate_loads plus a fourth item: the expected number of loads of each script (same order as scripts)."""
+    total, per, loaders, each = 0, {}, [], []
     current, current_opts = None, frozenset()
     for idx, (name, steps) in enumerate(scripts):
         f = first_fixture(steps)
@@ -922,6 +933,7 @@ def simulate_loads(scripts, share_load=True):
             per[fx] = per.get(fx, 0) + 1
         if loads:
             loaders.append(name)
+        each.append(len(loads))
         nxt = scripts[idx + 1][1] if idx + 1 < len(scripts) else None
         opts = getattr(steps, "options", frozenset())
         loaded = all_loads[-1] if all_loads else None
@@ -930,19 +942,24 @@ def simulate_loads(scripts, share_load=True):
             current, current_opts = loaded, opts
         else:
             current, current_opts = None, frozenset()
-    return total, per, loaders
+    return total, per, loaders, each
 
 
-def retry_failed(results, scripts, runner, out=print, switch=None):
+def retry_failed(results, scripts, runner, out=print, switch=None, progress=None):
     """End-of-run flake retry: every failed (or aborted, not locked) script runs once more with a fresh load. A pass counts
     (r.flaky = verdict of the first attempt, r.first_verdict, the retry replaces the result); a second failure stays a failure
     (r.second_attempt_failed). Both attempts' verdict lines are printed."""
     by_name = dict(scripts)
+    todo = [r.name for r in results if not (r.ok or r.aborted == "locked" or r.name not in by_name)]
+    if progress:
+        progress.retry_phase(todo)
     for i, r in enumerate(results):
         if r.ok or r.aborted == "locked" or r.name not in by_name:
             continue
         steps = by_name[r.name]
         first = verdict_line(r)
+        if progress:
+            progress.retry_begin(r.name, first_fixture(steps), first)
         out("RETRY %s (end of run, fresh load); first attempt: %s" % (r.name, first))
         opts = getattr(steps, "options", frozenset())
         steps.advisor_off = switch is not None and "advisor" not in opts
@@ -950,7 +967,7 @@ def retry_failed(results, scripts, runner, out=print, switch=None):
         try:
             if switch is not None and opts:
                 _switch_options(switch, opts, out)
-            r2 = run_script(r.name, steps, runner, out, skip_load=False)
+            r2 = run_script(r.name, steps, runner, out, skip_load=False, counter=progress.counter() if progress else "")
         except LockedError as e:
             out("LOCKED: %s" % e)
             break
@@ -969,6 +986,8 @@ def retry_failed(results, scripts, runner, out=print, switch=None):
             r2.second_attempt_failed = True
             out("STILL FAILING %s: first attempt %s; retry %s" % (r.name, first, r2.retry_verdict))
         results[i] = r2
+        if progress:
+            progress.retry_done(r2)
     return results
 
 
@@ -977,7 +996,7 @@ def verdict_line(r):
     return "%d passed, %d failed%s" % (r.passed, r.failed, ", ABORTED: " + r.aborted if r.aborted else "")
 
 
-def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=False):
+def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=False, progress=None):
     """Returns a list of ScriptResult. scripts: [(name, steps)] (already ordered).
     Load sharing: a script may skip its load when the previous script left the same fixture AND a reset check proved the game is
     back in the state a fresh load gives (reset_check: nothing open, hub in plain map mode, turn/gold/units/cities as right
@@ -1013,17 +1032,20 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=Fal
         on_settled = settled if want_baseline else None
         holder.clear()
         t0 = time.time()
+        if progress:
+            progress.begin(name, f)
+        counter = progress.counter() if progress else ""
         opts = getattr(steps, "options", frozenset())
         steps.advisor_off = switch is not None and "advisor" not in opts
         try:
             if switch is not None and opts != active_opts:
                 _switch_options(switch, opts, out)   # scripts with identical options in a row keep them (one load serves them)
                 active_opts = opts
-            r = run_script(name, steps, runner, out, skip_load=skip, on_settled=on_settled)
+            r = run_script(name, steps, runner, out, skip_load=skip, on_settled=on_settled, counter=counter)
             if skip and not r.ok and not r.aborted and r.failed:
                 out("  RETRY %s with its own load (it failed on the game left by the previous script)" % name)
                 holder.clear()
-                r = run_script(name, steps, runner, out, skip_load=False, on_settled=on_settled)
+                r = run_script(name, steps, runner, out, skip_load=False, on_settled=on_settled, counter=counter)
                 r.retried = True
             if "baseline" in holder:
                 baseline = holder["baseline"]
@@ -1058,19 +1080,21 @@ def run_all(scripts, runner, share_load=False, out=print, switch=None, retry=Fal
             break
         r.seconds = time.time() - t0
         results.append(r)
+        if progress:
+            progress.script_done(r)
     if switch is not None and active_opts:
         _switch_options(switch, (), out)
         active_opts = frozenset()
     if retry:
-        retry_failed(results, scripts, runner, out, switch)
+        retry_failed(results, scripts, runner, out, switch, progress)
     return results
 
 
-def run_with_test_options(scripts, runner, share, use_test_options=True, out=print, testopts_mod=None, retry=False):
+def run_with_test_options(scripts, runner, share, use_test_options=True, out=print, testopts_mod=None, retry=False, progress=None):
     """run_all under the test game options (testopts.py on ... restore in a finally, also after a crashed game: restore then
     edits UserOptions.txt). use_test_options=False (--real-options): plain run_all. Manual recovery: python util/testopts.py restore"""
     if not use_test_options:
-        return run_all(scripts, runner, share, out, retry=retry)
+        return run_all(scripts, runner, share, out, retry=retry, progress=progress)
     try:
         if testopts_mod is None:
             sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))   # python -I (civctl regress) has no util/ on sys.path
@@ -1080,14 +1104,238 @@ def run_with_test_options(scripts, runner, share, use_test_options=True, out=pri
             raise RuntimeError("testopts on refused")
     except Exception as e:
         out("WARNING: test options not applied (%s); running with the real options" % e)
-        return run_all(scripts, runner, share, out, retry=retry)
+        return run_all(scripts, runner, share, out, retry=retry, progress=progress)
     try:
-        return run_all(scripts, runner, share, out, switch=testopts_mod.switch, retry=retry)
+        return run_all(scripts, runner, share, out, switch=testopts_mod.switch, retry=retry, progress=progress)
     finally:
         try:
             testopts_mod.cmd_restore(out)
         except Exception as e:
             out("WARNING: could not restore the user's options (%s): run  python util/testopts.py restore" % e)
+
+
+class Progress:
+    """Progress file of a run: %TEMP%/civctl/regress-progress.txt, rewritten atomically after every script (`civctl regress-status`
+    prints it). scripts: the ordered [(name, steps)] of the run; share: load sharing on (for the expected loads per script);
+    label: 'all' / 'changed' / script names; retry: the end-of-run retry phase is enabled."""
+
+    def __init__(self, scripts, share, label, retry=False, directory=None, pid=None, clock=time.time):
+        self.total = len(scripts)
+        self.fixtures = {n: first_fixture(st) for n, st in scripts}
+        self.results_path = os.path.join(os.path.dirname(progress_path(directory)), "regress-results.txt")
+        self.each = simulate_loads_each(scripts, share_load=share)[3]
+        self.label, self.retry, self.clock = label, retry, clock
+        self.path = progress_path(directory)
+        self.pid = os.getpid() if pid is None else pid
+        self.start = clock()
+        self.done = self.loads = self.shared = 0
+        self.load_secs = self.script_secs = 0.0
+        self.failed = []            # names of the scripts failing right now
+        self.now = None             # (name, fixture, is_retry)
+        self.phase = "main"
+        self.retry_total = self.retries_done = 0
+        self.finished = None        # text of the final line
+        self.results_line("regress %s started %s" % (label, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(self.start))), fresh=True)
+        self.write()
+
+    # --- events
+    def begin(self, name, fixture):
+        self.now = (name, fixture, False)
+        self.write()
+
+    def counter(self):
+        if self.phase == "retry":
+            return "[retry %d/%d] " % (min(self.retries_done + 1, self.retry_total), self.retry_total)
+        return "[%d/%d] " % (min(self.done + 1, self.total), self.total)
+
+    def _account(self, r):
+        self.loads += r.loads
+        self.shared += 1 if r.load_skipped else 0
+        self.load_secs += r.times.get("load", 0.0)
+        self.script_secs += r.seconds
+
+    def results_line(self, text, fresh=False):
+        """Appends (flushed, closed) to the per-script results log; fresh = start a new file. Never fails the run."""
+        try:
+            os.makedirs(os.path.dirname(self.results_path), exist_ok=True)
+            with open(self.results_path, "w" if fresh else "a", encoding="utf-8") as fh:
+                fh.write(text + "\n")
+        except OSError:
+            pass
+
+    def script_done(self, r):
+        self.results_line(result_line(self.counter(), r, self.fixtures.get(r.name)))
+        self.done += 1
+        self._account(r)
+        if not r.ok:
+            self.failed.append(r.name)
+        self.now = None
+        self.write()
+
+    def retry_phase(self, names):
+        self.phase, self.retry_total, self.retries_done = "retry", len(names), 0
+        self.write()
+
+    def retry_begin(self, name, fixture, first=None):
+        self.now = (name, fixture, True)
+        self.results_line("RETRY %s (end of run, fresh load); first attempt: %s" % (name, first))
+        self.write()
+
+    def retry_done(self, r2):
+        self.results_line(result_line(self.counter(), r2, self.fixtures.get(r2.name)))
+        if r2.ok:
+            self.results_line("FLAKY %s: first attempt %s; retry %s" % (r2.name, r2.first_verdict, r2.retry_verdict))
+        else:
+            self.results_line("STILL FAILING %s: first attempt %s; retry %s" % (r2.name, r2.first_verdict, r2.retry_verdict))
+        self.retries_done += 1
+        self._account(r2)
+        if r2.ok and r2.name in self.failed:
+            self.failed.remove(r2.name)
+        self.now = None
+        self.write()
+
+    def end(self, text):
+        self.finished = text
+        self.now = None
+        self.results_line("finished %s, %s" % (time.strftime("%H:%M", time.localtime(self.clock())), text))
+        try:
+            stamp = time.strftime("%Y-%m-%d_%H%M%S", time.localtime(self.start))
+            shutil.copyfile(self.results_path, os.path.join(os.path.dirname(self.results_path), "regress-results-%s.txt" % stamp))
+        except OSError:
+            pass
+        self.write()
+
+    # --- text
+    def estimate_seconds(self):
+        """Seconds left, a simple estimate: expected loads of the remaining scripts x measured average load cost + remaining
+        scripts x measured average non-load time + the retries still to come (one fresh load + one run each). None before
+        the first script is done."""
+        if self.done == 0:
+            return None
+        avg_load = self.load_secs / self.loads if self.loads else 0.0
+        avg_rest = max(self.script_secs - self.load_secs, 0.0) / self.done
+        if self.phase == "retry":
+            rem_n, rem_loads, retries = 0, 0, self.retry_total - self.retries_done
+        else:
+            rem_n, rem_loads = self.total - self.done, sum(self.each[self.done:])
+            retries = len(self.failed) if self.retry else 0
+        return rem_loads * avg_load + rem_n * avg_rest + retries * (avg_load + avg_rest)
+
+    def render(self):
+        t = self.clock()
+        stamp = lambda x: time.strftime("%H:%M", time.localtime(x))
+        elapsed = format_elapsed(t - self.start)
+        if self.finished is not None:
+            lines = ["regress %s started %s, finished %s, elapsed %s" % (self.label, stamp(self.start), stamp(t), elapsed)]
+        else:
+            lines = ["regress %s started %s, elapsed %s" % (self.label, stamp(self.start), elapsed)]
+        if self.finished is not None:
+            pending = 0
+        elif self.phase == "retry":
+            pending = self.retry_total - self.retries_done
+        else:
+            pending = len(self.failed) if self.retry else 0
+        lines.append("scripts: %d of %d done (%d passed, %d failed), %d retries pending" % (
+            self.done, self.total, self.done - len(self.failed), len(self.failed), pending))
+        lines.append("loads: %d done (%d shared so far)" % (self.loads, self.shared))
+        if self.finished is not None:
+            lines.append("finished %s, %s" % (stamp(t), self.finished))
+        else:
+            if self.phase == "retry":
+                lines.append("retrying %d failed script%s (%d done)" % (self.retry_total, "" if self.retry_total == 1 else "s", self.retries_done))
+            if self.now:
+                name, fixture, is_retry = self.now
+                lines.append("now: %s%s (fixture %s)" % ("retry of " if is_retry else "", name, fixture or "-"))
+            est = self.estimate_seconds()
+            lines.append("estimate: ~%s left" % format_left(est) if est is not None else "estimate: not yet (no script done)")
+        if self.failed:
+            lines.append("failed so far: " + ", ".join(self.failed))
+        lines.append("results log: %s" % self.results_path)
+        lines.append("runner pid: %d" % self.pid)
+        return lines
+
+    def write(self):
+        text = "\n".join(self.render()) + "\n"
+        tmp = self.path + ".tmp"
+        try:
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            with open(tmp, "w", encoding="utf-8") as fh:
+                fh.write(text)
+            os.replace(tmp, self.path)
+        except OSError:
+            pass   # progress is a convenience: never fail the run for it
+
+
+def result_line(counter, r, fixture):
+    """One line of regress-results.txt (+ indented failure details for a failed script):
+    '[81/184] PASS name 5 checks (fixture, 12.3 s, shared load)' / '[82/184] FAIL name: 3 passed, 1 failed (fixture, 12.3 s, fresh load)'.
+    The details are the FAIL lines the runner printed for the script, with the SR> lines the expect saw, and the recorded output path."""
+    counter = counter.strip()
+    info = "%s, %.1f s, %s" % (fixture or "no fixture", r.seconds, "shared load" if r.load_skipped else "fresh load")
+    if r.ok:
+        return "%s PASS %s %d checks (%s)" % (counter, r.name, r.passed, info)
+    head = "%s FAIL %s: %d passed, %d failed%s (%s)" % (counter, r.name, r.passed, r.failed, ", ABORTED: " + r.aborted if r.aborted else "", info)
+    lines = [head]
+    keep = False
+    for l in r.log:
+        if l.startswith("  FAIL"):
+            keep = True
+        elif l.startswith("  ") and not l.startswith("       "):
+            keep = False
+        if keep:
+            lines.append(("    " if l.startswith("  FAIL") else "        ") + l.strip())
+    rec = os.path.join(REGRESS_DIR, r.name + ".recorded.txt")
+    if os.path.exists(rec):
+        lines.append("    recorded output: " + rec)
+    lines.append("    script: " + os.path.join(REGRESS_DIR, r.name + ".txt"))
+    return "\n".join(lines)
+
+
+def progress_path(directory=None):
+    return os.path.join(directory or timing_dir(), "regress-progress.txt")
+
+
+def format_elapsed(sec):
+    sec = int(sec)
+    h, rem = divmod(sec, 3600)
+    return "%dh %02dm %02ds" % (h, rem // 60, rem % 60) if h else "%dm %02ds" % (rem // 60, rem % 60)
+
+
+def format_left(sec):
+    return "%d min" % max(1, int(round(sec / 60.0)))
+
+
+def progress_status(directory=None, alive=None):
+    """Text of `civctl regress-status`: the progress file of a live run, else 'no regress run in progress' + the last summary."""
+    alive = alive or _pid_alive
+    path = progress_path(directory)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+        age = time.time() - os.path.getmtime(path)
+    except OSError:
+        return "no regress run in progress (no progress file yet)"
+    m = next((re.match(r"runner pid: (\d+)", l) for l in lines if l.startswith("runner pid:")), None)
+    pid = int(m.group(1)) if m else 0
+    rpath = os.path.join(os.path.dirname(path), "regress-results.txt")
+    fails = results_failures(rpath)
+    if fails:
+        lines = lines + ["failures so far (details and SR> lines in %s):" % rpath] + ["  " + f for f in fails]
+    if any(l.startswith("finished ") for l in lines[1:]):
+        return "no regress run in progress. Last run:\n" + "\n".join(lines)
+    if not alive(pid):
+        return ("no regress run in progress (the last run ended without a summary; runner pid %d is gone). Its last progress:\n" % pid
+                + "\n".join(lines))
+    return "\n".join(lines) + "\n(updated %s ago)" % format_elapsed(age)
+
+
+def results_failures(path):
+    """The FAIL lines (without details) of a results log."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            return [l.rstrip() for l in fh if " FAIL " in l and l.startswith("[")]
+    except OSError:
+        return []
 
 
 def _switch_options(switch, groups, out):
@@ -1537,6 +1785,7 @@ def main(argv=None):
     ap.add_argument("--no-retry", action="store_true", help="`all` / `changed` retry each failed script once with a fresh load at the end (a pass = FLAKY, run still green); this disables it")
     ap.add_argument("--impact", nargs="+", metavar="TEXT", help="offline: list the expect lines of test/regress/*.txt that match (regex) or contain any of these old texts, then exit")
     ap.add_argument("--impact-diff", metavar="REV", help="offline: like --impact with the string literals (>= 4 chars) removed from ScreenReaderAccess/**/*.lua in the diff against REV")
+    ap.add_argument("--progress", action="store_true", help="print the progress of the running regress (civctl regress-status): no owner, no game")
     ap.add_argument("--clear-advisors", action="store_true", help="only close the advisor popups of the loaded game (civctl clear-advisors)")
     a = ap.parse_args(argv)
     if a.impact or a.impact_diff:
@@ -1549,6 +1798,9 @@ def main(argv=None):
             texts += removed_literals(diff)
             print("old texts: %d" % len(texts))
         print_impact(texts)
+        return 0
+    if a.progress:
+        print(progress_status())
         return 0
     if a.clear_advisors:
         owner = a.owner or os.environ.get("CIVCTL_OWNER")
@@ -1598,19 +1850,25 @@ def main(argv=None):
     if share:
         print("(sharing one load per fixture when the reset check says the game is clean; '# own-load:' and '# options:' scripts load fresh, '# no-share-load' and scenario scripts end the sharing; --no-share-load disables)")
     t0 = time.time()
+    retrying = (run_everything or changed_mode) and not a.no_retry and not record
+    label = "all" if run_everything else "changed" if changed_mode else " ".join(a.names) if len(" ".join(a.names)) < 60 else "%d scripts" % len(scripts)
     ok, lock = acquire_run_lock()
     if not ok:
         print(lock)
         return 8
+    progress = None   # only after the lock: a refused second run must not touch the live run's progress / results files
     try:
+        progress = Progress(scripts, share, label, retry=retrying)
         runner = CivctlRunner(owner=owner, batch=not a.no_batch)
         try:
             results = run_with_test_options(scripts, runner, share, not a.real_options,
-                                            retry=(run_everything or changed_mode) and not a.no_retry and not record)
+                                            retry=retrying, progress=progress)
         finally:
             runner.close()
     finally:
         release_run_lock(lock)
+        if progress is not None and progress.finished is None:
+            progress.end("run ended early (no SUMMARY: aborted, crashed or refused)")
     if run_everything and not record and results and all(r.ok for r in results) and len(results) == len(scripts):
         head = git_head()
         if head:
@@ -1632,15 +1890,17 @@ def main(argv=None):
             print("WARNING: could not write the timing file (%s)" % e)
     p = sum(r.passed for r in results)
     f = sum(r.failed for r in results)
-    print("\nSUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (
+    summary = ("SUMMARY: %d scripts, %d checks passed, %d failed%s%s" % (
         len(results), p, f, "; aborted: " + ", ".join(r.name for r in results if r.aborted) if any(r.aborted for r in results) else "",
         "; SKIPPED-ALL: " + ", ".join(r.name for r in results if r.skipped_all) if any(r.skipped_all for r in results) else ""))
+    print("\n" + summary)
     for r in results:
         if r.flaky:
             print("FLAKY %s  (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict))
         elif r.second_attempt_failed:
             print("STILL FAILING %s  (first attempt: %s; retry: %s)" % (r.name, r.first_verdict, r.retry_verdict))
     print("TOTAL: %s" % format_duration(time.time() - t0))
+    progress.end(summary)
     return 0 if all(r.ok for r in results) else 1
 
 

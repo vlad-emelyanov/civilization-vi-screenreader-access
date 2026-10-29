@@ -100,6 +100,7 @@ Do not run `civctl` yourself. The user wants that delegated.
 
 - **Background agents:** don't predict or poll their results; wait for the notification. Tell the user what is running.
 - **Usage or rate limit:** if an agent stops early, resume it with `SendMessage` to its id. Tell it to check `git status`/`git log` and `civctl status` first, then finish and send the full report.
+- **Regress progress:** for regress progress read `civctl regress-status` (cheap, no lock) instead of guessing from elapsed time. To look into failures before the run ends, read `%TEMP%\civctl\regress-results.txt` (the SR> lines of every failed expect) and run no game-driving civctl commands meanwhile.
 - **Read reports critically.**
   - "Verified" may mean a direct function call rather than a real trigger; carry that distinction to the user.
   - Things an agent noticed but didn't fix become items in the next batch.
