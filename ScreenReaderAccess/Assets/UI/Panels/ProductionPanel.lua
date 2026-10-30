@@ -2830,11 +2830,12 @@ local function SRA_OnActivate( item:table )
 		end
 	end
 	if item.kind == "district" or item.kind == "wonder" then
-		m_srPlacementKey = ProductionText_Identity( item.key );
-		m_srPlacementCity = city:GetID();
 		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
 		local mode:number = UI.GetInterfaceMode();
 		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
+			-- set after the call: the game closes the panel while entering placement, and Close clears the key
+			m_srPlacementKey = ProductionText_Identity( item.key );
+			m_srPlacementCity = city:GetID();
 			-- The game switched to placement mode and closed the panel: the hub's placement browser (InGameAccess)
 			-- takes over, speaks, and reports the production once the tile is chosen.
 			m_srPending = nil;
