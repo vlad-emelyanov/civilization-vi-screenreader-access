@@ -1401,6 +1401,7 @@ function HubTargets.OpenRebase( mode:number )
 	if m_rebaseList == nil then
 		m_rebaseList = KeyNavList_Create{
 			build		= BuildRebaseItems,
+			wheel		= true,		-- the pad wheel: a short list of destinations
 			isActive	= function() return HubCore.IsModeOpen( "rebase" ); end,
 			onActivate	= RebaseActivate,
 			onClose		= function() HubCore.CloseMode( false, true ); HubTargets.CancelTarget(); end,
