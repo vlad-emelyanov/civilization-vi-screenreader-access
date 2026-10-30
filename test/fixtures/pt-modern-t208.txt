@@ -1,0 +1,7 @@
+turn: 208
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain t208 (6 turns from t202)
+mod commit: aa29cad
+created: 2026-10-30
+size: 1146 KB

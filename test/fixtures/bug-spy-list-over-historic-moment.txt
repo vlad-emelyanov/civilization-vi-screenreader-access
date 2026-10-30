@@ -1,0 +1,7 @@
+turn: 210
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: turn start: Historic Moment screen open AND the idle spy's Choose destination list auto-opened; Enter/Escape/Down go to the list, the Historic Moment stays open until the list is closed
+mod commit: aa29cad
+created: 2026-10-30
+size: 1155 KB

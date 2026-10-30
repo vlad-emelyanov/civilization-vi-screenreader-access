@@ -1,0 +1,7 @@
+turn: 212
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain t212 (10 turns from t202); Bath placed in Rome, ready to end turn
+mod commit: aa29cad
+created: 2026-10-30
+size: 1174 KB
