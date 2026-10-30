@@ -44,8 +44,10 @@ public sealed class AccessibleOutputHandler
         }
         else
         {
-            // check to see if we're not interrupting a notification
-            interrupt = DateTime.UtcNow >= this.lastNonInterruptableMessage.Add(nonInterruptTime);
+            // check to see if we're not interrupting a notification; a pad key pressed after it ends the protection (a real key does
+            // the same: JAWS silences itself when it hears one, but the pad's keys are posted to the game and JAWS never hears them)
+            interrupt = DateTime.UtcNow >= this.lastNonInterruptableMessage.Add(nonInterruptTime)
+                || Gamepad.InputDevice.LastPadKeyTicks > this.lastNonInterruptableMessage.Ticks;
         }
 
         var sanitized = KeyHints.Expand(SanitizeLine(line), Gamepad.InputDevice.PadIsCurrent);

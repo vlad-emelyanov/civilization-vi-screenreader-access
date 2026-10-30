@@ -4735,6 +4735,8 @@ local function SRBuildActions()
 				-- Promote: one entry per promotion when the unit picks from a random list (the panel shows a list)
 				if action.userTag == UnitCommandTypes.PROMOTE and m_srPromotions ~= nil and unit ~= nil
 						and GameInfo.Units[unit:GetUnitType()].NumRandomChoices > 0 then
+					-- the generic Promote entry only opens the panel's visual list (Enter on it closed the menu, nothing spoken): the entries below replace it
+					if plain[ #plain ] ~= nil and plain[ #plain ].tag == UnitCommandTypes.PROMOTE then table.remove( plain ); end
 					for _, ePromotion in ipairs( m_srPromotions ) do
 						local def = GameInfo.UnitPromotions[ePromotion];
 						if def ~= nil then

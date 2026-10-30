@@ -127,6 +127,7 @@ public sealed class GamepadService : IDisposable
     private void Inject(KeyEvent e)
     {
         PadKey key = GamepadMap.KeyOf(e);
+        if (e.Action != KeyAction.Up && e.Button is not (PadButton.ModeOn or PadButton.ModeOff)) InputDevice.NotePadKey();
         switch (e.Action)
         {
             case KeyAction.Down: _injector.KeyDown(key, e.Shift); _heldDown.Add(e.Button); break;
