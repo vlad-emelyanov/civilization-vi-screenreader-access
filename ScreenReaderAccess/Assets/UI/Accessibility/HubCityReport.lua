@@ -314,6 +314,7 @@ m_reportList = KeyNavList_Create{
 };
 
 HubCityReport.m_focusList = KeyNavList_Create{
+	wheel = true,		-- the pad wheel: a short menu with fixed directions
 	build		= function()
 		local m:table = HubCityReport.ManageData();
 		if m == nil then return {}; end

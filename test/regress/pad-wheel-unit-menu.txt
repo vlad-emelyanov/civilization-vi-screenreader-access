@@ -1,0 +1,17 @@
+# Written blind (2026-10-30, not yet verified in game; run with civregress --record first). The pad wheel in the Tab unit actions menu:
+# slot 6 = a quarter turn clockwise (Shift+F19; WheelIndex(6, n) = item round(n/4)+1, e.g. item 3 of 8; "straight down" is slot 12 = Control+Shift+F13).
+# The menu has wheel = true (HubMenus.lua); HubGamepad passes the wheel keys on while a hub mode is open.
+# covers: **/HubMenus.lua **/KeyNavList.lua
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
+load early-t60
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BUILDER" then UI.SelectUnit(u) break end end
+key F22 -Settle 500
+key Tab -Settle 1500
+expect ^Builder actions, \d+ options
+key Shift+F19 -Settle 1000
+expect \d+ of \d+
+expect-not (?i)no wheel in this list
+key Escape -Settle 800
+key F23 -Settle 500
+no-lua-errors

@@ -510,6 +510,7 @@ function Initialize()
 	print( "UnitPromotionPopup: ScreenReaderAccess copy loaded" );
 	ContextPtr:SetUpdate( SRA_OnUpdate );
 	m_srList = KeyNavList_Create{
+		wheel = true,		-- the pad wheel: a short menu with fixed directions
 		build = SRA_Items,
 		isActive = function() return not ContextPtr:IsHidden(); end,
 		onActivate = SRA_OnActivate,
