@@ -1232,7 +1232,34 @@ function SRA_ClearConfirm()
 	m_srConfirm = nil;
 end
 
+-- Is a game popup or screen (Historic Moment, a popup ...) open above the chooser? Then the topmost screen takes the keys.
+local SRA_ALWAYS_SHOWN:table = { TopPanel = true, DiplomacyRibbon = true, PartialScreenHooks = true, InGameAccess = true };
+local SRA_popupWasOpen:boolean = false;
+function SRA_PopupAbove()
+	for _, name in ipairs( { "WorldPopups", "FakePopups", "Screens", "PartialScreens", "Diplomacy", "EndGame" } ) do
+		local parent = ContextPtr:LookUpControl( "/InGame/" .. name );
+		if parent ~= nil then
+			for _, child in ipairs( parent:GetChildren() ) do
+				if not child:IsHidden() and not SRA_ALWAYS_SHOWN[ child:GetID() ] then return true; end
+			end
+		end
+	end
+	return false;
+end
+
 function SRA_OnUpdate( deltaTime:number )
+	if not ContextPtr:IsHidden() and m_AnimSupport ~= nil and m_AnimSupport.IsVisible() and not m_srOpenPending then
+		-- the chooser announces itself again once the popup above it has closed
+		local above:boolean = SRA_PopupAbove();
+		if SRA_popupWasOpen and not above and m_srConfirm == nil then
+			m_srList.Reset();
+			m_srOpenPending = true;
+			m_srOpenDelay = SRA_OPEN_DELAY;
+		end
+		SRA_popupWasOpen = above;
+	elseif not m_srOpenPending then
+		SRA_popupWasOpen = false;
+	end
 	if not m_srOpenPending then return; end
 	if ContextPtr:IsHidden() or not m_AnimSupport.IsVisible() then m_srOpenPending = false; return; end
 	m_srOpenDelay = m_srOpenDelay - deltaTime;
@@ -1267,6 +1294,7 @@ function SRA_HandleInput( input:table )
 end
 
 function SRA_InputHandler( input:table )
+	if m_AnimSupport ~= nil and m_AnimSupport.IsVisible() and SRA_PopupAbove() then return false; end		-- the popup above takes the keys (not even the game's Escape-closes-chooser)
 	if SRA_HandleInput( input ) then return true; end
 	return m_AnimSupport.OnInputHandler( input );
 end

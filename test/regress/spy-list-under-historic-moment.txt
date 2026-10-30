@@ -1,0 +1,17 @@
+# A popup/screen above the spy's Choose destination list takes the keys: Down reads the Historic Moments, Escape closes it, and the list announces itself again.
+# Fixture bug-spy-list-over-historic-moment (turn 210: idle spy Bambi, destination list open); the timeline is opened from the HistoricMoments state.
+# covers: **/EspionageChooser.lua
+# no-share-load: opens a screen, cancels the chooser
+load bug-spy-list-over-historic-moment
+lua HistoricMoments ToggleHistoricMomentsScreen(false)
+key Down -Settle 1000
+expect (?i)of 19$
+expect-not ^Lugdunum, yours
+key Escape -Settle 3500 -Quiet 2500
+expect ^Timeline closed
+expect ^Choose destination for Bambi: 8 cities
+key Down -Settle 1000
+expect ^Antium, yours
+key Escape -Settle 1200
+expect ^Cancelled
+no-lua-errors
