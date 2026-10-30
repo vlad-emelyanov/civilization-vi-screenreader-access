@@ -1,0 +1,19 @@
+# The pad wheel pointing at the item that already has focus speaks it when the previous key was not a wheel key (right after Tab opened the unit menu); a lingering stick in the same slot stays silent.
+# Fixture bug-prod-unavailable-count; Shift+F13 = wheel slot 0 (straight up = item 1).
+# covers: **/KeyNavList.lua
+# no-share-load: selects a unit
+load bug-prod-unavailable-count
+clear-advisors
+lua InGameAccess UI.DeselectAllUnits(); for _, u in Players[0]:GetUnits():Members() do UI.SelectUnit(u); break end
+key Tab -Settle 1500
+expect (?i)actions, \d+ options
+key Shift+F13 -Settle 800
+expect ^Move To, key .*1 of
+key Shift+F13 -Settle 800
+expect-not ^Move To
+key Down -Settle 600
+key Up -Settle 600
+key Shift+F13 -Settle 800
+expect ^Move To, key .*1 of
+key Escape -Settle 800
+no-lua-errors

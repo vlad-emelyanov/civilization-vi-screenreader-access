@@ -1,0 +1,20 @@
+# Escape from a district placement reopens the production panel with the focus on the district whose placement was cancelled (not on the recommended item).
+# Fixture bug-prod-unavailable-count (Rome t191: Neighborhood is recommended, Canal is the second non-recommended district candidate).
+# covers: **/ProductionPanel.lua
+# no-share-load: opens panels, placement mode
+load bug-prod-unavailable-count
+clear-advisors
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2500 -Quiet 700
+expect (?i)choose production.*Recommended: Neighborhood
+key Down -Settle 800
+key Down -Settle 800
+expect ^Canal, district
+key Enter -Settle 2500 -Quiet 700
+expect (?i)^Place Canal
+key Escape -Settle 2500 -Quiet 700
+expect ^Placement cancelled
+expect (?i)choose production
+expect ^Districts and Buildings, \d+: Canal, district
+key Escape -Settle 1200
+no-lua-errors

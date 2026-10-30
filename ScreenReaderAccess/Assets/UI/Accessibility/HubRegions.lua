@@ -265,30 +265,29 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 			plotIndex = HubMessages.PlotIndexOf( x, y );
 		end
 	end );
-	table.insert( HubCore.m_arrivals, { text = text, time = UI.GetElapsedTime(), spotType = ( typeName == "NOTIFICATION_BARBARIANS_SIGHTED" ), plotIndex = plotIndex } );
+	table.insert( HubCore.m_arrivals, { text = text, time = UI.GetElapsedTime(), spotType = ( typeName == "NOTIFICATION_BARBARIANS_SIGHTED" ), plotIndex = plotIndex, routine = HubMessages.IsRoutine( typeName ) } );
 	if HubCore.m_arrivalTimer < 0 then HubCore.m_arrivalTimer = 0.8; end		-- flush 0.8 s after the first one: a trickle must not postpone the burst
 end
 
 -- Event-style speech (nointerrupt). HubCore.Announce holds it while a Eureka/tech/wonder popup is open (agent C, round 8);
 -- until that is merged the plain call is used.
-function HubRegions.Announce( text:string, plotIndex:number )
-	if HubCore.Announce ~= nil then HubCore.Announce( text, true, nil, plotIndex ); else OutputMessageToScreenReader( text, true ); end
+function HubRegions.Announce( text:string, plotIndex:number, kind:string )
+	if HubCore.Announce ~= nil then HubCore.Announce( text, true, kind, plotIndex ); else OutputMessageToScreenReader( text, true ); end
 end
 
 function HubRegions.FlushArrivals()
 	local entries:table = HubCore.m_arrivals;
 	HubCore.m_arrivals = {};
-	local texts:table, plots:table = {}, {};
+	local kept:table = {};
 	for _, entry in ipairs( entries ) do
-		if not ( entry.spotType and math.abs( HubRegions.m_lastSpotSpeech - entry.time ) < 3 ) then
-			table.insert( texts, entry.text );
-			table.insert( plots, entry.plotIndex or false );
-		end
+		if not ( entry.spotType and math.abs( HubRegions.m_lastSpotSpeech - entry.time ) < 3 ) then table.insert( kept, entry ); end
 	end
-	if #texts == 0 then return; end
-	if #texts == 1 then
-		HubRegions.Announce( "Notification: " .. texts[1], plots[1] or nil );
+	local said:string, historyText:string, historyPlot = HubMessages.ArrivalTexts( kept );
+	if said == nil then return; end
+	if historyText == said then
+		HubRegions.Announce( said, historyPlot );
 	else
-		HubRegions.Announce( #texts .. " new notifications: " .. KeyNavList_ShortList( texts, 3 ) );
+		HubRegions.Announce( said, nil, "arrival" );		-- spoken, not logged as it is
+		if historyText ~= nil and HubMessages ~= nil then HubMessages.Add( historyText, historyPlot ); end
 	end
 end

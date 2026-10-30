@@ -41,6 +41,7 @@ function ProductionText_Toggle( count:number, shown:boolean, purchase:boolean )
 	return {
 		key = PRODUCTION_TOGGLE_KEY,
 		toggle = true,
+		uncounted = true,
 		count = count,
 		choosable = true,
 		text = ( shown and "Hide " or "Show " ) .. ProductionText_Count( count ),

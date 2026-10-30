@@ -87,3 +87,19 @@ end)
 test("PlotIndexOf is nil for no position", function()
 	eq(HubMessages.PlotIndexOf(nil, nil), nil)
 end)
+
+test("routine notification types are known; arrival lines drop them from the history", function()
+	eq(HubMessages.IsRoutine("NOTIFICATION_COMMAND_UNITS"), true)
+	eq(HubMessages.IsRoutine("NOTIFICATION_CHOOSE_CITY_PRODUCTION"), true)
+	eq(HubMessages.IsRoutine("NOTIFICATION_BARBARIANS_SIGHTED"), false)
+	local said, history = HubMessages.ArrivalTexts{ { text = "Choose research", routine = true }, { text = "Units need orders", routine = true } }
+	eq(said, "2 new notifications: Choose research, Units need orders")
+	eq(history, nil)
+	said, history = HubMessages.ArrivalTexts{ { text = "Choose research", routine = true }, { text = "Barbarians sighted", plotIndex = 7 } }
+	eq(history, "Notification: Barbarians sighted")
+	said, history = HubMessages.ArrivalTexts{ { text = "A" }, { text = "B", routine = true }, { text = "C" } }
+	eq(history, "2 new notifications: A, C")
+	eq(said, "3 new notifications: A, B, C")
+	said, history = HubMessages.ArrivalTexts{ { text = "A", plotIndex = 3 } }
+	eq(history, "Notification: A")
+end)

@@ -16,7 +16,7 @@
 --		wheel      = true,                                -- optional: the pad's wheel (hold LT, point the left stick) works here; short lists of the main interface only
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
 --	};
---	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, detail = <string or function,
+--	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, uncounted = <true: not counted in its group's count>, detail = <string or function,
 --	         spoken by Space>, choosable = <false: Enter says item.reason> }
 --	m_list.Open( "Choose research" )     -- announces the title, the number of items and the focused item
 --	m_list.HandleInput( pInputStruct )   -- call first thing in the context's input handler; returns true when it
@@ -32,7 +32,7 @@
 --	Left, LB / RB are Control+Tab / Tab ("No tabs here" when the list has no Tab handler): Gamepad.TranslateListKey.
 --	The pad's wheel (hold LT, point the left stick; Shift+F13..F24 / Control+Shift+F13..F24, Gamepad.WheelOf), in lists with wheel = true:
 --	jumps to the item in that direction, the items spread clockwise around the wheel from straight up (Gamepad.WheelIndex); the same
---	item is not spoken twice. Other lists consume the wheel keys and say "No wheel in this list" once per sweep.
+--	item is not spoken twice in a row (the first wheel key after any other key always speaks, even the focused item). Other lists consume the wheel keys and say "No wheel in this list" once per sweep.
 --	Up/Down act on KeyDown (so holding the key repeats), Enter/Space on KeyUp (the game's ActionPanel acts on the
 --	KeyUp of Enter; consuming both keeps Next Action from firing).
 -- ===========================================================================
@@ -71,6 +71,7 @@ function KeyNavList_Create( config:table )
 	local m_lastSection:string = nil;
 	local m_openedAt:number = -100;
 	local m_lostGuard:boolean = false;		-- focusLostSafe: the focus was moved after a loss; the next Enter only reads it
+	local m_wheelSpoken = nil;				-- key of the item the PREVIOUS key (a wheel key) spoke; any other speech clears it
 	local m_wheelRefused:boolean = false;	-- "No wheel in this list" was said; again only after another key
 
 	local function Build()
@@ -97,6 +98,7 @@ function KeyNavList_Create( config:table )
 		local item:table = items[ index ];
 		if item == nil then return; end
 		m_focusKey = item.key;
+		m_wheelSpoken = nil;
 		if config.onFocus ~= nil then
 			local ok:boolean, err = xpcall( function() config.onFocus( item ); end, KeyNavErrorHandler );
 			if not ok then print( "KeyNavList onFocus error: " .. tostring(err) ); end
@@ -106,7 +108,7 @@ function KeyNavList_Create( config:table )
 			local count:number = 0;
 			if config.sectionCounts then
 				for _, other in ipairs( items ) do
-					if other.section == item.section then count = count + 1; end
+					if other.section == item.section and not other.uncounted then count = count + 1; end
 				end
 			end
 			-- the item names its own group ("Builder, 5 tiles east"): say it once
@@ -143,6 +145,7 @@ function KeyNavList_Create( config:table )
 	function list.Open( title:string, initialKey, silent:boolean, keepGuard:boolean )
 		if not keepGuard and UI ~= nil and UI.GetElapsedTime ~= nil then m_openedAt = UI.GetElapsedTime(); end
 		Gamepad.RequestMode();
+		m_wheelSpoken = nil;
 		local items:table = Build();
 		m_lastSection = nil;
 		if initialKey ~= nil then m_focusKey = initialKey; end
@@ -206,7 +209,7 @@ function KeyNavList_Create( config:table )
 		Speak( items, target, true, false );
 	end
 
-	-- The pad's wheel pointed at a slot: the item in that direction (silent when the focus is already there).
+	-- The pad's wheel pointed at a slot: the item in that direction (silent only when the previous key was a wheel key that already spoke this item).
 	local function WheelPick( slot:number )
 		m_lostGuard = false;
 		local items:table = Build();
@@ -215,8 +218,9 @@ function KeyNavList_Create( config:table )
 			return;
 		end
 		local target:number = Gamepad.WheelIndex( slot, #items );
-		if items[ target ].key == m_focusKey and FindIndex( items ) == target then return; end
+		if items[ target ].key == m_wheelSpoken and FindIndex( items ) == target then return; end		-- the stick lingers in the slot
 		Speak( items, target, true, false );
+		m_wheelSpoken = items[ target ].key;
 	end
 
 	-- PageUp / PageDown: the first item of the previous / next group, spoken with its group name.

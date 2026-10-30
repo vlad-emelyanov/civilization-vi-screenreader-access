@@ -392,6 +392,32 @@ test("pad wheel: a slot jumps to the item in that direction, once", function()
 	eq(s.activated, nil)															-- pointing never activates
 end)
 
+test("pad wheel: the first wheel key after another key speaks even the focused item; a lingering stick stays silent", function()
+	local s = newList({ { key = "n", text = "North" }, { key = "e", text = "East" } }, { wheel = true })
+	s.list.Open("T")
+	ClearPrinted()
+	s.list.HandleInput(Input{ key = Keys.VK_F13, ctrl = true, shift = true })	-- slot 12: down = East
+	listeq(Spoken(), { "East, 2 of 2" })
+	ClearPrinted()
+	s.list.HandleInput(Input{ key = Keys.VK_F14, ctrl = true, shift = true })	-- lingering: still East
+	listeq(Spoken(), {})
+	press(s.list, Keys.VK_UP)
+	press(s.list, Keys.VK_DOWN)													-- focus on East again via Down
+	ClearPrinted()
+	s.list.HandleInput(Input{ key = Keys.VK_F13, ctrl = true, shift = true })
+	listeq(Spoken(), { "East, 2 of 2" })
+end)
+
+test("sectionCounts: an uncounted item is not part of its group's count", function()
+	local s = newList({
+		{ key = "a", text = "Alpha one", section = "A" }, { key = "b", text = "Beta one", section = "B" },
+		{ key = "c", text = "Beta two", section = "B" }, { key = "t", text = "Toggle", section = "B", uncounted = true },
+	}, { sectionCounts = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_NEXT)
+	listeq(Spoken(), { "B, 2: Beta one, 2 of 4" })
+end)
+
 test("pad wheel: a list without wheel = true says so once per sweep and keeps its focus", function()
 	local s = newList(abc())
 	s.list.Open("T")

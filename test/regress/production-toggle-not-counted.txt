@@ -1,0 +1,25 @@
+# The "Show N unavailable items" toggle is never counted in a group's count: collapsed it sits at the end of the last group, expanded it opens "Unavailable".
+# Fixture bug-prod-unavailable-count (Rome t191: 3 projects, 24 unavailable items).
+# covers: **/ProductionPanel.lua **/ProductionText.lua **/KeyNavList.lua
+# no-share-load: toggles a session flag
+load bug-prod-unavailable-count
+clear-advisors
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2500 -Quiet 700
+expect (?i)choose production
+key End -Settle 800
+expect ^Show 24 unavailable items, in Projects, 3 items
+key Home -Settle 800
+key PageUp -Settle 800
+expect ^Projects, 3:
+key Home -Settle 800
+key End -Settle 800
+key Enter -Settle 800
+expect ^Showing 24 unavailable items
+key Home -Settle 800
+key PageUp -Settle 800
+expect ^Unavailable, 24:
+key Enter -Settle 800
+expect ^Unavailable items hidden
+key Escape -Settle 1200
+no-lua-errors

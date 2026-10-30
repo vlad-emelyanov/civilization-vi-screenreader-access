@@ -13,6 +13,38 @@ local m_nextId:number = 1;
 local MAX_PER_TURN:number = 30;
 local m_seenKeys:table = {};		-- turn .. text: a line is logged once per turn
 
+-- Notifications that come back every turn as routine blockers: spoken on arrival, but not worth a line in the history.
+local ROUTINE:table = {
+	NOTIFICATION_COMMAND_UNITS = true, NOTIFICATION_CHOOSE_TECH = true, NOTIFICATION_CHOOSE_CIVIC = true,
+	NOTIFICATION_CHOOSE_CITY_PRODUCTION = true, NOTIFICATION_CHOOSE_PRODUCTION = true, NOTIFICATION_FILL_CIVIC_SLOT = true,
+};
+function HubMessages.IsRoutine( typeName:string )
+	return typeName ~= nil and ROUTINE[ typeName ] == true;
+end
+
+-- The arrival line and its history line: entries = { text, plotIndex, routine }. The spoken line lists every notification; the history
+-- line leaves the routine ones out (nil when nothing remains). Returns said, historyText, historyPlotIndex (nil when none or several).
+function HubMessages.ArrivalTexts( entries:table )
+	local texts:table, logged:table = {}, {};
+	for _, entry in ipairs( entries ) do
+		table.insert( texts, entry.text );
+		if not entry.routine then table.insert( logged, entry ); end
+	end
+	if #texts == 0 then return nil; end
+	local function Line( list:table )
+		if #list == 1 then return "Notification: " .. ( list[1].text or list[1] ); end
+		local names:table = {};
+		for _, e in ipairs( list ) do table.insert( names, e.text or e ); end
+		return #list .. " new notifications: " .. KeyNavList_ShortList( names, 3 );
+	end
+	local said:string = Line( texts );
+	local history:string = nil;
+	if #logged == #texts then history = said; elseif #logged > 0 then history = Line( logged ); end
+	local plot = ( #logged == 1 ) and logged[1].plotIndex or nil;
+	if #logged == 0 then plot = nil; end
+	return said, history, plot;
+end
+
 function HubMessages.Clear()
 	m_messages = {};
 	m_seenKeys = {};

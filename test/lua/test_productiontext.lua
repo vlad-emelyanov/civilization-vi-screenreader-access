@@ -50,6 +50,7 @@ test("arrange: shown, the hidden items follow the toggle as the section Unavaila
 	eq(keys(res), "d1 toggle:unavailable d2 u2")
 	eq(res[2].text, "Hide 2 unavailable items")
 	eq(res[2].section, "Unavailable")
+	eq(res[2].uncounted, true)
 	eq(res[3].section, "Unavailable")
 	eq(res[4].section, "Unavailable")
 end)

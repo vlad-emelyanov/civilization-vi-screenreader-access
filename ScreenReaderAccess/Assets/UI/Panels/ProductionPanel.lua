@@ -118,6 +118,7 @@ local m_pCity:table = nil;
 local m_srActive:boolean = false;			-- the panel is open (set in Open, cleared in Close)
 local m_srAnnouncePending:boolean = false;	-- announce the panel once the tab is selected
 local m_srData:table = nil;					-- cached GetData() result, set by View, cleared by Open/Close
+local m_srPlacementKey:string = nil;		-- key of the district / wonder whose placement started: the panel reopened by Escape focuses it again
 local m_srPending:table = nil;				-- outcome of the last Enter still to be announced
 
 -- ===========================================================================
@@ -2426,11 +2427,13 @@ function OnStrategicViewMapPlacementProductionOpen( bWasCancelled:boolean )
 	elseif bWasCancelled then
 		Open();
 	end
+	local placementKey:string = m_srPlacementKey;		-- ScreenReaderAccess
+	m_srPlacementKey = nil;
 	-- ScreenReaderAccess: the game reopens the panel after a placement only in queue mode (like CloseAfterNewProduction keeps it
 	-- open there). The placed item has left the list, so the old focus is stale: announce afresh (a fresh focus, the new current
 	-- production in the title) instead of leaving Enter on a vanished item ("Item no longer available").
 	if not bWasCancelled and m_srActive and not ContextPtr:IsHidden() then m_srAnnouncePending = true; end
-	SRA_AnnounceIfPending();
+	SRA_AnnounceIfPending( false, bWasCancelled and placementKey or nil );		-- a cancelled placement: the focus returns to the item
 end
 
 -- ===========================================================================
@@ -2822,6 +2825,7 @@ local function SRA_OnActivate( item:table )
 		end
 	end
 	if item.kind == "district" or item.kind == "wonder" then
+		m_srPlacementKey = ProductionText_Identity( item.key );
 		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
 		local mode:number = UI.GetInterfaceMode();
 		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
@@ -2943,10 +2947,10 @@ local function SRA_NextTab() SRA_SwitchTab( 1 ); end
 local function SRA_PrevTab() SRA_SwitchTab( -1 ); end
 
 -- Called by the handlers that open the panel, once they have selected the tab (a SetUpdate callback never ran here).
-function SRA_AnnounceIfPending()
+function SRA_AnnounceIfPending( keepGuard:boolean, keepKey:string )
 	if not m_srAnnouncePending then return; end
 	m_srAnnouncePending = false;
-	local ok:boolean, err = xpcall( SRA_Announce, KeyNavErrorHandler );
+	local ok:boolean, err = xpcall( function() SRA_Announce( keepGuard, keepKey ); end, KeyNavErrorHandler );
 	if not ok then print( "ProductionPanel announce error: " .. tostring(err) ); end
 end
 
