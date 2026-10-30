@@ -58,13 +58,14 @@ PageUp/PageDown (a keyboard key too) in a `KeyNavList` jump to the first item of
 The in-game UI is a ring of keyboard lists; RB opens the next, LB the previous; B closes the open one back to the map. Order:
 
 1. Notifications (Control+N list)
-2. Top panel (Control+Y list)
-3. Lenses (new, `HubLenses.lua`): one item per lens the number keys toggle ("Appeal lens, off"); A toggles it (the same speech as the number key) and the list stays open with the item refreshed; Y reads the legend
-4. Diplomacy (V list of met civilizations)
-5. Screens (new, `HubScreens.lua`): the launch bar and partial-screen hooks: Tech tree, Civics tree, Government, Religion, Great People, Great Works, Governors, City-States, Espionage, Trade routes, World rankings, Climate, Era progress, Reports, Civilopedia. A closes the list and opens the screen through the same function the game's button runs (`LuaEvents.SRA_OpenScreen(name)` handled by our `LaunchBar.lua` / `PartialScreenHooks.lua` overrides); the screen announces itself as it does today; B closes it. An item whose hook is hidden says "not available"
-6. Places (J list)
+2. Messages (Control+M list, `HubMessages.lua`: the history of the mod's own announcements)
+3. Top panel (Control+Y list)
+4. Lenses (new, `HubLenses.lua`): one item per lens the number keys toggle ("Appeal lens, off"); A toggles it (the same speech as the number key) and the list stays open with the item refreshed; Y reads the legend
+5. Diplomacy (V list of met civilizations)
+6. Screens (new, `HubScreens.lua`): the launch bar and partial-screen hooks: Tech tree, Civics tree, Government, Religion, Great People, Great Works, Governors, City-States, Espionage, Trade routes, World rankings, Climate, Era progress, Reports, Civilopedia. A closes the list and opens the screen through the same function the game's button runs (`LuaEvents.SRA_OpenScreen(name)` handled by our `LaunchBar.lua` / `PartialScreenHooks.lua` overrides); the screen announces itself as it does today; B closes it. An item whose hook is hidden says "not available"
+7. Places (J list)
 
-RB from the bare map opens 1, LB opens 6; from a ring list they move; from another hub list (unit actions, settle browser, city report ...) RB opens 1 and LB 6. `HubPad.RingStep(currentModeName, +1|-1)` is a pure function (unit-tested).
+RB from the bare map opens 1, LB opens 7; from a ring list they move; from another hub list (unit actions, settle browser, city report ...) RB opens 1 and LB 7. `HubPad.RingStep(currentModeName, +1|-1)` is a pure function (unit-tested).
 
 A hub list with sections takes LB/RB first (`HubGamepad`, `HubPad.BumperAction( modeName, hasTabs, atEdge )`, pure): Places (J) is a ring list with sections, its categories are sub-stops of the ring: RB on the last category continues to the next ring list (Notifications), LB on the first category to the previous one (Screens); the help list is outside the ring, its sections just wrap. A list declares its edge with `tabEdge = function( step )` (the facade forwards `HasTabs` / `AtTabEdge`). Known asymmetry: LB from Notifications opens Places on its first category, not its last.
 

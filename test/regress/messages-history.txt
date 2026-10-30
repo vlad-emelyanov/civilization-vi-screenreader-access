@@ -1,0 +1,16 @@
+# Written blind (2026-10-30, not yet verified in game; run with --record first). The messages history (Control+M):
+# the turn line of the new turn is in it, Space adds the turn, Escape closes. Fixture early-t60 (barbarians 3 tiles from Rome).
+# covers: **/HubMessages.lua
+# no-share-load: an ended turn
+load early-t60
+clear-advisors
+# (util/civregress.py has no endturn step, hence the lua step; Turn 61 = early-t60 plus one)
+lua InGame UI.RequestAction(ActionTypes.ACTION_ENDTURN)
+wait Turn 61 -Timeout 60
+action KeyNavMessages -Settle 1000
+expect (?i)^Messages, \d+
+key Space -Settle 500
+expect (?i)turn \d+
+key Escape -Settle 800
+expect ^Closed
+no-lua-errors

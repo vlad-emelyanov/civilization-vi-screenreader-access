@@ -6,23 +6,24 @@ include("HubPad")
 test("ring order", function()
 	local names = {}
 	for _, e in ipairs(HubPad.RING) do table.insert(names, e.name) end
-	eq(table.concat(names, ","), "Notifications,Top panel,Lenses,Diplomacy,Screens,Places")
+	eq(table.concat(names, ","), "Notifications,Messages,Top panel,Lenses,Diplomacy,Screens,Places")
 end)
 
 test("RingStep from nil and from a non-member", function()
 	eq(HubPad.RingStep(nil, 1), 1)
-	eq(HubPad.RingStep(nil, -1), 6)
+	eq(HubPad.RingStep(nil, -1), 7)
 	eq(HubPad.RingStep("menu", 1), 1)
-	eq(HubPad.RingStep("city report", -1), 6)
+	eq(HubPad.RingStep("city report", -1), 7)
 end)
 
 test("RingStep from a member moves and wraps", function()
 	eq(HubPad.RingStep("notifications", 1), 2)
-	eq(HubPad.RingStep("notifications", -1), 6)
+	eq(HubPad.RingStep("notifications", -1), 7)
+	eq(HubPad.RingStep("messages", 1), 3)
 	eq(HubPad.RingStep("places", 1), 1)
-	eq(HubPad.RingStep("places", -1), 5)
-	eq(HubPad.RingStep("lenses", 1), 4)
-	eq(HubPad.RingStep("civ", -1), 3)
+	eq(HubPad.RingStep("places", -1), 6)
+	eq(HubPad.RingStep("lenses", 1), 5)
+	eq(HubPad.RingStep("civ", -1), 4)
 end)
 
 local opened
@@ -36,6 +37,7 @@ local function stubHub(missing)
 	HubTargets = { CanOpenMode = function() return canOpen end }
 	local function open(name) return function() opened = name; if not refuse[name] then HubCore.m_mode = { name = name } end end end
 	HubRegions = { OpenNotifications = open("notifications"), OpenTopPanel = open("top") }
+	HubMessages = { Open = open("messages") }
 	HubLenses = { Open = open("lenses") }
 	HubMenus = { OpenCivMenu = open("civ") }
 	HubScreens = { Open = open("screens") }
@@ -56,13 +58,16 @@ test("RingNext from a ring list opens the next", function()
 	stubHub()
 	HubCore.m_mode = { name = "notifications" }
 	HubPad.RingNext()
+	eq(opened, "messages")
+	HubCore.m_mode = { name = "messages" }
+	HubPad.RingNext()
 	eq(opened, "top")
 	HubCore.m_mode = { name = "places" }
 	HubPad.RingNext()
 	eq(opened, "notifications")
 	HubCore.m_mode = { name = "top" }
 	HubPad.RingPrev()
-	eq(opened, "notifications")
+	eq(opened, "messages")
 end)
 
 test("a refused CanOpenMode opens nothing", function()
@@ -87,7 +92,7 @@ test("an entry that refuses to open (no civilization met) is skipped", function(
 	HubCore.m_mode = { name = "lenses" }
 	HubPad.RingNext()
 	eq(HubCore.m_mode.name, "screens")
-	refuse = { screens = true, places = true, notifications = true, top = true, lenses = true, civ = true }
+	refuse = { messages = true, screens = true, places = true, notifications = true, top = true, lenses = true, civ = true }
 	HubCore.m_mode = nil
 	HubPad.RingNext()		-- nothing opens at all: no endless loop
 	eq(HubCore.m_mode, nil)

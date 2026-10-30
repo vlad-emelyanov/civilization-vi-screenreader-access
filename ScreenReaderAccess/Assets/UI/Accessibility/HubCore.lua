@@ -340,14 +340,17 @@ local function QueueSpeech( queue:table, text:string, kind:string )
 end
 
 -- Speaks an event announcement (not the answer to a key): at once, or after the popup that holds the speech.
--- kind: "selection" (unit/city selected), "settle", "turn", "ready", or nil.
-function HubCore.Announce( text:string, nointerrupt:boolean, kind:string )
+-- kind: "selection" (unit/city selected), "settle", "turn", "ready", or nil. plotIndex (optional): the plot the line is about
+-- (the messages history, Control+M, keeps it). Everything but selections, settle and ready lines goes to that history.
+local NOT_LOGGED:table = { selection = true, settle = true, ready = true, escort = true };
+function HubCore.Announce( text:string, nointerrupt:boolean, kind:string, plotIndex:number )
 	if text == nil or text == "" then return; end
 	-- the "Turn N, year" line is said once per turn, whatever popups (advisors ...) come and go afterwards
 	if kind == "turn" and string.find( text, "^Turn %d+, " ) then
 		if HubCore.m_turnLineSpoken == text then return; end
 		HubCore.m_turnLineSpoken = text;
 	end
+	if not NOT_LOGGED[ kind or "" ] and HubMessages ~= nil then HubMessages.Add( text, plotIndex ); end
 	local speech:table = HubCore.m_speech;
 	if HubCore.IsSpeechHeld() or #speech.queue > 0 then
 		QueueSpeech( speech.queue, text, kind );

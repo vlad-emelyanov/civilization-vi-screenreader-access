@@ -187,7 +187,13 @@ function HubEnemies.SpeakAtTurnStart()
 	-- the scout alarm comes first (after the "Turn N" line, which it must not cut off)
 	local okScouts:boolean, alarms = pcall( HubEnemies.CheckScouts, true );
 	if okScouts then
-		for _, line in ipairs( alarms ) do HubCore.Announce( line, true, "alarm" ); end
+		local alarmPlot:number = nil;		-- one alarmed scout: its plot (with several the lines cannot be paired)
+		local alarmed:table = nil;
+		for key in pairs( HubEnemies.m_alarmedNow ) do
+			if alarmed == nil then alarmed = HubEnemies.m_scouts[ key ]; else alarmed = false; end
+		end
+		if alarmed then alarmPlot = HubMessages.PlotIndexOf( alarmed.x, alarmed.y ); end
+		for _, line in ipairs( alarms ) do HubCore.Announce( line, true, "alarm", alarmPlot ); end
 	else
 		print( "HubEnemies scout error: " .. tostring( alarms ) );
 	end
@@ -201,7 +207,13 @@ function HubEnemies.SpeakAtTurnStart()
 			end
 		end
 		local text:string = HubEnemies.Describe( snap.units, new, HubEnemies.m_killed, Dist, seen );
-		if text ~= nil then HubCore.Announce( text, true, "enemies" ); end
+		if text ~= nil then
+			local first:table = nil;		-- the plot of the nearest unit of the line
+			for _, e in pairs( new ) do
+				if first == nil or ( e.near or 99 ) < ( first.near or 99 ) then first = e; end
+			end
+			HubCore.Announce( text, true, "enemies", first ~= nil and HubMessages.PlotIndexOf( first.x, first.y ) or nil );
+		end
 	end
 	HubEnemies.m_alarmedNow = {};
 	local okThreats:boolean, err = pcall( HubEnemies.SpeakThreats, true );
@@ -758,14 +770,15 @@ function HubEnemies.SpeakThreats( nointerrupt:boolean )
 		HubEnemies.m_raidSig[ raid.key ] = state;
 		if kind ~= nil then
 			if raid.barbarian then HubEnemies.m_raidExpected = nil; end		-- it has come
-			HubCore.Announce( kind == "full" and raid.text or HubEnemies.RaidContinuesText( raid.ownerName, raid.cityName, #raid.members ), nointerrupt, "raid" );
+			HubCore.Announce( kind == "full" and raid.text or HubEnemies.RaidContinuesText( raid.ownerName, raid.cityName, #raid.members ), nointerrupt, "raid",
+				HubMessages.PlotIndexOf( raid.members[1].x, raid.members[1].y ) );
 		end
 	end
 	for _, danger in ipairs( threats.civilians ) do
 		liveCivilians[ danger.key ] = true;
 		if HubEnemies.m_dangerSig[ danger.key ] ~= danger.sig then
 			HubEnemies.m_dangerSig[ danger.key ] = danger.sig;
-			HubCore.Announce( danger.text, nointerrupt, "danger" );
+			HubCore.Announce( danger.text, nointerrupt, "danger", HubMessages.PlotIndexOf( danger.unit:GetX(), danger.unit:GetY() ) );
 		end
 	end
 	for key in pairs( HubEnemies.m_raidSig ) do if not liveRaids[ key ] then HubEnemies.m_raidSig[ key ] = nil; end end
