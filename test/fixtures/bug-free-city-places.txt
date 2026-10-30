@@ -1,0 +1,7 @@
+turn: 100
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: medieval-t100 + Edirne (67,27, Ottoman, revealed, fogged) flipped to Free Cities with CityManager.TransferCityToFreeCities (GameCore_Tuner); J has NO Foreign cities category after a load (HubPlaces.Prime never remembers cities); to get the remembered variant: ChangeVisibilityCount(plot 67,27,+1), open J, ChangeVisibilityCount -1
+mod commit: 7db7021
+created: 2026-10-30
+size: 949 KB
