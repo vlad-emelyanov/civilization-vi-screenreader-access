@@ -1,0 +1,20 @@
+# Written blind 2026-10-30 (not yet recorded; run with --record). Buying a tile for a district: the first Enter names the price AND the
+# district ("Buy this tile for N gold and place X here?"), the second Enter buys and places at once ("Tile bought for N gold. Producing X ...").
+# medieval-t100: Rome can offer a district; the steps that reach a purchasable (unowned) item are a guess, so check the recording.
+# covers: **/HubPlacement.lua **/PlacementScan.lua
+# no-share-load: buys a tile and places a district
+load medieval-t100
+clear-advisors
+action CapitalCity -Settle 1500
+key Tab -Settle 2500
+expect (?i)production
+key Down -Settle 800
+key Enter -Settle 3000
+expect ^Place .* for .*\d+ tiles
+key Down -Settle 600
+key Down -Settle 600
+key Down -Settle 600
+key Enter -Settle 1500
+expect (?i)^(Buy this tile for \d+ gold and place .* here\?|Place .* here\?)
+key Enter -Settle 4000
+expect (?i)(Tile bought for \d+ gold\. (Producing|Queued|Bought) |Producing |Queued )

@@ -1,4 +1,4 @@
-# Written 2026-10-24 and recorded in game. Air units: unit menu, Re-Base (X lists own cities/aerodromes), Air Attack with a Fighter and a Bomber, Deploy mode.
+# Written 2026-10-24 and recorded in game; the Re-Base list steps (2026-10-30) are blind-written. Air units: unit menu, Re-Base (a list of own cities/aerodromes), Air Attack with a Fighter and a Bomber, Deploy mode.
 # covers: **/HubTargets.lua **/HubCursor.lua **/HubMenus.lua
 # no-share-load: scenario spawns units, rebases and attacks
 load pt-late-t221
@@ -14,11 +14,10 @@ key Down -Settle 600
 expect Re-Base, key Shift\+R
 key Escape -Settle 800
 key Shift+R -Settle 1500
-expect ^Rebase: choose a tile
-key X -Settle 1500
-expect valid target. (\d+ tiles? [a-z-]+, )?Mediolanum, city
-key X -Settle 1500
-expect valid target. (\d+ tiles? [a-z-]+, )?Lugdunum, city
+expect ^Rebase Fighter: \d+ destinations?\. \S+ rebases, \S+ cancels$
+expect ^Mediolanum, \d+ tiles? [a-z-]+, 1 of \d+
+key Down -Settle 1200
+expect ^Lugdunum, \d+ tiles? [a-z-]+, 2 of \d+
 key Enter -Settle 3000
 expect ^Rebasing
 expect Historic moment: Taking Flight
@@ -28,15 +27,15 @@ expect-lua ^55,32$
 # a Fighter in Lugdunum with moves left: Air Attack on the Ottoman Modern Armor 3 tiles away
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetMovesRemaining()>0 then UI.SelectUnit(u) end end
 action RangedAttack -Settle 1500
-expect ^Air attack: choose a target
-expect valid target, .*deals about \d+ damage.*Ottomans Modern Armor
+expect ^Air attack: .*next target, \S+ attacks, \S+ cancels$
+expect Ottomans Modern Armor.*valid target, .*deals about \d+ damage
 key Enter -Settle 6000
 expect ^Attacking Ottomans Modern Armor
 wait Modern Armor takes \d+ damage -Timeout 20
 # the Bomber
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BOMBER" then UI.SelectUnit(u) end end
 action RangedAttack -Settle 1500
-expect ^Air attack: choose a target
+expect ^Air attack: .*next target, \S+ attacks, \S+ cancels$
 expect valid target
 key Enter -Settle 6000
 expect ^Attacking

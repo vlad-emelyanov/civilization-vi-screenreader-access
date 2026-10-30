@@ -95,6 +95,14 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 	local localPlayer:number = Game.GetLocalPlayer();
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
 	options.resourceTech = true;
+	local mode:number = HubTargets.GetTargetMode();
+	local placement:string = HubCore.PlacementPlotText( plot );
+	local info:string = nil;
+	if placement == nil and mode ~= nil then info = HubTargets.TargetInfo( mode, plot, unit ); end
+	-- attack modes and the move mode (a hostile plot); the other target modes keep "valid target. <plot>"
+	local leads:boolean = mode ~= nil and ( mode == InterfaceModeTypes.MOVE_TO or HubTargets.IsAttackMode( mode ) or HubTargets.IsCityMode( mode ) );
+	local infoFollows:boolean = leads and CombatText_InfoFollowsTarget( info );
+	if infoFollows then options.targetInfo = info; end		-- the target leads, its line follows the name and position
 	options.leadResource = true;		-- strategic and luxury resources first, then the position, then the description
 	-- position: from the selected unit or city ("3 tiles north-east"), after a jump also from the nearest city ("7 tiles north-west of Rome")
 	local positions:table = {};
@@ -106,13 +114,10 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 	end
 	if #positions > 0 then options.position = table.concat( positions, ". " ); end
 	local text:string = PlotDescription_GetShort( plot, options );
-	local mode:number = HubTargets.GetTargetMode();
-	local placement:string = HubCore.PlacementPlotText( plot );
 	if placement ~= nil then
 		text = placement .. ". " .. text;
 	elseif mode ~= nil then
-		local info:string = HubTargets.TargetInfo( mode, plot, unit );
-		if info ~= nil then text = info .. ". " .. text; end
+		if info ~= nil and not infoFollows then text = info .. ". " .. text; end
 		local build:string = ( unit ~= nil and unit:GetOwner() == localPlayer ) and HubCore.BuilderBuildText( unit, plot ) or nil;		-- builders walking to a tile
 		if build ~= nil then text = text .. ", " .. build; end
 	elseif HubCore.IsSettler( unit ) then
@@ -131,6 +136,8 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 	text = LensText_Prefix( text, plot, HubCore.IsSettler( unit ) );		-- a map lens is on: its value first
 	return text;
 end
+
+HubCursor.DescribePlot = DescribeCursorPlot;
 
 -- Puts the cursor on (x, y), moves the camera there and optionally speaks the plot.
 -- noMouse: the real mouse does not follow (browsing a list of candidates: the mouse must not sit on every one of them).
@@ -157,6 +164,7 @@ end
 -- and north-east, so that two steps go straight north, as on the screen). steps (default 1): the Control+Shift+Arrows jump of 5.
 function HubCursor.MoveCursor( dx:number, dy:number, steps:number )
 	if not HubCore.IsLocalPlayerActive() then return; end
+	HubTargets.LeaveRebaseList();		-- the rebase / deploy list gives way to the free cursor
 	local x:number, y:number = HubCursor.GetCursor();
 	steps = steps or 1;
 	local width:number, height:number = Map.GetGridSize();
@@ -352,6 +360,13 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if interrupt == nil then interrupt = true; end
 	local localPlayer:number = Game.GetLocalPlayer();
+	HubTargets.LeaveRebaseList();		-- X in the rebase / deploy list: the plain target mode walks the destinations
+	-- the opening line of an attack mode ("Attack: <first target>. X next target, ...") is said by this scan
+	local openingLabel:string = ( HubTargets.GetTargetMode() ~= nil ) and HubTargets.TakeOpening() or nil;
+	local function Say( text:string )
+		if openingLabel ~= nil then text = openingLabel .. ". " .. text; openingLabel = nil; end
+		OutputMessageToScreenReader( text );
+	end
 	local originPlot:table = HubCore.GetSelectionPlot();
 	if originPlot == nil then
 		local x:number, y:number = HubCursor.GetCursor();
@@ -378,7 +393,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 			end
 		end
 		if #found == 0 then
-			OutputMessageToScreenReader( "No valid target for this" );
+			Say( "No valid target for this" );
 			return;
 		end
 	end
@@ -404,10 +419,10 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		if #found == 0 then
 			local unit:table = UI.GetHeadSelectedUnit();
 			if HubTargets.IsCityMode( targetMode ) or unit == nil then
-				OutputMessageToScreenReader( "No enemy in range. " .. SRKey( "Escape" ) .. " to cancel" );
+				Say( "No enemy in range. " .. SRKey( "Escape" ) .. " to cancel" );
 			else
 				local enemyName:string, relative:string = PlotDescription_NearestHostile( unit, 30 );
-				OutputMessageToScreenReader( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative, CountHostilePlotsInView( originPlot ) ) );
+				Say( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative, CountHostilePlotsInView( originPlot ) ) );
 			end
 			return;
 		end
@@ -437,9 +452,9 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		local unit:table = ( attackMode and HubTargets.IsAttackMode( HubTargets.GetTargetMode() ) ) and UI.GetHeadSelectedUnit() or nil;
 		if unit ~= nil then
 			local enemyName:string, relative:string = PlotDescription_NearestHostile( unit, 30 );
-			OutputMessageToScreenReader( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative ) );
+			Say( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative ) );
 		else
-			OutputMessageToScreenReader( "No foreign units in view" );
+			Say( "No foreign units in view" );
 		end
 		return;
 	end
@@ -466,10 +481,27 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		end
 	end
 	m_scanKey = found[ next ].key;
-	HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
-	if #found == 1 and visited and ( attackList ~= nil or listed ~= nil ) then
-		OutputMessageToScreenReader( "Only target", true );
-	elseif next == #found and #found > 1 then
+	if attackList ~= nil or listed ~= nil then
+		-- one line: the target (name, position, preview), then "3 of 5" (the last: X wraps); the first one after the mode's opening ends with the hints
+		HubCursor.SetCursor( found[ next ].x, found[ next ].y, false, interrupt, false, true );
+		local line:string = HubCursor.DescribePlot( Map.GetPlot( found[ next ].x, found[ next ].y ), true );
+		local count:string = CombatText_PositionInList( next, #found );
+		if count ~= nil then line = line .. ". " .. count; end
+		if openingLabel ~= nil then
+			line = CombatText_OpeningLine( openingLabel, line, HubTargets.AttackHints() );
+		end
+		OutputMessageToScreenReader( line, not interrupt and openingLabel == nil );
+		if #found == 1 and visited then OutputMessageToScreenReader( "Only target", true ); end
+		return;
+	end
+	if openingLabel ~= nil then
+		-- never drop the opening's label: it leads the first target line
+		HubCursor.SetCursor( found[ next ].x, found[ next ].y, false, interrupt, false, true );
+		OutputMessageToScreenReader( openingLabel .. ". " .. HubCursor.DescribePlot( Map.GetPlot( found[ next ].x, found[ next ].y ), true ) );
+	else
+		HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
+	end
+	if next == #found and #found > 1 then
 		OutputMessageToScreenReader( "Last target, X wraps to the first", true );
 	end
 end

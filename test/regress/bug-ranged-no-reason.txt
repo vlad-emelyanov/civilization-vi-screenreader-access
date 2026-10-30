@@ -8,6 +8,6 @@ wait Crossbowman -Timeout 8
 action RangedAttack -Settle 1500
 expect ^Cannot ranged attack: \S
 key W -Settle 1500
-expect (?i)(^Attack: choose a target|no target|no enemy)
+expect (?i)(^Attack: .*next target|no target|no enemy)
 key Escape -Settle 1200
 no-lua-errors

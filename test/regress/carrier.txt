@@ -1,4 +1,4 @@
-# Written 2026-10-24. Aircraft Carrier: scenario carrier puts one next to Lugdunum (55,32; carrier at 54,33). A Fighter's menu has Deploy (unavailable), Re-Base lists the carrier as a target (X), Enter rebases onto it; the carrier's own menu has no air actions.
+# Written 2026-10-24. Aircraft Carrier: scenario carrier puts one next to Lugdunum (55,32; carrier at 54,33). A Fighter's menu has Deploy (unavailable), Re-Base lists the carrier as a destination (the Re-Base list steps, 2026-10-30, are blind-written), Enter rebases onto it; the carrier's own menu has no air actions.
 # covers: **/HubTargets.lua **/HubCursor.lua **/HubMenus.lua
 # no-share-load: scenario spawns a carrier and rebases a fighter
 load air-ready
@@ -17,10 +17,8 @@ key End -Settle 600
 expect unavailable: 
 key Escape -Settle 800
 key Shift+R -Settle 1500
-expect ^Rebase: choose a tile
-key X -Settle 1200
-key X -Settle 1200
-expect valid target. (\d+ tiles? [a-z-]+, )?Aircraft Carrier
+expect ^Rebase Fighter: \d+ destinations?\. \S+ rebases, \S+ cancels$
+expect ^Aircraft Carrier, (in Lugdunum|\d+ tiles? [a-z-]+ of Lugdunum), 1 of \d+
 key Enter -Settle 3000
 expect ^Rebasing
 lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetMovesRemaining()==0 and u:GetX()==54 and u:GetY()==33 then return 'on carrier' end end

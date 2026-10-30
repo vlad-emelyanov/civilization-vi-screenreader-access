@@ -104,6 +104,7 @@ local m_sections:table = {
 		{ keys = "X",					text = "with a builder: browse the tiles it can improve; after them a Later group lists resource tiles that need a tech or civic first, Enter says what is missing; a tile with a hostile soldier within 2 tiles says \"danger: <unit> <distance> away\" and the first Enter on it only warns (Enter again sends the builder); Enter on another tile sends the builder and remembers the improvement named first: on arrival it says \"Enter builds <improvement>\" and Enter builds it (with no moves left: select the builder next turn and press Enter); any other key or order cancels it" },
 		{ keys = "X",					text = "with a great person, archaeologist, naturalist or rock band: the tiles it can act on (a great person that needs a district: your completed districts of that kind), nearest first with turns to reach; Enter goes there, on arrival it says \"Enter activates <name>\" and Enter activates (on the tile it stands on, Enter activates at once); a tile with a hostile soldier near warns first" },
 		{ keys = "Tab",					text = "the browsers (settle spots, tiles to improve, tiles to act on) are also the first entries of the unit actions menu (Tab, controller D-pad right); Space on the entry says it opens the same browser as the X key" },
+		{ keys = "Re-Base and Deploy",	text = "an air unit's Re-Base (Shift+R) and Deploy open a list of destinations, nearest first (\"Rome, 6 tiles north-east\", \"Aircraft Carrier, in Rome\"): Up and Down move the target there, Enter sends the unit, Space describes the destination, Escape cancels; Shift+Arrows or X close the list and leave the plain target mode, where Enter confirms the tile under the cursor" },
 		{ keys = "Up and Down",			text = "in the browser: next and previous place or tile" },
 		{ keys = "Left and Right",		text = "builder browser: next and previous city" },
 		{ keys = "Space",				text = "in the browser: all reasons for the place" },
@@ -149,7 +150,7 @@ local m_sections:table = {
 		{ keys = "Shift+Arrows",		text = "move the cursor freely, valid or not is spoken" },
 		{ keys = "I",					text = "details of the tile" },
 		{ keys = "Space",				text = "adjacency explanation, what is removed" },
-		{ keys = "Enter",				text = "twice: first asks, second places; on a purchasable tile it buys it first" },
+		{ keys = "Enter",				text = "twice: first asks, second places; on a purchasable tile the first Enter names the price, the second buys the tile and places at once" },
 		{ keys = "Escape",				text = "go back one step, then cancel the placement" },
 	} },
 	{ title = "Screens", entries = {

@@ -157,6 +157,7 @@ local function PlacementResult( scan:table, before:table, tries:number )
 	if city == nil or not HubCore.IsLocalPlayerActive() then return; end
 	-- the selection of the next unit may already have been spoken: do not cut it off, queue behind it
 	local SayLocal = function( text:string )
+		text = ( before.prefix or "" ) .. text;
 		HubCore.m_lastResultTime = UI.GetElapsedTime();
 		OutputMessageToScreenReader( text, HubCore.m_lastSelectionSpeech > HubCore.m_placeCommitTime );
 	end
@@ -186,11 +187,14 @@ local function PlacementResult( scan:table, before:table, tries:number )
 	end
 end
 
-local function PlacementCommit( c:table )
+local function PlacementCommit( c:table, prefix:string )
 	local scan:table = m_placeScan;
 	local city:table = UI.GetHeadSelectedCity();
 	local plot:table = Map.GetPlotByIndex( c.plotIndex );
-	if scan == nil or city == nil or plot == nil then return; end
+	if scan == nil or city == nil or plot == nil then
+		if prefix ~= nil then HubCore.SayResult( prefix .. "Tile bought, but the placement was lost" ); end
+		return;
+	end
 	local params:table = {};
 	params[ CityOperationTypes.PARAM_X ] = plot:GetX();
 	params[ CityOperationTypes.PARAM_Y ] = plot:GetY();
@@ -210,12 +214,13 @@ local function PlacementCommit( c:table )
 	end
 	local player:table = Players[ Game.GetLocalPlayer() ];
 	if not can then
+		prefix = prefix or "";
 		if purchase then
 			local ok:boolean, cost:number = pcall( function() return city:GetGold():GetPurchaseCost( scan.purchaseYield, scan.hash ); end );
 			local isGold:boolean = ( scan.purchaseYield == YieldTypes.GOLD );
 			local balance:number = isGold and math.floor( player:GetTreasury():GetGoldBalance() ) or math.floor( player:GetReligion():GetFaithBalance() );
 			if ok and cost ~= nil and cost > balance then
-				HubCore.SayResult( "Can't buy " .. scan.name .. ", need " .. ( cost - balance ) .. ( isGold and " more gold" or " more faith" ) );
+				HubCore.SayResult( prefix .. "Can't buy " .. scan.name .. ", need " .. ( cost - balance ) .. ( isGold and " more gold" or " more faith" ) );
 				return;
 			end
 		end
@@ -223,11 +228,11 @@ local function PlacementCommit( c:table )
 		if results ~= nil then
 			for _, text in ipairs( results[ CityOperationResults.FAILURE_REASONS ] or results[ CityCommandResults.FAILURE_REASONS ] or {} ) do table.insert( reasons, CleanTextForSpeech( Locale.Lookup( text ) ) ); end
 		end
-		HubCore.SayResult( "Can't place " .. scan.name .. " here any more" .. ( #reasons > 0 and ( ": " .. table.concat( reasons, ", " ) ) or "" ) );
+		HubCore.SayResult( prefix .. "Can't place " .. scan.name .. " here any more" .. ( #reasons > 0 and ( ": " .. table.concat( reasons, ", " ) ) or "" ) );
 		PlacementRescan();
 		return;
 	end
-	local before:table = { size = city:GetBuildQueue():GetSize(), balance = 0, city = city };
+	local before:table = { size = city:GetBuildQueue():GetSize(), balance = 0, city = city, prefix = prefix };
 	if purchase then
 		before.balance = ( scan.purchaseYield == YieldTypes.GOLD ) and math.floor( player:GetTreasury():GetGoldBalance() ) or math.floor( player:GetReligion():GetFaithBalance() );
 		CityManager.RequestCommand( city, CityCommandTypes.PURCHASE, params );
@@ -241,6 +246,14 @@ local function PlacementCommit( c:table )
 		if IsPlacementMode( UI.GetInterfaceMode() ) then UI.SetInterfaceMode( InterfaceModeTypes.SELECTION ); end
 	end );
 	HubCore.After( 0.4, function() PlacementResult( scan, before, 1 ); end );
+end
+
+-- The price of the district itself when it is bought (not produced): gold or faith, nil otherwise.
+local function PlacementPurchaseCost( scan:table, city:table )
+	if scan.purchaseYield == nil or city == nil then return nil; end
+	local ok:boolean, cost:number = pcall( function() return city:GetGold():GetPurchaseCost( scan.purchaseYield, scan.hash ); end );
+	if ok and cost ~= nil and cost > 0 then return math.floor( cost ); end
+	return nil;
 end
 
 local function PlacementBuyTile( c:table )
@@ -261,6 +274,12 @@ local function PlacementBuyTile( c:table )
 	params[ CityCommandTypes.PARAM_PLOT_PURCHASE ] = UI.GetInterfaceModeParameter( CityCommandTypes.PARAM_PLOT_PURCHASE );
 	params[ CityCommandTypes.PARAM_X ] = c.x;
 	params[ CityCommandTypes.PARAM_Y ] = c.y;
+	-- bought with gold too: the tile and the district together
+	local districtCost:number = PlacementPurchaseCost( scan, city );
+	if districtCost ~= nil and scan.purchaseYield == YieldTypes.GOLD and gold < c.tileCost + districtCost then
+		HubCore.SayResult( "Can't buy both, need " .. ( c.tileCost + districtCost - gold ) .. " more gold" );
+		return;
+	end
 	-- CanStartCommand does not look at the balance (verified: it says yes and the purchase then silently fails)
 	if gold < c.tileCost then
 		HubCore.SayResult( "Can't buy this tile, need " .. ( c.tileCost - gold ) .. " more gold" );
@@ -291,8 +310,8 @@ local function PlacementBuyTile( c:table )
 		if fresh == nil then return; end
 		local c2:table = fresh.byIndex[ c.plotIndex ];
 		if c2 ~= nil and c2.owned then
-			local effects:string = PlacementEffects( c2, false );
-			HubCore.SayResult( "Tile bought for " .. c.tileCost .. " gold. Valid" .. ( effects ~= "" and ( ", " .. effects ) or "" ) .. ". " .. SRKey( "Enter" ) .. " to place " .. fresh.name .. " here" );
+			-- the player agreed to the price: place at once, the result line starts with the purchase
+			PlacementCommit( c2, "Tile bought for " .. c.tileCost .. " gold. " );
 		else
 			local why:string = PlacementScan_Blockers( fresh, plot );
 			if why == "" then why = PlacementScan_Cannot( fresh, plot ); end
@@ -304,7 +323,7 @@ local function PlacementBuyTile( c:table )
 end
 
 -- Enter: the tile under the cursor (browsing puts the cursor on the listed tile; Shift+Arrows move it freely). The first
--- Enter asks, the second one does it.
+-- Enter asks, the second one does it (an unowned tile is bought and the district placed at once).
 local function PlacementEnter( item:table )
 	local scan:table = m_placeScan;
 	if scan == nil then return; end
@@ -328,7 +347,13 @@ local function PlacementEnter( item:table )
 	if c.owned then
 		HubCore.SayResult( "Place " .. scan.name .. " here?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back" );
 	else
-		HubCore.SayResult( "Buy this tile for " .. c.tileCost .. " gold?" .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " " .. SRKey( "Enter" ) .. " to confirm, then " .. SRKey( "Enter" ) .. " again to place " .. scan.name .. ". " .. SRKey( "Escape" ) .. " to go back" );
+		local districtCost:number = PlacementPurchaseCost( scan, UI.GetHeadSelectedCity() );
+		local what:string = "Buy this tile for " .. c.tileCost .. " gold and place " .. scan.name .. " here?";
+		if districtCost ~= nil then
+			local isGold:boolean = ( scan.purchaseYield == YieldTypes.GOLD );
+			what = "Buy this tile for " .. c.tileCost .. " gold and " .. scan.name .. " for " .. districtCost .. ( isGold and ( " gold, " .. ( c.tileCost + districtCost ) .. " in total?" ) or " faith?" );
+		end
+		HubCore.SayResult( what .. ( effects ~= "" and ( " " .. effects .. "." ) or "" ) .. " " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back" );
 	end
 end
 
