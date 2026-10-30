@@ -148,7 +148,7 @@ local m_sections:table = {
 		{ keys = "Shift+Arrows",		text = "move the cursor freely, valid or not is spoken" },
 		{ keys = "I",					text = "details of the tile" },
 		{ keys = "Space",				text = "adjacency explanation, what is removed" },
-		{ keys = "Enter",				text = "twice: first asks, second places; on a purchasable tile it buys it first" },
+		{ keys = "Enter",				text = "twice: first asks, second places; on a purchasable tile the first Enter names the price, the second buys the tile and places at once" },
 		{ keys = "Escape",				text = "go back one step, then cancel the placement" },
 	} },
 	{ title = "Screens", entries = {
