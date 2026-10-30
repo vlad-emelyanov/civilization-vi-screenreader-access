@@ -68,7 +68,27 @@ function HubMenus.TargetPhrase( verb:string, plotInfo:table )
 	return verb .. " to " .. name;
 end
 
+-- "Rebasing to <city>" for a plot (used by the order itself, which speaks at once: the operation event comes seconds later).
+function HubMenus.PlotTargetPhrase( verb:string, plot:table )
+	local info:table = {};
+	pcall( function()
+		local x:number, y:number = plot:GetX(), plot:GetY();
+		local city:table = Cities.GetPlotPurchaseCity( plot );
+		if city ~= nil and city:GetX() == x and city:GetY() == y then info.city = Locale.Lookup( city:GetName() ); return; end
+		local districtType = plot:GetDistrictType();
+		if districtType ~= nil and districtType >= 0 and GameInfo.Districts[ districtType ] ~= nil then
+			info.district = Locale.Lookup( GameInfo.Districts[ districtType ].Name );
+		end
+	end );
+	return HubMenus.TargetPhrase( verb, info );
+end
+
 local function CursorTargetResult( verb:string )
+	local last = HubTargets ~= nil and HubTargets.m_lastDirectTarget or nil;
+	if last ~= nil and last.spoken and last.time ~= nil and UI.GetElapsedTime() - last.time <= 15.0 then
+		last.spoken = nil;		-- the list's Enter already said it
+		return nil;
+	end
 	local info:table = {};
 	pcall( function()
 		local plot:table = nil;

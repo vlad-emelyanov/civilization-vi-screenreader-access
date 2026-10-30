@@ -1255,6 +1255,11 @@ local function ConfirmDirectRequest( unit:table, plot:table, mode:number )
 	HubTargets.m_lastDirectTarget = { plot = plot:GetIndex(), time = UI.GetElapsedTime() };		-- HubEvents reads the confirmed target (Rebasing / Deploying to <city>)
 	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 	if entry.say then HubCore.SayResult( entry.say ); end
+	if entry.typeName == "REBASE" or entry.typeName == "DEPLOY" then
+		-- say it at once with the confirmed target (the operation event arrives seconds later, when the cursor has moved)
+		HubTargets.m_lastDirectTarget.spoken = true;
+		HubCore.SayResult( HubMenus.PlotTargetPhrase( entry.typeName == "REBASE" and "Rebasing" or "Deploying", plot ) );
+	end
 end
 
 -- ===========================================================================
