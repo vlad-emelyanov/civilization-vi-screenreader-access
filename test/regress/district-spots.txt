@@ -24,8 +24,7 @@ key Enter -Settle 2000
 expect ^District spots: 
 key Tab -Settle 2500
 expect (?i)production
-# Down to the first district item and read it: the description, then where it fits best
-key Down -Settle 800
+# the panel opens on the Bath (the first district item): read it, the description, then where it fits best
 key Space -Settle 3000
 expect (?i)(Best spot: .*|none available now)
 key Escape -Settle 2000

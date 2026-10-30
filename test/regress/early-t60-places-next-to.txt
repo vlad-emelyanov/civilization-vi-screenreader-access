@@ -1,4 +1,4 @@
-# Places list: Move To a city the unit cannot enter says "Next to Rome" and moves the target beside it; M on a city-state lists "next to Zanzibar". Verified 2026-10-23.
+# Places list: Move To a city the unit cannot enter says "Next to Rome" and moves the target beside it; M on a city-state lists "next to <city>" (Zanzibar or Hong Kong: they tie in distance). Verified 2026-10-23.
 # covers: **/HubPlaces.lua **/HubTargets.lua
 # no-share-load: moves a unit
 # dirty-group: t60-no-barbarians (the tuner removes the two barbarians that the fixture has next to Rome: they add a Threats category to J; the same idempotent change in every member, so the members run one after the other on one load)
@@ -22,7 +22,7 @@ action KeyNavPlaces -Settle 1500
 key Tab -Settle 600 -Count 5
 expect ^Foreign cities
 key M -Settle 2000
-expect Send a unit to Zanzibar, \d+ options
+expect Send a unit to (Zanzibar|Hong Kong), \d+ options
 key Escape -Settle 1000
 expect ^Places\. Foreign cities
 no-lua-errors
