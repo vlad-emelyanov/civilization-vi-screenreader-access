@@ -1,0 +1,7 @@
+turn: 199
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain t199
+mod commit: 422f8a5
+created: 2026-10-30
+size: 1094 KB

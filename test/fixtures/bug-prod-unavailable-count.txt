@@ -1,0 +1,7 @@
+turn: 191
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Production panel, Rome t191: after Enter on 'Show 24 unavailable items' the Unavailable group announces '25 items' but 26..49 of 49 is 24 items; toggle labelled 'in Projects, 4 items'
+mod commit: 422f8a5
+created: 2026-10-30
+size: 1051 KB
