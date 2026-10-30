@@ -10,6 +10,8 @@ The .civ6proj registration check (util/overridecheck.py) runs at the end; its er
 Strict files = mod-only code: Assets/UI/Accessibility/*.lua and UI/Additions/*.lua.
 """
 import hashlib, os, re, shutil, subprocess, sys, urllib.request
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import typedlocals
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS = os.path.join(ROOT, "util", "tools")
@@ -163,13 +165,16 @@ def main(argv):
             src = fh.read()
         with open(dst, "w", encoding="utf-8", newline=None) as fh:
             fh.write(strip_annotations(src))
-    compile_errors = []
+    compile_errors, typed_warns = [], []
     for f in files:
         if f not in wanted:
             continue
         with open(os.path.join(tmp, f), encoding="utf-8") as fh:
             stripped = fh.read()
         e = compile_check(f, stripped)
+        with open(os.path.join(ROOT, f), encoding="utf-8-sig", errors="replace") as fh:
+            for ln, msg in typedlocals.check(fh.read()):
+                (compile_errors if f.startswith(STRICT) else typed_warns).append("%s:%d: typed local: %s" % (f, ln, msg))
         if e:
             compile_errors.append("%s (Lua 5.1 compile)" % e)
         n = top_level_locals(stripped)
@@ -194,7 +199,7 @@ def main(argv):
     for l in errors:
         print("ERROR " + l)
     if verbose:
-        for l in warns:
+        for l in warns + typed_warns:
             print("warn  " + l)
     print("lint: %d file(s), %d error(s), %d upstream warning(s)%s" % (
         len(wanted), len(errors), len(warns), "" if verbose else " (use -v to list)"))
