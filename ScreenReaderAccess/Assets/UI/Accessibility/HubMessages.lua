@@ -10,19 +10,41 @@ local MAX_MESSAGES:number = 100;
 local m_messages:table = {};		-- oldest first: { id, text, turn, plotIndex }
 local m_nextId:number = 1;
 
+local MAX_PER_TURN:number = 30;
+local m_seenKeys:table = {};		-- turn .. text: a line is logged once per turn
+
 function HubMessages.Clear()
 	m_messages = {};
+	m_seenKeys = {};
 end
 
--- plotIndex (optional): the plot the message is about. An exact repeat of the previous entry in the same turn is dropped.
+-- plotIndex (optional): the plot the message is about. The same text twice in one turn is dropped; a turn keeps at most 30
+-- entries (the oldest of that turn goes first, the "Turn N, year" line stays).
 function HubMessages.Add( text:string, plotIndex:number )
 	if text == nil or text == "" then return; end
 	local turn:number = Game.GetCurrentGameTurn();
-	local last:table = m_messages[ #m_messages ];
-	if last ~= nil and last.text == text and last.turn == turn then return; end
+	local key:string = turn .. "|" .. text;
+	if m_seenKeys[ key ] then return; end
+	m_seenKeys[ key ] = true;
 	table.insert( m_messages, { id = m_nextId, text = text, turn = turn, plotIndex = plotIndex } );
 	m_nextId = m_nextId + 1;
-	while #m_messages > MAX_MESSAGES do table.remove( m_messages, 1 ); end
+	local count:number = 0;
+	for _, message in ipairs( m_messages ) do
+		if message.turn == turn then count = count + 1; end
+	end
+	if count > MAX_PER_TURN then
+		for i, message in ipairs( m_messages ) do
+			if message.turn == turn and not string.find( message.text, "^Turn %d+, " ) then
+				m_seenKeys[ message.turn .. "|" .. message.text ] = nil;
+				table.remove( m_messages, i );
+				break;
+			end
+		end
+	end
+	while #m_messages > MAX_MESSAGES do
+		local gone:table = table.remove( m_messages, 1 );
+		m_seenKeys[ gone.turn .. "|" .. gone.text ] = nil;
+	end
 end
 
 -- The plot index of a map position, nil when there is none (safe to call with anything).

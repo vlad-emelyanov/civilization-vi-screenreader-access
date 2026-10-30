@@ -771,7 +771,7 @@ function HubEnemies.SpeakThreats( nointerrupt:boolean )
 		if kind ~= nil then
 			if raid.barbarian then HubEnemies.m_raidExpected = nil; end		-- it has come
 			HubCore.Announce( kind == "full" and raid.text or HubEnemies.RaidContinuesText( raid.ownerName, raid.cityName, #raid.members ), nointerrupt, "raid",
-				HubMessages.PlotIndexOf( raid.members[1].x, raid.members[1].y ) );
+				raid.members[1] ~= nil and HubMessages.PlotIndexOf( raid.members[1].x, raid.members[1].y ) or nil );
 		end
 	end
 	for _, danger in ipairs( threats.civilians ) do

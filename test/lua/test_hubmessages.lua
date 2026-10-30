@@ -31,22 +31,36 @@ test("newest first, one section per turn", function()
 	eq(items[3].section, "Turn 45")
 end)
 
-test("an exact repeat of the previous entry in the same turn is skipped", function()
+test("the same text twice in one turn is skipped, even when not adjacent", function()
 	reset()
 	HubMessages.Add("Barbarians near Rome")
 	HubMessages.Add("Barbarians near Rome")
 	eq(HubMessages.Count(), 1)
 	HubMessages.Add("Other")
 	HubMessages.Add("Barbarians near Rome")
-	eq(HubMessages.Count(), 3)
+	eq(HubMessages.Count(), 2)
 	turn = 2
 	HubMessages.Add("Barbarians near Rome")
-	eq(HubMessages.Count(), 4)
+	eq(HubMessages.Count(), 3)
+end)
+
+test("a turn keeps at most 30 entries, its turn line stays", function()
+	reset()
+	turn = 7
+	HubMessages.Add("Turn 7, 500 BC")
+	for i = 1, 60 do HubMessages.Add("spotted " .. i) end
+	eq(HubMessages.Count(), 30)
+	local items = HubMessages.BuildItems()
+	eq(items[1].text, "spotted 60")
+	eq(items[30].text, "Turn 7, 500 BC")
+	turn = 8
+	HubMessages.Add("Turn 8, 490 BC")
+	eq(HubMessages.Count(), 31)
 end)
 
 test("the history keeps the newest 100", function()
 	reset()
-	for i = 1, 130 do HubMessages.Add("m" .. i) end
+	for i = 1, 130 do turn = 1 + math.floor(i / 10); HubMessages.Add("m" .. i) end
 	eq(HubMessages.Count(), 100)
 	local items = HubMessages.BuildItems()
 	eq(items[1].text, "m130")
