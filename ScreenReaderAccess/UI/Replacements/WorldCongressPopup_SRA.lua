@@ -2716,7 +2716,7 @@ local function SRA_ProposalVoteItem( voteKey, kVote:table )
 	local title:string, desc:string, flavor:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
 	local signed:number = ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 );
 	return { key = "prop:" .. voteKey, kind = "prop", voteKey = voteKey,
-		text = WCText_ProposalLine( title, desc, signed, kVote.cost, kVote.sraCostData or SRA_PcallCostData(), m_sraHintCount < 3 ),
+		text = WCText_ProposalLine( title, desc, signed, kVote.cost, kVote.sraCostData or SRA_PcallCostData(), true ),		-- (the hint is only said while it has no votes: the one thing to do)
 		detail = function()
 			local extra:string = SRA_EmergencyText( kVote.data );
 			return title .. ". " .. ( extra ~= "" and extra or desc ) .. ( flavor ~= "" and ( ". " .. flavor ) or "" ) ..
@@ -3079,6 +3079,10 @@ local function SRA_KeyHorizontal( delta:number )
 	if mode ~= "vote" then SRA_Say( "No options to switch here" ); return; end
 	local item:table = SRA_FindItem( m_sraMainList.GetFocusKey() );
 	if item == nil then return; end
+	if item.kind == "prop" then
+		SRA_Say( "A yes or no vote, no options: " .. SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it" );
+		return;
+	end
 	if item.kind ~= "res" then SRA_Say( "No options to switch here" ); return; end
 	local f:table = SRA_ResolutionFacts( item.index );
 	m_sraFocusOption[ f.hash ] = ( delta < 0 ) and 1 or 2;
@@ -3227,6 +3231,16 @@ local function SRA_ToggleProposal( item:table )
 	m_sraMainList.Focus( item.key );
 end
 
+-- The item's detail, without the closing key hint of a proposal (said first by the caller).
+local function SRA_FindItemDetail( item:table )
+	local detail = item.detail;
+	if type( detail ) == "function" then detail = detail(); end
+	detail = detail or item.text;
+	local cut:number = string.find( detail, ". " .. SRKey( "Equals", "X" ), 1, true );
+	if cut ~= nil then detail = string.sub( detail, 1, cut ); end
+	return detail;
+end
+
 local function SRA_OnActivate( item:table )
 	local mode:string = SRA_Mode();
 	if item.kind == "res" then
@@ -3242,6 +3256,9 @@ local function SRA_OnActivate( item:table )
 		SRA_ToggleProposal( item );
 	elseif mode == "review" then
 		SRA_CloseSpoken();		-- results and current effects: Enter continues, as the game's Enter does
+	elseif item.kind == "prop" then
+		-- a yes / no proposal has no options and no target: say how to vote first (the detail ends with it, too late)
+		SRA_Say( SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it. " .. SRA_FindItemDetail( item ) );
 	else
 		local detail = item.detail;
 		if type( detail ) == "function" then detail = detail(); end
