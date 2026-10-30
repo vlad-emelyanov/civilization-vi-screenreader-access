@@ -188,7 +188,7 @@ function HubEnemies.SpeakAtTurnStart()
 	local okScouts:boolean, alarms = pcall( HubEnemies.CheckScouts, true );
 	if okScouts then
 		local alarmPlot:number = nil;		-- one alarmed scout: its plot (with several the lines cannot be paired)
-		local alarmed:table = nil;
+		local alarmed = nil;
 		for key in pairs( HubEnemies.m_alarmedNow ) do
 			if alarmed == nil then alarmed = HubEnemies.m_scouts[ key ]; else alarmed = false; end
 		end
