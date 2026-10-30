@@ -134,6 +134,7 @@ local m_sections:table = {
 		{ keys = "Tab",					text = "in the city report: production panel of that city (the unit actions menu opens only from the map)" },
 		{ keys = "Tab and Control+Tab",	text = "in the production panel: production, queue, purchase with gold, purchase with faith; the item you were on stays focused. The panel opens on the production in progress, and Enter on another item says what it replaces" },
 		{ keys = "Enter",				text = "in the production panel: produce or buy; districts and wonders start the placement mode" },
+		{ keys = "Enter",				text = "on \"Show unavailable items\", the last item of the production panel: lists the items this city cannot build or buy now, with the reason, after it (Enter again hides them); the list otherwise holds only what can be built, with repairs on top" },
 		{ action = "KeyNavCityReport",	default = "Control+I",	text = "city report: yields, growth, amenities, loyalty, defense, districts, citizens, religion" },
 		{ keys = "Space",				text = "in the city report: the breakdown of the entry" },
 		{ keys = "District spots entry",	text = "city report: which districts the city can build and the best adjacency spot for each, or the nearest unmet requirement when none can be built now (Enter repeats it with the best spot of every district, Tab opens production)" },

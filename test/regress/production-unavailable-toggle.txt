@@ -1,0 +1,22 @@
+# Written blind (not verified in game; the verifier records it with --record). The production panel lists only what can be built: its last item is the toggle "Show N unavailable items";
+# Enter says "Showing N unavailable items" and the hidden items (already built, disabled with their reason) follow it; Enter again hides them.
+# The "show unavailable" flag is module-local in ProductionPanel.lua and kept for the session (Escape does not reset it; a load re-inits the context and resets it). This script ends with it hidden, so it must not leak into later scripts of the same load; a script that needs hidden items shown or hidden should press Enter on the toggle first and check the "Showing"/"hidden" reply.
+# covers: **/ProductionPanel.lua **/ProductionText.lua
+# no-share-load: opens the production panel, toggles a session flag
+load early-t60
+clear-advisors
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2500 -Quiet 700
+expect (?i)choose production
+key End -Settle 800
+expect ^Show \d+ unavailable item
+key Enter -Settle 800
+expect ^Showing \d+ unavailable item
+key Down -Settle 800
+expect (?i)unavailable|already built
+key Up -Settle 800
+expect ^Hide \d+ unavailable item
+key Enter -Settle 800
+expect ^Unavailable items hidden
+key Escape -Settle 1200
+no-lua-errors

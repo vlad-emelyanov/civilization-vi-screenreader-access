@@ -2484,11 +2484,13 @@ end
 -- ===========================================================================
 -- Begin ScreenReaderAccess change: keyboard list of the production items.
 -- Items are rebuilt from the panel's data at key time, in the order the panel shows them for the current tab:
--- Production/Queue: districts with their buildings, wonders, units, projects; Purchase tabs: districts,
--- buildings, units. Tab cycles the panel's tabs. Corps/armies and queue editing are not covered.
+-- Production/Queue: repairs, then districts with their buildings, wonders, units, projects; Purchase tabs: districts,
+-- buildings, units. Only what can be built (bought) is listed; a toggle item at the end shows the rest (ProductionText_Arrange).
+-- Tab cycles the panel's tabs. Corps/armies and queue editing are not covered.
 -- ===========================================================================
 local m_srList:table = nil;
 local m_srHintSaid:boolean = false;		-- "Space for description" is said once per session
+local m_srShowUnavailable:boolean = false;		-- the toggle item: unavailable items are listed after it (kept for the session, all tabs)
 
 -- GetData() is expensive and is called on every key; cache it per Refresh (View sets it, Open/Close clear it).
 local function SRA_Data()
@@ -2592,6 +2594,7 @@ local function SRA_Item( kItem:table, kind:string, section:string, owner:string 
 		built = built,
 		reason = built and "Already built" or ( "Can't build " .. name .. ( reasons ~= "" and ( ": " .. reasons ) or "" ) ),
 		recommended = recommended,
+		repair = kItem.Repair == true,
 		detail = function()
 			if detailItem.Repair then return SRA_RepairDetail( detailItem, kind ); end
 			return SRA_Detail( detailItem );
@@ -2627,13 +2630,15 @@ local function SRA_PurchaseItem( kItem:table, kind:string, section:string )
 		text = table.concat( parts, ", " ),
 		data = kItem,
 		choosable = not kItem.Disabled,
+		cantAfford = kItem.CantAfford == true,
 		reason = "Can't buy " .. name .. ( kItem.CantAfford and ( ": not enough " .. currency .. ", " .. math.max( missing, 1 ) .. " more needed" ) or "" )
 			.. ( other ~= "" and ( ": " .. other ) or "" ),
 		detail = function() return SRA_Detail( detailItem ); end,
 	};
 end
 
-local function SRA_GetItems()
+-- The panel's items in the game's category order, unavailable ones included (SRA_GetItems arranges them).
+local function SRA_BuildAllItems()
 	local items:table = {};
 	local data:table = SRA_Data();
 	if data == nil then return items; end
@@ -2691,6 +2696,11 @@ local function SRA_GetItems()
 	return items;
 end
 
+-- Repairs on top, then what can be built (bought), then the toggle for the rest (ProductionText_Arrange).
+local function SRA_GetItems()
+	return ProductionText_Arrange( SRA_BuildAllItems(), m_srShowUnavailable, SRA_IsPurchaseMode( m_CurrentListMode ) );
+end
+
 -- Outcome of the last Enter. The game applies requests a moment later, so the announcement is made from the
 -- events that report the change (and at once when the state already changed); nothing is announced if nothing happened.
 local function SRA_ResolvePending( fromEvent:boolean )
@@ -2742,6 +2752,12 @@ local function SRA_EnemyOnRepairTile( city:table, kItem:table, kind:string )
 end
 
 local function SRA_OnActivate( item:table )
+	if item.toggle then
+		-- the list is rebuilt at the next key; the focus stays on the toggle (same key)
+		m_srShowUnavailable = not m_srShowUnavailable;
+		OutputMessageToScreenReader( ProductionText_ToggleSaid( item.count, m_srShowUnavailable ) );
+		return;
+	end
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
 	local kItem:table = item.data;
@@ -3485,7 +3501,7 @@ function Initialize()
 		isActive = function() return m_srActive and not ContextPtr:IsHidden() and m_CurrentListMode ~= -1; end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
-		sectionCounts = true,		-- "Units, 12: Warrior, ..." when PageUp / PageDown enter a group (like the J list)
+		sectionCounts = true,		-- "Warrior, in Units, 12 items" when Down enters a group; "Units, 12: Warrior, ..." when PageUp / PageDown enter a group (like the J list)
 		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
 		extraKeys = { [Keys.VK_TAB] = SRA_NextTab },
 		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab },

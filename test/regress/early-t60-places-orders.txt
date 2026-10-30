@@ -20,7 +20,7 @@ action KeyNavPlaces -Settle 1500
 key Tab -Settle 600
 expect ^Your units
 key Down -Settle 400 -Count 5
-expect Spearman, 1: fortified
+expect Spearman, fortified.*, 1 item, \d+ of \d+
 key Enter -Settle 1500
 expect fortified\. Shift\+C cancels it
 lua InGameAccess UI.DeselectAll()

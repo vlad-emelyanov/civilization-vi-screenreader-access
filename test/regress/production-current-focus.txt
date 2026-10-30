@@ -12,8 +12,9 @@ expect (?i)producing
 lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
 key Tab -Settle 2000
 expect (?i)choose production.*Currently building
-# the game's list hides the production in progress, so focus lands on the first item; End = a buildable project
+# the game's list hides the production in progress, so focus lands on the first item; End goes to the unavailable-items toggle, Up to the last buildable item
 key End -Settle 800
+key Up -Settle 800
 key Enter -Settle 2500 -Quiet 700
 expect (?i)replaces
 lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
