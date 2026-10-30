@@ -479,9 +479,19 @@ function HubTargets.ModeTargetPlots( mode:number, unit:table )
 	return set;
 end
 
+-- Pure. Why a unit cannot enter another player's plot when not at war: { ownerName, isCity, major, atWar, openBorders } -> text or "".
+-- A foreign city tile is never entered in peace; a major civilization's land is closed without open borders (city-states' is open).
+function HubTargets.ForeignPlotReason( f:table )
+	if f == nil or f.atWar or f.ownerName == nil or f.ownerName == "" then return ""; end
+	if f.isCity then return "a city of " .. f.ownerName .. ", units cannot enter a foreign city"; end
+	if f.major and not f.openBorders then return f.ownerName .. "'s territory, no open borders with " .. f.ownerName; end
+	return "";
+end
+
 -- Why a move order finds no path to a plot of ours: the engine allows one unit of each formation class per tile, and an
 -- escort formation counts as both its classes (verified: a Spearman + Settler formation, and a lone Builder, find no path
--- to a city holding a Great General: civilian class; a Heavy Chariot does). "" when the cause is not this (stays "Unreachable").
+-- to a city holding a Great General: civilian class; a Heavy Chariot does). Else another player's plot (ForeignPlotReason).
+-- "" when the cause is none of these (stays "Unreachable").
 function HubTargets.UnreachableReason( unit:table, plot:table )
 	if unit == nil or plot == nil then return ""; end
 	local text:string = "";
@@ -523,6 +533,18 @@ function HubTargets.UnreachableReason( unit:table, plot:table )
 				return;
 			end
 		end
+	end );
+	if text ~= "" then return text; end
+	-- another player's plot: a foreign city, or closed borders
+	pcall( function()
+		local owner:number = plot:GetOwner();
+		local me:number = unit:GetOwner();
+		if owner == nil or owner < 0 or owner == me or Players[ owner ] == nil or PlayerConfigurations[ owner ] == nil then return; end
+		local dip:table = Players[ me ]:GetDiplomacy();
+		text = HubTargets.ForeignPlotReason{
+			ownerName = Locale.Lookup( PlayerConfigurations[ owner ]:GetCivilizationShortDescription() ),
+			isCity = plot:IsCity(), major = Players[ owner ]:IsMajor(),
+			atWar = dip:IsAtWarWith( owner ), openBorders = dip:HasOpenBordersFrom( owner ) };
 	end );
 	return text;
 end

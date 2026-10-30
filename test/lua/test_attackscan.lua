@@ -51,3 +51,13 @@ test("transfer items: nearest city first, then by name, with distance text", fun
 	eq(items[4].text, "Zama, 5 tiles")
 	eq(items[1].plotIndex, 11)
 end)
+
+test("ForeignPlotReason: a foreign city, closed borders, nothing at war or with open borders", function()
+	eq(HubTargets.ForeignPlotReason{ ownerName = "Germany", isCity = true, major = true }, "a city of Germany, units cannot enter a foreign city")
+	eq(HubTargets.ForeignPlotReason{ ownerName = "Kabul", isCity = true, major = false }, "a city of Kabul, units cannot enter a foreign city")
+	eq(HubTargets.ForeignPlotReason{ ownerName = "Germany", isCity = false, major = true, openBorders = false }, "Germany's territory, no open borders with Germany")
+	eq(HubTargets.ForeignPlotReason{ ownerName = "Germany", isCity = false, major = true, openBorders = true }, "")
+	eq(HubTargets.ForeignPlotReason{ ownerName = "Kabul", isCity = false, major = false }, "")		-- city-states' land is open
+	eq(HubTargets.ForeignPlotReason{ ownerName = "Germany", isCity = true, major = true, atWar = true }, "")		-- at war: an attack target
+	eq(HubTargets.ForeignPlotReason(nil), "")
+end)
