@@ -11,7 +11,7 @@
 --		ctrlKeys   = { [Keys.VK_TAB] = function() ... end },    -- optional: Control+key (acted on at KeyUp; Shift+Tab is Steam's overlay, so Control+Tab = previous)
 --		horizontal = true,                                -- optional: Left/Right also move (like Up/Down)
 --		noDetailHint = true,                              -- optional: no pad-only ", Y for details" after the first item when the list opens
---		sectionCounts = true,                             -- optional: a group's name is spoken with its item count ("Builder, 3: ...") when the focus enters it
+--		sectionCounts = true,                             -- optional: a group's item count is spoken when the focus enters it ("Warrior, in Units, 12 items, 3 of 40"; a group jump: "Units, 12: Warrior ...")
 --		tabEdge    = function(step) return bool end,      -- optional: true when the sections cannot go further in that direction (+1 / -1); the hub then moves the LB / RB ring on
 --		wheel      = true,                                -- optional: the pad's wheel (hold LT, point the left stick) works here; short lists of the main interface only
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
@@ -22,6 +22,9 @@
 --	m_list.HandleInput( pInputStruct )   -- call first thing in the context's input handler; returns true when it
 --	                                     -- consumed the key (both KeyDown and KeyUp of the keys it uses are consumed)
 --
+--	Entering a new group by Up / Down / Home / End speaks the item first and the group after it ("Settler, 5 turns, in Units, 7 of 40"; an item that
+--	already starts with its group name stays whole: "Builder, 5 tiles east, 3 items, 2 of 9"). PageUp / PageDown, Tab to another section, Focus() and
+--	Open() keep the group name first ("Units, 12: Warrior ...").
 --	Focus is tracked by item.key, never by index (the list is rebuilt from visible state on every key).
 --	PageUp / PageDown (the pad: a held bumper plus up / down) jump to the first item of the previous / next group (item.section) and are
 --	always consumed ("No groups in this list"), so PageDown never opens the Climate screen underneath.
@@ -100,20 +103,27 @@ function KeyNavList_Create( config:table )
 		end
 		local text:string = item.text;
 		if item.section ~= nil and ( withSection or item.section ~= m_lastSection ) then
-			local head:string = item.section;
+			local count:number = 0;
 			if config.sectionCounts then
-				local count:number = 0;
 				for _, other in ipairs( items ) do
 					if other.section == item.section then count = count + 1; end
 				end
-				head = head .. ", " .. count;
 			end
 			-- the item names its own group ("Builder, 5 tiles east"): say it once
 			local own:string = item.text;
-			if string.lower( string.sub( own, 1, #item.section + 2 ) ) == string.lower( item.section ) .. ", " then
-				text = string.sub( own, #item.section + 3 );
+			local selfNamed:boolean = string.lower( string.sub( own, 1, #item.section + 2 ) ) == string.lower( item.section ) .. ", ";
+			local countText:string = count .. ( count == 1 and " item" or " items" );
+			if withSection then
+				-- the player asked for the group (PageUp / PageDown, Tab, opening): the group name first
+				local head:string = item.section;
+				if config.sectionCounts then head = head .. ", " .. count; end
+				if selfNamed then text = string.sub( own, #item.section + 3 ); end
+				text = head .. ": " .. text;
+			else
+				-- scrolling into a new group: the item first (a fast scroller must not miss it), the group after it
+				if not selfNamed then text = text .. ", in " .. item.section; end
+				if config.sectionCounts then text = text .. ", " .. countText; end
 			end
-			text = head .. ": " .. text;
 		end
 		m_lastSection = item.section;
 		text = text .. ", " .. index .. " of " .. #items;

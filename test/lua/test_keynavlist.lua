@@ -144,7 +144,7 @@ test("sections are spoken when they change", function()
 	press(s.list, Keys.VK_DOWN)
 	listeq(Spoken(), { "Beta, 2 of 3" })
 	press(s.list, Keys.VK_DOWN)
-	listeq(Spoken(), { "Buildings: Gamma, 3 of 3" })
+	listeq(Spoken(), { "Gamma, in Buildings, 3 of 3" })
 end)
 
 test("inactive list and keys with modifiers are not consumed", function()
@@ -287,6 +287,32 @@ test("entering a group does not repeat its name when the item starts with it", f
 	listeq(Spoken(), { "Builder, 2: 5 tiles east of Rome, 2 of 3" })
 	press(s.list, Keys.VK_DOWN)		-- inside the group the full text
 	listeq(Spoken(), { "Builder, 7 tiles west, 3 of 3" })
+end)
+
+test("Down into a new group: the item first, the group (and its count) after it", function()
+	local s = newList(grouped(), { sectionCounts = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_DOWN)
+	listeq(Spoken(), { "Alpha two, 2 of 6" })
+	press(s.list, Keys.VK_DOWN)
+	listeq(Spoken(), { "Beta one, in B, 3 items, 3 of 6" })
+	press(s.list, Keys.VK_END)
+	listeq(Spoken(), { "Gamma one, in C, 1 item, 6 of 6" })
+end)
+
+test("Down into a self-named group keeps the item whole and adds only the count", function()
+	local items = {
+		{ key = "a", text = "Alpha one", section = "Alpha" }, { key = "b", text = "Builder, 5 tiles east of Rome", section = "Builder" },
+		{ key = "c", text = "Builder, 7 tiles west", section = "Builder" },
+	}
+	local s = newList(items, { sectionCounts = true })
+	s.list.Open("T")
+	press(s.list, Keys.VK_DOWN)
+	listeq(Spoken(), { "Builder, 5 tiles east of Rome, 2 items, 2 of 3" })
+	s = newList(items)
+	s.list.Open("T")
+	press(s.list, Keys.VK_DOWN)
+	listeq(Spoken(), { "Builder, 5 tiles east of Rome, 2 of 3" })
 end)
 
 test("controller mode: D-pad up / down move one item, left / right are Left / Right, bumpers are the sections", function()
