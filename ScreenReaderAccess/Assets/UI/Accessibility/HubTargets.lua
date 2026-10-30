@@ -956,7 +956,11 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if HubTargets.IsRebaseMode( newMode ) and HubTargets.OpenRebase( newMode ) then return; end
 	-- CityPanel flips SELECTION -> CITY_RANGE_ATTACK when a city is selected in that mode: one mode line, not two
 	local now:number = UI.GetElapsedTime();
-	if HubTargets.lastModeLine == newMode and now - HubTargets.lastModeTime < 0.5 then return; end
+	if HubTargets.lastModeLine == newMode and now - HubTargets.lastModeTime < 0.5 then
+		-- the flip left and re-entered the mode: the first entry's pending opening was dropped with the leave, begin it again (the 0.3 s scan is already queued)
+		if HubTargets.m_opening == nil and ( newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK or IsCityMode( newMode ) ) then HubTargets.BeginOpening( label ); end
+		return;
+	end
 	HubTargets.lastModeLine, HubTargets.lastModeTime = newMode, now;
 	if newMode == InterfaceModeTypes.MOVE_TO and m_attackIntent then
 		HubTargets.BeginOpening( "Attack" );		-- the scan that AttackKey starts says the line with the first target

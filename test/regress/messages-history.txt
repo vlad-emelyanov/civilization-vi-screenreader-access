@@ -7,9 +7,12 @@ clear-advisors
 # (util/civregress.py has no endturn step, hence the lua step; Turn 61 = early-t60 plus one)
 lua InGame UI.RequestAction(ActionTypes.ACTION_ENDTURN)
 wait Turn 61 -Timeout 60
+clear-advisors
+wait Barbarian Galley spotted -Timeout 30
 action KeyNavMessages -Settle 1000
 expect (?i)^Messages, \d+
-key Space -Settle 500
+key Down -Settle 500
+key Space -Settle 700
 expect (?i)turn \d+
 key Escape -Settle 800
 expect ^Closed

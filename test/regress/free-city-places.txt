@@ -1,6 +1,6 @@
 # Written blind (2026-10-30, not yet verified in game; run with --record first). A revealed, fogged city that turned Free City is in the
 # places list (J) under Foreign cities with its live name and owner, right after a load. Fixture bug-free-city-places (Edirne 67,27).
-# (4 Tabs = Foreign cities when every earlier category exists; add or remove a Tab if the record says otherwise)
+# (5 Tabs from Threats = Foreign cities, Down = the second item; Edirne sorts after Hong Kong)
 # covers: **/HubPlaces.lua
 load bug-free-city-places
 clear-advisors
@@ -9,6 +9,8 @@ key Tab -Settle 500
 key Tab -Settle 500
 key Tab -Settle 500
 key Tab -Settle 500
+key Tab -Settle 500
+key Down -Settle 500
 expect (?i)Edirne, Free City
 key Escape -Settle 800
 no-lua-errors

@@ -15,9 +15,9 @@ expect Re-Base, key Shift\+R
 key Escape -Settle 800
 key Shift+R -Settle 1500
 expect ^Rebase Fighter: \d+ destinations?\. \S+ rebases, \S+ cancels$
-expect ^Mediolanum, \d+ tiles? [a-z-]+, 1 of \d+
+expect ^Mediolanum, \d+ tiles? [a-z-]+, \d+ of \d+ slots used, 1 of \d+
 key Down -Settle 1200
-expect ^Lugdunum, \d+ tiles? [a-z-]+, 2 of \d+
+expect ^Lugdunum, \d+ tiles? [a-z-]+, \d+ of \d+ slots used, 2 of \d+
 key Enter -Settle 3000
 expect ^Rebasing
 expect Historic moment: Taking Flight
@@ -39,11 +39,7 @@ expect ^Air attack: .*next target, \S+ attacks, \S+ cancels$
 expect valid target
 key Enter -Settle 6000
 expect ^Attacking
-# Deploy mode (the game offers no deploy target here): the mode line and the refusal are spoken
+# Deploy mode (the game offers no deploy target here): no list opens, the refusal is spoken and the mode ends
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetMovesRemaining()>0 then UI.SelectUnit(u); UI.SetInterfaceMode(InterfaceModeTypes.DEPLOY) end end
-wait Deploy: choose a tile -Timeout 8
-key Enter -Settle 1500
-expect Not possible there
-key Escape -Settle 1000
-expect ^Cancelled
+wait No place to deploy to -Timeout 8
 no-lua-errors
