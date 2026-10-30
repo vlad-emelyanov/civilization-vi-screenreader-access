@@ -138,12 +138,12 @@ function KeyNavList_Create( config:table )
 		if initialKey ~= nil then m_focusKey = initialKey; end
 		local index:number = FindIndex( items );
 		if #items == 0 then
-			OutputMessageToScreenReader( title .. ", nothing available", true );
+			OutputMessageToScreenReader( title .. ", nothing available" );
 			return;
 		end
 		if index == nil then index = 1; m_focusKey = items[1].key; end
 		if silent then return; end		-- the caller speaks (its own opening sentence)
-		OutputMessageToScreenReader( title .. ", " .. #items .. ( #items == 1 and " option" or " options" ), true );
+		OutputMessageToScreenReader( title .. ", " .. #items .. ( #items == 1 and " option" or " options" ) );
 		Speak( items, index, false, true, true );
 	end
 
