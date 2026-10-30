@@ -617,24 +617,60 @@ local function NotificationItems( ctx:table )
 	return SortItems( items );
 end
 
--- Cities and city-states of others that we have seen (remembered, see ScanSeen).
+-- Pure: "Edirne, Ottomans" / "Edirne, city-state" / "Edirne, Free City" (+ ", was yours" for a city of ours that went free).
+function HubPlaces.ForeignCityText( name:string, civ:string, isMajor:boolean, isFree:boolean, wasYours:boolean )
+	local text:string = name;
+	if isFree then
+		text = text .. ", Free City";
+		if wasYours then text = text .. ", was yours"; end
+	elseif not isMajor then
+		text = text .. ", city-state";
+	elseif civ ~= nil and civ ~= "" and civ ~= name then
+		text = text .. ", " .. civ;
+	end
+	return text;
+end
+
+-- Every city of another player (not barbarian) on a REVEALED plot, read live: a revealed fogged city shows its current owner and
+-- name, as the sighted player's banner does. Works right after a load (no memory needed).
+local function LiveForeignCities()
+	local list:table = {};
+	local localID:number = Game.GetLocalPlayer();
+	local vis:table = PlayersVisibility[ localID ];
+	if vis == nil then return list; end
+	for id = 0, 63 do
+		local player:table = Players[ id ];
+		if player ~= nil and id ~= localID and not player:IsBarbarian() then
+			local okCities:boolean, cities = pcall( function() return player:GetCities(); end );
+			if okCities and cities ~= nil then
+				for _, city in cities:Members() do
+					local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
+					if plot ~= nil and vis:IsRevealed( plot:GetIndex() ) then
+						table.insert( list, { city = city, plot = plot, index = plot:GetIndex(), owner = id, player = player } );
+					end
+				end
+			end
+		end
+	end
+	return list;
+end
+
+-- Cities and city-states of others on revealed plots (live, see LiveForeignCities); fogged ones say "last seen".
 local function ForeignItems( ctx:table )
 	local items:table = {};
-	for index, entry in pairs( m_seen ) do
-		local plot:table = Map.GetPlotByIndex( index );
-		local player:table = Players[ entry.owner or -1 ];
-		if entry.kind == "foreign" and plot ~= nil and player ~= nil then
-			local civ:string = PlotDescription_GetCivName( entry.owner );
-			local text:string = entry.name;
-			if not player:IsMajor() then
-				text = text .. ", city-state";
-			elseif civ ~= "" and civ ~= entry.name then
-				text = text .. ", " .. civ;
-			end
-			if IsFogged( index ) then text = text .. ", last seen"; end
-			text = text .. ", " .. Where( plot, ctx );
-			table.insert( items, MakeItem( "f:" .. entry.owner .. ":" .. entry.id, "foreign", entry.name, text, plot, ctx ) );
+	local localID:number = Game.GetLocalPlayer();
+	for _, c in ipairs( LiveForeignCities() ) do
+		local name:string = Locale.Lookup( c.city:GetName() );
+		local isFree:boolean = c.player.IsFreeCities ~= nil and c.player:IsFreeCities();
+		local wasYours:boolean = false;
+		if isFree then
+			local ok:boolean, original = pcall( function() return c.city:GetOriginalOwner(); end );
+			wasYours = ok and original == localID;
 		end
+		local text:string = HubPlaces.ForeignCityText( name, PlotDescription_GetCivName( c.owner ), c.player:IsMajor(), isFree, wasYours );
+		if IsFogged( c.index ) then text = text .. ", last seen"; end
+		text = text .. ", " .. Where( c.plot, ctx );
+		table.insert( items, MakeItem( "f:" .. c.owner .. ":" .. c.city:GetID(), "foreign", name, text, c.plot, ctx ) );
 	end
 	return SortItems( items );
 end
@@ -647,9 +683,7 @@ function HubPlaces.ForeignLandsItems( ctx:table )
 	local me:table = Players[ localID ];
 	local diplomacy:table = ( me ~= nil ) and me:GetDiplomacy() or nil;
 	local hasCity:table = {};
-	for _, entry in pairs( m_seen ) do
-		if entry.kind == "foreign" and entry.owner ~= nil then hasCity[ entry.owner ] = true; end
-	end
+	for _, c in ipairs( LiveForeignCities() ) do hasCity[ c.owner ] = true; end
 	for owner, o in pairs( ctx.owned or {} ) do
 		local player:table = Players[ owner ];
 		if player ~= nil and not player:IsBarbarian() and not ( player.IsFreeCities ~= nil and player:IsFreeCities() ) and ( diplomacy == nil or diplomacy:HasMet( owner ) ) then
