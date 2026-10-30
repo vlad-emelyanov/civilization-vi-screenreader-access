@@ -14,15 +14,15 @@ clear-advisors
 lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
 wait Legion -Timeout 8
 key W -Settle 1500
-expect ^Attack: choose a target
+expect ^Attack: .*next target, \S+ attacks, \S+ cancels$
 key Escape -Settle 1200
 expect ^Cancelled
 key W -Settle 1500
-expect ^Attack: choose a target
+expect ^Attack: .*next target, \S+ attacks, \S+ cancels$
 key Escape -Settle 1200
 expect ^Cancelled
 key W -Settle 1500
-expect ^Attack: choose a target
+expect ^Attack: .*next target, \S+ attacks, \S+ cancels$
 key Escape -Settle 1200
 expect ^Cancelled
 lua InGameAccess UI.DeselectAll()

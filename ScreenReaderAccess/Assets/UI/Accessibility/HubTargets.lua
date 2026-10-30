@@ -714,6 +714,51 @@ local function WatchWarReturn( tries:number )
 	OutputMessageToScreenReader( "War not declared. Still choosing a target: " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
 end
 
+-- The opening line of an attack mode is ONE line, said when the first target is known: "<Label>: <target line>. X next target,
+-- Enter attacks, Escape cancels" (HubTargets.m_opening is set on entering the mode; the code that finds the first target takes it).
+-- If nobody takes it within a moment, the label and the key hints are said alone.
+local function AttackHints()
+	return SRKey( "X", "X" ) .. " next target, " .. SRKey( "Enter" ) .. " attacks, " .. SRKey( "Escape" ) .. " cancels";
+end
+
+HubTargets.AttackHints = AttackHints;
+
+function HubTargets.BeginOpening( label:string )
+	HubTargets.m_opening = { label = label, time = UI.GetElapsedTime() };
+	local mine:table = HubTargets.m_opening;
+	HubCore.After( 0.9, function()
+		if HubTargets.m_opening == mine then
+			HubTargets.m_opening = nil;
+			if HubTargets.GetTargetMode() ~= nil then OutputMessageToScreenReader( CombatText_OpeningLine( label, nil, AttackHints() ) ); end
+		end
+	end );
+end
+
+-- Takes the pending opening (nil when there is none). Returns the label.
+function HubTargets.TakeOpening()
+	local opening:table = HubTargets.m_opening;
+	HubTargets.m_opening = nil;
+	return ( opening ~= nil ) and opening.label or nil;
+end
+
+-- Puts the cursor on the first target and says the opening line (or, when nothing is pending, just the target).
+local function OpenOnTarget( plot:table )
+	local label:string = HubTargets.TakeOpening();
+	if label == nil then
+		HubCursor.SetCursor( plot:GetX(), plot:GetY(), true, false );
+		return;
+	end
+	HubCursor.SetCursor( plot:GetX(), plot:GetY(), false );
+	OutputMessageToScreenReader( CombatText_OpeningLine( label, HubCursor.DescribePlot( plot, false ), AttackHints() ) );
+end
+
+-- Nothing to aim at: the label, why, and the way out.
+local function OpenWithoutTarget( text:string )
+	local label:string = HubTargets.TakeOpening();
+	if label ~= nil then text = label .. ". " .. text; end
+	OutputMessageToScreenReader( text );
+end
+
 -- City ranged attack: the cursor starts on the nearest tile the city can hit (Enter on the city itself says "No valid target").
 function HubTargets.CursorToNearestCityTarget()
 	if not IsCityMode( UI.GetInterfaceMode() ) then return; end
@@ -731,10 +776,10 @@ function HubTargets.CursorToNearestCityTarget()
 		end
 	end
 	if bestPlot == nil then
-		OutputMessageToScreenReader( "No enemy in range. " .. SRKey( "Escape" ) .. " to cancel", true );
+		OpenWithoutTarget( "No enemy in range. " .. SRKey( "Escape" ) .. " to cancel" );
 		return;
 	end
-	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
+	OpenOnTarget( bestPlot );
 end
 
 -- Unit ranged / air attack: the cursor starts on the nearest tile the unit can hit now (like the city ranged attack above).
@@ -753,8 +798,11 @@ function HubTargets.CursorToNearestUnitTarget()
 			if distance < bestDistance then bestPlot, bestDistance = plot, distance; end
 		end
 	end
-	if bestPlot == nil then return; end		-- nothing in range: X / Enter say so
-	HubCursor.SetCursor( bestPlot:GetX(), bestPlot:GetY(), true, false );
+	if bestPlot == nil then
+		OpenWithoutTarget( "No target in range. " .. SRKey( "Escape" ) .. " to cancel" );
+		return;
+	end
+	OpenOnTarget( bestPlot );
 end
 
 HubTargets.cityAttackTurn = {};		-- "owner:city id" -> game turn of the last city ranged attack we confirmed
@@ -903,12 +951,12 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if HubTargets.lastModeLine == newMode and now - HubTargets.lastModeTime < 0.5 then return; end
 	HubTargets.lastModeLine, HubTargets.lastModeTime = newMode, now;
 	if newMode == InterfaceModeTypes.MOVE_TO and m_attackIntent then
-		OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "X", "X" ) .. " for the next one, " .. SRKey( "Shift+Arrows", "LStick" ) .. " moves tile by tile, " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
+		HubTargets.BeginOpening( "Attack" );		-- the scan that AttackKey starts says the line with the first target
 		return;
 	end
 	-- the other attack modes: X walks the foreign units there too
 	if newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK or IsCityMode( newMode ) then
-		OutputMessageToScreenReader( label .. ": choose a target with " .. SRKey( "X", "X" ) .. " for the next one, " .. SRKey( "Shift+Arrows", "LStick" ) .. " moves tile by tile, " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
+		HubTargets.BeginOpening( label );		-- one line with the first target, said by CursorToNearest*Target
 	else
 		OutputMessageToScreenReader( label .. ": choose a tile with " .. SRKey( "Shift+Arrows", "LStick" ) .. ", " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to cancel" );
 	end
@@ -1331,8 +1379,8 @@ function HubTargets.AttackKey()
 	if mode ~= nil then
 		if mode == InterfaceModeTypes.MOVE_TO and not m_attackIntent then
 			m_attackIntent = true;
-			OutputMessageToScreenReader( "Attack: choose a target with " .. SRKey( "X", "X" ) .. " for the next one, " .. SRKey( "Shift+Arrows", "LStick" ) .. " moves tile by tile, " .. SRKey( "Enter" ) .. " to attack, " .. SRKey( "Escape" ) .. " to cancel" );
-			HubCursor.ScanUnits( false );
+			HubTargets.BeginOpening( "Attack" );
+			HubCursor.ScanUnits( true );
 		else
 			HubTargets.ConfirmTarget();
 		end
@@ -1361,5 +1409,7 @@ function HubTargets.AttackKey()
 		m_attackIntent = true;
 		UI.SetInterfaceMode( InterfaceModeTypes.MOVE_TO );
 	end
-	HubCore.After( 0.3, function() if HubTargets.GetTargetMode() ~= nil then HubCursor.ScanUnits( false ); end end );
+	HubCore.After( 0.3, function()		-- melee only: the ranged and air modes find their first target themselves (CursorToNearestUnitTarget)
+		if HubTargets.GetTargetMode() == InterfaceModeTypes.MOVE_TO then HubCursor.ScanUnits( true ); end
+	end );
 end

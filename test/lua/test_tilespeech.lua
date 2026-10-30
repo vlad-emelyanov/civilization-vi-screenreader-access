@@ -51,6 +51,12 @@ test("without the options the order is unchanged", function()
 	istrue(text:find("^Grassland, Iron"), text)
 end)
 
+test("a target line follows the position, no lead resource before it", function()
+	local text = PlotDescription_GetShort(Map.GetPlot(5, 5), { leadResource = true, position = "3 tiles east", targetInfo = "valid target, Strength 20 against 17" })
+	istrue(text:find("^3 tiles east, valid target, Strength 20 against 17, Grassland"), text)
+	istrue(not text:find("^Iron"), text)
+end)
+
 test("a plot without resource: position then terrain", function()
 	local text = PlotDescription_GetShort(Map.GetPlot(9, 9), { leadResource = true, position = "4 tiles south" })
 	istrue(text:find("^4 tiles south, Grassland"), text)

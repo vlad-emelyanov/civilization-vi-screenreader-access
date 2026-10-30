@@ -28,15 +28,15 @@ expect-lua ^55,32$
 # a Fighter in Lugdunum with moves left: Air Attack on the Ottoman Modern Armor 3 tiles away
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_FIGHTER" and u:GetMovesRemaining()>0 then UI.SelectUnit(u) end end
 action RangedAttack -Settle 1500
-expect ^Air attack: choose a target
-expect valid target, .*deals about \d+ damage.*Ottomans Modern Armor
+expect ^Air attack: .*next target, \S+ attacks, \S+ cancels$
+expect Ottomans Modern Armor.*valid target, .*deals about \d+ damage
 key Enter -Settle 6000
 expect ^Attacking Ottomans Modern Armor
 wait Modern Armor takes \d+ damage -Timeout 20
 # the Bomber
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_BOMBER" then UI.SelectUnit(u) end end
 action RangedAttack -Settle 1500
-expect ^Air attack: choose a target
+expect ^Air attack: .*next target, \S+ attacks, \S+ cancels$
 expect valid target
 key Enter -Settle 6000
 expect ^Attacking

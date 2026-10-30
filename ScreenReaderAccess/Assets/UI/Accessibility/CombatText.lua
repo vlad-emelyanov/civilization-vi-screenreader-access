@@ -3,6 +3,27 @@
 --	HubTargets (CombatManager.SimulateAttackInto results); these functions only turn plain numbers / strings into speech.
 -- ===========================================================================
 
+-- Pure. Does the target line of a target mode describe a target (so the plot description starts with the target and this line follows
+-- it), as opposed to "no target" / "unreachable" / "here" (said first, the plot after it)?
+function CombatText_InfoFollowsTarget( info:string )
+	if info == nil then return false; end
+	return string.find( info, "^valid target" ) ~= nil or string.find( info, "^attack" ) ~= nil or string.find( info, "^would declare war" ) ~= nil;
+end
+
+-- Pure. The end of the opening line of an attack mode: "X next target, Enter attacks, Escape cancels" (keys already expanded by the caller).
+function CombatText_OpeningLine( label:string, targetLine:string, hints:string )
+	if targetLine == nil or targetLine == "" then return label .. ". " .. hints; end
+	return label .. ": " .. targetLine .. ". " .. hints;
+end
+
+-- Pure. "3 of 5", the last one adds that X wraps.
+function CombatText_PositionInList( index:number, count:number )
+	if count == nil or count < 2 then return nil; end
+	local text:string = index .. " of " .. count;
+	if index == count then text = text .. ", X wraps to the first"; end
+	return text;
+end
+
 -- "plus 2 flanking": the game's modifier lines start with a signed number ("+2 Flanking", "-3 Across a river").
 function CombatText_ModifierLine( text:string )
 	if text == nil then return ""; end

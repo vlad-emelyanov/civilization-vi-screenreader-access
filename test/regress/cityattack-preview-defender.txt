@@ -9,6 +9,6 @@ lua GameCore_Tuner for _,c in Players[0]:GetCities():Members() do if Locale.Look
 lua InGameAccess for _,c in Players[0]:GetCities():Members() do if Locale.Lookup(c:GetName())=="Cumae" then UI.DeselectAllUnits(); UI.SelectCity(c) end end
 action RangedAttack -Settle 1500
 expect ^City ranged attack
-expect Ranged strength \d+ against \d+.*Barbarian Man-At-Arms, Barbarian Builder
+expect Barbarian Man-At-Arms, Barbarian Builder.*Ranged strength \d+ against \d+
 key Escape -Settle 500
 no-lua-errors

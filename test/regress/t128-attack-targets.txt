@@ -15,18 +15,18 @@ clear-advisors
 lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_ROMAN_LEGION" then UI.SelectUnit(u) end end
 wait Legion -Timeout 8
 key W -Settle 1500
-expect ^Attack: choose a target
+expect ^Attack: .*next target, \S+ attacks, \S+ cancels$
 # the walk: only attackable targets, hostile (W has the Catapult, then Ram, Crossbowman, Musketman, Musketman); never a peaceful civ
 key X -Settle 800
 # X walks by turns: the target spoken on open (the Ram, 1 turn) counts as visited, the first X goes to the Catapult (2 turns)
-expect ^attack, .*Barbarian Catapult
+expect Barbarian Catapult.*attack, 
 expect-not would declare war
 key X -Settle 800
 expect-not would declare war
 key X -Settle 800
 expect-not would declare war
 key X -Settle 800
-expect Last target, X wraps
+expect \d+ of \d+, X wraps to the first
 expect-not would declare war
 # a peaceful civ is no stop but stays attackable by hand: put the cursor on a Hong Kong city
 lua InGameAccess for id=0,63 do local p=Players[id]; if p~=nil and p:IsAlive() and id~=Game.GetLocalPlayer() and PlotDescription_GetCivName(id)=="Hong Kong" then for _,c in p:GetCities():Members() do HubCursor.SetCursor(c:GetX(),c:GetY(),true,true,false,true) return 1 end end end
@@ -40,7 +40,7 @@ expect Barbarian Battering Ram
 key X -Settle 800
 key X -Settle 800
 key X -Settle 800
-expect attack, \d+ turns?(, Strength \d+ against \d+ when you reach it)?\. (\d+ tiles? [a-z-]+, )?Barbarian Musketman, Plains
+expect Barbarian Musketman.*attack, \d+ turns?(, Strength \d+ against \d+ when you reach it)?
 key Enter -Settle 2000 -NoQuiet
 expect ^Moving to attack Barbarian Crossbowman, \d+ turns?
 no-lua-errors

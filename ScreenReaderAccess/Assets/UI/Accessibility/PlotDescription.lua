@@ -394,6 +394,8 @@ end
 -- options.resourceTech: add what the resource needs ("Iron, needs Bronze Working"); GetDetailed adds the full form itself.
 -- options.leadResource: a strategic or luxury resource is spoken first ("Iron (strategic), needs Bronze Working"), before the rest.
 -- options.position: where the plot is ("3 tiles north-east"), spoken right after that resource, before the description.
+-- options.targetInfo: the target line of an attack mode ("valid target, Strength 20 against 17 ..."). The target leads: no lead resource,
+-- and the position and this line follow the city and units ("Rome, Rome city, 2 tiles east, attack, 1 turn, Strength 20 against 17, ...").
 -- Order: [strategic/luxury resource], [position], city, units, terrain/feature, [bonus] resource, river/coast,
 -- improvement/district/wonder, owner, yields, fogged.
 -- Fogged plots: owner, improvement and yields are spoken exactly as the game's own plot tooltip (PlotToolTip.lua)
@@ -408,14 +410,15 @@ function PlotDescription_GetShort( plot:table, options:table )
 	local parts:table = {};
 
 	-- Strategic or luxury resource first (with what it needs), then the position
-	local leadResource:boolean = options.leadResource == true and _IsLeadResource(plot);
+	local targetInfo:string = options.targetInfo;
+	local leadResource:boolean = options.leadResource == true and targetInfo == nil and _IsLeadResource(plot);
 	if leadResource then
 		local text:string = _ResourceText(plot);
 		local tech:string = options.resourceTech and _ResourceTechText(plot, false) or nil;
 		if tech ~= nil then text = text .. ", " .. tech; end
 		table.insert(parts, text);
 	end
-	if options.position ~= nil and options.position ~= "" then table.insert(parts, options.position); end
+	if targetInfo == nil and options.position ~= nil and options.position ~= "" then table.insert(parts, options.position); end
 
 	-- City
 	if plot:IsCity() then
@@ -436,6 +439,11 @@ function PlotDescription_GetShort( plot:table, options:table )
 	-- Units (only what is visible right now)
 	if visibility == "visible" then
 		for _, text in ipairs(_UnitsText(plot, options.excludeUnitId)) do table.insert(parts, text); end
+	end
+
+	if targetInfo ~= nil then
+		if options.position ~= nil and options.position ~= "" then table.insert(parts, options.position); end
+		table.insert(parts, targetInfo);
 	end
 
 	-- Terrain, feature, resource, rivers

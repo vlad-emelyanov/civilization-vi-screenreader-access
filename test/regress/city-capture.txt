@@ -8,11 +8,11 @@ clear-advisors
 lua InGameAccess local p=Players[0]; for _,u in p:GetUnits():Members() do if u:GetX()==58 and u:GetY()==28 then UI.SelectUnit(u) end end
 wait Man-At-Arms -Timeout 8
 key W -Settle 1500
-expect ^Attack: choose a target
+expect ^Attack: .*next target, \S+ attacks, \S+ cancels$
 action KeyNavCursorToSelection -Settle 800
 action KeyNavMoveCellDown -Settle 800
 action KeyNavMoveCellLeft -Settle 900
-expect ^attack, 1 turn.* Free Cities city
+expect Free Cities city.*attack, 1 turn
 key Enter -Settle 4000 -Quiet 1500
 expect Attacking
 expect captured the enemy City

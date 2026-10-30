@@ -6,8 +6,8 @@ load pt-early-t64
 clear-advisors
 lua InGame for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_HEAVY_CHARIOT" and u:GetX()==60 then UI.DeselectAllUnits() UI.SelectUnit(u) UI.LookAtPlot(u:GetX(),u:GetY()) return 1 end end
 key W -Settle 1500
-expect ^Attack: choose a target
+expect ^Attack: .*next target, \S+ attacks, \S+ cancels$
 key X -Settle 1000
-expect attack, \d+ turns, Strength \d+ against \d+ when you reach it\. (\d+ tiles? [a-z-]+, )?Barbarian
+expect Barbarian.*attack, \d+ turns, Strength \d+ against \d+ when you reach it
 key Escape -Settle 800
 no-lua-errors
