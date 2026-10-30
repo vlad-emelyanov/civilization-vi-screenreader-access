@@ -724,6 +724,7 @@ end
 HubTargets.AttackHints = AttackHints;
 
 function HubTargets.BeginOpening( label:string )
+	HubTargets.m_openingDropped = false;
 	HubTargets.m_opening = { label = label, time = UI.GetElapsedTime(), mode = UI.GetInterfaceMode() };
 	local mine:table = HubTargets.m_opening;
 	HubCore.After( 0.9, function()
@@ -920,7 +921,7 @@ end
 
 function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	-- an opening line belongs to the mode that began it (the same mode entered again, as CityPanel does, keeps it)
-	if HubTargets.m_opening ~= nil and HubTargets.m_opening.mode ~= newMode then HubTargets.m_opening = nil; end
+	if HubTargets.m_opening ~= nil and HubTargets.m_opening.mode ~= newMode then HubTargets.m_opening = nil; HubTargets.m_openingDropped = true; end
 	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
 	if HubCore.m_mode ~= nil and ( HubCore.m_mode.name == "menu" or TargetLabel( newMode ) ~= nil or IsChooserMode( newMode ) ) then HubCore.CloseMode( false, true ); end
 	-- the transfer list belongs to its mode only
@@ -958,7 +959,9 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	local now:number = UI.GetElapsedTime();
 	if HubTargets.lastModeLine == newMode and now - HubTargets.lastModeTime < 0.5 then
 		-- the flip left and re-entered the mode: the first entry's pending opening was dropped with the leave, begin it again (the 0.3 s scan is already queued)
-		if HubTargets.m_opening == nil and ( newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK or IsCityMode( newMode ) ) then HubTargets.BeginOpening( label ); end
+		local dropped:boolean = HubTargets.m_openingDropped == true;
+		HubTargets.m_openingDropped = false;
+		if dropped and HubTargets.m_opening == nil and ( newMode == InterfaceModeTypes.RANGE_ATTACK or newMode == InterfaceModeTypes.AIR_ATTACK or IsCityMode( newMode ) ) then HubTargets.BeginOpening( label ); end
 		return;
 	end
 	HubTargets.lastModeLine, HubTargets.lastModeTime = newMode, now;
