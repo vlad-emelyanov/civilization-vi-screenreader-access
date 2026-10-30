@@ -724,12 +724,12 @@ end
 HubTargets.AttackHints = AttackHints;
 
 function HubTargets.BeginOpening( label:string )
-	HubTargets.m_opening = { label = label, time = UI.GetElapsedTime() };
+	HubTargets.m_opening = { label = label, time = UI.GetElapsedTime(), mode = UI.GetInterfaceMode() };
 	local mine:table = HubTargets.m_opening;
 	HubCore.After( 0.9, function()
 		if HubTargets.m_opening == mine then
 			HubTargets.m_opening = nil;
-			if HubTargets.GetTargetMode() ~= nil then OutputMessageToScreenReader( CombatText_OpeningLine( label, nil, AttackHints() ) ); end
+			if UI.GetInterfaceMode() == mine.mode and HubTargets.GetTargetMode() ~= nil then OutputMessageToScreenReader( CombatText_OpeningLine( label, nil, AttackHints() ) ); end
 		end
 	end );
 end
@@ -761,6 +761,7 @@ end
 
 -- City ranged attack: the cursor starts on the nearest tile the city can hit (Enter on the city itself says "No valid target").
 function HubTargets.CursorToNearestCityTarget()
+	if HubTargets.m_opening == nil then return; end		-- X already took the opening: do not move the cursor under it
 	if not IsCityMode( UI.GetInterfaceMode() ) then return; end
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
@@ -784,6 +785,7 @@ end
 
 -- Unit ranged / air attack: the cursor starts on the nearest tile the unit can hit now (like the city ranged attack above).
 function HubTargets.CursorToNearestUnitTarget()
+	if HubTargets.m_opening == nil then return; end		-- X already took the opening: do not move the cursor under it
 	local mode:number = UI.GetInterfaceMode();
 	if mode ~= InterfaceModeTypes.RANGE_ATTACK and mode ~= InterfaceModeTypes.AIR_ATTACK then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
@@ -917,6 +919,8 @@ function HubTargets.CityAttackKey()
 end
 
 function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
+	-- an opening line belongs to the mode that began it (the same mode entered again, as CityPanel does, keeps it)
+	if HubTargets.m_opening ~= nil and HubTargets.m_opening.mode ~= newMode then HubTargets.m_opening = nil; end
 	-- the unit menu is about the mode the game was in; any list is out of place in a target mode
 	if HubCore.m_mode ~= nil and ( HubCore.m_mode.name == "menu" or TargetLabel( newMode ) ~= nil or IsChooserMode( newMode ) ) then HubCore.CloseMode( false, true ); end
 	-- the transfer list belongs to its mode only
@@ -1268,6 +1272,7 @@ function HubTargets.RebaseItems( entries:table )
 	for _, entry in ipairs( entries ) do
 		local text:string = entry.name;
 		if entry.where ~= nil and entry.where ~= "" then text = text .. ", " .. entry.where; end
+		if entry.slots ~= nil and entry.slots ~= "" then text = text .. ", " .. entry.slots; end
 		table.insert( items, { key = entry.plotIndex, plotIndex = entry.plotIndex, name = entry.name, text = text } );
 	end
 	return items;
@@ -1285,7 +1290,18 @@ local function RebasePlotName( plot:table )
 	local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
 	if city ~= nil then return Locale.Lookup( city:GetName() ), true; end
 	local name:string = nil;
+	local relative:boolean = false;
 	pcall( function()
+		-- our Aerodrome districts: "Lugdunum Aerodrome"
+		local district:table = CityManager.GetDistrictAt( plot:GetX(), plot:GetY() );
+		local districtRow:table = ( district ~= nil ) and GameInfo.Districts[ district:GetType() ] or nil;
+		if districtRow ~= nil then
+			name = Locale.Lookup( districtRow.Name );
+			local owner:table = Cities.GetPlotPurchaseCity( plot:GetIndex() );
+			if owner ~= nil then name = Locale.Lookup( owner:GetName() ) .. " " .. name; end
+			relative = true;
+			return;
+		end
 		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
 			if other:GetOwner() == Game.GetLocalPlayer() then
 				local row:table = GameInfo.Units[ other:GetUnitType() ];
@@ -1295,14 +1311,43 @@ local function RebasePlotName( plot:table )
 		local improvement:number = plot:GetImprovementType();
 		if improvement ~= nil and improvement >= 0 and GameInfo.Improvements[ improvement ] ~= nil then name = Locale.Lookup( GameInfo.Improvements[ improvement ].Name ); end
 	end );
-	return name or "Tile", false;
+	return name or "Tile", relative;
+end
+
+-- "1 of 2 slots used": our air units on the plot against the district's air slots; nil when unknown.
+local function RebaseSlotsText( plot:table )
+	local text:string = nil;
+	pcall( function()
+		local district:table = CityManager.GetDistrictAt( plot:GetX(), plot:GetY() );
+		local slots:number = ( district ~= nil ) and district:GetAirSlots() or 0;
+		if slots == nil or slots <= 0 then return; end
+		local used:number = 0;
+		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+			local row:table = GameInfo.Units[ other:GetUnitType() ];
+			if other:GetOwner() == Game.GetLocalPlayer() and row ~= nil and row.Domain == "DOMAIN_AIR" then used = used + 1; end
+		end
+		text = used .. " of " .. slots .. " slots used";
+	end );
+	return text;
 end
 
 local function BuildRebaseItems()
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit == nil then return {}; end
 	local set:table = HubTargets.ModeTargetPlots( UI.GetInterfaceMode(), unit );
-	if set == nil then return {}; end
+	if set == nil or next( set ) == nil then
+		-- the destinations vanished while the list was open: say so (the list itself only says "Nothing available")
+		if HubCore.IsModeOpen( "rebase" ) then
+			HubCore.After( 0.1, function()
+				if HubCore.IsModeOpen( "rebase" ) then
+					HubCore.CloseMode( false, true );
+					UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+					HubCore.SayResult( "No place to rebase to" );
+				end
+			end );
+		end
+		return {};
+	end
 	local fromPlot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	local entries:table = {};
 	for plotIndex, _ in pairs( set ) do
@@ -1310,7 +1355,7 @@ local function BuildRebaseItems()
 		if plot ~= nil then
 			local name:string, isCity:boolean = RebasePlotName( plot );
 			local where:string = isCity and PlotDescription_GetRelative( fromPlot, plot ) or HubAnnounce.PositionText( plot );
-			table.insert( entries, { plotIndex = plotIndex, name = name, where = where,
+			table.insert( entries, { plotIndex = plotIndex, name = name, where = where, slots = RebaseSlotsText( plot ),
 				distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), plot:GetX(), plot:GetY() ) } );
 		end
 	end

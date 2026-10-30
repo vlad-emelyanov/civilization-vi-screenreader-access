@@ -494,7 +494,13 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		if #found == 1 and visited then OutputMessageToScreenReader( "Only target", true ); end
 		return;
 	end
-	HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
+	if openingLabel ~= nil then
+		-- never drop the opening's label: it leads the first target line
+		HubCursor.SetCursor( found[ next ].x, found[ next ].y, false, interrupt, false, true );
+		OutputMessageToScreenReader( openingLabel .. ". " .. HubCursor.DescribePlot( Map.GetPlot( found[ next ].x, found[ next ].y ), true ) );
+	else
+		HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
+	end
 	if next == #found and #found > 1 then
 		OutputMessageToScreenReader( "Last target, X wraps to the first", true );
 	end

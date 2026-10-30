@@ -69,6 +69,11 @@ test("rebase items: nearest first, destination then where", function()
 	eq(HubTargets.RebaseItems({ { name = "Rome", distance = 2, plotIndex = 1 } })[1].text, "Rome")
 end)
 
+test("rebase item with air slots", function()
+	local items = HubTargets.RebaseItems({ { name = "Lugdunum Aerodrome", distance = 8, plotIndex = 5, where = "8 tiles west", slots = "1 of 2 slots used" } })
+	eq(items[1].text, "Lugdunum Aerodrome, 8 tiles west, 1 of 2 slots used")
+end)
+
 test("rebase opening line", function()
 	eq(HubTargets.RebaseOpening("Rebase", "Bomber", 4, "Enter", "Escape"), "Rebase Bomber: 4 destinations. Enter rebases, Escape cancels")
 	eq(HubTargets.RebaseOpening("Deploy", "Fighter", 1, "Enter", "Escape"), "Deploy Fighter: 1 destination. Enter deploys, Escape cancels")
