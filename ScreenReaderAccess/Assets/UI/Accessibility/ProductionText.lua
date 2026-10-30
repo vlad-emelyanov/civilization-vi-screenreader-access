@@ -84,7 +84,10 @@ function ProductionText_Arrange( items:table, showUnavailable:boolean, purchase:
 		for _, item in ipairs( visible ) do table.insert( result, item ); end
 	end
 	if #hidden > 0 then
-		table.insert( result, ProductionText_Toggle( #hidden, showUnavailable, purchase ) );
+		-- the toggle belongs to the group before it (hidden) or opens the "Unavailable" group (shown), so Up and PageUp treat it like a member
+		local toggle:table = ProductionText_Toggle( #hidden, showUnavailable, purchase );
+		toggle.section = showUnavailable and PRODUCTION_SECTION_UNAVAILABLE or ( #result > 0 and result[ #result ].section or nil );
+		table.insert( result, toggle );
 		if showUnavailable then
 			for _, item in ipairs( hidden ) do
 				item.section = PRODUCTION_SECTION_UNAVAILABLE;

@@ -1,5 +1,6 @@
 # Written blind (not verified in game; the verifier records it with --record). The production panel lists only what can be built: its last item is the toggle "Show N unavailable items";
 # Enter says "Showing N unavailable items" and the hidden items (already built, disabled with their reason) follow it; Enter again hides them.
+# The "show unavailable" flag is module-local in ProductionPanel.lua and kept for the session (Escape does not reset it; a load re-inits the context and resets it). This script ends with it hidden, so it must not leak into later scripts of the same load; a script that needs hidden items shown or hidden should press Enter on the toggle first and check the "Showing"/"hidden" reply.
 # covers: **/ProductionPanel.lua **/ProductionText.lua
 # no-share-load: opens the production panel, toggles a session flag
 load early-t60
