@@ -142,7 +142,8 @@ function KeyNavList_Create( config:table )
 	end
 
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
-	function list.Open( title:string, initialKey, silent:boolean, keepGuard:boolean )
+	-- queueTitle: the title waits behind what is being spoken (a result line just before the reopen); default: it interrupts.
+	function list.Open( title:string, initialKey, silent:boolean, keepGuard:boolean, queueTitle:boolean )
 		if not keepGuard and UI ~= nil and UI.GetElapsedTime ~= nil then m_openedAt = UI.GetElapsedTime(); end
 		Gamepad.RequestMode();
 		m_wheelSpoken = nil;
@@ -151,12 +152,12 @@ function KeyNavList_Create( config:table )
 		if initialKey ~= nil then m_focusKey = initialKey; end
 		local index:number = FindIndex( items );
 		if #items == 0 then
-			OutputMessageToScreenReader( title .. ", nothing available" );
+			OutputMessageToScreenReader( title .. ", nothing available", queueTitle == true );
 			return;
 		end
 		if index == nil then index = 1; m_focusKey = items[1].key; end
 		if silent then return; end		-- the caller speaks (its own opening sentence)
-		OutputMessageToScreenReader( title .. ", " .. #items .. ( #items == 1 and " option" or " options" ) );
+		OutputMessageToScreenReader( title .. ", " .. #items .. ( #items == 1 and " option" or " options" ), queueTitle == true );
 		Speak( items, index, false, true, true );
 	end
 
@@ -182,6 +183,7 @@ function KeyNavList_Create( config:table )
 	end
 
 	function list.Reset()
+		m_wheelSpoken = nil;
 		m_focusKey = nil;
 		m_lastSection = nil;
 	end
@@ -303,6 +305,7 @@ function KeyNavList_Create( config:table )
 		local detail = items[ index ].detail;
 		if type( detail ) == "function" then detail = detail(); end
 		if detail == nil or detail == "" then detail = "No further details"; end
+		m_wheelSpoken = nil;
 		OutputMessageToScreenReader( detail );
 	end
 

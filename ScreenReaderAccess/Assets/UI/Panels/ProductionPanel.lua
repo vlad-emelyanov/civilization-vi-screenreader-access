@@ -118,6 +118,7 @@ local m_pCity:table = nil;
 local m_srActive:boolean = false;			-- the panel is open (set in Open, cleared in Close)
 local m_srAnnouncePending:boolean = false;	-- announce the panel once the tab is selected
 local m_srData:table = nil;					-- cached GetData() result, set by View, cleared by Open/Close
+local m_srPlacementCity:number = nil;		-- id of the city that started that placement: only the same city reopening uses the key
 local m_srPlacementKey:string = nil;		-- key of the district / wonder whose placement started: the panel reopened by Escape focuses it again
 local m_srPending:table = nil;				-- outcome of the last Enter still to be announced
 
@@ -597,6 +598,7 @@ end
 function Close()
 	if (Controls.SlideIn:IsStopped()) then			-- Need to check to make sure that we have not already begun the transition before attempting to close the panel.
 		m_srActive = false;							-- ScreenReaderAccess
+		m_srPlacementKey = nil;						-- ScreenReaderAccess
 		m_srAnnouncePending = false;				-- ScreenReaderAccess
 		m_srData = nil;								-- ScreenReaderAccess
 		UI.PlaySound("Production_Panel_Closed");
@@ -2428,12 +2430,15 @@ function OnStrategicViewMapPlacementProductionOpen( bWasCancelled:boolean )
 		Open();
 	end
 	local placementKey:string = m_srPlacementKey;		-- ScreenReaderAccess
+	local selected:table = UI.GetHeadSelectedCity();
+	if selected == nil or selected:GetID() ~= m_srPlacementCity then placementKey = nil; end		-- another city: its list starts afresh
 	m_srPlacementKey = nil;
+	m_srPlacementCity = nil;
 	-- ScreenReaderAccess: the game reopens the panel after a placement only in queue mode (like CloseAfterNewProduction keeps it
 	-- open there). The placed item has left the list, so the old focus is stale: announce afresh (a fresh focus, the new current
 	-- production in the title) instead of leaving Enter on a vanished item ("Item no longer available").
 	if not bWasCancelled and m_srActive and not ContextPtr:IsHidden() then m_srAnnouncePending = true; end
-	SRA_AnnounceIfPending( false, bWasCancelled and placementKey or nil );		-- a cancelled placement: the focus returns to the item
+	SRA_AnnounceIfPending( false, bWasCancelled and placementKey or nil, true );		-- a cancelled placement: the focus returns to the item
 end
 
 -- ===========================================================================
@@ -2826,6 +2831,7 @@ local function SRA_OnActivate( item:table )
 	end
 	if item.kind == "district" or item.kind == "wonder" then
 		m_srPlacementKey = ProductionText_Identity( item.key );
+		m_srPlacementCity = city:GetID();
 		if item.kind == "district" then ZoneDistrict( city, kItem ); else BuildBuilding( city, kItem ); end
 		local mode:number = UI.GetInterfaceMode();
 		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
@@ -2863,7 +2869,7 @@ local function SRA_OnClose()
 	end
 end
 
-local function SRA_Announce( keepGuard:boolean, keepKey:string )
+local function SRA_Announce( keepGuard:boolean, keepKey:string, queueTitle:boolean )
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
 	local mode:number = m_CurrentListMode;
@@ -2921,7 +2927,7 @@ local function SRA_Announce( keepGuard:boolean, keepKey:string )
 	-- cannot replace it by accident); a repair at the top and the recommendation come first otherwise
 	if currentKey ~= nil and not firstIsRepair and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then firstChoosable = currentKey; end
 	if carriedKey ~= nil then firstChoosable = carriedKey; end
-	m_srList.Open( title, firstChoosable, false, keepGuard );
+	m_srList.Open( title, firstChoosable, false, keepGuard, queueTitle );
 end
 
 -- Tab / Control+Tab: next / previous tab of the panel (Production, Queue, Purchase gold, Purchase faith, wraps), like clicking it.
@@ -2947,10 +2953,10 @@ local function SRA_NextTab() SRA_SwitchTab( 1 ); end
 local function SRA_PrevTab() SRA_SwitchTab( -1 ); end
 
 -- Called by the handlers that open the panel, once they have selected the tab (a SetUpdate callback never ran here).
-function SRA_AnnounceIfPending( keepGuard:boolean, keepKey:string )
+function SRA_AnnounceIfPending( keepGuard:boolean, keepKey:string, queueTitle:boolean )
 	if not m_srAnnouncePending then return; end
 	m_srAnnouncePending = false;
-	local ok:boolean, err = xpcall( function() SRA_Announce( keepGuard, keepKey ); end, KeyNavErrorHandler );
+	local ok:boolean, err = xpcall( function() SRA_Announce( keepGuard, keepKey, queueTitle ); end, KeyNavErrorHandler );
 	if not ok then print( "ProductionPanel announce error: " .. tostring(err) ); end
 end
 

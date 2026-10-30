@@ -627,7 +627,7 @@ local function TurnNotEnded( turn:number )
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if text == "" and okCongress and inSession then
 			local congress:string = "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it";
-				OutputMessageToScreenReader( congress, true );
+			OutputMessageToScreenReader( congress, true );
 			return;
 		end
 		if text == "" and waited < 6 then
