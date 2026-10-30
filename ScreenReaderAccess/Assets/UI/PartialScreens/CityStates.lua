@@ -1994,7 +1994,7 @@ function SRA_CreateLists()
 		[ Gamepad.Key( "LT" ) ] = SRA_KeyActions,
 	};
 	m_srList = KeyNavList_Create{ build = SRA_ListItems, isActive = Active( false ), onActivate = SRA_OnListActivate, onClose = SRA_OnListClose, extraKeys = extra };
-	m_srActions = KeyNavList_Create{ build = SRA_ActionItems, isActive = Active( true ), onActivate = SRA_OnActionActivate, onClose = function() SRA_BackToList( "Back" ); end };
+	m_srActions = KeyNavList_Create{ wheel = true, build = SRA_ActionItems, isActive = Active( true ), onActivate = SRA_OnActionActivate, onClose = function() SRA_BackToList( "Back" ); end };
 end
 
 -- Called when the screen is opened; the announcement comes from the update loop once the data has settled.

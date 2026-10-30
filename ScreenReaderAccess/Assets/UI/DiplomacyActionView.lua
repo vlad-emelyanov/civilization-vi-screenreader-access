@@ -3361,11 +3361,13 @@ end
 function Initialize()
 	-- ScreenReaderAccess: keyboard list of the answers
 	m_srList = KeyNavList_Create{
+		wheel = true,		-- the pad wheel: a short menu with fixed directions
 		build = function() return m_srSelections; end,
 		isActive = SRA_ConversationActive,
 		onActivate = SRA_OnConversationActivate,
 	};
 	m_srOverviewList = KeyNavList_Create{
+		wheel = true,		-- the pad wheel: a short menu with fixed directions
 		build = SRA_OverviewBuild,
 		isActive = SRA_OverviewActive,
 		onActivate = SRA_OnOverviewActivate,

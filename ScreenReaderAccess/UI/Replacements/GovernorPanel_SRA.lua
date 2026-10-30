@@ -862,7 +862,7 @@ function SRA_CreateLists()
 		end
 	end
 	m_srList = KeyNavList_Create{ build = SRA_GovernorItems, isActive = Active( false ), onActivate = SRA_OnGovernorActivate, onClose = SRA_OnListClose };
-	m_srActions = KeyNavList_Create{ build = SRA_ActionItems, isActive = Active( true ), onActivate = SRA_OnActionActivate, onClose = SRA_OnActionsClose };
+	m_srActions = KeyNavList_Create{ wheel = true, build = SRA_ActionItems, isActive = Active( true ), onActivate = SRA_OnActionActivate, onClose = SRA_OnActionsClose };
 end
 
 -- "Governors. 2 titles available. Magnus, The Steward, not assigned, 1 of 5"

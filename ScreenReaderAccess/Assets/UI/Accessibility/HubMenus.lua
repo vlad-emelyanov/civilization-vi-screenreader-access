@@ -271,6 +271,7 @@ function HubMenus.ToggleUnitMenu()
 end
 
 m_menu = KeyNavList_Create{
+	wheel = true,		-- the pad wheel: a short menu with fixed directions
 	build		= BuildMenuItems,
 	isActive	= function() return HubCore.IsModeOpen( "menu" ); end,
 	onActivate	= RunMenuItem,

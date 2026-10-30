@@ -468,6 +468,7 @@ function Initialize()
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetUpdate( SRA_OnUpdate );		-- ScreenReaderAccess
 	m_srList = KeyNavList_Create{
+		wheel = true,		-- the pad wheel: a short menu with fixed directions
 		build = SRA_BuildItems,
 		isActive = function() return not ContextPtr:IsHidden(); end,
 		onActivate = SRA_Activate,
