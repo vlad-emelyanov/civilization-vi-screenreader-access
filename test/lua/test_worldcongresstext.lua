@@ -113,3 +113,8 @@ test("ResolutionLine: omitName speaks only the option, hints are SRKey tokens", 
 	d.omitName = false
 	eq(WCText_ResolutionLine(d), "Arms Control, option B: No nukes, no votes yet, equals adds a vote, Left and Right switch option")
 end)
+
+test("WCText_Missing: a one-way proposal names the vote it needs", function()
+	eq(WCText_Missing{ { name = "Military Emergency for Wilfrid Laurier", needsVote = true, voteText = "a vote against, LT" } },
+		"Military Emergency for Wilfrid Laurier needs a vote against, LT")
+end)

@@ -2712,15 +2712,28 @@ local function SRA_PcallCostData()
 	return ok and costData or nil;
 end
 
+-- A proposal the player may vote on in one direction only (the target of an emergency may not vote for it): "" or the hint
+-- for the allowed direction ("you may only vote against it, LT votes against").
+local function SRA_OneWayHint( kVote:table )
+	local b:table = kVote ~= nil and kVote.voteBlocker or nil;
+	if b == nil or ( b.NoUpvote and b.NoDownvote ) then return ""; end
+	if b.NoUpvote then return "you may only vote against it, " .. SRKey( "minus", "LT" ) .. " votes against"; end
+	if b.NoDownvote then return "you may only vote for it, " .. SRKey( "Equals", "X" ) .. " votes for"; end
+	return "";
+end
+
 local function SRA_ProposalVoteItem( voteKey, kVote:table )
 	local title:string, desc:string, flavor:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
 	local signed:number = ( kVote.votes or 0 ) * ( kVote.voteDirection or 0 );
+	local oneWay:string = SRA_OneWayHint( kVote );
+	local line:string = WCText_ProposalLine( title, desc, signed, kVote.cost, kVote.sraCostData or SRA_PcallCostData(), oneWay == "" );
+	if signed == 0 and oneWay ~= "" then line = line .. ", " .. oneWay; end
 	return { key = "prop:" .. voteKey, kind = "prop", voteKey = voteKey,
-		text = WCText_ProposalLine( title, desc, signed, kVote.cost, kVote.sraCostData or SRA_PcallCostData(), true ),		-- (the hint is only said while it has no votes: the one thing to do)
+		text = line,		-- (the hint is only said while it has no votes: the one thing to do)
 		detail = function()
 			local extra:string = SRA_EmergencyText( kVote.data );
 			return title .. ". " .. ( extra ~= "" and extra or desc ) .. ( flavor ~= "" and ( ". " .. flavor ) or "" ) ..
-				". " .. SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it";
+				". " .. ( oneWay ~= "" and oneWay or ( SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it" ) );
 		end };
 end
 
@@ -2740,7 +2753,11 @@ local function SRA_MissingText()
 		local kVote:table = m_kProposalVotes[ key ];
 		if kVote.data ~= nil and kVote.votes == 0 and not ( kVote.voteBlocker and kVote.voteBlocker.NoUpvote and kVote.voteBlocker.NoDownvote ) then
 			local title:string = SRA_ProposalTexts( kVote.data, kVote.data.Target );
-			table.insert( entries, { name = title, needsVote = true } );
+			local b:table = kVote.voteBlocker;
+			local voteText:string = nil;
+			if b ~= nil and b.NoUpvote and not b.NoDownvote then voteText = "a vote against, " .. SRKey( "minus", "LT" );
+			elseif b ~= nil and b.NoDownvote and not b.NoUpvote then voteText = "a vote for, " .. SRKey( "Equals", "X" ); end
+			table.insert( entries, { name = title, needsVote = true, voteText = voteText } );
 		end
 	end
 	return WCText_Missing( entries );
@@ -3035,7 +3052,8 @@ local function SRA_VoteProposal( item:table, direction:number )
 	if blocker ~= nil then
 		local starting:boolean = ( kVote.votes == 0 );
 		if ( blocker.NoUpvote and blocker.NoDownvote ) or ( starting and direction > 0 and blocker.NoUpvote ) or ( starting and direction < 0 and blocker.NoDownvote ) then
-			SRA_Say( SRA_Clean( blocker.Description ) );
+			local oneWay:string = SRA_OneWayHint( kVote );
+			SRA_Say( SRA_Clean( blocker.Description ) .. ( oneWay ~= "" and ( ". " .. string.upper( string.sub( oneWay, 1, 1 ) ) .. string.sub( oneWay, 2 ) ) or "" ) );
 			return;
 		end
 	end
@@ -3080,7 +3098,8 @@ local function SRA_KeyHorizontal( delta:number )
 	local item:table = SRA_FindItem( m_sraMainList.GetFocusKey() );
 	if item == nil then return; end
 	if item.kind == "prop" then
-		SRA_Say( "A yes or no vote, no options: " .. SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it" );
+		local oneWay:string = SRA_OneWayHint( m_kProposalVotes[ item.voteKey ] );
+		SRA_Say( "A yes or no vote, no options: " .. ( oneWay ~= "" and oneWay or ( SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it" ) ) );
 		return;
 	end
 	if item.kind ~= "res" then SRA_Say( "No options to switch here" ); return; end
@@ -3236,7 +3255,7 @@ local function SRA_FindItemDetail( item:table )
 	local detail = item.detail;
 	if type( detail ) == "function" then detail = detail(); end
 	detail = detail or item.text;
-	local cut:number = string.find( detail, ". " .. SRKey( "Equals", "X" ), 1, true );
+	local cut:number = string.find( detail, ". " .. SRKey( "Equals", "X" ), 1, true ) or string.find( detail, ". you may only vote", 1, true );
 	if cut ~= nil then detail = string.sub( detail, 1, cut ); end
 	return detail;
 end
@@ -3258,7 +3277,8 @@ local function SRA_OnActivate( item:table )
 		SRA_CloseSpoken();		-- results and current effects: Enter continues, as the game's Enter does
 	elseif item.kind == "prop" then
 		-- a yes / no proposal has no options and no target: say how to vote first (the detail ends with it, too late)
-		SRA_Say( SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it. " .. SRA_FindItemDetail( item ) );
+		local oneWay:string = SRA_OneWayHint( m_kProposalVotes[ item.voteKey ] );
+		SRA_Say( ( oneWay ~= "" and oneWay or ( SRKey( "Equals", "X" ) .. " votes for it, " .. SRKey( "minus", "LT" ) .. " votes against it" ) ) .. ". " .. SRA_FindItemDetail( item ) );
 	else
 		local detail = item.detail;
 		if type( detail ) == "function" then detail = detail(); end

@@ -170,13 +170,13 @@ function WCText_ProposalLine( title, description, votes, cost, costData, hint )
 	return text;
 end
 
--- What is missing before the votes can be submitted: entries { name, needsVote, needsTarget }.
+-- What is missing before the votes can be submitted: entries { name, needsVote, needsTarget, voteText = optional "a vote against, LT" }.
 -- "Mercenary Companies needs a target, Arms Control needs a vote and a target"
 function WCText_Missing( entries )
 	local parts:table = {};
 	for _, e in ipairs( entries ) do
 		local needs:table = {};
-		if e.needsVote then table.insert( needs, "a vote" ); end
+		if e.needsVote then table.insert( needs, e.voteText or "a vote" ); end
 		if e.needsTarget then table.insert( needs, "a target" ); end
 		if #needs > 0 then table.insert( parts, e.name .. " needs " .. table.concat( needs, " and " ) ); end
 	end
