@@ -164,6 +164,7 @@ end
 -- and north-east, so that two steps go straight north, as on the screen). steps (default 1): the Control+Shift+Arrows jump of 5.
 function HubCursor.MoveCursor( dx:number, dy:number, steps:number )
 	if not HubCore.IsLocalPlayerActive() then return; end
+	HubTargets.LeaveRebaseList();		-- the rebase / deploy list gives way to the free cursor
 	local x:number, y:number = HubCursor.GetCursor();
 	steps = steps or 1;
 	local width:number, height:number = Map.GetGridSize();
@@ -359,6 +360,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if interrupt == nil then interrupt = true; end
 	local localPlayer:number = Game.GetLocalPlayer();
+	HubTargets.LeaveRebaseList();		-- X in the rebase / deploy list: the plain target mode walks the destinations
 	-- the opening line of an attack mode ("Attack: <first target>. X next target, ...") is said by this scan
 	local openingLabel:string = ( HubTargets.GetTargetMode() ~= nil ) and HubTargets.TakeOpening() or nil;
 	local function Say( text:string )

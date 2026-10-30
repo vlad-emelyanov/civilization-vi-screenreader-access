@@ -52,6 +52,28 @@ test("transfer items: nearest city first, then by name, with distance text", fun
 	eq(items[1].plotIndex, 11)
 end)
 
+test("rebase items: nearest first, destination then where", function()
+	local items = HubTargets.RebaseItems({
+		{ name = "Rome", distance = 6, plotIndex = 10, where = "6 tiles north-east" },
+		{ name = "Aircraft Carrier", distance = 3, plotIndex = 11, where = "3 tiles west of Rome" },
+		{ name = "Airstrip", distance = 6, plotIndex = 12, where = "2 tiles south of Rome" },
+		{ name = "Aircraft Carrier", distance = 1, plotIndex = 13, where = "in Rome" },
+	})
+	eq(#items, 4)
+	eq(items[1].text, "Aircraft Carrier, in Rome")
+	eq(items[2].text, "Aircraft Carrier, 3 tiles west of Rome")
+	eq(items[3].text, "Airstrip, 2 tiles south of Rome")
+	eq(items[4].text, "Rome, 6 tiles north-east")
+	eq(items[4].plotIndex, 10)
+	eq(items[1].key, 13)
+	eq(HubTargets.RebaseItems({ { name = "Rome", distance = 2, plotIndex = 1 } })[1].text, "Rome")
+end)
+
+test("rebase opening line", function()
+	eq(HubTargets.RebaseOpening("Rebase", "Bomber", 4, "Enter", "Escape"), "Rebase Bomber: 4 destinations. Enter rebases, Escape cancels")
+	eq(HubTargets.RebaseOpening("Deploy", "Fighter", 1, "Enter", "Escape"), "Deploy Fighter: 1 destination. Enter deploys, Escape cancels")
+end)
+
 test("ForeignPlotReason: a foreign city, closed borders, nothing at war or with open borders", function()
 	eq(HubTargets.ForeignPlotReason{ ownerName = "Germany", isCity = true, major = true }, "a city of Germany, units cannot enter a foreign city")
 	eq(HubTargets.ForeignPlotReason{ ownerName = "Kabul", isCity = true, major = false }, "a city of Kabul, units cannot enter a foreign city")

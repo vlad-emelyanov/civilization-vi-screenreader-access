@@ -921,6 +921,8 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	if HubCore.m_mode ~= nil and ( HubCore.m_mode.name == "menu" or TargetLabel( newMode ) ~= nil or IsChooserMode( newMode ) ) then HubCore.CloseMode( false, true ); end
 	-- the transfer list belongs to its mode only
 	if HubCore.IsModeOpen( "transfer" ) and not IsTeleportMode( newMode ) then HubCore.CloseMode( false, true ); end
+	-- the rebase / deploy list belongs to its mode only (Enter, Escape or any other mode ends it)
+	if HubCore.IsModeOpen( "rebase" ) and not HubTargets.IsRebaseMode( newMode ) then HubCore.CloseMode( false, true ); end
 	-- placing a district or wonder: the placement browser opens; it ends with the mode (placed, cancelled or replaced)
 	if HubCore.IsModeOpen( "placement" ) then
 		HubCore.m_placeReplaced = ( newMode == InterfaceModeTypes.DISTRICT_PLACEMENT or newMode == InterfaceModeTypes.BUILDING_PLACEMENT );
@@ -946,6 +948,8 @@ function HubTargets.OnInterfaceModeChanged( oldMode:number, newMode:number )
 	-- the cursor starts at the acting unit or city, and the tiles are chosen from there
 	local plot:table = HubCore.GetSelectionPlot();
 	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false ); end
+	-- air Rebase / Deploy: a list of the destinations (falls through to the free cursor when the engine gives no list)
+	if HubTargets.IsRebaseMode( newMode ) and HubTargets.OpenRebase( newMode ) then return; end
 	-- CityPanel flips SELECTION -> CITY_RANGE_ATTACK when a city is selected in that mode: one mode line, not two
 	local now:number = UI.GetElapsedTime();
 	if HubTargets.lastModeLine == newMode and now - HubTargets.lastModeTime < 0.5 then return; end
@@ -1240,6 +1244,134 @@ local function ConfirmDirectRequest( unit:table, plot:table, mode:number )
 	HubTargets.m_lastDirectTarget = { plot = plot:GetIndex(), time = UI.GetElapsedTime() };		-- HubEvents reads the confirmed target (Rebasing / Deploying to <city>)
 	UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
 	if entry.say then HubCore.SayResult( entry.say ); end
+end
+
+-- ===========================================================================
+--	REBASE / DEPLOY (air units): a list of the destinations, nearest first, like the settler and builder browsers.
+--	Enter sends the same direct request as the target mode (ConfirmDirectRequest), Escape cancels the mode. Shift+Arrows and X
+--	close the list and leave the plain target mode (the free cursor, Enter on the cursor tile): see HubTargets.LeaveRebaseList.
+-- ===========================================================================
+function HubTargets.IsRebaseMode( mode:number )
+	if mode == nil then return false; end
+	return ( InterfaceModeTypes.REBASE ~= nil and mode == InterfaceModeTypes.REBASE ) or ( InterfaceModeTypes.DEPLOY ~= nil and mode == InterfaceModeTypes.DEPLOY );
+end
+
+-- Pure. entries { plotIndex, distance, name, where } -> list items, nearest first, then by name. where: "6 tiles north-east" for a city,
+-- "in Rome" / "3 tiles west of Rome" for a carrier or airstrip.
+function HubTargets.RebaseItems( entries:table )
+	table.sort( entries, function( a, b )
+		if a.distance ~= b.distance then return a.distance < b.distance; end
+		if a.name ~= b.name then return a.name < b.name; end
+		return a.plotIndex < b.plotIndex;
+	end );
+	local items:table = {};
+	for _, entry in ipairs( entries ) do
+		local text:string = entry.name;
+		if entry.where ~= nil and entry.where ~= "" then text = text .. ", " .. entry.where; end
+		table.insert( items, { key = entry.plotIndex, plotIndex = entry.plotIndex, name = entry.name, text = text } );
+	end
+	return items;
+end
+
+-- Pure. "Rebase Bomber: 4 destinations. Enter rebases, Escape cancels".
+function HubTargets.RebaseOpening( verb:string, unitName:string, count:number, enterKey:string, escapeKey:string )
+	return verb .. " " .. unitName .. ": " .. HubCore.Plural( count, "destination", "destinations" ) .. ". " .. enterKey .. " " .. string.lower( verb ) .. "s, " .. escapeKey .. " cancels";
+end
+
+local m_rebaseList:table = nil;
+
+-- What stands on a destination that is not a city: our carrier, else the improvement (Airstrip).
+local function RebasePlotName( plot:table )
+	local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+	if city ~= nil then return Locale.Lookup( city:GetName() ), true; end
+	local name:string = nil;
+	pcall( function()
+		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+			if other:GetOwner() == Game.GetLocalPlayer() then
+				local row:table = GameInfo.Units[ other:GetUnitType() ];
+				if row ~= nil and row.Domain == "DOMAIN_SEA" then name = Locale.Lookup( other:GetName() ); return; end
+			end
+		end
+		local improvement:number = plot:GetImprovementType();
+		if improvement ~= nil and improvement >= 0 and GameInfo.Improvements[ improvement ] ~= nil then name = Locale.Lookup( GameInfo.Improvements[ improvement ].Name ); end
+	end );
+	return name or "Tile", false;
+end
+
+local function BuildRebaseItems()
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return {}; end
+	local set:table = HubTargets.ModeTargetPlots( UI.GetInterfaceMode(), unit );
+	if set == nil then return {}; end
+	local fromPlot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+	local entries:table = {};
+	for plotIndex, _ in pairs( set ) do
+		local plot:table = Map.GetPlotByIndex( plotIndex );
+		if plot ~= nil then
+			local name:string, isCity:boolean = RebasePlotName( plot );
+			local where:string = isCity and PlotDescription_GetRelative( fromPlot, plot ) or HubAnnounce.PositionText( plot );
+			table.insert( entries, { plotIndex = plotIndex, name = name, where = where,
+				distance = Map.GetPlotDistance( unit:GetX(), unit:GetY(), plot:GetX(), plot:GetY() ) } );
+		end
+	end
+	local items:table = HubTargets.RebaseItems( entries );
+	for _, item in ipairs( items ) do
+		local plot:table = Map.GetPlotByIndex( item.plotIndex );
+		item.detail = function() return PlotDescription_GetShort( plot, { excludeUnitId = unit:GetID() } ); end		-- Space: what is there
+	end
+	return items;
+end
+
+local function RebaseActivate( item:table )
+	local unit:table = UI.GetHeadSelectedUnit();
+	local mode:number = UI.GetInterfaceMode();
+	local plot:table = Map.GetPlotByIndex( item.plotIndex );
+	if unit == nil or plot == nil or not HubTargets.IsRebaseMode( mode ) then
+		HubCore.SayResult( "Unit no longer available" );
+		return;
+	end
+	HubCore.CloseMode( false, true );
+	HubCursor.SetCursor( plot:GetX(), plot:GetY(), false, false, true );
+	ConfirmDirectRequest( unit, plot, mode );
+end
+
+-- Shift+Arrows and X (HubCursor): the list gives way to the free cursor of the plain target mode, which stays open.
+function HubTargets.LeaveRebaseList()
+	if HubCore.IsModeOpen( "rebase" ) then HubCore.CloseMode( false, true ); end
+end
+
+-- Opens the destination list for the mode just entered. Returns false when the engine gives no list (the caller falls back
+-- to the free cursor); with no destination at all it cancels the mode and says so (true).
+function HubTargets.OpenRebase( mode:number )
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil then return false; end
+	if HubTargets.ModeTargetPlots( mode, unit ) == nil then return false; end
+	local isDeploy:boolean = InterfaceModeTypes.DEPLOY ~= nil and mode == InterfaceModeTypes.DEPLOY;
+	local items:table = BuildRebaseItems();
+	if #items == 0 then
+		UI.SetInterfaceMode( InterfaceModeTypes.SELECTION );
+		HubCore.SayResult( isDeploy and "No place to deploy to" or "No place to rebase to" );
+		return true;
+	end
+	if m_rebaseList == nil then
+		m_rebaseList = KeyNavList_Create{
+			build		= BuildRebaseItems,
+			isActive	= function() return HubCore.IsModeOpen( "rebase" ); end,
+			onActivate	= RebaseActivate,
+			onClose		= function() HubCore.CloseMode( false, true ); HubTargets.CancelTarget(); end,
+			onFocus		= function( item )
+				local plot:table = Map.GetPlotByIndex( item.plotIndex );
+				if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false, nil, true ); end
+			end,
+			noDetailHint = true,
+		};
+	end
+	-- like HubCore.OpenMode, but the opening sentence is our own: "Rebase Bomber: 4 destinations. Enter rebases, Escape cancels", then the first item
+	HubCore.CloseMode( false, false );
+	HubCore.m_mode = { name = "rebase", list = m_rebaseList, onClose = nil };
+	m_rebaseList.Open( "", nil, true );
+	m_rebaseList.Focus( items[1].key, HubTargets.RebaseOpening( isDeploy and "Deploy" or "Rebase", Locale.Lookup( unit:GetName() ), #items, SRKey( "Enter" ), SRKey( "Escape" ) ) );
+	return true;
 end
 
 -- Enter in a target mode: what WorldInput does on the left click in that mode, for the cursor plot.
