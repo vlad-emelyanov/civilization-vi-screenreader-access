@@ -536,6 +536,7 @@ function HubAnnounce.OnLoadScreenClose()
 	HubCore.m_lastAnnouncedTurn = "";
 	HubCore.m_turnLineSpoken = nil;
 	if HubEnemies ~= nil then HubEnemies.Reset(); end
+	if HubMessages ~= nil then HubMessages.Clear(); end
 	m_lastSettleSpoken = nil;
 	HubCursor.ResetCursor();
 	HubCore.m_ready = true;
@@ -625,7 +626,9 @@ local function TurnNotEnded( turn:number )
 		-- (the panel says "Please wait" for the whole session: the congress screen is what needs the player)
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if text == "" and okCongress and inSession then
-			OutputMessageToScreenReader( "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it", true );
+			local congress:string = "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it";
+			if HubMessages ~= nil then HubMessages.Add( congress ); end
+			OutputMessageToScreenReader( congress, true );
 			return;
 		end
 		if text == "" and waited < 6 then
@@ -635,6 +638,7 @@ local function TurnNotEnded( turn:number )
 		end
 		-- no real blocker text: the turn probably did end (slow IsTurnActive); say nothing rather than a bare "Turn not ended"
 		if text == "" then return; end
+		if HubMessages ~= nil then HubMessages.Add( "Turn not ended: " .. text ); end
 		OutputMessageToScreenReader( "Turn not ended: " .. text, true );
 	end
 	Check();

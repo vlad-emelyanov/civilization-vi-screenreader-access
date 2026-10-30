@@ -238,6 +238,7 @@ include( "HubSettle" );
 include( "HubPlacement" );
 include( "HubMenus" );
 include( "HubRegions" );
+include( "HubMessages" );
 include( "HubPlaces" );
 include( "HubOverview" );
 include( "HubCityReport" );
@@ -286,6 +287,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavStanding",			HubMenus.SpeakStanding );
 	Hub.RegisterAction( "KeyNavTopPanel",			HubRegions.ToggleTopPanel );
 	Hub.RegisterAction( "KeyNavNotifications",		HubRegions.ToggleNotifications );
+	Hub.RegisterAction( "KeyNavMessages",			HubMessages.Toggle );
 	Hub.RegisterAction( "KeyNavYields",				HubRegions.SpeakYields );
 	Hub.RegisterAction( "KeyNavCityReport",			HubCityReport.ToggleCityReport );
 	Hub.RegisterAction( "KeyNavReports",			HubTargets.ToggleReports );

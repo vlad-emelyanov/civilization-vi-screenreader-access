@@ -257,26 +257,37 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 		end );
 		if ok and position ~= nil then text = text .. ", " .. position; end
 	end
-	table.insert( HubCore.m_arrivals, { text = text, time = UI.GetElapsedTime(), spotType = ( typeName == "NOTIFICATION_BARBARIANS_SIGHTED" ) } );
+	local plotIndex:number = nil;		-- where it happened, for the messages history
+	pcall( function()
+		local note:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
+		if note ~= nil and note:IsLocationValid() then
+			local x:number, y:number = note:GetLocation();
+			plotIndex = HubMessages.PlotIndexOf( x, y );
+		end
+	end );
+	table.insert( HubCore.m_arrivals, { text = text, time = UI.GetElapsedTime(), spotType = ( typeName == "NOTIFICATION_BARBARIANS_SIGHTED" ), plotIndex = plotIndex } );
 	if HubCore.m_arrivalTimer < 0 then HubCore.m_arrivalTimer = 0.8; end		-- flush 0.8 s after the first one: a trickle must not postpone the burst
 end
 
 -- Event-style speech (nointerrupt). HubCore.Announce holds it while a Eureka/tech/wonder popup is open (agent C, round 8);
 -- until that is merged the plain call is used.
-function HubRegions.Announce( text:string )
-	if HubCore.Announce ~= nil then HubCore.Announce( text, true ); else OutputMessageToScreenReader( text, true ); end
+function HubRegions.Announce( text:string, plotIndex:number )
+	if HubCore.Announce ~= nil then HubCore.Announce( text, true, nil, plotIndex ); else OutputMessageToScreenReader( text, true ); end
 end
 
 function HubRegions.FlushArrivals()
 	local entries:table = HubCore.m_arrivals;
 	HubCore.m_arrivals = {};
-	local texts:table = {};
+	local texts:table, plots:table = {}, {};
 	for _, entry in ipairs( entries ) do
-		if not ( entry.spotType and math.abs( HubRegions.m_lastSpotSpeech - entry.time ) < 3 ) then table.insert( texts, entry.text ); end
+		if not ( entry.spotType and math.abs( HubRegions.m_lastSpotSpeech - entry.time ) < 3 ) then
+			table.insert( texts, entry.text );
+			table.insert( plots, entry.plotIndex or false );
+		end
 	end
 	if #texts == 0 then return; end
 	if #texts == 1 then
-		HubRegions.Announce( "Notification: " .. texts[1] );
+		HubRegions.Announce( "Notification: " .. texts[1], plots[1] or nil );
 	else
 		HubRegions.Announce( #texts .. " new notifications: " .. KeyNavList_ShortList( texts, 3 ) );
 	end

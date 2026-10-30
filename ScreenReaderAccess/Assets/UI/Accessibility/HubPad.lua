@@ -11,6 +11,7 @@ HubPad = {};
 -- that holds the open function; open: opens the list (always, never closes).
 HubPad.RING = {
 	{ name = "Notifications",	mode = "notifications",	module = "HubRegions",	open = function() HubRegions.OpenNotifications(); end },
+	{ name = "Messages",		mode = "messages",		module = "HubMessages",	open = function() HubMessages.Open(); end },
 	{ name = "Top panel",		mode = "top",			module = "HubRegions",	open = function() HubRegions.OpenTopPanel(); end },
 	{ name = "Lenses",			mode = "lenses",		module = "HubLenses",	open = function() HubLenses.Open(); end },
 	{ name = "Diplomacy",		mode = "civ",			module = "HubMenus",	open = function() HubMenus.OpenCivMenu(); end },
@@ -58,6 +59,7 @@ end
 -- (_G does not exist in the game's UI Lua: look the global up by name explicitly.)
 local function ModuleExists( name:string )
 	if name == "HubRegions" then return HubRegions ~= nil; end
+	if name == "HubMessages" then return HubMessages ~= nil; end
 	if name == "HubLenses" then return HubLenses ~= nil; end
 	if name == "HubMenus" then return HubMenus ~= nil; end
 	if name == "HubScreens" then return HubScreens ~= nil; end

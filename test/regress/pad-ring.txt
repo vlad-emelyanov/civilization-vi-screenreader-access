@@ -1,5 +1,5 @@
 # Written blind (2026-10-27, not yet verified in game; run with --record first). Controller ring, fixture early-t60.
-# F22 = controller mode on, F15 = RB (next list of the ring), F14 = LB (previous). Order: Notifications, Top panel, Lenses,
+# F22 = controller mode on, F15 = RB (next list of the ring), F14 = LB (previous). Order: Notifications, Messages, Top panel, Lenses,
 # Diplomacy, Screens, Places. Diplomacy may be skipped on this save when no civilization is met ("You have not met ...").
 # covers: **/HubPad.lua **/HubLenses.lua **/HubScreens.lua **/HubRegions.lua **/HubMenus.lua **/HubPlaces.lua
 # shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
@@ -8,6 +8,8 @@ clear-advisors
 key F22 -Settle 800
 key F15 -Settle 1500
 expect (?i)notifications
+key F15 -Settle 1500
+expect (?i)(^Messages|No messages yet)
 key F15 -Settle 1500
 expect (?i)top panel
 key F15 -Settle 1500

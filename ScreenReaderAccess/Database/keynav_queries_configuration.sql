@@ -52,6 +52,8 @@ INSERT INTO "InputActions" VALUES ('KeyNavTopPanel','Top panel','Open a keyboard
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavTopPanel',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_Y');
 INSERT INTO "InputActions" VALUES ('KeyNavNotifications','Notifications','Open a keyboard list of the active notifications','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavNotifications',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_N');
+INSERT INTO "InputActions" VALUES ('KeyNavMessages','Messages','Open a keyboard list of what the mod announced on its own: the history of events','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavMessages',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_M');
 INSERT INTO "InputActions" VALUES ('KeyNavYields','Read yields','Read gold, science, culture and faith in one sentence','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavYields',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_G');
 INSERT INTO "InputActions" VALUES ('KeyNavCityReport','City report','Open a keyboard list about the selected city (or your city on the map cursor): yields, growth, amenities, loyalty, defense, production, districts, citizens, religion','GLOBAL','World','PC');

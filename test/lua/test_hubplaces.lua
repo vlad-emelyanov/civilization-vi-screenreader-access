@@ -838,3 +838,11 @@ test("foreign lands: one item per met owner at the nearest revealed tile, city-s
 	assert(lands.items[1].detail():find("3 tiles of their territory revealed"), lands.items[1].detail())
 	world.minors = nil
 end)
+
+test("ForeignCityText: major civ, city-state, Free City, Free City that was ours", function()
+	eq(HubPlaces.ForeignCityText("Edirne", "Ottomans", true, false, false), "Edirne, Ottomans")
+	eq(HubPlaces.ForeignCityText("Hong Kong", "Hong Kong", false, false, false), "Hong Kong, city-state")
+	eq(HubPlaces.ForeignCityText("Edirne", "Free Cities", false, true, false), "Edirne, Free City")
+	eq(HubPlaces.ForeignCityText("Cumae", "Free Cities", false, true, true), "Cumae, Free City, was yours")
+	eq(HubPlaces.ForeignCityText("Kyiv", "Kyiv", true, false, false), "Kyiv")
+end)
