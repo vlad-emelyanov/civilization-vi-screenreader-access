@@ -139,11 +139,15 @@ function HubPlaces.OrderHint( unit:table )
 		local ok:boolean, can = pcall( UnitManager.CanStartCommand, unit, command, true );
 		return ok and can == true;
 	end
-	if activity:find( "^moving to" ) and Can( "CANCEL" ) then return "Shift+C cancels the move"; end
+	-- the player may rebind Wake / Cancel: the real binding, the default only when the helper is not there
+	local function Key( action:string, default:string )
+		return HubCore.KeyHint( action, default );
+	end
+	if activity:find( "^moving to" ) and Can( "CANCEL" ) then return Key( "ExtraHotkeysUnitCancel", "Shift+C" ) .. " cancels the move"; end
 	if activity == "sleeping" or activity == "fortified" or activity == "on alert" or activity == "turn skipped" or activity == "healing" then
 		-- a sleeping unit can be woken; a fortified one only cancelled (the game offers Cancel, WAKE is refused for it)
-		if Can( "WAKE" ) then return "Shift+W wakes it"; end
-		if Can( "CANCEL" ) then return "Shift+C cancels it"; end
+		if Can( "WAKE" ) then return Key( "ExtraHotkeysUnitWake", "Shift+W" ) .. " wakes it"; end
+		if Can( "CANCEL" ) then return Key( "ExtraHotkeysUnitCancel", "Shift+C" ) .. " cancels it"; end
 	end
 	return "Any order replaces it, " .. SRKey( "Tab" ) .. " for actions";
 end
