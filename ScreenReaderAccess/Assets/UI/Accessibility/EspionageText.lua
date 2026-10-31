@@ -21,10 +21,10 @@ local function Turns( n:number, suffix:string )
 	return n .. ( n == 1 and " turn" or " turns" ) .. ( suffix or "" );
 end
 
--- "this turn" / "1 turn" / "4 turns": when a spy arrives (0 = the same turn, never "0 turns")
+-- "this turn" / "in 1 turn" / "in 4 turns": when a spy arrives (0 = the same turn, never "0 turns")
 function EspionageText_Arrival( n:number )
 	if n <= 0 then return "this turn"; end
-	return Turns( n );
+	return "in " .. Turns( n );
 end
 
 function EspionageText_Header( d:table )

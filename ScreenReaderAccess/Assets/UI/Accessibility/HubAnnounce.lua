@@ -573,9 +573,9 @@ function HubAnnounce.NoteConfirm( pending:boolean )
 	HubCore.m_confirmUntil = UI.GetElapsedTime() + CONFIRM_HOLD;
 end
 
--- The interface modes in which a chooser list (spy destination / mission, trade route, trader origin) owns Enter and speaks for it.
+-- The interface modes in which a chooser list (spy destination / mission, trade route; not TELEPORT_TO_CITY: no check tells whether its list is up) owns Enter and speaks for it.
 local m_chooserEnterModes:table = {};
-for _, name in ipairs( { "SPY_TRAVEL_TO_CITY", "SPY_CHOOSE_MISSION", "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY" } ) do
+for _, name in ipairs( { "SPY_TRAVEL_TO_CITY", "SPY_CHOOSE_MISSION", "MAKE_TRADE_ROUTE" } ) do
 	if InterfaceModeTypes ~= nil and InterfaceModeTypes[name] ~= nil then m_chooserEnterModes[ InterfaceModeTypes[name] ] = true; end
 end
 
