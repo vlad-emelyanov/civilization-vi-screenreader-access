@@ -1,0 +1,12 @@
+# Verified 2026-10-31: the full-screen map announces itself and says Escape closes it; Escape and the toggle key both close it.
+# covers: **/FullscreenMapPopup*.lua **/PartialScreenHooks.lua
+load early-t60
+clear-advisors
+action ToggleFSMap -Settle 2500 -Quiet 800
+expect ^Full-screen map\. Escape closes it
+key Escape -Settle 1500
+expect ^Map closed
+action ToggleFSMap -Settle 2000
+action ToggleFSMap -Settle 1500
+expect ^Map closed
+no-lua-errors
