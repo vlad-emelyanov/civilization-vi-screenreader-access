@@ -16,6 +16,19 @@ function ProductionText_Replaces( text:string, oldName:string, name:string )
 	return text .. ", replaces " .. oldName;
 end
 
+-- A unit cannot be bought (built) because a unit of its formation class already stands in the city:
+-- "Archer stands in Rome". others: { { formation = "FORMATION_CLASS_LAND_COMBAT", name = "Archer" }, ... } on the city plot.
+-- Returns nil when none of them shares the class (the failure is something else).
+function ProductionText_StackBlocker( formation:string, cityName:string, others:table )
+	if formation == nil then return nil; end
+	for _, other in ipairs( others or {} ) do
+		if other.formation == formation and other.name ~= nil and other.name ~= "" then
+			return other.name .. " stands in " .. ( cityName or "the city" );
+		end
+	end
+	return nil;
+end
+
 -- The identity of a list item across the production and purchase tabs ("buy:unit:123" and "unit:123" are the same unit).
 function ProductionText_Identity( key:string )
 	if key == nil then return nil; end

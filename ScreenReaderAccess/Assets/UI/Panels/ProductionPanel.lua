@@ -2517,6 +2517,22 @@ local function SRA_Balance( yield:string )
 	return math.floor( pPlayer:GetReligion():GetFaithBalance() );
 end
 
+-- The game says "Too many units of the same class in this location." for a unit that cannot be bought (built) because the city
+-- plot is occupied; name the unit in the way instead ("Archer stands in Rome"). nil when it is not the stacking failure.
+local function SRA_StackReason( kItem:table, reasonText:string )
+	if m_pCity == nil or GameInfo.Units[ kItem.Hash ] == nil then return nil; end
+	if reasonText ~= CleanTextForSpeech( Locale.Lookup( "LOC_CITY_UNIT_STACK_ILLEGAL" ) ) then return nil; end
+	local others:table = {};
+	local ok:boolean, units = pcall( Units.GetUnitsInPlot, Map.GetPlot( m_pCity:GetX(), m_pCity:GetY() ) );
+	if ok and units ~= nil then
+		for _, unit in ipairs( units ) do
+			local row:table = GameInfo.Units[ unit:GetUnitType() ];
+			if row ~= nil then table.insert( others, { formation = row.FormationClass, name = CleanTextForSpeech( Locale.Lookup( row.Name ) ) } ); end
+		end
+	end
+	return ProductionText_StackBlocker( GameInfo.Units[ kItem.Hash ].FormationClass, CleanTextForSpeech( Locale.Lookup( m_pCity:GetName() ) ), others );
+end
+
 -- Red failure lines of a tooltip; skipFunds drops the "not enough gold/faith" lines (spoken separately).
 local function SRA_Reasons( kItem:table, skipFunds:boolean )
 	local reasons:table = {};
@@ -2524,7 +2540,7 @@ local function SRA_Reasons( kItem:table, skipFunds:boolean )
 	local funds2:string = CleanTextForSpeech( Locale.Lookup( "LOC_BUILDING_INSUFFICIENT_FAITH" ) );
 	for reason in string.gmatch( kItem.ToolTip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
 		local text:string = CleanTextForSpeech( reason );
-		if not ( skipFunds and ( text == funds1 or text == funds2 ) ) then table.insert( reasons, text ); end
+		if not ( skipFunds and ( text == funds1 or text == funds2 ) ) then table.insert( reasons, SRA_StackReason( kItem, text ) or text ); end
 	end
 	return table.concat( reasons, ", " );
 end

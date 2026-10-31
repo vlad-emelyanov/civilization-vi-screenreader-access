@@ -85,3 +85,11 @@ test("toggle wording", function()
 	eq(ProductionText_ToggleSaid(1, true), "Showing 1 unavailable item")
 	eq(ProductionText_ToggleSaid(14, false), "Unavailable items hidden")
 end)
+
+test("stack blocker names the unit of the same class", function()
+	local others = { { formation = "FORMATION_CLASS_CIVILIAN", name = "Builder" }, { formation = "FORMATION_CLASS_LAND_COMBAT", name = "Archer" } }
+	eq(ProductionText_StackBlocker("FORMATION_CLASS_LAND_COMBAT", "Rome", others), "Archer stands in Rome")
+	eq(ProductionText_StackBlocker("FORMATION_CLASS_NAVAL", "Rome", others), nil)
+	eq(ProductionText_StackBlocker(nil, "Rome", others), nil)
+	eq(ProductionText_StackBlocker("FORMATION_CLASS_CIVILIAN", nil, others), "Builder stands in the city")
+end)
