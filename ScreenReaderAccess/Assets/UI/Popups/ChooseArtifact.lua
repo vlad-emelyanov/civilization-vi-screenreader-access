@@ -49,6 +49,15 @@ local function SRA_ItemText( items:table, index:number )
 	return text;
 end
 
+-- the game's header text is upper case ("CHOOSE ARTIFACT"): spoken as a sentence
+local function SRA_Sentence( text:string )
+	text = string.lower( text );
+	return ( string.gsub( text, "^%l", string.upper ) );
+end
+
+-- Enter / Space act on KeyUp only after their KeyDown reached the popup: the KeyUp of the key that opened it must not choose unheard
+local m_srKeyDown		:table = {};
+
 local function SRA_Trim( text:string )
 	return ( string.gsub( text, "[%s%.!:;,]+$", "" ) );
 end
@@ -69,7 +78,8 @@ function SRAnnounceOpen()
 	local items:table = SRA_Items();
 	if items[ 1 ] == nil then return; end
 	m_srFocusId = items[ 1 ].id;
-	local title:string = SRA_Trim( SRA_Text( Controls.PanelHeader ) );
+	m_srKeyDown = {};
+	local title:string = SRA_Sentence( SRA_Trim( SRA_Text( Controls.PanelHeader ) ) );
 	if title ~= "" then OutputMessageToScreenReader( title, true ); end
 	local said:string = string.lower( title );
 	local parts:table = {};
@@ -132,6 +142,15 @@ function SRA_HandleInput( pInputStruct:table )
 	local key = input:GetKey();
 	if input:IsShiftDown() or input:IsAltDown() then return true; end
 	local isDown:boolean = ( msg == KeyEvents.KeyDown );
+	if key == Keys.VK_RETURN or key == Keys.VK_SPACE then
+		if isDown then
+			m_srKeyDown[ key ] = true;
+		elseif m_srKeyDown[ key ] then
+			m_srKeyDown[ key ] = nil;
+		else
+			return true;		-- a KeyUp without its KeyDown: swallowed, does nothing
+		end
+	end
 	local action = nil;
 	if input:IsControlDown() then
 		if key == Keys.VK_TAB and isDown then action = function() SRA_Move( -1 ); end end		-- LB on the pad
@@ -152,6 +171,7 @@ end
 
 -- event announcements wait while the popup is up (released on every way it hides)
 local function SRA_OnShow()
+	m_srKeyDown = {};
 	LuaEvents.SRA_SpeechHold( "ChooseArtifact", true, "/InGame/FakePopups/" .. ContextPtr:GetID() );
 end
 
