@@ -280,7 +280,6 @@ function HubCore.TestResetState( baseline )
 	return result;
 end
 
--- Runs fn after the given seconds (from the update loop).
 -- A key for speech from the player's CURRENT binding of an input action (rebindable), the default when it cannot be read;
 -- the pad button replaces it for the controller player (SRKey). Same as HubEnemies.KeyHint, usable by modules loaded before it.
 function HubCore.KeyHint( actionName:string, default:string, button:string )
@@ -293,6 +292,7 @@ function HubCore.KeyHint( actionName:string, default:string, button:string )
 	return SRKey( text, button );
 end
 
+-- Runs fn after the given seconds (from the update loop).
 function HubCore.After( seconds:number, fn )
 	table.insert( HubCore.m_delayed, { time = seconds, fn = fn } );
 end

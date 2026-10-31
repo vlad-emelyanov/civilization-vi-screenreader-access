@@ -25,58 +25,96 @@ function HubEvents.OnUnitOperationStarted( ownerID:number, unitID:number, operat
 	if text ~= nil then HubCore.SayResult( text ); end
 end
 
--- Spread Religion / Convert Barbarians: the game says nothing, so we tell the outcome a moment later from the unit's state.
--- Spread: the religion (unit:GetReligionType) and the city (Cities.GetPlotPurchaseCity of the unit's plot) are read at once, the charges
--- (unit:GetSpreadCharges) after 0.8 s (the unit is gone when the last one was used = 0 left). Convert: the barbarian units on the plots
--- within 1 tile are listed at once and again after 0.8 s; the ones that are gone from the barbarian side changed sides.
+-- Spread Religion / Convert Barbarians: the game says nothing, so the outcome is told RELIGIOUS_RESULT_DELAY seconds later, only from evidence.
+-- Spread: religion (unit:GetReligionType) and charges (unit:GetSpreadCharges) are read at the event; the city is the one in the unit's plot
+-- (Cities.GetCityInPlot), else the single adjacent city (none when two or more are adjacent). The success line is spoken only when the unit is
+-- gone or its charges dropped, else "<Action> did not take effect". Convert: "Converted" names only a barbarian unit seen on an adjacent plot
+-- before that is now ours at that plot (same id, or a new id of the same unit type).
+HubEvents.RELIGIOUS_RESULT_DELAY = 0.8;
+
+local function SingleCityNear( x:number, y:number )
+	local here = Cities.GetCityInPlot( x, y );
+	if here ~= nil then return here; end
+	local found, count = nil, 0;
+	for dy = -1, 1 do
+		for dx = -1, 1 do
+			local plot:table = Map.GetPlot( x + dx, y + dy );
+			if plot ~= nil and ( dx ~= 0 or dy ~= 0 ) and Map.GetPlotDistance( x, y, plot:GetX(), plot:GetY() ) <= 1 then
+				local city = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+				if city ~= nil then found = city; count = count + 1; end
+			end
+		end
+	end
+	if count == 1 then return found; end
+	return nil;
+end
+
 function HubEvents.ReligiousOrderResult( operationType:string, unitID:number )
 	local owner:number = Game.GetLocalPlayer();
 	local unit:table = Players[ owner ]:GetUnits():FindID( unitID );
 	if unit == nil then return; end
 	local ux:number, uy:number = unit:GetX(), unit:GetY();
+	local isSpread:boolean = ( operationType == "UNITOPERATION_SPREAD_RELIGION" );
 	local religion:string, city:string = nil, nil;
-	local before:table = {};
+	local chargesBefore:number = unit:GetSpreadCharges();
+	local before:table, mine:table = {}, {};
 	pcall( function()
-		if operationType == "UNITOPERATION_SPREAD_RELIGION" then
+		if isSpread then
 			local religionType = unit:GetReligionType();
 			if religionType ~= nil and religionType > 0 and GameInfo.Religions[ religionType ] ~= nil then
 				religion = Locale.Lookup( Game.GetReligion():GetName( religionType ) );
 			end
-			local owning = Cities.GetPlotPurchaseCity( Map.GetPlot( ux, uy ) );
-			if owning ~= nil then city = Locale.Lookup( owning:GetName() ); end
+			local near = SingleCityNear( ux, uy );
+			if near ~= nil then city = Locale.Lookup( near:GetName() ); end
 		else
-			HubEvents.ForEachBarbarianNear( ux, uy, function( other ) before[ other:GetOwner() .. ":" .. other:GetID() ] = PlotDescription_GetUnitName( other ); end );
+			HubEvents.ForEachUnitNear( ux, uy, function( other, plot )
+				local key:string = plot:GetIndex() .. ":" .. other:GetID();
+				if other:GetOwner() == owner then
+					mine[ key ] = true;
+				elseif Players[ other:GetOwner() ]:IsBarbarian() then
+					table.insert( before, { owner = other:GetOwner(), id = other:GetID(), plot = plot, unitType = other:GetUnitType(), name = PlotDescription_GetUnitName( other ) } );
+				end
+			end );
 		end
 	end );
-	HubCore.After( 0.8, function()
+	HubCore.After( HubEvents.RELIGIOUS_RESULT_DELAY, function()
 		local same:table = Players[ owner ]:GetUnits():FindID( unitID );
-		local left:number = ( same ~= nil ) and same:GetSpreadCharges() or 0;
-		if operationType == "UNITOPERATION_SPREAD_RELIGION" then
-			HubCore.SayResult( ReligionText_SpreadResult( religion, city, left ) );
+		local chargesNow:number = ( same ~= nil ) and same:GetSpreadCharges() or 0;
+		local took:boolean = ( same == nil ) or chargesNow < chargesBefore;
+		if isSpread then
+			if took then
+				HubCore.SayResult( ReligionText_SpreadResult( religion, city, chargesNow ) );
+			else
+				HubCore.SayResult( "Spread Religion did not take effect" );
+			end
 			return;
 		end
-		local after:table = {};
-		pcall( function()
-			HubEvents.ForEachBarbarianNear( ux, uy, function( other ) after[ other:GetOwner() .. ":" .. other:GetID() ] = true; end );
-		end );
 		local names:table = {};
-		for key, name in pairs( before ) do
-			if not after[ key ] then table.insert( names, name ); end
-		end
+		pcall( function()
+			for _, b in ipairs( before ) do
+				local stillBarbarian:boolean, nowMine:boolean = false, false;
+				for _, other in ipairs( Units.GetUnitsInPlot( b.plot ) ) do
+					if other:GetOwner() == b.owner and other:GetID() == b.id then stillBarbarian = true; end
+					if other:GetOwner() == owner and other:GetUnitType() == b.unitType
+							and ( other:GetID() == b.id or not mine[ b.plot:GetIndex() .. ":" .. other:GetID() ] ) then
+						nowMine = true;
+					end
+				end
+				if nowMine and not stillBarbarian then table.insert( names, b.name ); end
+			end
+		end );
 		table.sort( names );
-		HubCore.SayResult( ReligionText_ConvertResult( names, left ) );
+		HubCore.SayResult( ReligionText_ConvertResult( names, took and chargesNow or nil, took ) );
 	end );
 end
 
-function HubEvents.ForEachBarbarianNear( x:number, y:number, fn )
+-- fn( unit, plot ) for every unit on the plots within 1 tile of x, y.
+function HubEvents.ForEachUnitNear( x:number, y:number, fn )
 	for dy = -1, 1 do
 		for dx = -1, 1 do
 			local plot:table = Map.GetPlot( x + dx, y + dy );
 			if plot ~= nil and Map.GetPlotDistance( x, y, plot:GetX(), plot:GetY() ) <= 1 then
-				for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
-					local player:table = Players[ other:GetOwner() ];
-					if player ~= nil and player:IsBarbarian() then fn( other ); end
-				end
+				for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do fn( other, plot ); end
 			end
 		end
 	end

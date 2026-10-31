@@ -145,6 +145,7 @@ function CleanTextForSpeech(text: string)
 	text = string.gsub(text, "%[NEWLINE%]", "");
 	text = _StripIconMarkup(text);
 	text = string.gsub(text, "%[[^%]]*%]", "");
+	text = _CollapseStops(text);
 	text = string.gsub(text, "%s+", " ");
 	text = string.gsub(text, "%s*[%s]*", "");
 	text = string.gsub(text, "^[%s]+", "");

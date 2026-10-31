@@ -81,12 +81,14 @@ function ReligionText_SpreadResult( religion:string, city:string, left:number )
 	return text;
 end
 
--- The result of Convert Barbarians. names = names of the barbarian units that changed sides ({} = none seen converted);
--- left = charges left (nil = unknown). Only what is known: no unit seen converted says just that the ability was used.
-function ReligionText_ConvertResult( names:table, left:number )
+-- The result of Convert Barbarians. names = barbarian units seen to change sides ({} = none); left = charges left (nil = not known to have dropped);
+-- took = false when the charges did not drop (and nothing was seen converted): "did not take effect".
+function ReligionText_ConvertResult( names:table, left:number, took:boolean )
 	local text:string;
 	if names ~= nil and #names > 0 then
 		text = "Converted " .. #names .. " barbarian " .. ( ( #names == 1 ) and "unit" or "units" ) .. ": " .. table.concat( names, ", " );
+	elseif took == false then
+		return "Convert Barbarians did not take effect";
 	else
 		text = "Convert Barbarians used";
 	end
@@ -95,12 +97,12 @@ function ReligionText_ConvertResult( names:table, left:number )
 	return text;
 end
 
--- What Space says on an Apostle action whose tooltip is only its name. From the game's own texts (Apostle description, Heathen Conversion
--- promotion). nil when the action has no entry.
+-- What Space says on an Apostle action whose tooltip is only its name. These three texts are the mod's own: the game's Description of these
+-- operations is only the name. Each says only what the unit does.
 local ACTION_DESCRIPTIONS = {
-	UNITOPERATION_EVANGELIZE_BELIEF = "Adds one more belief to your religion, once per game. Uses up the Apostle.",
-	UNITOPERATION_LAUNCH_INQUISITION = "Allows the purchase of Inquisitors in cities of your religion, once per game. Uses up the Apostle.",
-	UNITOPERATION_SPREAD_RELIGION = "Converts citizens of the city to your religion. Uses one spread.",
+	UNITOPERATION_EVANGELIZE_BELIEF = "Adds one more belief to your religion. Uses up the Apostle.",
+	UNITOPERATION_LAUNCH_INQUISITION = "Allows the purchase of Inquisitors in cities of your religion. Uses up the Apostle.",
+	UNITOPERATION_SPREAD_RELIGION = "Converts citizens of the city to your religion.",
 };
 function ReligionText_ActionDescription( typeName:string )
 	if typeName == "UNITOPERATION_CONVERT_BARBARIANS" then

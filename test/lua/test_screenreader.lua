@@ -70,6 +70,8 @@ test("CleanTextForSpeech collapses doubled stops, keeps ellipsis and numbers", f
 	eq(CleanTextForSpeech("City: Ostia, cede. ."), "City: Ostia, cede.")
 	eq(CleanTextForSpeech("Ostia.,"), "Ostia.")
 	eq(CleanTextForSpeech("Wait... what"), "Wait... what")
+	eq(CleanTextForSpeech("Wait...[NEWLINE]Next"), "Wait... Next")
+	eq(CleanTextForSpeech("Wait... [ICON_Foo] what..", "x"), "Wait... what.")
 	eq(CleanTextForSpeech("Gain 1.5 culture"), "Gain 1.5 culture")
 end)
 
