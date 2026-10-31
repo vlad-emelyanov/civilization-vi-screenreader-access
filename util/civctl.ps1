@@ -73,6 +73,7 @@ param(
     [string]$Purpose,       # save: why this fixture exists (goes into the sidecar)
     [string]$Profile,       # save: game profile it came from (newgame passes it)
     [string]$Save,          # autoplay: fixture name to save when it finishes
+    [string]$BeforeEnter,   # load: comma-separated plain keys pressed on the load screen BEFORE Enter begins the game (load-screen paragraph keys); their SR> lines are printed
     [switch]$KeepAdvisors,  # load: do not close advisor popups afterwards (the default is to close them)
     [switch]$ClearAdvisors  # load: accepted for clarity, this is already the default
 )
@@ -963,6 +964,7 @@ function Invoke-LoadOnce([string]$name) {
     if ($script:PyExit -ne 0 -or ($res -join '') -notmatch 'true') { throw "Network.LoadGame failed: $($res -join ' ')" }
     if (-not (Wait-ForScreenReader 'Continue Game' 90)) { throw "'Continue Game' did not show after loading '$name'" }
     # Settle is only the maximum: the key returns once the turn announcement lines stopped coming (was a fixed 3 s sleep); the Wait below is the fallback.
+    foreach ($k in ($BeforeEnter -split ',' | Where-Object { $_.Trim() })) { Invoke-Key -KeyArg $k.Trim() -Count 1 -Settle 1500 -Quiet 400 | ForEach-Object { Write-Output $_ } }
     $o = @(Invoke-Key -KeyArg 'Enter' -Count 1 -Settle 8000 -Quiet 700)
     $o | ForEach-Object { Write-Output $_ }
     if (-not ($o -match 'Turn \d+,') -and -not (Wait-ForScreenReader 'Turn \d+,' 60) -and -not ((Get-GameWhere) -match '^INGAME')) { throw "No turn announcement after loading '$name'" }

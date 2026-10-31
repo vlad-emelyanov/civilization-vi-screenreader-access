@@ -1,0 +1,14 @@
+# BLIND-WRITTEN 2026-10-31 (not run against the game): first run with `regress load-screen-paragraphs --record`, then review.
+# covers: **/LoadScreen.lua **/LoadParagraphs.lua
+# own-load: checks what the load screen itself says
+# before-enter: Down Down Up Up
+# The load screen speaks one short line (no auto-reading); Down / Up browse the paragraphs, Up at the top says "First paragraph";
+# Enter (the harness) then begins the game as before.
+load early-start
+expect ^Loading Rome, Trajan\. Up and Down read the civilization details, \d+ paragraphs
+expect ^Rome, Trajan, 1 of \d+
+expect , 2 of \d+
+expect ^First paragraph
+expect ^Continue Game. Press Enter to start
+expect ^Turn 1, 4000 BC
+no-lua-errors
