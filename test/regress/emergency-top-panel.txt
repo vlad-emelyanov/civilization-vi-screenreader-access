@@ -1,0 +1,12 @@
+# Written blind (offline). The Control+Y top panel list has one entry per active emergency / scored competition (Gathering Storm), after Trade routes; Space reads goal, scoring and rewards. Fixture bug-crisis-popup-silent (turn 132) has a Scored Competition in GetEmergencyInfoTable.
+# covers: **/EmergencyText.lua **/TopPanelData.lua
+# shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
+load bug-crisis-popup-silent
+clear-advisors
+action KeyNavTopPanel -Settle 1500
+key End -Settle 800
+expect (?i)(competition|emergency): .*(left|ends this turn|ended|not joined)
+key Space -Settle 800
+expect (?i)(goal:|members completed|progress \d+|your score|members:|how to score|rewards)
+key Escape -Settle 800
+no-lua-errors

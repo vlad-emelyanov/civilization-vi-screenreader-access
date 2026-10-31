@@ -52,7 +52,7 @@ local m_sections:table = {
 		{ action = "PrevUnit",					default = "[",			text = "previous ready unit" },
 		{ action = "KeyNavScanUnits",			default = "X",			text = "cursor to the nearest foreign unit in view, hostile first, again: the next; in an attack mode only what you can attack" },
 		{ action = "KeyNavYields",				default = "Control+G",	text = "gold, science, culture and faith in one sentence" },
-		{ action = "KeyNavTopPanel",			default = "Control+Y",	text = "top panel list: yields, resources, research, civic, turn, era" },
+		{ action = "KeyNavTopPanel",			default = "Control+Y",	text = "top panel list: yields, resources, research, civic, turn, era, and one entry per active emergency or competition (Space: goal, scoring, rewards)" },
 		{ action = "KeyNavMessages",			default = "Control+M",	text = "messages: the history of what the mod announced on its own (turn lines, enemies, fights, notifications), newest first, grouped by turn; Space adds the turn and the position, Enter moves the cursor to its place" },
 		{ action = "KeyNavNotifications",		default = "Control+N",	text = "notifications: Enter activates, Delete (controller: X) dismisses, M sends a unit to its place" },
 		{ action = "KeyNavEraProgress",			default = "Control+E",	text = "era progress: era score, thresholds, other civilizations" },
@@ -224,6 +224,8 @@ local m_sections:table = {
 		{ keys = "Artifact popup",		text = "after excavating a battlefield or shipwreck: Left, Right, Up and Down choose which civilization receives the artifact, Enter takes the focused one, Space repeats what was found and from which era, Escape only reminds you that a choice is needed; a find without a choice has one button, Enter takes it" },
 		{ keys = "R",					text = "espionage mission popup: renews a completed mission (controller: X)" },
 		{ keys = "C",					text = "dedication popup: confirms the chosen dedication (controller: X)" },
+		{ keys = "Keep or Free City popup",	text = "a foreign city that rebelled asks to join you: Up and Down choose Keep City or Refuse City, Space reads what it means, Enter confirms, Escape closes it (the end turn blocker opens it again)" },
+		{ keys = "Project and rock band popups",	text = "a completed project (Manhattan Project, Moon Landing ...), a rock band concert and its result: Enter continues or closes" },
 		{ keys = "Any popup",			text = "other announcements wait until it closes, then they follow" },
 	} },
 };
