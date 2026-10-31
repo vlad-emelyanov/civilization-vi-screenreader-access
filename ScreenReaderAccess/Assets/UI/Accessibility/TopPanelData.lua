@@ -296,6 +296,10 @@ function TopPanelData_BuildItems()
 	Guard( "research", function() CurrentResearchItem( items, player ); end );
 	Guard( "civic", function() CurrentCivicItem( items, player ); end );
 	Guard( "turn", function() TurnItem( items ); end );
+	Guard( "timer", function()
+		local text:string = ( TopPanelData_TimerText ~= nil ) and TopPanelData_TimerText() or nil;		-- set by HubMultiplayer; nil without a turn timer
+		if text ~= nil then Add( items, { key = "timer", text = text, detail = text } ); end
+	end );
 	Guard( "era", function() EraItem( items, playerID ); end );
 	Guard( "envoys", function() EnvoyItem( items, player ); end );
 	Guard( "trade", function() TradeItem( items, player ); end );

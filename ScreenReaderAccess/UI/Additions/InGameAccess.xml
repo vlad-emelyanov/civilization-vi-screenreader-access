@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Context xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="..\..\..\..\..\CivTech\Libs\ForgeUI\ForgeUI_Assets\Controls.xsd">
 	<!-- Screen reader hub: no visuals. Owns the map cursor, in-game hotkeys and event announcements. -->
-	<Container ID="Root" Size="parent,parent" />
+	<Container ID="Root" Size="parent,parent">
+		<!-- Multiplayer chat input (HubMultiplayer): hidden until Control+T, then Enter on "Type a message" -->
+		<EditBox ID="SRChatBox" Style="EditTextArea" Size="500,24" Anchor="L,B" Offset="20,60" EditMode="0" FocusStop="0" Hidden="1"/>
+	</Container>
 </Context>

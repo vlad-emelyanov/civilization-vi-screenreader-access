@@ -107,6 +107,7 @@ end
 function Hub.HandleInput( input:table )
 	local msg:number = input:GetMessageType();
 	if msg ~= KeyEvents.KeyDown and msg ~= KeyEvents.KeyUp then return false; end
+	if HubMultiplayer.HandleInput( input ) then return true; end		-- the key that ended a chat text edit
 	-- controller buttons (F-keys) first: they must not reset the end-turn guard or the settle prompt; the mode keys work on AI turns too
 	if HubGamepad.HandleInput( input, msg, input:GetKey(), input:IsControlDown(), input:IsShiftDown() ) then return true; end
 	if not HubCore.IsLocalPlayerActive() then return false; end
@@ -180,6 +181,7 @@ function Hub.OnInput( input:table )
 end
 
 function Hub.OnUpdate( deltaTime:number )
+	HubMultiplayer.Update( deltaTime );
 	HubPlaces.Update( deltaTime );
 	HubCursor.UpdateMouse( deltaTime );
 	HubCore.UpdateSpeech( deltaTime );
@@ -266,6 +268,7 @@ include( "HubGamepad" );
 include( "HubPad" );		-- controller ring (RB / LB)
 include( "HubLenses" );
 include( "HubScreens" );
+include( "HubMultiplayer" );		-- in-game chat, turn timer, players dropping out
 
 -- ===========================================================================
 function Initialize()
@@ -313,6 +316,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavSendHere",			HubPlaces.SendHere );
 	Hub.RegisterAction( "KeyNavGreatWorks",		HubRegions.ToggleGreatWorks );
 	Hub.RegisterAction( "KeyNavHelp",				HubHelp.Toggle );
+	Hub.RegisterAction( "KeyNavChat",				HubMultiplayer.ToggleChat );
 	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): LensText speaks once the game has switched
 	LensText_Setup( HubCore.After, function( text:string, nointerrupt:boolean ) OutputMessageToScreenReader( text, nointerrupt ); end );
 	for action, _ in pairs( LensText_Actions ) do
@@ -376,6 +380,7 @@ function Initialize()
 		if player ~= nil then HubCore.RememberUnit( player:GetUnits():FindID( unitID ) ); end
 	end );
 
+	HubMultiplayer.Init();
 	HubGamepad.Init();
 	ContextPtr:SetInputHandler( Hub.OnInput, true );
 	ContextPtr:SetUpdate( HubCore.Safe( "Update", Hub.OnUpdate ) );

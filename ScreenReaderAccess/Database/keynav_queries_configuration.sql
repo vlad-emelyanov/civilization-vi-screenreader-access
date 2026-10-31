@@ -73,3 +73,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavEraProgress','Era progress','Open or c
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavEraProgress',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_E');
 INSERT INTO "InputActions" VALUES ('KeyNavHelp','Accessibility help','Open a read-only list of the accessibility shortcuts of this mod and what they do','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavHelp',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_H');
+INSERT INTO "InputActions" VALUES ('KeyNavChat','Chat','Multiplayer games: open the chat list (type a message, read the chat history)','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavChat',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_T');

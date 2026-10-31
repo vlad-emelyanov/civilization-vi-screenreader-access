@@ -53,6 +53,7 @@ local m_sections:table = {
 		{ action = "KeyNavYields",				default = "Control+G",	text = "gold, science, culture and faith in one sentence" },
 		{ action = "KeyNavTopPanel",			default = "Control+Y",	text = "top panel list: yields, resources, research, civic, turn, era" },
 		{ action = "KeyNavMessages",			default = "Control+M",	text = "messages: the history of what the mod announced on its own (turn lines, enemies, fights, notifications), newest first, grouped by turn; Space adds the turn and the position, Enter moves the cursor to its place" },
+		{ action = "KeyNavChat",				default = "Control+T",	text = "chat (network multiplayer games): a list with Type a message first, then the chat history, newest first; Enter on Type a message opens the text field, Enter sends, Escape cancels. Incoming chat is spoken and kept in the messages list" },
 		{ action = "KeyNavNotifications",		default = "Control+N",	text = "notifications: Enter activates, Delete (controller: X) dismisses, M sends a unit to its place" },
 		{ action = "KeyNavEraProgress",			default = "Control+E",	text = "era progress: era score, thresholds, other civilizations" },
 		{ action = "KeyNavHelp",				default = "Control+H",	text = "this help list" },
