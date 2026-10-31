@@ -351,6 +351,7 @@ end
 local function DistrictsItem( d:table )
 	local parts:table = {};
 	local detail:table = {};
+	local counts:table = {};
 	for _, dist in ipairs( d.districts ) do
 		local name:string = dist.name;
 		if dist.pillaged then name = name .. " (pillaged)"; end
@@ -358,7 +359,13 @@ local function DistrictsItem( d:table )
 		for _, b in ipairs( dist.buildings ) do table.insert( buildings, BuildingName( b ) ); end
 		local line:string = name;
 		if #buildings > 0 then line = line .. " (" .. ShortList( buildings, 2 ) .. ")"; end
-		table.insert( parts, line );
+		-- identical districts (seven Neighborhoods) are said once with their count, at the first one's place
+		if counts[ line ] == nil then
+			counts[ line ] = 1;
+			table.insert( parts, line );
+		else
+			counts[ line ] = counts[ line ] + 1;
+		end
 		local full:string = name;
 		if #buildings > 0 then full = full .. ": " .. Join( buildings ); else full = full .. ": no buildings"; end
 		if dist.yield ~= nil and dist.yield ~= "" then full = full .. ", yields " .. dist.yield; end
@@ -370,6 +377,9 @@ local function DistrictsItem( d:table )
 	if #parts == 0 then
 		text = "Districts: none";
 	else
+		for i, line in ipairs( parts ) do
+			if counts[ line ] > 1 then parts[ i ] = line .. ", " .. counts[ line ]; end
+		end
 		text = "Districts: " .. Join( parts );
 	end
 	if #wonders > 0 then

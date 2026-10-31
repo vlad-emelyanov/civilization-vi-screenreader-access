@@ -117,6 +117,14 @@ test("production", function()
 	eq(find(CityReport_BuildItems(d), "production").text, "Production: nothing, Tab opens production")
 end)
 
+test("identical districts are said once with a count", function()
+	local c = city()
+	c.districts = { { name = "Neighborhood", pillaged = false, buildings = {}, yield = "" }, { name = "Campus", pillaged = false, buildings = {}, yield = "" } }
+	for _ = 1, 6 do table.insert(c.districts, { name = "Neighborhood", pillaged = false, buildings = {}, yield = "" }) end
+	local item = find(CityReport_BuildItems(c), "districts")
+	eq(item.text:match("^Districts: [^.]*"), "Districts: Neighborhood, 7, Campus")
+end)
+
 test("districts, buildings, wonders", function()
 	local item = find(CityReport_BuildItems(city()), "districts")
 	eq(item.text, "Districts: City Center (Palace), Campus (Library (pillaged)), Commercial Hub. Wonders: Pyramids")
