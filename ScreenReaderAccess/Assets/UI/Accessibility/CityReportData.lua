@@ -110,6 +110,34 @@ local function HousingBreakdown( h:table )
 	return parts;
 end
 
+-- Border growth: "Borders: next tile in 4 turns" / "Borders: fully grown" / "Borders: not growing, no culture".
+-- d.borders: { turns, perTurn, current, cost, none (nothing left to claim), nextTile (spoken position and terrain) } or nil (no item).
+-- A turns value below 1 or absurdly large means the city does not grow its borders (no culture).
+local MAX_BORDER_TURNS:number = 500;
+local function BordersItem( d:table )
+	local b:table = d.borders;
+	if b == nil then return nil; end
+	if b.none then
+		return { key = "borders", text = "Borders: fully grown", detail = "The city has no tile left to claim with culture. Tiles outside the border can still be bought with gold" };
+	end
+	local detail:table = {};
+	if b.perTurn ~= nil then table.insert( detail, "Culture " .. Signed( b.perTurn ) .. " per turn" ); end
+	if b.current ~= nil and b.cost ~= nil and b.cost > 0 then
+		table.insert( detail, Num( b.current ) .. " of " .. Num( b.cost ) .. " culture for the next tile" );
+	end
+	if b.nextTile ~= nil and b.nextTile ~= "" then table.insert( detail, "Next tile: " .. b.nextTile ); end
+	local text:string;
+	if b.turns == nil or b.turns < 1 or b.turns >= MAX_BORDER_TURNS then
+		text = "Borders: not growing, no culture";
+		if b.perTurn ~= nil and b.perTurn > 0 and b.turns ~= nil and b.turns < 1 and b.cost ~= nil and b.current ~= nil and b.current >= b.cost then
+			text = "Borders: next tile next turn";
+		end
+	else
+		text = "Borders: next tile in " .. Turns( b.turns );
+	end
+	return { key = "borders", text = text, detail = Join( detail, ". " ) };
+end
+
 local function GrowthItem( d:table )
 	local g:table = d.growth;
 	local text:string = "Population " .. d.population .. " of " .. Num( g.housing ) .. " housing";
@@ -669,6 +697,7 @@ function CityReport_BuildItems( d:table )
 	end
 	Guard( function() Add( YieldsItem( d ) ); end );
 	Guard( function() Add( GrowthItem( d ) ); end );
+	Guard( function() Add( BordersItem( d ) ); end );
 	Guard( function() Add( AmenitiesItem( d ) ); end );
 	Guard( function() Add( LoyaltyItem( d ) ); end );
 	Guard( function() Add( PowerItem( d ) ); end );

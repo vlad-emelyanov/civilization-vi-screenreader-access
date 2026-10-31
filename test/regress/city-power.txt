@@ -8,6 +8,7 @@ expect ^.+ report, \d+ options
 key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
+key Down -Settle 800
 expect ^Loyalty \d+
 key Down -Settle 800
 expect ^Power \d+ of \d+ needed, underpowered

@@ -73,6 +73,28 @@ local function GatherGrowth( pCity:table, data:table )
 	return growth;
 end
 
+-- Border growth: the same calls as CityPanel.DisplayGrowthTile (GetNextPlot is -1 when no plot is left to claim). nextTile: where it is and
+-- what is on it, in the short plot form. nil without the culture capability.
+local function GatherBorders( pCity:table )
+	local culture:table = pCity:GetCulture();
+	if culture == nil then return nil; end
+	local b:table = {
+		turns = culture:GetTurnsUntilExpansion(), perTurn = culture:GetCultureYield(), current = culture:GetCurrentCulture(),
+		cost = culture:GetNextPlotCultureCost(),
+	};
+	local nextPlot:number = culture:GetNextPlot();
+	b.none = nextPlot == nil or nextPlot < 0;
+	if not b.none then
+		local plot:table = Map.GetPlotByIndex( nextPlot );
+		if plot ~= nil then
+			local relative:string = PlotDescription_GetRelative( Map.GetPlot( pCity:GetX(), pCity:GetY() ), plot );
+			local short:string = PlotDescription_GetShort( plot, {} );
+			b.nextTile = ( relative ~= nil and ( relative .. ", " ) or "" ) .. short;
+		end
+	end
+	return b;
+end
+
 -- The cultural identity of the city (Rise and Fall, Gathering Storm). nil in the base game.
 local function GatherLoyalty( pCity:table )
 	if pCity.GetCulturalIdentity == nil then return nil; end
@@ -439,6 +461,7 @@ function CityReport_Gather( pCity:table )
 		buildingsNum = data.BuildingsNum, districtsCount = data.DistrictsNum, districtsMax = data.DistrictsPossibleNum,
 	};
 	d.growth = GatherGrowth( pCity, data );
+	d.borders = Guard( "borders", function() return GatherBorders( pCity ); end );
 	d.amenities = GatherAmenities( data );
 	d.loyalty = Guard( "loyalty", function() return GatherLoyalty( pCity ); end );
 	d.power = Guard( "power", function() return GatherPower( pCity ); end );

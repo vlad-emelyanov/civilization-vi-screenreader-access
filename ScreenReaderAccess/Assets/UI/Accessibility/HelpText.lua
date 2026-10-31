@@ -43,6 +43,7 @@ local m_sections:table = {
 		{ action = "KeyNavJumpCellUp",		default = "Control+Shift+Up",	text = "jump the map cursor 5 tiles north and read the tile (also in target modes)" },
 		{ action = "KeyNavJumpCellDown",		default = "Control+Shift+Down",	text = "jump the map cursor 5 tiles south and read the tile (also in target modes)" },
 		{ action = "KeyNavPlotDetails",			default = "I",			text = "detailed description of the cursor tile" },
+		{ action = "KeyNavUnitDetails",			default = "Shift+I",	text = "stats of the units on the cursor tile, else of the selected unit: strength, ranged strength and range, level, experience, promotions, moves, health; of a foreign unit what its tooltip shows" },
 		{ action = "KeyNavCursorToSelection",	default = ".",			text = "cursor back to the selected unit or city and read it" },
 		{ keys = "Cursor on a resource",	text = "the tile text adds what the resource needs: \"Horses, needs Animal Husbandry\" or \"Wine, plantation possible\"; I adds the research turns" },
 		{ action = "KeyNavSelectAtCursor",		default = "K",			text = "select your unit or city on the cursor tile, again: the next one there" },

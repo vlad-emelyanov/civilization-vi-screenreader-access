@@ -10,9 +10,11 @@ expect Yields: food (plus|minus)? ?\d+.*production \d+.*gold.*science.*culture.*
 key Down -Settle 800
 expect ^Population \d+ of \d+ housing.*, 2 of \d+
 key Down -Settle 800
-expect ^Amenities \d+ of \d+.*, 3 of \d+
+expect ^Borders: .*, 3 of \d+
 key Down -Settle 800
-expect ., 4 of \d+
+expect ^Amenities \d+ of \d+.*, 4 of \d+
+key Down -Settle 800
+expect ., 5 of \d+
 key Space -Settle 1500
 expect .{10,}
 key Escape -Settle 1500

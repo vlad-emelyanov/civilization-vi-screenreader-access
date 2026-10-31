@@ -13,7 +13,6 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - **Camp experience hint [G3d]:** one sentence in the camp's Space text in J ("Fighting near it gives your units experience"). Low priority.
 - **Combat preview, better tile [G5 stretch]:** "Attacking from the north would add plus 2 flanking"; needs a `SimulateAttackInto` per neighbour tile.
 - **District spots, purchasable tiles [G7]:** the "District spots" city report line and production Space only consider owned tiles; the positive wording ("Campus plus 3 ...") is unit-tested only. Check a city that could buy a better tile (`DistrictAdvice.lua`, `PlacementScan.lua`).
-- **City-in-danger warning:** the raid line (2+ barbarian soldiers near a city) and the enemy summary exist, but Ostia was captured by England with only attack lines as warning. Needs a rule for at-war civ units near a weakly defended city.
 - **Production queue reordering on the controller** (Alt+Up/Down are keyboard only; remove is X).
 - **Production queue: refused swap and disabled corps rows** ("Can't move X" after a second, a disabled Corps row in the Unavailable group) have not been seen in the game.
 - **Keyboard path for the production Manager tab** (`Panels/ProductionPanel.lua`).

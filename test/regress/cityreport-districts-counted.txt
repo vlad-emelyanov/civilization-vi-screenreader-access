@@ -5,7 +5,7 @@ load pt-mod2-t228
 clear-advisors
 action CapitalCity -Settle 1500
 key Control+I -Settle 2500
-key Down -Count 8 -Fast -Settle 800
+key Down -Count 9 -Fast -Settle 800
 expect ^Districts:
 expect-not (?i)Neighborhood, Neighborhood
 no-lua-errors

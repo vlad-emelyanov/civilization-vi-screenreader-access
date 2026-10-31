@@ -521,3 +521,10 @@ function HubCursor.SpeakPlotDetails()
 	if build ~= nil then text = text .. ". " .. build; end
 	OutputMessageToScreenReader( text );
 end
+
+-- Shift+I: the stats of every visible unit on the cursor tile (military first), else of the selected unit (UnitDetails.lua).
+function HubCursor.SpeakUnitDetails()
+	if not HubCore.IsLocalPlayerActive() then return; end
+	local x:number, y:number = HubCursor.GetCursor();
+	OutputMessageToScreenReader( UnitDetails_ForPlot( Map.GetPlot( x, y ), UI.GetHeadSelectedUnit() ) );
+end

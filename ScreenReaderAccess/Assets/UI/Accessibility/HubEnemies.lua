@@ -178,6 +178,7 @@ function HubEnemies.Reset()
 	HubEnemies.m_scouts, HubEnemies.m_alarmed, HubEnemies.m_alarmedNow = {}, {}, {};
 	HubEnemies.m_raidExpected = nil;
 	HubEnemies.m_raidSig, HubEnemies.m_dangerSig, HubEnemies.m_escortHinted = {}, {}, {};
+	HubEnemies.m_cityDanger = {};
 end
 
 -- Start of our turn (after the "Turn N" line): the line, or nothing.
@@ -218,6 +219,8 @@ function HubEnemies.SpeakAtTurnStart()
 	HubEnemies.m_alarmedNow = {};
 	local okThreats:boolean, err = pcall( HubEnemies.SpeakThreats, true );
 	if not okThreats then print( "HubEnemies threat error: " .. tostring( err ) ); end
+	local okDanger:boolean, dangerErr = pcall( HubEnemies.SpeakCityDanger, true );
+	if not okDanger then print( "HubEnemies city danger error: " .. tostring( dangerErr ) ); end
 end
 
 -- ===========================================================================
@@ -784,6 +787,141 @@ function HubEnemies.SpeakThreats( nointerrupt:boolean )
 	end
 	for key in pairs( HubEnemies.m_raidSig ) do if not liveRaids[ key ] then HubEnemies.m_raidSig[ key ] = nil; end end
 	for key in pairs( HubEnemies.m_dangerSig ) do if not liveCivilians[ key ] then HubEnemies.m_dangerSig[ key ] = nil; end end
+end
+
+-- ---------------------------------------------------------------------------
+-- City in danger (civilizations at war with us; barbarian raids have their own line above)
+-- ---------------------------------------------------------------------------
+local DANGER_CITY_RADIUS:number = 3;		-- hostile units this close to a city of ours count
+local DANGER_MAX_CITIES:number = 2;			-- lines per turn
+local DANGER_STRENGTH_FACTOR:number = 1.5;	-- the attackers' summed strength must clearly exceed the city's defence
+HubEnemies.m_cityDanger = {};				-- city id -> { count, health } of the line last spoken
+
+-- Pure decision. info: { count = hostile soldiers within 3 tiles, siege = how many of them are siege/ram units, strength = their summed
+-- strength, defense = the city's strength (nil: unknown), damaged = the city's health is below 100 percent, adjacent = how many stand next to it }.
+-- Danger: (2+ units or any siege unit) whose summed strength clearly exceeds the defence, or a damaged city with an enemy next to it.
+-- Returns the danger flag and the ratio strength / defence (for sorting).
+function HubEnemies.CityDangerDecision( info:table )
+	if info == nil or ( info.count or 0 ) < 1 then return false, 0; end
+	local ratio:number = 0;
+	if info.defense ~= nil and info.defense > 0 then ratio = ( info.strength or 0 ) / info.defense; end
+	if info.damaged and ( info.adjacent or 0 ) >= 1 then return true, ratio + 1; end
+	if info.count >= 2 or ( info.siege or 0 ) >= 1 then
+		if info.defense == nil or info.defense <= 0 then return true, ratio; end
+		if ( info.strength or 0 ) > info.defense * DANGER_STRENGTH_FACTOR then return true, ratio; end
+	end
+	return false, ratio;
+end
+
+-- Pure: speak again only when the count rises or the health falls (state: { count, health } of the last line, nil: not spoken yet).
+-- Returns whether to speak and the state to keep (always the current values, so a fall and a new rise speak again).
+function HubEnemies.CityDangerRepeat( state:table, count:number, health:number )
+	local speak:boolean = state == nil or count > state.count or health < state.health;
+	return speak, { count = count, health = health };
+end
+
+-- info: { cityName, count, civs = { "Egypt" }, siegeNames = { "Catapult" }, defense, wallsText, healthText, hint }
+function HubEnemies.CityDangerText( info:table )
+	local noun:string = info.count == 1 and "unit" or "units";
+	local who:string = info.count .. " " .. noun;
+	if info.civs ~= nil and #info.civs == 1 then who = who .. " of " .. info.civs[1]; else who = info.count .. " hostile " .. noun; end
+	local text:string = info.cityName .. " in danger: " .. who .. " within " .. DANGER_CITY_RADIUS .. " tiles";
+	if info.siegeNames ~= nil and #info.siegeNames > 0 then text = text .. ", including " .. table.concat( info.siegeNames, " and " ); end
+	if info.defense ~= nil then text = text .. ", city strength " .. info.defense; end
+	if info.wallsText ~= nil then text = text .. ", " .. info.wallsText; end
+	if info.healthText ~= nil then text = text .. ", " .. info.healthText; end
+	if info.hint ~= nil and info.hint ~= "" then text = text .. ". " .. info.hint .. " for the city"; end
+	return text;
+end
+
+local function IsSiegeUnit( unit:table )
+	local row:table = UnitRow( unit );
+	if row == nil then return false; end
+	if row.PromotionClass == "PROMOTION_CLASS_SIEGE" then return true; end
+	return string.find( tostring( row.UnitType ), "RAM", 1, true ) ~= nil or string.find( tostring( row.UnitType ), "SIEGE", 1, true ) ~= nil;
+end
+
+-- The cities of ours in danger now, worst first: { city, count, civs, siegeNames, defense, wallsText, healthText, health, ratio }.
+function HubEnemies.ScanCityDanger()
+	local found:table = {};
+	local hostiles:table = {};
+	for _, h in ipairs( VisibleHostiles() ) do
+		if h.soldier and not Players[ h.owner ]:IsBarbarian() then table.insert( hostiles, h ); end
+	end
+	if #hostiles == 0 then return found; end
+	for _, city in ipairs( OwnCities() ) do
+		local cx:number, cy:number = city:GetX(), city:GetY();
+		local info:table = { count = 0, siege = 0, strength = 0, adjacent = 0 };
+		local civs:table, civSeen:table, siegeNames:table = {}, {}, {};
+		for _, h in ipairs( hostiles ) do
+			local d:number = Dist( h.x, h.y, cx, cy );
+			if d <= DANGER_CITY_RADIUS then
+				info.count = info.count + 1;
+				info.strength = info.strength + math.max( h.unit:GetCombat(), h.unit:GetRangedCombat(), h.unit:GetBombardCombat() );
+				if d <= 1 then info.adjacent = info.adjacent + 1; end
+				if IsSiegeUnit( h.unit ) then
+					info.siege = info.siege + 1;
+					table.insert( siegeNames, Locale.Lookup( h.unit:GetName() ) );
+				end
+				if not civSeen[ h.owner ] then
+					civSeen[ h.owner ] = true;
+					table.insert( civs, Locale.Lookup( PlayerConfigurations[ h.owner ]:GetCivilizationShortDescription() ) );
+				end
+			end
+		end
+		if info.count > 0 then
+			info.defense = CityDefense( city );
+			local wallsText:string, healthText:string, health:number = nil, nil, 0;
+			pcall( function()
+				local district = CityManager.GetDistrictAt( cx, cy );
+				if district == nil then return; end
+				local wallMax:number = district:GetMaxDamage( DefenseTypes.DISTRICT_OUTER );
+				local wallLeft:number = wallMax - district:GetDamage( DefenseTypes.DISTRICT_OUTER );
+				local maxHp:number = district:GetMaxDamage( DefenseTypes.DISTRICT_GARRISON );
+				local hpLeft:number = maxHp - district:GetDamage( DefenseTypes.DISTRICT_GARRISON );
+				if wallMax > 0 then wallsText = "walls " .. wallLeft .. " of " .. wallMax; end
+				if maxHp > 0 and hpLeft < maxHp then
+					info.damaged = true;
+					healthText = "health " .. hpLeft .. " of " .. maxHp;
+				end
+				health = wallLeft + hpLeft;
+			end );
+			local danger:boolean, ratio:number = HubEnemies.CityDangerDecision( info );
+			if danger then
+				table.insert( found, { city = city, count = info.count, civs = civs, siegeNames = siegeNames, defense = info.defense,
+					wallsText = wallsText, healthText = healthText, health = health, ratio = ratio } );
+			end
+		end
+	end
+	table.sort( found, function( a, b )
+		if a.ratio ~= b.ratio then return a.ratio > b.ratio; end
+		return a.city:GetID() < b.city:GetID();
+	end );
+	return found;
+end
+
+-- Turn start: at most DANGER_MAX_CITIES lines, a city again only when more units came or its health fell.
+function HubEnemies.SpeakCityDanger( nointerrupt:boolean )
+	local spoken:number = 0;
+	local live:table = {};
+	local hint:string = HubEnemies.KeyHint( "KeyNavCityReport", "Control+I" );
+	for _, entry in ipairs( HubEnemies.ScanCityDanger() ) do
+		local id:number = entry.city:GetID();
+		live[ id ] = true;
+		local speak:boolean, state:table = HubEnemies.CityDangerRepeat( HubEnemies.m_cityDanger[ id ], entry.count, entry.health );
+		if speak and spoken < DANGER_MAX_CITIES then
+			spoken = spoken + 1;
+			HubEnemies.m_cityDanger[ id ] = state;
+			HubCore.Announce( HubEnemies.CityDangerText{ cityName = Locale.Lookup( entry.city:GetName() ), count = entry.count, civs = entry.civs,
+				siegeNames = entry.siegeNames, defense = entry.defense, wallsText = entry.wallsText, healthText = entry.healthText, hint = hint },
+				nointerrupt, "danger", HubMessages.PlotIndexOf( entry.city:GetX(), entry.city:GetY() ) );
+		elseif not speak then
+			HubEnemies.m_cityDanger[ id ] = state;
+		end
+	end
+	for id in pairs( HubEnemies.m_cityDanger ) do
+		if not live[ id ] then HubEnemies.m_cityDanger[ id ] = nil; end
+	end
 end
 
 -- Events.BarbarianSpottedCity: a barbarian first saw a city. For one of ours the scout check runs promptly (the flag

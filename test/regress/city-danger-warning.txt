@@ -1,0 +1,12 @@
+# Written blind (not yet recorded; the scenario's war declaration is a guess, see util/scenarios/city-danger.lua). Three Swordsmen of a civilization at war with us 2-3 tiles from the capital: the city-in-danger line names the city, the units, its strength (and walls) and the city report key; a second check says nothing.
+# covers: **/HubEnemies.lua
+# no-share-load: scenario city-danger
+load early-t60
+scenario city-danger
+clear-advisors
+lua InGameAccess HubEnemies.SpeakCityDanger(false)
+expect ^\S.* in danger: 3 units of \S.* within 3 tiles, city strength \d+
+expect Control\+I for the city
+lua InGameAccess HubEnemies.SpeakCityDanger(false)
+expect-not in danger
+no-lua-errors
