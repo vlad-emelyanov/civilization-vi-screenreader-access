@@ -1,5 +1,5 @@
 # Verified 2026-10-31: the full-screen map announces itself and says Escape closes it; Escape and the toggle key both close it.
-# covers: **/FullscreenMapPopup*.lua **/PartialScreenHooks.lua
+# covers: **/MinimapPanel.lua
 load early-t60
 clear-advisors
 action ToggleFSMap -Settle 2500 -Quiet 800
