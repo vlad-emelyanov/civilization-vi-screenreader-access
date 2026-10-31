@@ -18,7 +18,7 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - **District spots, purchasable tiles [G7]:** the "District spots" city report line and production Space only consider owned tiles; the positive wording ("Campus plus 3 ...") is unit-tested only. Check a city that could buy a better tile (`DistrictAdvice.lua`, `PlacementScan.lua`).
 - **City-in-danger warning:** the raid line (2+ barbarian soldiers near a city) and the enemy summary exist, but Ostia was captured by England with only attack lines as warning. Needs a rule for at-war civ units near a weakly defended city.
 - **Keyboard path for corps/armies from the production panel, queue reordering/removal, the Manager tab** (`Panels/ProductionPanel.lua`).
-- **Small speech gaps from play-tests:** a pillaged Library blocking Great Library is not said at pillage time; no danger hint before a Barbarian Galley attack; a city production auto-swap to a newer unit is not announced; Control+I reads the selected city, not the one under the cursor; WMD/ICBM and PRIORITY_TARGET still use a click.
+- **Small speech gaps from play-tests:** a pillaged Library blocking Great Library is not said at pillage time; no danger hint before a Barbarian Galley attack; a city production auto-swap to a newer unit is not announced; WMD/ICBM and PRIORITY_TARGET still use a click.
 - **Silent or thin popups:** Suleiman "remove your spies" popup and Escape behaviour unchecked; advisor re-shown over a completed popup not reached.
 
 ## Unverified in game (code and unit tests only)

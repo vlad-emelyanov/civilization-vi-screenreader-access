@@ -448,10 +448,11 @@ HubCore.Listen( LuaEvents.ProductionPanel_Open, HubCityReport.OnProductionPanelO
 HubCore.Listen( LuaEvents.SRA_ProductionEscape, HubCityReport.OnProductionEscape );
 HubCore.Listen( LuaEvents.ProductionPanel_Close, HubCityReport.OnProductionPanelClose );
 
--- preferCursor (the controller's Y): the city on the cursor tile comes before the selected one.
-function HubCityReport.ToggleCityReport( preferCursor )
+-- Control+I and the controller's Y: your city on the cursor tile comes before the selected one (the argument the key handler
+-- may pass is ignored).
+function HubCityReport.ToggleCityReport()
 	if HubCore.IsModeOpen( "cityreport" ) then HubCore.CloseMode( true, false ); return; end
-	HubCityReport.OpenReport( nil, nil, preferCursor == true );
+	HubCityReport.OpenReport( nil, nil, true );
 end
 
 -- title / initialKey (optional): a different opening line and the report item to focus (the return from production).
