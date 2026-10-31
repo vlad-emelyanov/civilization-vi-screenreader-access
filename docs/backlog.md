@@ -31,6 +31,7 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - **Fixtures to build:** Oil + Flight (air and carriers beyond the scenario), an archaeologist with antiquity sites, a wonder built by you.
 - **Real pad needed [controller]:** the held-RT-as-Shift rule (Shift+Right while F17 is held), the console app's RT-as-Shift, and the pad aliases of government, religion, trade, great works, rankings, civilopedia and options screens (unit tests only); whether the engine reacts to a pad by itself; Steam Input must be off.
 - **Numpad Divide** (closes the era panel, lens keys) never reaches the game from the harness; the real keyboard is untested (Control+E works). A lens turned on with the mouse and the same-frame lens key race cannot be tested.
+- **In-game multiplayer helpers (`HubMultiplayer`, `MultiplayerText`):** nothing seen in a real network game yet. Check with friends: incoming chat spoken once and listed in Control+M; Control+T list and the hidden `SRChatBox` taking keyboard focus (a hidden EditBox may need a frame; Escape / Enter wording "Message cancelled" / "Message sent" / "Nothing sent"); the timer warnings at 60, 30 and 10 seconds and the "Turn timer" entry in Control+Y; "<name> is now played by the computer" after a drop-out (the slot test is a guess).
 - **Hotseat / multiplayer** in game, and game modes the user does not own (see `docs/game-content.md`).
 
 ## Accepted limitations (do not chase)

@@ -1,0 +1,13 @@
+# Written blind (2026-10-31, not yet verified in game; run with --record first). Single player: the multiplayer chat refuses,
+# the top panel list has no turn timer entry. The real thing (incoming chat, typing, timer warnings) needs a network game with friends.
+# covers: **/HubMultiplayer.lua **/MultiplayerText.lua
+load early-t60
+clear-advisors
+action KeyNavChat -Settle 800
+expect ^Chat is for multiplayer games$
+action KeyNavTopPanel -Settle 1000
+expect (?i)^Top panel
+key End -Settle 500
+expect (?i)^(?!.*Turn timer)
+key Escape -Settle 600
+no-lua-errors

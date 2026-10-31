@@ -95,7 +95,7 @@ local function OnTextChanged(...)
 		if edit.cancelOnRevert then
 			-- EditBox with KeepFocus (chat): Escape restores the text but neither commits nor drops the focus
 			EndEdit(false, true);
-			Say("Cancelled, "..edit.label);
+			Say(edit.cancelText or ("Cancelled, "..edit.label));
 		end
 		return;	-- most likely Escape restoring the old text: the commit that follows announces it
 	end
@@ -110,7 +110,8 @@ end
 
 -- Starts editing: gives the box keyboard focus and announces it. opts: label, commit(text), numeric, onEnd(committed),
 -- cancelOnRevert (EditBox with KeepFocus: text vanishing at once is taken as Escape and ends the edit), unchangedText
--- (announced instead of "label set to ..." when Enter is pressed without changing the text)
+-- (announced instead of "label set to ..." when Enter is pressed without changing the text), doneText (announced instead of
+-- "label set to ..." after a changed text was committed), cancelText (announced instead of "Cancelled, label" on Escape)
 function KeyNavEditBox_Begin(editBox:object, opts:table)
 	if m_edit ~= nil then EndEdit(false, false); end
 	if editBox:IsDisabled() then
@@ -120,7 +121,7 @@ function KeyNavEditBox_Begin(editBox:object, opts:table)
 	local text:string = editBox:GetText() or "";
 	local edit:table = {
 		box = editBox, label = opts.label or "", original = text, last = text,
-		numeric = opts.numeric == true, cancelOnRevert = opts.cancelOnRevert == true, unchangedText = opts.unchangedText, commit = opts.commit, onEnd = opts.onEnd, committedText = nil,
+		numeric = opts.numeric == true, cancelOnRevert = opts.cancelOnRevert == true, unchangedText = opts.unchangedText, doneText = opts.doneText, cancelText = opts.cancelText, commit = opts.commit, onEnd = opts.onEnd, committedText = nil,
 	};
 	m_edit = edit;
 	m_swallowUp = false;
@@ -141,10 +142,10 @@ function KeyNavEditBox_Begin(editBox:object, opts:table)
 				local ok, err = pcall(edit.commit, committedText);
 				if not ok then print("KeyNavEditBox commit error: "..tostring(err)); end
 			end
-			Say(edit.label.." set to "..OrBlank(final));
+			Say(edit.doneText or (edit.label.." set to "..OrBlank(final)));
 		else
 			-- text equals the original: either Escape (reverted) or Enter without changes (or typed back); the key tells
-			m_pending = { label = edit.label, text = final, age = 0, unchangedText = edit.unchangedText };
+			m_pending = { label = edit.label, text = final, age = 0, unchangedText = edit.unchangedText, cancelText = edit.cancelText };
 		end
 	end);
 	editBox:RegisterHasFocusCallback(function()
@@ -159,7 +160,7 @@ function KeyNavEditBox_Begin(editBox:object, opts:table)
 					local ok, err = pcall(edit.commit, final);
 					if not ok then print("KeyNavEditBox commit error: "..tostring(err)); end
 				end
-				Say(edit.label.." set to "..OrBlank(final));
+				Say(edit.doneText or (edit.label.." set to "..OrBlank(final)));
 			else
 				Say(edit.label..", "..OrBlank(final));
 			end
@@ -174,7 +175,7 @@ local function FlushPending(escape:boolean)
 	m_pending = nil;
 	if pending == nil then return; end
 	if escape then
-		Say("Cancelled, "..pending.label..", "..OrBlank(pending.text));
+		Say(pending.cancelText or ("Cancelled, "..pending.label..", "..OrBlank(pending.text)));
 	elseif pending.unchangedText ~= nil then
 		Say(pending.unchangedText);
 	else

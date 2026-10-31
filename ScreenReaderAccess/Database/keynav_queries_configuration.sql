@@ -75,3 +75,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavHelp','Accessibility help','Open a rea
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavHelp',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_H');
 INSERT INTO "InputActions" VALUES ('KeyNavUnitDetails','Unit details','Read the stats of the units on the map cursor tile (or the selected unit): strength, ranged strength, level, experience, promotions, moves, health','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavUnitDetails',0,'KBMouse','LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_I');
+INSERT INTO "InputActions" VALUES ('KeyNavChat','Chat','Multiplayer games: open the chat list (type a message, read the chat history)','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavChat',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_T');

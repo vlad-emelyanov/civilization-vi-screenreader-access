@@ -769,6 +769,11 @@ function HubAnnounce.TurnEndedText()
 	return "Turn ended";
 end
 
+-- The local player has ended the turn and the action panel says it waits for the others (multiplayer; HubMultiplayer timer warnings).
+function HubAnnounce.IsWaiting()
+	return IsWaitingForOthers();
+end
+
 -- Events.LocalPlayerTurnUnready (the action panel's own listener, ActionPanel.lua:1336): the player took the end of turn back
 -- (Enter / the end turn button while the panel says "Waiting for players" runs ACTION_UNREADYTURN). UNVERIFIED, MP only.
 function HubAnnounce.OnLocalPlayerTurnUnready()
