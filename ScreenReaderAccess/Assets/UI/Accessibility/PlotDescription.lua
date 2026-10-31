@@ -121,6 +121,32 @@ function PlotDescription_NearestHostile( unit:table, radius:number )
 	return PlotDescription_GetUnitName(best.unit), PlotDescription_GetRelative(from, best.plot);
 end
 
+-- A land unit with a ranged attack standing in a city center together with ANOTHER military unit (any kind, a civilian does not count) gets no
+-- ranged attack from the engine (CanStartOperation false, no targets); alone it can fire. Observed in the game (two Crossbowmen, Crossbowman + Catapult,
+-- Crossbowman + Scout all blocked; Crossbowman + Builder not), not explained. Pure wording: names = the other military units' names.
+function PlotDescription_CoGarrisonText( names:table )
+	if names == nil or names[1] == nil then return nil; end
+	return names[1] .. " stands in this city too: the game gives no ranged attack from a city tile that holds two military units, move one of them out";
+end
+
+-- The names of the other military units on the unit's plot when it is in a city center (empty otherwise).
+function PlotDescription_CoGarrisonNames( unit:table )
+	local names:table = {};
+	if unit == nil then return names; end
+	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+	if plot == nil or not plot:IsCity() then return names; end
+	local ok:boolean, units = pcall( Units.GetUnitsInPlot, plot );
+	if not ok or units == nil then return names; end
+	for _, other in ipairs( units ) do
+		if other:GetID() ~= unit:GetID() or other:GetOwner() ~= unit:GetOwner() then
+			if other:GetCombat() > 0 or other:GetRangedCombat() > 0 then
+				table.insert( names, PlotDescription_GetUnitName( other ) );
+			end
+		end
+	end
+	return names;
+end
+
 -- ===========================================================================
 --	Parts of a description
 -- ===========================================================================

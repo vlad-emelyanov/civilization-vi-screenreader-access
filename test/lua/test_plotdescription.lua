@@ -145,3 +145,9 @@ test("embarked land unit", function()
 	local e = u(5, 4, 4); e.IsEmbarked = function() return true end
 	eq(PlotDescription_UnitStateText(e), "embarked")
 end)
+
+test("co-garrison text: a second military unit in a city blocks the ranged attack", function()
+	eq(PlotDescription_CoGarrisonText({}), nil)
+	eq(PlotDescription_CoGarrisonText(nil), nil)
+	eq(PlotDescription_CoGarrisonText({ "Catapult" }), "Catapult stands in this city too: the game gives no ranged attack from a city tile that holds two military units, move one of them out")
+end)

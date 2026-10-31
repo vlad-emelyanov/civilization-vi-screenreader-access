@@ -4355,10 +4355,12 @@ end
 -- The engine gives no failure reason for a ranged / air attack that has no target: say what it is.
 local function SRRangedAttackReason( unit:table )
 	if unit:GetMovesRemaining() <= 0 then return "no moves left"; end
-	-- the engine refuses every ranged attack of a unit that stands in a city center (CanStartOperation false, no targets, with or
-	-- without enemies; verified for Archer, Crossbowman, Catapult in two saves): not a matter of targets
-	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
-	if plot ~= nil and plot:IsCity() and not SRIsAirUnit( unit ) then return "a unit inside a city cannot ranged attack, step out first"; end
+	-- a ranged unit that shares a city center with ANOTHER military unit gets no ranged attack from the engine (alone it can fire);
+	-- observed in the game, not explained (docs/engine-notes.md, "A unit standing in a city center")
+	if not SRIsAirUnit( unit ) then
+		local sharing:string = PlotDescription_CoGarrisonText( PlotDescription_CoGarrisonNames( unit ) );
+		if sharing ~= nil then return sharing; end
+	end
 	return "no enemy it can target in range";
 end
 

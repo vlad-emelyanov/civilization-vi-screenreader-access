@@ -1,14 +1,21 @@
-# Verified in game 2026-10-31. A Crossbowman in Rome (bug-ranged-unit-cannot-fire-in-city): the engine refuses every ranged attack
-# of a unit standing in a city center (CanStartOperation false, no targets, with or without enemies), so the reason says that, not
-# "no enemy it can target in range".
-# covers: **/UnitPanel.lua **/HubTargets.lua
+# Verified in game 2026-10-31. Probe result: a ranged unit in a city center CAN fire when it is the only military unit there (pt-t109 Rome,
+# a lone Crossbowman, and here after the Catapult left); with a second military unit on the tile (Catapult, Crossbowman, Scout; a Builder does not
+# count) CanStartOperation is false and the target list empty. bug-ranged-unit-cannot-fire-in-city: Crossbowman + Catapult in Rome.
+# covers: **/UnitPanel.lua **/HubTargets.lua **/PlotDescription.lua
+# no-share-load: the tuner moves the Catapult out of Rome
 load bug-ranged-unit-cannot-fire-in-city
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then UI.DeselectAllUnits() UI.SelectUnit(u) end end
 wait Crossbowman -Timeout 10
 action RangedAttack -Settle 1500
-expect ^Cannot ranged attack: a unit inside a city cannot ranged attack, step out first
+expect ^Cannot ranged attack: Catapult stands in this city too: the game gives no ranged attack from a city tile that holds two military units, move one of them out
 action Attack -Settle 1500
-expect ^Ranged attack\. A unit inside a city cannot ranged attack, step out first\. .* to cancel
+expect ^Ranged attack\. No ranged attack: Catapult stands in this city too: .* to cancel
+key Escape -Settle 800
+# the Catapult leaves: the lone Crossbowman fires from the city
+lua GameCore_Tuner for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CATAPULT" then UnitManager.PlaceUnit(u,60,31) end end
+action Attack -Settle 1500
+expect-not (?i)stands in this city too
+expect (?i)target
 key Escape -Settle 800
 no-lua-errors

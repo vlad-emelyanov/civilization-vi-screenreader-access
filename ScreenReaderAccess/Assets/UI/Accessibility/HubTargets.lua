@@ -802,12 +802,14 @@ function HubTargets.CursorToNearestUnitTarget()
 		end
 	end
 	if bestPlot == nil then
-		-- the engine gives a unit in a city center no ranged attack at all (see SRRangedAttackReason in UnitPanel.lua)
-		local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+		-- a ranged unit that shares a city center with another military unit gets no ranged attack from the engine (see SRRangedAttackReason in UnitPanel.lua)
 		local row = GameInfo.Units[ unit:GetUnitType() ];
-		if mode == InterfaceModeTypes.RANGE_ATTACK and plot ~= nil and plot:IsCity() and row ~= nil and row.Domain ~= "DOMAIN_AIR" then
-			OpenWithoutTarget( "A unit inside a city cannot ranged attack, step out first. " .. SRKey( "Escape" ) .. " to cancel" );
-			return;
+		if mode == InterfaceModeTypes.RANGE_ATTACK and row ~= nil and row.Domain ~= "DOMAIN_AIR" then
+			local sharing:string = PlotDescription_CoGarrisonText( PlotDescription_CoGarrisonNames( unit ) );
+			if sharing ~= nil then
+				OpenWithoutTarget( "No ranged attack: " .. sharing .. ". " .. SRKey( "Escape" ) .. " to cancel" );
+				return;
+			end
 		end
 		OpenWithoutTarget( "No target in range. " .. SRKey( "Escape" ) .. " to cancel" );
 		return;
