@@ -1,0 +1,7 @@
+# Verified 2026-10-31: with only the Free Cities met (they answer IsMinor but are no city-state), F2 says no city-state is met yet.
+# covers: **/PartialScreenHooks.lua
+load bug-gov-confirm-down
+clear-advisors
+action ToggleCityStates -Settle 2500 -Quiet 800
+expect ^City-States are not available yet: meet a city-state first
+no-lua-errors
