@@ -2886,6 +2886,17 @@ local function SRA_OnClose()
 	end
 end
 
+-- Spoken for an empty list; on the faith tab it says why (nothing to buy / no religion).
+local function SRA_EmptyText()
+	local city:table = UI.GetHeadSelectedCity();
+	local name:string = city ~= nil and Locale.Lookup( city:GetName() ) or "the city";
+	if m_CurrentListMode == LISTMODE.PURCHASE_FAITH then
+		local ok:boolean, created = pcall( function() return Players[ Game.GetLocalPlayer() ]:GetReligion():GetReligionTypeCreated(); end );
+		return "Nothing to buy with faith in " .. name .. ( ( ok and created ~= nil and created < 0 ) and ", no religion founded" or "" );
+	end
+	return nil;
+end
+
 local function SRA_Announce( keepGuard:boolean, keepKey:string, queueTitle:boolean )
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
@@ -3525,6 +3536,7 @@ function Initialize()
 	ContextPtr:SetInitHandler( OnInit  );
 	m_srList = KeyNavList_Create{		-- ScreenReaderAccess
 		build = SRA_GetItems,
+		emptyText = SRA_EmptyText,
 		isActive = function() return m_srActive and not ContextPtr:IsHidden() and m_CurrentListMode ~= -1; end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,

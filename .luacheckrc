@@ -18,7 +18,7 @@ read_globals = {
 	"CombatTypes", "CombatVisType", "ComponentType", "Controls", "ContextPtr", "CursorTypes", "DB", "DealManager", "DealItemTypes",
 	"DefenseTypes", "DiplomacyManager", "DiplomacyMoodTypes", "DiplomacyResponseTypes", "DiplomaticStates",
 	"DirectionTypes", "EffectsManager", "EndTurnBlockingTypes", "Events", "FireWireTypes", "FiraxisLive",
-	"Game", "GameCapabilities", "GameClimate", "GameConfiguration", "GameInfo", "GameStateTypes",
+	"Game", "IdentityConversionOutcome", "GameCapabilities", "GameClimate", "GameConfiguration", "GameInfo", "GameStateTypes",
 	"GlobalParameters", "IconManager", "Input", "InstanceManager", "InterfaceModeTypes", "KeyEvents", "Keys",
 	"KickReason", "LuaEvents", "Locale", "MPLobbyTypes", "Map", "MapConfiguration", "MapFeatureManager",
 	"MapLayers", "Matchmaking", "MilitaryFormationTypes", "Modding", "MomentDataTypes", "Mouse", "MouseEvents",

@@ -98,6 +98,10 @@ test("loyalty only when present", function()
 	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, plus 8 per turn, Content, may turn to Greece")
 	d.loyalty.levelIndex = 3; d.loyalty.level = "Loyal"; d.loyalty.perTurn = -2
 	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, minus 2 per turn, Loyal, may turn to Greece")
+	d.loyalty.turnsToLoss = 5
+	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, minus 2 per turn, lost in 5 turns, Loyal, may turn to Greece")
+	d.loyalty.turnsToLoss = 1
+	contains(find(CityReport_BuildItems(d), "loyalty").text, "minus 2 per turn, lost in 1 turn,")
 	contains(item.detail, "Governor plus 8")
 	contains(item.detail, "Rome 20")
 end)
@@ -115,6 +119,14 @@ test("production", function()
 	eq(find(CityReport_BuildItems(d), "production").text, "Production: Builder, 1 turn, 2 more queued, Tab opens production")
 	d.production = { name = "" }
 	eq(find(CityReport_BuildItems(d), "production").text, "Production: nothing, Tab opens production")
+end)
+
+test("identical districts are said once with a count", function()
+	local c = city()
+	c.districts = { { name = "Neighborhood", pillaged = false, buildings = {}, yield = "" }, { name = "Campus", pillaged = false, buildings = {}, yield = "" } }
+	for _ = 1, 6 do table.insert(c.districts, { name = "Neighborhood", pillaged = false, buildings = {}, yield = "" }) end
+	local item = find(CityReport_BuildItems(c), "districts")
+	eq(item.text:match("^Districts: [^.]*"), "Districts: Neighborhood, 7, Campus")
 end)
 
 test("districts, buildings, wonders", function()

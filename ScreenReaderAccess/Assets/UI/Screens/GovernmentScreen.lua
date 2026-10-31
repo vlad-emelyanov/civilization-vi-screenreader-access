@@ -2913,6 +2913,18 @@ local function SRA_CountEmptySlots()
 	return empty, total;
 end
 
+-- "Unlock for 70 [ICON] Gold" -> "Unlock policy changes now for 70 gold"; the disabled "You Need 70 Gold" -> "Need 70 gold to unlock policy changes now".
+-- what: "policy changes" / "government change".
+local function SRA_UnlockText( buttonText:string, what:string, choosable:boolean )
+	local clean:string = SRA_Clean( buttonText );
+	local amount:string, kind:string = string.match( clean, "(%d+)%s+(%a+)%s*$" );
+	if amount == nil then amount, kind = string.match( clean, "(%d+)%s+(%a+)" ); end
+	if amount == nil then return clean; end
+	kind = string.lower( kind );
+	if choosable then return "Unlock " .. what .. " now for " .. amount .. " " .. kind; end
+	return "Need " .. amount .. " " .. kind .. " to unlock " .. what .. " now";
+end
+
 local function SRA_SlotItems()
 	local items:table = {};
 	for nRowIndex, tRow in ipairs( m_ActivePolicyRows ) do
@@ -2947,8 +2959,10 @@ local function SRA_SlotItems()
 			end
 		end
 		if not Controls.UnlockPolicies:IsHidden() then
-			local text:string = SRA_Clean( Controls.UnlockPolicies:GetText() );
-			table.insert( items, { key = "unlock", kind = "unlock", text = text, choosable = not Controls.UnlockPolicies:IsDisabled(), reason = text } );
+			local choosable:boolean = not Controls.UnlockPolicies:IsDisabled();
+			local text:string = SRA_UnlockText( Controls.UnlockPolicies:GetText(), "policy changes", choosable );
+			table.insert( items, { key = "unlock", kind = "unlock", text = text, choosable = choosable, reason = text,
+				detail = "Pays to allow policy changes now, without completing a civic." } );
 		end
 	end
 	return items;
@@ -2979,27 +2993,34 @@ local function SRA_GovernmentItems()
 		local parts:table = { Locale.Lookup( government.Name ) };
 		local isCurrent:boolean = g_kCurrentGovernment ~= nil and g_kCurrentGovernment.Hash == government.Hash;
 		local unlocked:boolean = m_kUnlockedGovernments[ governmentType ] ~= nil;
-		if isCurrent then table.insert( parts, "current" ); end
-		if not unlocked then
-			local prereq:string = GameInfo.Governments[ governmentType ].PrereqCivic;
-			table.insert( parts, "locked" .. ( prereq ~= nil and ( ", needs " .. Locale.Lookup( GameInfo.Civics[ prereq ].Name ) ) or "" ) );
-		end
 		local slots:table = {};
 		if government.NumSlotMilitary > 0 then table.insert( slots, government.NumSlotMilitary .. " military" ); end
 		if government.NumSlotEconomic > 0 then table.insert( slots, government.NumSlotEconomic .. " economic" ); end
 		if government.NumSlotDiplomatic > 0 then table.insert( slots, government.NumSlotDiplomatic .. " diplomatic" ); end
 		if government.NumSlotWildcard > 0 then table.insert( slots, government.NumSlotWildcard .. " wildcard" ); end
-		table.insert( parts, "slots: " .. table.concat( slots, ", " ) );
-		if unlocked and not isCurrent and IsAbleToChangeGovernment() then table.insert( parts, SRKey( "Enter" ) .. " to switch to it" ); end
+		table.insert( parts, table.concat( slots, ", " ) );
+		if isCurrent then
+			table.insert( parts, "current" );
+		elseif not unlocked then
+			local prereq:string = GameInfo.Governments[ governmentType ].PrereqCivic;
+			table.insert( parts, "locked" .. ( prereq ~= nil and ( ", needs " .. Locale.Lookup( GameInfo.Civics[ prereq ].Name ) ) or "" ) );
+		else
+			table.insert( parts, IsAbleToChangeGovernment() and "available" or "available, can't switch now" );
+		end
+		-- bonuses, legacy bonus and the switch hint go to the Space detail
+		local details:table = {};
 		local inherent:string = SRA_Clean( government.BonusInherentText );
-		if inherent ~= "" then table.insert( parts, inherent ); end
+		if inherent ~= "" then table.insert( details, inherent ); end
 		local accumulated:string = SRA_Clean( government.BonusAccumulatedText );
-		if accumulated ~= "" then table.insert( parts, accumulated ); end
+		if accumulated ~= "" then table.insert( details, accumulated ); end
+		local legacy:string = SRA_Clean( government.BonusAccumulatedTooltip );
+		if legacy ~= "" then table.insert( details, legacy ); end
+		if unlocked and not isCurrent and IsAbleToChangeGovernment() then table.insert( details, SRKey( "Enter" ) .. " to switch to it" ); end
 		table.insert( items, {
 			key = "government:" .. governmentType, kind = "government", governmentType = governmentType,
 			text = table.concat( parts, ", " ), choosable = unlocked and not isCurrent,
 			reason = isCurrent and "Already the current government" or "Government locked",
-			detail = SRA_Clean( government.BonusAccumulatedTooltip ) } );
+			detail = table.concat( details, ". " ) } );
 	end
 	return items;
 end
@@ -3012,20 +3033,21 @@ local function SRA_BuildItems()
 end
 
 -- Why Enter on a government does nothing (mirrors IsAbleToChangeGovernment).
+local SRA_GOVERNMENT_TURN_REASON:string = "You can only change government on the turn you complete a civic";
 local function SRA_WhyNoGovernmentChange()
 	if m_ePlayer == -1 or not m_isLocalPlayerTurn then return "It is not your turn"; end
 	local kPlayerCulture:table = Players[m_ePlayer]:GetCulture();
 	if kPlayerCulture:GovernmentChangeMade() then return "You already changed government this turn"; end
 	if not kPlayerCulture:CanChangeGovernmentAtAll() then return "The government can't be changed now"; end
 	if not Game.IsAllowStrategicCommands( m_ePlayer ) then return "Not available now"; end
-	return "You can change government only on the turn you complete a civic";
+	return SRA_GOVERNMENT_TURN_REASON;
 end
 
 local function SRA_TabTitle()
 	local tab:string = SRA_CurrentTab();
 	local name:string = ( g_kCurrentGovernment ~= nil ) and Locale.Lookup( g_kCurrentGovernment.Name ) or "no government";
 	if tab == "governments" then
-		return "Governments, current: " .. name .. ( IsAbleToChangeGovernment() and "" or ", can't change now" );
+		return "Governments, current: " .. name .. ( IsAbleToChangeGovernment() and "" or ( ". " .. SRA_WhyNoGovernmentChange() ) );
 	end
 	local empty:number, total:number = SRA_CountEmptySlots();
 	local title:string = ( tab == "policies" and "Policies" or "My government" ) .. ", " .. name .. ", " .. total .. ( total == 1 and " slot" or " slots" );

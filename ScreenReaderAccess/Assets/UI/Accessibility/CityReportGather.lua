@@ -82,6 +82,13 @@ local function GatherLoyalty( pCity:table )
 		current = Round( identity:GetLoyalty(), 1 ), max = identity:GetMaxLoyalty(), perTurn = Round( identity:GetLoyaltyPerTurn(), 1 ),
 		sources = {}, influence = {},
 	};
+	-- same check as Expansion1 LoyaltySupport.GetLoyaltyStatusTooltip
+	Guard( "loyalty conversion", function()
+		if IdentityConversionOutcome ~= nil and identity:GetConversionOutcome() == IdentityConversionOutcome.LOSING_LOYALTY then
+			local turns:number = identity:GetTurnsToConversion();
+			if turns ~= nil and turns >= 1 then loyalty.turnsToLoss = turns; end
+		end
+	end );
 	local level:number = identity:GetLoyaltyLevel();
 	local levelRow:table = GameInfo.LoyaltyLevels[ level ];
 	if levelRow ~= nil then
