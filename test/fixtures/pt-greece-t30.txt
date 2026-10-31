@@ -1,0 +1,7 @@
+turn: 30
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: Pericles, 2 cities (Athens, Knossos), settler en route 3rd, warrior to village, turn 30
+mod commit: 511669d
+created: 2026-10-31
+size: 843 KB

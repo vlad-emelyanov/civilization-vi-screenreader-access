@@ -1,0 +1,7 @@
+turn: 32
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: Pericles turn 32, 3 cities (Athens, Knossos, Rhodes), pantheon Religious Settlements, Writing researching
+mod commit: 511669d
+created: 2026-10-31
+size: 849 KB

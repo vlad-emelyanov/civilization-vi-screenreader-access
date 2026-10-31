@@ -1,0 +1,7 @@
+turn: 21
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: First contact Kongo: after answering the greeting, a follow-up screen with 3 options opens with no spoken statement (Down says 2 of 3 only)
+mod commit: 511669d
+created: 2026-10-31
+size: 830 KB

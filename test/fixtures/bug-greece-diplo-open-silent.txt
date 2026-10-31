@@ -1,0 +1,7 @@
+turn: 28
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: turn 28 end: diplomacy screen opens at turn end with no spoken statement, single option Goodbye
+mod commit: 511669d
+created: 2026-10-31
+size: 842 KB
