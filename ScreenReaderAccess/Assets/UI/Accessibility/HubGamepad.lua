@@ -92,6 +92,7 @@ local BUMPER_SCREENS:table = {
 	EspionageOverview = true, WorldRankings = true, ClimateScreen = true, TechTree = true, CivicsTree = true, GovernmentScreen = true,
 	ReligionScreen = true, GreatPeoplePopup = true, EndGameMenu = true, CityStates = true, Civilopedia = true,
 	DiplomacyDealView = true, DiplomacyActionView = true,
+	ChooseArtifact = true,		-- the artifact popup (FakePopups) swallows every key itself: LB / RB move between its buttons
 	LeaderScene = true,		-- shown beside the diplomacy and deal views (same container, no input of its own); without it the deal said "Close the screen first"
 };
 

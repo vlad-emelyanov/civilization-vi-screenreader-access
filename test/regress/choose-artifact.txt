@@ -1,0 +1,27 @@
+# BLIND-WRITTEN, needs `civctl regress choose-artifact --record` (never run in the game). The ChooseArtifact popup was mouse-only: a blind player who excavated a battlefield or shipwreck was stuck. No fixture has a real extracting archaeologist yet, so this opens the DISPLAY part only (SRA_Display) with fake data: Type 3 (battle fought), acting player 0, target player 1. Enter is deliberately NOT pressed here: RequestPlayerOperation(CHOOSE_ARTIFACT_PLAYER) with no pending artifact is unverified. The Enter path (callback + "Artifact from X chosen") is covered by test/lua/test_chooseartifact.lua; verify it with a real archaeologist when a fixture exists.
+# covers: **/ChooseArtifact.lua
+# no-share-load: opens a popup context by hand and hides it again
+load early-t60
+clear-advisors
+lua ChooseArtifact SRA_Display({Type=3,ActingPlayerID=0,TargetPlayerID=1,ActingPlayerEra=1},'Archaeologist')
+wait (?i)battle -Timeout 8
+expect (?i)battle
+expect , 1 of 2$
+# Right and Up/Down move to the other civilization, announced at once
+key Right -Settle 600
+expect , 2 of 2$
+key Down -Settle 600
+expect , 1 of 2$
+# Escape does not close: it says that a choice is needed
+key Escape -Settle 800
+expect (?i)Choose an artifact first
+lua ChooseArtifact return ContextPtr:IsHidden()
+expect-lua ^false$
+# a map key must not reach the hub behind the popup
+key Space -Settle 800
+expect (?i)battle
+# close it by hand (the fake path has nothing to confirm)
+lua ChooseArtifact ContextPtr:SetHide(true)
+lua ChooseArtifact return ContextPtr:IsHidden()
+expect-lua ^true$
+no-lua-errors
