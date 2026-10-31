@@ -18,12 +18,12 @@ expect ^Close the list first, Escape closes it
 key Down -Count 3 -Fast -Settle 600
 expect ^Argos, Greece
 key Enter -Settle 1500
-expect ^Send Bambi to .+\? Arrives (in \d+ turns?|this turn)
+expect ^Send Bambi to .+\? Arrives (in \d+ turns?|next turn)
 expect-not needs orders
 key Tab -Settle 1000
 expect ^No tabs here
 key Enter -Settle 4000
-expect ^Bambi travels to .+, arrives (in \d+ turns?|this turn)
+expect ^Bambi travels to .+, arrives (in \d+ turns?|next turn)
 expect-not needs orders
 expect-not Tab for its actions
 no-lua-errors

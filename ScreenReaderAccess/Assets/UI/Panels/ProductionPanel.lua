@@ -2497,7 +2497,7 @@ end
 -- Production/Queue: repairs, then districts with their buildings, wonders, units, projects; Purchase tabs: districts,
 -- buildings, units. Only what can be built (bought) is listed; a toggle item at the end shows the rest (ProductionText_Arrange).
 -- Tab cycles the panel's tabs. Units with a Corps / Army button in the game's row get extra items right after them; the Queue
--- tab starts with the city's build queue (Control+Up / Control+Down move the focused entry, Delete / Backspace remove it).
+-- tab starts with the city's build queue (Alt+Up / Alt+Down move the focused entry, Delete / Backspace remove it).
 -- The Manager tab is not covered.
 -- ===========================================================================
 local m_srList:table = nil;
@@ -2782,7 +2782,7 @@ end
 
 -- "Library, in production, 5 turns" / "Library" with their keys: Space adds the description.
 function SRA_Queue.Hint()
-	return SRKey( "Control+Up" ) .. " moves it earlier, " .. SRKey( "Control+Down" ) .. " later, " .. SRKey( "Delete", "X" ) .. " removes it";
+	return SRKey( "Alt+Up" ) .. " moves it earlier, " .. SRKey( "Alt+Down" ) .. " later, " .. SRKey( "Delete", "X" ) .. " removes it";
 end
 
 function SRA_Queue.Items( city:table )
@@ -2803,7 +2803,7 @@ function SRA_Queue.Items( city:table )
 			queueSize = #entries,
 			choosable = true,
 			detail = function()
-				return SRDescriptionFirst( e.row.Name, e.row.Description, nil ) .. ". " .. SRA_Queue.Hint();
+				return ( SRDescriptionFirst( e.row.Name, e.row.Description, nil ):gsub( "[%.%s]+$", "" ) ) .. ". " .. SRA_Queue.Hint();
 			end,
 		} );
 	end
@@ -2960,8 +2960,9 @@ function SRA_Queue.OnChecked( id:number )
 	OutputMessageToScreenReader( ( op.kind == "move" and "Can't move " or "Can't remove " ) .. op.name );
 end
 
--- Control+Up / Control+Down: the game's own swap with the neighbour (what its queue buttons do).
+-- Alt+Up / Alt+Down: the game's own swap with the neighbour (what its queue buttons do).
 function SRA_Queue.Move( delta:number )
+	if m_srQueueOp ~= nil then return; end		-- key repeat while the last edit is still pending
 	local item:table = SRA_Queue.Focused();
 	if item == nil then return; end
 	local target, edge = ProductionText_QueueTarget( item.queueIndex, delta, item.queueSize );
@@ -3799,7 +3800,8 @@ function Initialize()
 		sectionCounts = true,		-- "Warrior, in Units, 12 items" when Down enters a group; "Units, 12: Warrior, ..." when PageUp / PageDown enter a group (like the J list)
 		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
 		extraKeys = { [Keys.VK_TAB] = SRA_NextTab, [Keys.VK_DELETE] = SRA_Queue.Remove, [Keys.VK_BACK] = SRA_Queue.Remove, [Gamepad.Key( "X" )] = SRA_Queue.Remove },
-		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab, [Keys.VK_UP] = SRA_Queue.MoveUp, [Keys.VK_DOWN] = SRA_Queue.MoveDown },
+		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab },
+		altKeys = { [Keys.VK_UP] = SRA_Queue.MoveUp, [Keys.VK_DOWN] = SRA_Queue.MoveDown },
 	};
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );

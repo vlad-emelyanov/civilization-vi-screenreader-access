@@ -1,23 +1,23 @@
-# Written blind (not verified in game; run with --record first). A unit whose row in the game's panel has a Corps / Army button gets extra items right after it:
+# A unit whose row in the game's panel has a Corps / Army button gets extra items right after it:
 # "Warrior Corps, 12 turns, 180 production" (naval: Fleet / Armada). Enter calls BuildUnitCorps / BuildUnitArmy and says "Producing <unit> Corps, N turns".
 # Fixture pt-mod2-t228 (Rome, Modern); the tuner grants Nationalism (corps) and Mobilization (armies). A corps needs the right buildings, so the rows may sit in the Unavailable group: the script shows them.
 # covers: **/ProductionPanel.lua **/ProductionText.lua
 # no-share-load: grants civics and sets production
 load pt-mod2-t228
 clear-advisors
-lua InGame local cu=Players[0]:GetCulture(); cu:SetCivic(GameInfo.Civics["CIVIC_NATIONALISM"].Index, true); cu:SetCivic(GameInfo.Civics["CIVIC_MOBILIZATION"].Index, true)
+lua GameCore_Tuner local cu=Players[0]:GetCulture(); cu:SetCivic(GameInfo.Civics["CIVIC_NATIONALISM"].Index, true); cu:SetCivic(GameInfo.Civics["CIVIC_MOBILIZATION"].Index, true)
 clear-advisors
 lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
 key Tab -Settle 2500 -Quiet 700
 expect (?i)choose production
-# show the unavailable items too, so a corps row is found whether the city can build it now or not
-key End -Settle 800
-key Enter -Settle 800
-expect ^Showing \d+ unavailable items
+# Units group, 5 items after Settler: Ironclad Fleet, then Ironclad Armada (verified in game: Fleet / Armada for naval, Corps / Army for land, rows follow their unit)
 key Home -Settle 800
-key PageDown -Settle 800 -Count 2
-key Down -Settle 600 -Count 4
-expect (?i)(Corps|Fleet|Army|Armada)
-key Space -Settle 1200
-key Escape -Settle 1200
+key PageDown -Settle 800
+key Down -Settle 500 -Count 5
+expect ^Ironclad Fleet, \d+ turns?, \d+ production
+key Down -Settle 600
+expect ^Ironclad Armada, \d+ turns?, \d+ production
+key Up -Settle 600
+key Enter -Settle 2500
+expect ^Producing Ironclad Fleet, \d+ turns?
 no-lua-errors

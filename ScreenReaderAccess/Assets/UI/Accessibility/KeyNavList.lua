@@ -372,6 +372,14 @@ function KeyNavList_Create( config:table )
 			end
 			return true;
 		end
+		-- Alt+Up / Alt+Down (config.altKeys): act on KeyDown. Control+Up / Control+Down never reach a context (the game takes them as input actions)
+		if input:IsAltDown() and not isControl and not input:IsShiftDown() and config.altKeys ~= nil and config.altKeys[ key ] ~= nil then
+			if isDown then
+				local ok:boolean, err = xpcall( config.altKeys[ key ], KeyNavErrorHandler );
+				if not ok then print( "KeyNavList error: " .. tostring(err) ); end
+			end
+			return true;
+		end
 		if input:IsShiftDown() or isControl or input:IsAltDown() then return false; end
 
 		local action = nil;

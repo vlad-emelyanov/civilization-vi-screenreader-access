@@ -147,7 +147,7 @@ function ProductionText_QueueItem( name:string, current:boolean, turns:string )
 	return text;
 end
 
--- Where a queue item goes with Control+Up (delta -1) / Control+Down (+1); position 0-based, size = entries.
+-- Where a queue item goes with Alt+Up (delta -1) / Alt+Down (+1); position 0-based, size = entries.
 -- Returns the new 0-based position, or nil and "Already first" / "Already last".
 function ProductionText_QueueTarget( position:number, delta:number, size:number )
 	local target:number = position + delta;
