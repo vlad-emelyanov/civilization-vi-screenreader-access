@@ -1,0 +1,17 @@
+# Verified 2026-10-31: in the Purchase list a unit that cannot be bought because the city tile holds a same-class unit names it ("Builder stands in Ostia").
+# covers: **/ProductionPanel.lua **/ProductionText.lua
+# no-share-load: selects a city and opens the production panel by hand
+load pt-t103
+clear-advisors
+lua InGameAccess UI.DeselectAllUnits(); UI.SelectCity(CityManager.GetCityAt(63,30))
+action KeyNavCityReport -Settle 2000
+expect ^Ostia report
+key Tab -Settle 2000 -Quiet 700
+expect ^Ostia, choose production
+key Control+Tab -Settle 1500
+key Control+Tab -Settle 1500
+expect ^Ostia, purchase with gold
+key Down -Settle 800
+expect Builder stands in Ostia
+key Escape -Settle 800
+no-lua-errors
