@@ -1,0 +1,7 @@
+turn: 213
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: pt-modern-t212 + End Turn (a Moderate Flood popup holds turn 212 until Enter) -> turn 213; an Archaeologist (Jovilius) stands on the Antiquity Site 49,27, Natural History civic known: Tab, Down to Excavate Artifact, Enter
+mod commit: d11dab4
+created: 2026-10-31
+size: 1188 KB
