@@ -111,3 +111,65 @@ function ProductionText_Arrange( items:table, showUnavailable:boolean, purchase:
 	end
 	return result, #hidden;
 end
+
+-- ---------------------------------------------------------------------------
+-- Corps and armies (units with a Corps / Army button in the game's row) and the queue entries of the Queue tab.
+-- ---------------------------------------------------------------------------
+
+-- "Warrior Corps" / "Destroyer Fleet": the unit name and the game's formation suffix (LOC_UNITFLAG_*_SUFFIX).
+function ProductionText_FormationName( name:string, suffix:string )
+	if suffix == nil or suffix == "" then return name; end
+	return name .. " " .. suffix;
+end
+
+-- A corps / army row: "Warrior Corps, 12 turns, 180 production" (progress: "40 of 180 production").
+function ProductionText_FormationRow( name:string, turns:string, cost:number, progress:number )
+	local parts:table = { name };
+	if turns ~= nil and turns ~= "" then table.insert( parts, turns ); end
+	if cost ~= nil and cost > 0 then
+		local costText:string = tostring( cost );
+		if progress ~= nil and progress > 0 then costText = progress .. " of " .. costText; end
+		table.insert( parts, costText .. " production" );
+	end
+	return table.concat( parts, ", " );
+end
+
+-- Identity of a queue entry: its type plus which occurrence of that type it is (the same unit can be queued twice).
+function ProductionText_QueueKey( typeKey:string, occurrence:number )
+	return "queue:" .. tostring( typeKey ) .. ":" .. tostring( occurrence );
+end
+
+-- "Library" (queued) / "Library, in production, 5 turns" (the head of the queue).
+function ProductionText_QueueItem( name:string, current:boolean, turns:string )
+	if not current then return name; end
+	local text:string = name .. ", in production";
+	if turns ~= nil and turns ~= "" then text = text .. ", " .. turns; end
+	return text;
+end
+
+-- Where a queue item goes with Control+Up (delta -1) / Control+Down (+1); position 0-based, size = entries.
+-- Returns the new 0-based position, or nil and "Already first" / "Already last".
+function ProductionText_QueueTarget( position:number, delta:number, size:number )
+	local target:number = position + delta;
+	if target < 0 then return nil, "Already first"; end
+	if target >= size then return nil, "Already last"; end
+	return target;
+end
+
+-- "Library moved to 1 of 3" (position 0-based).
+function ProductionText_QueueMoved( name:string, position:number, size:number )
+	return name .. " moved to " .. ( position + 1 ) .. " of " .. size;
+end
+
+-- "Library removed from the queue, 2 left" / "... Queue empty, nothing in production".
+function ProductionText_QueueRemoved( name:string, left:number )
+	if left <= 0 then return name .. " removed from the queue. Queue empty, nothing in production"; end
+	return name .. " removed from the queue, " .. left .. " left";
+end
+
+-- The 0-based position to focus after the item at `position` was removed and `left` entries remain (nil: none left).
+function ProductionText_QueueFocusAfterRemove( position:number, left:number )
+	if left <= 0 then return nil; end
+	if position > left - 1 then return left - 1; end
+	return position;
+end
