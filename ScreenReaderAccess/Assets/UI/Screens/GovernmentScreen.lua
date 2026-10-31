@@ -2962,7 +2962,7 @@ local function SRA_SlotItems()
 			local choosable:boolean = not Controls.UnlockPolicies:IsDisabled();
 			local text:string = SRA_UnlockText( Controls.UnlockPolicies:GetText(), "policy changes", choosable );
 			table.insert( items, { key = "unlock", kind = "unlock", text = text, choosable = choosable, reason = text,
-				detail = "Pays to allow policy changes now, without completing a civic. Lasts this turn only." } );
+				detail = "Pays to allow policy changes now, without completing a civic." } );
 		end
 	end
 	return items;
@@ -3005,7 +3005,7 @@ local function SRA_GovernmentItems()
 			local prereq:string = GameInfo.Governments[ governmentType ].PrereqCivic;
 			table.insert( parts, "locked" .. ( prereq ~= nil and ( ", needs " .. Locale.Lookup( GameInfo.Civics[ prereq ].Name ) ) or "" ) );
 		else
-			table.insert( parts, "available" );
+			table.insert( parts, IsAbleToChangeGovernment() and "available" or "available, can't switch now" );
 		end
 		-- bonuses, legacy bonus and the switch hint go to the Space detail
 		local details:table = {};
