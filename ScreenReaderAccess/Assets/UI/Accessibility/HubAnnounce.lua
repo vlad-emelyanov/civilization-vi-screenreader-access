@@ -499,7 +499,7 @@ end
 local LOYALTY_WARN_TURNS	:number = 8;		-- a city that falls within this many turns is announced
 local LOYALTY_WARN_MAX		:number = 3;		-- lines per turn; the rest is counted
 
--- Pure: "Lugdunum loyalty 62, falling 19 a turn, lost in 4 turns. Control+I for why". keyHint (optional) is the spoken key.
+-- Pure: "Lugdunum loyalty 62, falling 19 a turn, lost in 4 turns. Control+I on that city for why". keyHint (optional) is the spoken key.
 function HubAnnounce.LoyaltyWarningText( name:string, current:number, perTurn:number, turns:number, keyHint:string )
 	local function Num( value:number )
 		value = math.floor( value * 10 + 0.5 ) / 10;
@@ -507,7 +507,7 @@ function HubAnnounce.LoyaltyWarningText( name:string, current:number, perTurn:nu
 		return tostring( value );
 	end
 	local text:string = name .. " loyalty " .. Num( current ) .. ", falling " .. Num( -perTurn ) .. " a turn, lost in " .. turns .. ( turns == 1 and " turn" or " turns" );
-	if keyHint ~= nil and keyHint ~= "" then text = text .. ". " .. keyHint .. " for why"; end
+	if keyHint ~= nil and keyHint ~= "" then text = text .. ". " .. keyHint .. " on that city for why"; end
 	return text;
 end
 

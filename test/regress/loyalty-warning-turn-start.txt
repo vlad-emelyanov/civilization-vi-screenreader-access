@@ -1,6 +1,6 @@
 # Written blind (2026-10-31, not yet recorded; run with --record). pt-mod2 chain (Rome): Lugdunum fell from loyalty 62 at -19 a turn to Free Cities
 # in 5 turns. The verifier picks the fixture of t216..t222 where Lugdunum is falling and still within 8 turns (t219 is the guess) and sets it below.
-# The turn-start block says "<City> loyalty 62, falling 19 a turn, lost in 4 turns. Control+I for why" after the Turn line.
+# The turn-start block says "<City> loyalty 62, falling 19 a turn, lost in 4 turns. Control+I on that city for why" after the Turn line.
 # covers: **/HubAnnounce.lua **/InGameAccess.lua
 # own-load: the load itself announces the turn and the loyalty warning
 # no-share-load: unique fixture
