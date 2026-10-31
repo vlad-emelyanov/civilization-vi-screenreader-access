@@ -621,6 +621,28 @@ local function CompletedDistrictPlots( ownerID:number, districtRow:table )
 	return result;
 end
 
+-- Why an archaeologist has no site to browse: a revealed site that someone else's borders took since it was targeted is the usual reason
+-- (the engine lists only sites the unit may excavate; verified: 3 revealed sites inside foreign borders gave an empty list).
+local function ArchaeologyEmptyText( owner:number )
+	local siteRow:table = GameInfo.Resources[ "RESOURCE_ANTIQUITY_SITE" ];
+	if siteRow == nil then return "No antiquity sites revealed"; end
+	local revealed:number = 0;
+	local foreign:number = 0;
+	for i = 0, Map.GetPlotCount() - 1 do
+		local plot:table = Map.GetPlotByIndex( i );
+		if plot:GetResourceType() == siteRow.Index and PlayersVisibility[ owner ]:IsRevealed( plot:GetX(), plot:GetY() ) then
+			revealed = revealed + 1;
+			local plotOwner:number = plot:GetOwner();
+			if plotOwner ~= -1 and plotOwner ~= owner then foreign = foreign + 1; end
+		end
+	end
+	if revealed == 0 then return "No antiquity sites revealed"; end
+	if foreign == revealed then
+		return "No antiquity site to excavate: " .. ( revealed == 1 and "the revealed site lies" or ( "all " .. revealed .. " revealed sites lie" ) ) .. " in foreign borders";
+	end
+	return "No antiquity site this unit can excavate";
+end
+
 -- What the selected unit can act on: nil for a unit without such an ability (X keeps its old meaning), else
 -- { kind, verb, verb3, what, plots = { plot index ... }, empty = "why there is nothing" }.
 function HubSettle.ActivationPlots( unit:table )
@@ -631,7 +653,7 @@ function HubSettle.ActivationPlots( unit:table )
 		if row == nil then return; end
 		local owner:number = unit:GetOwner();
 		if row.ExtractsArtifacts == true then
-			result = { kind = "archaeologist", verb = "excavate", verb3 = "excavates", what = "", empty = "No antiquity sites revealed",
+			result = { kind = "archaeologist", verb = "excavate", verb3 = "excavates", what = "", empty = ArchaeologyEmptyText( owner ),
 				plots = FlatPlots( unit:GetArchaeology():GetActivationHighlightPlots() ) };
 		elseif row.ParkCharges ~= nil and row.ParkCharges > 0 and unit:GetParkCharges() > 0 then
 			result = { kind = "naturalist", verb = "designate", verb3 = "designates", what = "a national park", empty = "No place for a national park",
