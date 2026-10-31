@@ -1,0 +1,14 @@
+# Verified 2026-10-31: appointing a governor speaks one utterance, "Victor appointed. Assign Victor: choose a city. ...", then Enter assigns.
+# covers: **/GovernorPanel_SRA.lua **/GovernorAssignmentChooser_SRA.lua
+# no-share-load: appoints and assigns a governor
+load bug-gov-confirm-down
+clear-advisors
+action ToggleGovernors -Settle 2500 -Quiet 800
+expect ^Governors\. \d+ titles available\. Victor
+key Enter -Settle 2000 -Quiet 600
+expect ^Actions for Victor: Appoint
+key Enter -Settle 3000 -Quiet 1000
+expect ^Victor appointed\. Assign Victor: choose a city\. Rome
+key Enter -Settle 3000 -Quiet 1000
+expect ^Victor assigned to Rome
+no-lua-errors
