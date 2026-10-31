@@ -21,6 +21,7 @@ include( "DiplomacyIntel" );	-- ScreenReaderAccess
 local m_srSelections	:table = {};
 local m_srList			:table = nil;
 local m_srOverviewList	:table = nil;	-- the overview (things you can propose) as a keyboard list
+local m_srIntelItems	:table = nil;	-- the intel report, gathered when its sub list opens (not on every key)
 local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" / "war" / "intel"), nil = top level
 local m_srPendingAnswer	:string = nil;	-- key of the answer chosen while a cinema scene was showing
 local m_srLeavingAt			:number = 0;		-- time Goodbye was chosen; m_srLeaving never lasts longer than 3 s (SRA_IsLeaving)
@@ -3267,7 +3268,10 @@ local function SRA_OverviewBuild()
 	local top:table, discuss:table, war:table = SRA_OverviewEntries();
 	if m_srOverviewSub == "discuss" then return discuss; end
 	if m_srOverviewSub == "war" then return war; end
-	if m_srOverviewSub == "intel" then return DiplomacyIntel.Items( ms_SelectedPlayerID ); end
+	if m_srOverviewSub == "intel" then
+		if m_srIntelItems == nil then m_srIntelItems = DiplomacyIntel.Items( ms_SelectedPlayerID ); end
+		return m_srIntelItems;
+	end
 	return top;
 end
 
@@ -3276,6 +3280,7 @@ function SRA_AnnounceOverview()
 	if m_srOverviewList == nil or ms_SelectedPlayerID == -1 or ms_SelectedPlayerID == ms_LocalPlayerID or ms_SelectedPlayer == nil then return; end
 	local ok:boolean, err = xpcall( function()
 		m_srOverviewSub = nil;
+		m_srIntelItems = nil;
 		m_srOverviewList.Reset();
 		local config = PlayerConfigurations[ ms_SelectedPlayerID ];
 		local title:string = "Diplomacy with " .. Locale.Lookup( config:GetLeaderName() ) .. " of " .. Locale.Lookup( config:GetCivilizationShortDescription() );
@@ -3345,6 +3350,7 @@ end
 local function SRA_OnOverviewActivate( item:table )
 	if item.sub ~= nil then
 		m_srOverviewSub = item.sub;
+		m_srIntelItems = nil;
 		m_srOverviewList.Reset();
 		m_srOverviewList.Open( item.title or item.text );
 	elseif item.callback == nil then
@@ -3359,6 +3365,7 @@ local function SRA_OnOverviewClose()
 	if m_srOverviewSub ~= nil then
 		local key:string = "sub:" .. m_srOverviewSub;
 		m_srOverviewSub = nil;
+		m_srIntelItems = nil;
 		m_srOverviewList.Focus( key, "Back" );
 	else
 		CloseFocusedState( false );

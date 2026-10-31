@@ -405,13 +405,16 @@ end
 --	INTEL (I in the V list): the leader's intel panels as a list (DiplomacyIntel.lua); on "You" the world relations.
 --	Escape goes back to the V list on the same civilization.
 -- ---------------------------------------------------------------------------
-local m_intel:table = nil;		-- { civ = player id, world = true on the You item }
+local m_intel:table = nil;		-- { civ = player id, world = true on the You item, items = the snapshot taken when the list opened }
 local m_intelList:table;
 
 local function BuildIntelItems()
 	if m_intel == nil then return {}; end
-	if m_intel.world then return DiplomacyIntel.WorldItems(); end
-	return DiplomacyIntel.Items( m_intel.civ );
+	-- gathered once per opening (the gather scans gossip and database tables): not on every key
+	if m_intel.items == nil then
+		m_intel.items = m_intel.world and DiplomacyIntel.WorldItems() or DiplomacyIntel.Items( m_intel.civ );
+	end
+	return m_intel.items;
 end
 
 local function OpenIntelFor( item:table )
