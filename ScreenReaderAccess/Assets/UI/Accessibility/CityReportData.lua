@@ -199,6 +199,7 @@ local function LoyaltyItem( d:table )
 	local l:table = d.loyalty;
 	if l == nil then return nil; end
 	local text:string = "Loyalty " .. Num( l.current ) .. ", " .. Signed( l.perTurn ) .. " per turn";
+	if l.turnsToLoss ~= nil and l.turnsToLoss >= 1 then text = text .. ", lost in " .. l.turnsToLoss .. ( l.turnsToLoss == 1 and " turn" or " turns" ); end
 	if l.level ~= nil and l.level ~= "" then text = text .. ", " .. l.level; end
 	-- only a city that is falling or below the top level is in danger of turning (levelIndex: LoyaltyLevels row, 3 = Loyal)
 	local atRisk:boolean = l.perTurn < 0 or ( l.levelIndex ~= nil and l.levelIndex < ( l.topLevel or 3 ) );

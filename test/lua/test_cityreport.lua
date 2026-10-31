@@ -98,6 +98,10 @@ test("loyalty only when present", function()
 	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, plus 8 per turn, Content, may turn to Greece")
 	d.loyalty.levelIndex = 3; d.loyalty.level = "Loyal"; d.loyalty.perTurn = -2
 	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, minus 2 per turn, Loyal, may turn to Greece")
+	d.loyalty.turnsToLoss = 5
+	eq(find(CityReport_BuildItems(d), "loyalty").text, "Loyalty 100, minus 2 per turn, lost in 5 turns, Loyal, may turn to Greece")
+	d.loyalty.turnsToLoss = 1
+	contains(find(CityReport_BuildItems(d), "loyalty").text, "minus 2 per turn, lost in 1 turn,")
 	contains(item.detail, "Governor plus 8")
 	contains(item.detail, "Rome 20")
 end)
