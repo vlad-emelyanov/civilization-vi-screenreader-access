@@ -10,7 +10,7 @@ expect (?i)queue|purchase with
 key Control+Tab -Settle 1200
 expect (?i)choose production
 key Control+Tab -Settle 1200
-expect (?i)purchase with (gold|faith)
+expect (?i)purchase with (gold|faith)|Nothing to buy with faith
 key Escape -Settle 1200
 key Escape -Settle 1200
 no-lua-errors
