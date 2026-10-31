@@ -1,0 +1,24 @@
+# Written blind (2026-10-31, not yet recorded; run with --record). Scenario trader-in-capital on medieval-t100.
+# Item 1: after the confirming Enter the player hears only "Trade route to X started", no stale "<Trader>, needs orders. Tab for its actions" before it.
+# Item 2: Tab and F7 in the route list are not silent.
+# covers: **/InGameAccess.lua **/HubAnnounce.lua **/HubEvents.lua **/TradeRouteChooser.lua **/KeyNavList.lua
+# no-share-load: scenario trader-in-capital, starts a route
+load medieval-t100
+scenario trader-in-capital
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_TRADER" then UI.SelectUnit(u) break end end
+wait Trade route from -Timeout 15
+expect ^Trade route from .+: (\d+ destinations?\.|no destinations)
+key Tab -Settle 1000
+expect ^No tabs here
+key F7 -Settle 1000
+expect ^Close the list first, Escape closes it
+key Enter -Settle 1000
+expect ^Start trade route to .+\? Enter to confirm, Escape to go back
+key Tab -Settle 1000
+expect ^No tabs here
+key Enter -Settle 4000
+expect ^Trade route to .+ started
+expect-not needs orders
+expect-not Tab for its actions
+no-lua-errors

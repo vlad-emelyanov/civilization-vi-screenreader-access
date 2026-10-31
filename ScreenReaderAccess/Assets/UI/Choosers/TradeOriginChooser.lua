@@ -282,6 +282,7 @@ end
 function SRA_OnInput( pInputStruct:table )
 	if m_AnimSupport:IsVisible() then
 		if m_srList.HandleInput( pInputStruct ) then return true; end
+		KeyNavList_SayUnhandledKey( pInputStruct );
 		local msg:number = pInputStruct:GetMessageType();
 		if msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp then return true; end
 	end

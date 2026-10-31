@@ -1416,9 +1416,11 @@ local function SRA_Confirm()
 	end
 	m_srConfirm = nil;
 	local unitID:number, originOwner:number, originID:number = unit:GetID(), m_originCityOwner, m_originCityID;
+	LuaEvents.SRA_ConfirmPending();		-- the hub's Enter watch must not say the unit line before the result
 	if RequestTradeRoute() then		-- also leaves the interface mode, which closes this chooser
 		LuaEvents.SRA_TradeResult( "route", unitID, originOwner, originID, pending.name );
 	else
+		LuaEvents.SRA_ConfirmPending( false );		-- no result is coming: Enter speaks normally again
 		OutputMessageToScreenReader( "Trade route not started" );
 	end
 end
@@ -1431,6 +1433,7 @@ local function SRA_Back()
 end
 
 local function SRA_Cancel()
+	LuaEvents.SRA_ConfirmPending( false );
 	OnClose();
 	OutputMessageToScreenReader( "Trade route cancelled" );
 end
@@ -1458,10 +1461,13 @@ function SRA_HandleInput( pInputStruct:table )
 		if action ~= nil then
 			local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
 			if not ok then print( "TradeRouteChooser error: " .. tostring( err ) ); end
+		else
+			KeyNavList_SayUnhandledKey( pInputStruct );		-- Tab, F7 ...: never silent
 		end
 		return true;
 	end
 	if m_srConfirm == nil and m_srList.HandleInput( pInputStruct ) then return true; end
+	KeyNavList_SayUnhandledKey( pInputStruct );
 	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
 end
 

@@ -41,7 +41,7 @@ globals = {
 	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",
 	"KeyNavEditBox_Cancel", "KeyNavEditBox_Describe", "KeyNavEditBox_HandleInput", "KeyNavEditBox_IsEditing",
 	"KeyNavEditBox_Update", "KeyNavErrorHandler", "KeyNavItems", "KeyNavKeyHandler", "KeyNavLabel",
-	"KeyNavLeftClick", "KeyNavList_Create", "KeyNavList_ShortList", "KeyNavMoveFocus", "KeyNavMoveMouse",
+	"KeyNavLeftClick", "KeyNavList_Create", "KeyNavList_ShortList", "KeyNavList_UnhandledKeyText", "KeyNavList_SayUnhandledKey", "KeyNavMoveFocus", "KeyNavMoveMouse",
 	"KeyNavMoveMouseToScreen", "KeyNavPageText", "KeyNavScrollIntoView", "KeyNavSetup_BuildParameterItems",
 	"KeyNavSetup_ButtonItem", "KeyNavSetup_GetDriver", "KeyNavSetup_GetOptions", "KeyNavSetup_GetValueByOffset",
 	"KeyNavSetup_IsUsable", "KeyNavSetup_LeaderItem", "KeyNavSetup_MapItem", "KeyNavSetup_NewController",

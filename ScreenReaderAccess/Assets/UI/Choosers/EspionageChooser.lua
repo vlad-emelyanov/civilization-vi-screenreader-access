@@ -1149,6 +1149,7 @@ local function SRA_ConfirmTravel()
 	local travel:number, establish:number = SRA_TravelTimes( city );
 	local spyName:string, cityName:string = SRA_SpyName(), SRA_CityName( city );
 	m_srConfirm = nil;
+	LuaEvents.SRA_ConfirmPending();		-- the hub's Enter watch must not say the unit line before the result
 	OnConfirmPlacement();		-- the game: TeleportToSelectedCity, which requests the operation and leaves the chooser mode
 	SRA_Say( spyName .. " travels to " .. cityName .. ", arrives in " .. SRA_Plural( travel + establish, "turn", "turns" ) );
 end
@@ -1165,6 +1166,7 @@ local function SRA_ConfirmMission()
 	local text:string = data.name .. ( data.district ~= nil and ( ", " .. data.district ) or "" ) .. " in " .. SRA_CityName( m_city );
 	local turns:number = data.turns;
 	m_srConfirm = nil;
+	LuaEvents.SRA_ConfirmPending();		-- the hub's Enter watch must not say the unit line before the result
 	if entry.counter then
 		OnCounterspySelected( SRA_MissionPlot( entry ) );
 	else
@@ -1203,6 +1205,7 @@ local function SRA_Cancel()
 		SRA_AnnounceList();
 		return;
 	end
+	LuaEvents.SRA_ConfirmPending( false );
 	OnClose();
 	SRA_Say( "Cancelled" );
 end
@@ -1285,11 +1288,13 @@ function SRA_HandleInput( input:table )
 			if action ~= nil then
 				local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
 				if not ok then print( "EspionageChooser error: " .. tostring( err ) ); end
+			else
+				KeyNavList_SayUnhandledKey( input );		-- Tab, F7 ...: never silent
 			end
 		end
 		return true;
 	end
-	m_srList.HandleInput( input );
+	if not m_srList.HandleInput( input ) then KeyNavList_SayUnhandledKey( input ); end
 	return true;		-- everything else is swallowed while the chooser is shown
 end
 
