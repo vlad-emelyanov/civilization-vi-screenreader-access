@@ -214,6 +214,7 @@ local m_sections:table = {
 		{ keys = "Left and Right",		text = "treat with a clan popup: on Incite, choose the civilization to incite the clan against" },
 		{ keys = "Enter",				text = "treat with a clan popup: hire, incite, bribe, ransom or close; Space reads the full description" },
 		{ keys = "G or F7",				text = "completed tech or civic popup: opens the government screen (controller: X)" },
+		{ keys = "Artifact popup",		text = "after excavating a battlefield or shipwreck: Left, Right, Up and Down choose which civilization receives the artifact, Enter takes the focused one, Space repeats what was found and from which era, Escape only reminds you that a choice is needed; a find without a choice has one button, Enter takes it" },
 		{ keys = "R",					text = "espionage mission popup: renews a completed mission (controller: X)" },
 		{ keys = "C",					text = "dedication popup: confirms the chosen dedication (controller: X)" },
 		{ keys = "Any popup",			text = "other announcements wait until it closes, then they follow" },

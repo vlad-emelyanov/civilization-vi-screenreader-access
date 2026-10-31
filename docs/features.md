@@ -145,7 +145,7 @@ All of these are keyboard lists over the game's own screen data (rebuilt at key 
 
 ## Popups and small screens
 
-Spoken, closing with Enter/Escape, usually holding speech: advisors (`Popups/AdvisorPopup.lua`, first sentence, Space for the rest), tech/civic completed, boost, natural wonder, natural disaster (counts only), unit captured, city capture (`Popups/RazeCity.lua`: Keep / Raze / Liberate with tooltips), wonder built (`WonderBuiltPopup.lua`, unverified: no fixture), declare war, InGamePopup (Up/Down between buttons), in-game menu (`InGameTopOptionsMenu.lua`), expansion intro. Faking popup events is forbidden (engine-notes).
+Spoken, closing with Enter/Escape, usually holding speech: advisors (`Popups/AdvisorPopup.lua`, first sentence, Space for the rest), tech/civic completed, boost, natural wonder, natural disaster (counts only), unit captured, city capture (`Popups/RazeCity.lua`: Keep / Raze / Liberate with tooltips), artifact choice after excavating a battlefield or shipwreck (`Popups/ChooseArtifact.lua`: speaks title, explanation, era and the focused civilization "Name, 1 of 2"; Left/Right/Up/Down/Tab move, Enter runs OnButton1/OnButton2 and says "Artifact from X chosen", Space repeats the explanation, Escape says a choice is needed and does not close; the one-button variant says "OK. Enter confirms"; `HubGamepad` BUMPER_SCREENS lists it; needs in-game verification, see backlog), wonder built (`WonderBuiltPopup.lua`, unverified: no fixture), declare war, InGamePopup (Up/Down between buttons), in-game menu (`InGameTopOptionsMenu.lua`), expansion intro. Faking popup events is forbidden (engine-notes).
 
 ## End game
 
