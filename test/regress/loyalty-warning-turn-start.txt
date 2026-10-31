@@ -5,5 +5,5 @@
 # own-load: the load itself announces the turn and the loyalty warning
 # no-share-load: unique fixture
 load pt-mod2-t219
-expect (?i)^Lugdunum loyalty \d+(\.\d)?, falling \d+(\.\d)? a turn, lost in \d turns?\. Control\+I for why
+expect (?i)^Lugdunum loyalty \d+(\.\d)?, falling \d+(\.\d)? a turn, lost in \d turns?\. Control\+I on that city for why
 no-lua-errors
