@@ -61,11 +61,25 @@ function Hub.ArmEnterWatch()
 	HubCore.m_enterWatch = 0.8;
 end
 
+-- An idle spy that is already selected (its destination / mission list was cancelled): the game's Next Action re-selects the
+-- same unit, which opens nothing. Select it again so that EspionageChooser opens its list (and announces it), like for any
+-- other blocker. True when the spy was selected again.
+function Hub.ReopenSpyChooser( unit:table )
+	local row = GameInfo.Units[ unit:GetUnitType() ];
+	if row == nil or not row.Spy or not unit:IsReadyToMove() then return false; end
+	local mode:number = UI.GetInterfaceMode();
+	if mode == InterfaceModeTypes.SPY_TRAVEL_TO_CITY or mode == InterfaceModeTypes.SPY_CHOOSE_MISSION then return false; end
+	UI.DeselectAllUnits();
+	UI.SelectUnit( unit );
+	return true;		-- the selection says the unit and EspionageChooser opens (and announces) its list a moment later
+end
+
 -- Enter was pressed, nothing announced a new selection, turn end or mode: the game re-selected the same unit
 -- (or none could be selected). Say what is going on.
 function Hub.EnterFallback()
 	if not Hub.IsUnitOrdersLabel( m_enterLabel ) then return; end
 	local unit:table = UI.GetHeadSelectedUnit();
+	if unit ~= nil and Hub.ReopenSpyChooser( unit ) then return; end
 	if unit ~= nil then
 		local text:string = HubAnnounce.UnitText( unit ) .. ", needs orders. " .. SRKey( "Tab" ) .. " for its actions";
 		-- a unit the game lets neither skip nor sleep (UnitPanel adds a disabled Skip Turn entry with the reason)

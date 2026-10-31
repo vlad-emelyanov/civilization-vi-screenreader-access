@@ -40,5 +40,6 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - Two upstream Runtime Errors in non-mod files (`CityPanel.lua:1149`, `StrategicView_MapPlacement.lua:321`); upstream `EraReviewPopup.OnGameDebugReturn` errors if hot-reloaded while open.
 - A production panel open during a hot reload goes dead (reopen works); the tuner on a hot-reloaded context can reach a stale duplicate state (restart first).
 - A city created by a tuner scenario shows a raw `LOC_CITY_NAME_*`; the city capture popup opens through the notification, not by itself.
+- Owner complaint "a natural disaster popup holds the turn" is not reproduced: it opens during turn processing (pt-modern-t212 + End Turn), is spoken once and Enter closes it, the turn then continues; the turn naturally waits while it is open. If it still happens, get the exact keys and speech (does Enter reach it while a historic moment or another popup is up?).
 - Natural disaster popups have counts only (`GameRandomEvents.GetCurrentTurnEventAtPlot`), no list of pillaged buildings.
 - Harness: a contaminated `UserOptions.txt` (`TutorialLevel -1`) makes advisor scripts fail with no advisor popup; check with `python util/testopts.py status`.

@@ -1,0 +1,21 @@
+# Verified in game 2026-10-31. Fixture bug-spy-list-over-historic-moment (idle spy Bambi in Rome). After the destination list was cancelled,
+# Enter (Next Action) re-selected the same spy and only said "Bambi, ..., needs orders. Tab for its actions", again and again.
+# Now Enter selects the spy again and its Choose destination list opens.
+# covers: **/InGameAccess.lua **/EspionageChooser.lua
+# no-share-load: resolves productions, opens and cancels the chooser
+load bug-spy-list-over-historic-moment
+key Escape -Settle 1500
+expect ^Cancelled
+key Enter -Settle 1800
+key Enter -Settle 1800
+key Enter -Settle 1800
+key Enter -Settle 2500
+expect ^Choose destination for Bambi: \d+ cities
+key Escape -Settle 1500
+expect ^Cancelled
+key Enter -Settle 2500
+expect ^Choose destination for Bambi: \d+ cities
+expect-not needs orders\. 
+key Escape -Settle 1500
+expect ^Cancelled
+no-lua-errors
