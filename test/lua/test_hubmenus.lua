@@ -143,3 +143,11 @@ test("SRAvailableFirst is the shared stable partition (diplomacy overview too)",
 	local r = SRAvailableFirst({ { key = "deleg", choosable = false }, { key = "sub" }, { key = "x", choosable = true } })
 	eq(r[1].key, "sub"); eq(r[2].key, "x"); eq(r[3].key, "deleg")
 end)
+
+test("menu with only Delete Unit left on a unit without moves says why", function()
+	local del = { choosable = true, action = { typeName = "UNITCOMMAND_DELETE" } }
+	eq(HubMenus.NoMovesNote(0, { del }), ", no moves left")
+	eq(HubMenus.NoMovesNote(0, { { choosable = false, action = { typeName = "UNITOPERATION_FORTIFY" } }, del }), ", no moves left")
+	eq(HubMenus.NoMovesNote(0, { { choosable = true, action = { typeName = "UNITOPERATION_FORTIFY" } }, del }), "")
+	eq(HubMenus.NoMovesNote(2, { del }), "")
+end)

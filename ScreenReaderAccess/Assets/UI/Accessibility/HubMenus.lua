@@ -253,6 +253,17 @@ local function RunMenuItem( item:table )
 	end
 end
 
+-- ", no moves left" when the unit has no moves and nothing in its menu can be chosen but Delete Unit (which is all the player would find
+-- without it); "" otherwise. items: the menu items (choosable, action.typeName).
+function HubMenus.NoMovesNote( moves:number, items:table )
+	if moves == nil or moves > 0 then return ""; end
+	for _, item in ipairs( items or {} ) do
+		local typeName:string = ( item.action ~= nil ) and item.action.typeName or nil;
+		if item.choosable ~= false and typeName ~= "UNITCOMMAND_DELETE" then return ""; end
+	end
+	return ", no moves left";
+end
+
 function HubMenus.ToggleUnitMenu()
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if HubCore.IsModeOpen( "menu" ) then
@@ -288,7 +299,9 @@ function HubMenus.ToggleUnitMenu()
 		OutputMessageToScreenReader( PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " has no actions" );
 		return;
 	end
-	HubCore.OpenMode( "menu", m_menu, PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " actions" );
+	local okMoves:boolean, moves = pcall( unit.GetMovesRemaining, unit );
+	local note:string = okMoves and HubMenus.NoMovesNote( moves, m_menuItems ) or "";
+	HubCore.OpenMode( "menu", m_menu, PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " actions" .. note );
 end
 
 m_menu = KeyNavList_Create{
