@@ -3471,8 +3471,9 @@ local function SRA_Summary()
 end
 
 -- Says what a click or key changed in the deal, then the whole deal; remembers the deal as spoken.
-local function SRA_SpeakChange( before:table, fallback:string )
+local function SRA_SpeakChange( before:table, fallback:string, removing:boolean )
 	local change = DealSpeech_ChangeText( before, SRA_DealTexts() );
+	if removing then change = DealSpeech_RemovalChange( change ); end
 	local give:table, get:table = SRA_DealRecords();
 	local summary:string = DealSpeech_Summary( give, get );
 	m_srSpokenSig = summary;
@@ -3532,7 +3533,7 @@ local function SRA_RemoveItem( item:table )
 	local player:table = ( rec.from == g_LocalPlayer:GetID() ) and g_LocalPlayer or g_OtherPlayer;
 	OnRemoveDealItem( player, rec.id );
 	m_srLists[1].Reset();
-	SRA_SpeakChange( before, "Could not remove it" );
+	SRA_SpeakChange( before, "Could not remove it", true );
 end
 
 local function SRA_FocusedItem( section:number )

@@ -65,6 +65,15 @@ local function _StripIconMarkup(message: string)
 	return message;
 end
 
+-- One stop where the text already ends in one ("age..", "city. .", "city.,", a sentence glued to a game text that ends in a period);
+-- a real ellipsis "..." stays, numbers ("1.5") are untouched.
+local function _CollapseStops(text: string)
+	text = string.gsub(text, "%.%.%.", "");
+	local collapsed:number = 1;
+	while collapsed > 0 do text, collapsed = string.gsub(text, "%.%s*[%.,]", "."); end
+	return (string.gsub(text, "", "..."));
+end
+
 -- message: The message to be output to screenreaders
 -- nointerrupt: Defaults to false. If set, will not try to interrupt currently speaking prompts. Useful for things that aren't in response to user action
 function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
@@ -81,6 +90,7 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 		message = string.gsub(message, "%[LINK[^%]]*%]", "");
 		message = string.gsub(message, ",%s*,", ",");
 		message = string.gsub(message, "%s+", " ");
+		message = _CollapseStops(message);
 		message = string.gsub(message, "^[%s,]+", "");
 		message = string.gsub(message, "[%s,]+$", "");
 	else
@@ -141,6 +151,7 @@ function CleanTextForSpeech(text: string)
 	text = string.gsub(text, "[%s]+$", "");
 	text = string.gsub(text, "([%.!?:;,])", "%1 ");
 	text = string.gsub(text, "", ". ");
+	text = _CollapseStops(text);
 	return text;
 end
 

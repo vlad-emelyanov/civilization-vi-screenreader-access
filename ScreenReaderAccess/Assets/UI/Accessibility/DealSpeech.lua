@@ -12,6 +12,17 @@ local function Turns( n )
 	return n .. ( n == 1 and " turn" or " turns" );
 end
 
+-- The game names a city item "Ostia, cede." (hand it over) or "Ostia, return." (give it back to its former owner): the city name, and
+-- true for "return". A name without that tail is returned as it is.
+function DealSpeech_CityName( name )
+	name = name or "unknown";
+	local base = string.match( name, "^(.-),%s*cede%.?$" );
+	if base ~= nil then return base, false; end
+	base = string.match( name, "^(.-),%s*return%.?$" );
+	if base ~= nil then return base, true; end
+	return name, false;
+end
+
 -- "50 gold", "5 gold per turn for 30 turns", "Silk, 1, 30 turns", "Open Borders, 30 turns", "City: Rome"
 function DealSpeech_ItemText( item )
 	local kind = item.kind;
@@ -31,7 +42,8 @@ function DealSpeech_ItemText( item )
 		if duration > 0 then text = text .. ", " .. Turns( duration ); end
 		return text;
 	elseif kind == "city" then
-		return "City: " .. ( item.name or "unknown" );
+		local base, returning = DealSpeech_CityName( item.name );
+		return "City: " .. base .. ( returning and ", returned to its former owner" or "" );
 	elseif kind == "greatwork" then
 		return "Great work: " .. ( item.name or "unknown" );
 	elseif kind == "captive" then
@@ -42,6 +54,10 @@ end
 
 -- "You give: 5 gold; Open Borders, 30 turns" / "They give: Silk, 1" for an item of the deal (mine = you give it).
 function DealSpeech_DealItemText( item, mine )
+	if item.kind == "city" then
+		local base, returning = DealSpeech_CityName( item.name );
+		return ( mine and "You " or "They " ) .. ( returning and ( "return " .. base .. " to its former owner" ) or ( "give " .. base ) );
+	end
 	return ( mine and "You give: " or "They give: " ) .. DealSpeech_ItemText( item );
 end
 
@@ -138,7 +154,7 @@ function DealSpeech_ChangeSpeech( change, giveTexts, getTexts, summary, fallback
 			end
 			if skipped then
 				if #rest == 0 then
-					return change .. ". " .. ( string.sub( changed, 1, 9 ) == "You give:" and "They give nothing." or "You give nothing." );
+					return change .. ". " .. ( string.sub( changed, 1, 4 ) == "You " and "They give nothing." or "You give nothing." );
 				end
 				return change .. ". Also: " .. table.concat( rest, "; " );
 			end
@@ -162,4 +178,13 @@ end
 function DealSpeech_ResourceReason( giverIsYou, dealAmount, tradeable )
 	if tradeable == nil or tradeable >= ( dealAmount or 0 ) then return nil; end
 	return ( giverIsYou and "you have " or "they have " ) .. tradeable .. " to trade";
+end
+
+-- The change text of a key that was meant to REMOVE an item: "Removed: X" stays; when the deal grew or changed instead, the verb does not
+-- claim an addition ("Added: X" -> "Now in the deal: X", "Changed: X" -> "Now: X").
+function DealSpeech_RemovalChange( change )
+	if change == nil then return nil; end
+	if string.sub( change, 1, 7 ) == "Added: " then return "Now in the deal: " .. string.sub( change, 8 ); end
+	if string.sub( change, 1, 9 ) == "Changed: " then return "Now: " .. string.sub( change, 10 ); end
+	return change;
 end
