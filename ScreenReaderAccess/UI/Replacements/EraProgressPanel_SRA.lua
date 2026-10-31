@@ -456,11 +456,11 @@ local function SRA_Items()
 	if not m_EraData.FinalEraReached then
 		local darkTo:number = math.max( m_EraData.DarkAgeThreshold - 1, 0 );
 		local onTrack:number = m_EraData.NextEraType;		-- the age the score gives now
-		table.insert( items, { key = "dark", section = "Thresholds", text = "Dark age below " .. m_EraData.DarkAgeThreshold .. " (0 to " .. darkTo .. ")" .. ( onTrack == ERA_TYPE_DARK_AGE and ", on track" or "" ), detail = SRA_Plain( m_EraData.DarkAgeThresholdTooltip ) } );
+		table.insert( items, { key = "dark", section = "Thresholds", text = "Dark age below " .. m_EraData.DarkAgeThreshold .. " (0 to " .. darkTo .. ")" .. ( onTrack == ERA_TYPE_DARK_AGE and ", on course for a Dark Age" or "" ), detail = SRA_Plain( m_EraData.DarkAgeThresholdTooltip ) } );
 		if not HasCapability("CAPABILITY_DRAMATICAGES") then
-			table.insert( items, { key = "normal", section = "Thresholds", text = "Normal age " .. m_EraData.DarkAgeThreshold .. " to " .. ( m_EraData.GoldenAgeThreshold - 1 ) .. ( onTrack == ERA_TYPE_NORMAL_AGE and ", on track" or "" ) } );
+			table.insert( items, { key = "normal", section = "Thresholds", text = "Normal age " .. m_EraData.DarkAgeThreshold .. " to " .. ( m_EraData.GoldenAgeThreshold - 1 ) .. ( onTrack == ERA_TYPE_NORMAL_AGE and ", on course for a Normal Age" or "" ) } );
 		end
-		table.insert( items, { key = "golden", section = "Thresholds", text = SRA_AgeLabel() .. " at " .. m_EraData.GoldenAgeThreshold .. " or more" .. ( onTrack == ERA_TYPE_GOLDEN_AGE and ", on track" or "" ), detail = SRA_Plain( m_EraData.GoldenAgeThresholdTooltip ) } );
+		table.insert( items, { key = "golden", section = "Thresholds", text = SRA_AgeLabel() .. " at " .. m_EraData.GoldenAgeThreshold .. " or more" .. ( onTrack == ERA_TYPE_GOLDEN_AGE and ", on course for a " .. SRA_AgeLabel() or "" ), detail = SRA_Plain( m_EraData.GoldenAgeThresholdTooltip ) } );
 	end
 	table.insert( items, { key = "time", text = SRA_TimeText() } );
 	for i, entry in ipairs( m_EraData.ScoreBreakdown ) do

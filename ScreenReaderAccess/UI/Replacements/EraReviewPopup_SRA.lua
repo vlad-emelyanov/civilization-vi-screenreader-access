@@ -297,7 +297,7 @@ function SRA_Announce()
 	OutputMessageToScreenReader(text .. " " .. SRKey( "Enter" ) .. " to continue, " .. SRKey( "Space" ) .. " for details.");
 end
 
--- Space: the ages of the other civilizations and the effects again
+-- Space: the ages of the other civilizations (the effects were said in the announcement)
 function SRA_Details()
 	local parts:table = { "Your age: " .. m_srAgeName };
 	if #m_srCivAges > 0 then
@@ -306,7 +306,7 @@ function SRA_Details()
 		table.insert(parts, "No other civilization met");
 	end
 	if m_srUnmet > 0 then table.insert(parts, m_srUnmet .. " unmet"); end
-	if m_srEffects ~= "" then table.insert(parts, "Effects active this age: " .. m_srEffects); end
+	-- the effects are in the announcement already (SRA_Announce): not repeated here
 	OutputMessageToScreenReader(table.concat(parts, ". ") .. ". " .. SRKey( "Enter" ) .. " to continue.");
 end
 
