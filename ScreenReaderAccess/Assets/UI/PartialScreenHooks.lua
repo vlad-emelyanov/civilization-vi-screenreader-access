@@ -279,6 +279,12 @@ end
 --	Event
 --	Capture the meet civ event to see if we have encountered a city-state
 -- ===========================================================================
+-- Begin ScreenReaderAccess mod change: Free Cities (Gathering Storm) answer IsMinor() but do not unlock the City-States screen
+local function SRA_IsFreeCities( pPlayer:table )
+	return pPlayer ~= nil and pPlayer.IsFreeCities ~= nil and pPlayer:IsFreeCities();
+end
+-- End ScreenReaderAccess mod change
+
 function OnDiplomacyMeet( player1ID:number, player2ID:number )
 	if(not m_isCityStatesUnlocked) then
 		local LocalPlayerID:number = Game.GetLocalPlayer();
@@ -286,7 +292,7 @@ function OnDiplomacyMeet( player1ID:number, player2ID:number )
 		if(LocalPlayerID ~= -1) then
 			-- Was the local player involved, and was it a minor civ that was met?
 			local metPlayer = Players[player2ID];
-			if (player1ID == LocalPlayerID and metPlayer:IsMinor()) then
+			if (player1ID == LocalPlayerID and metPlayer:IsMinor() and not SRA_IsFreeCities(metPlayer)) then		-- ScreenReaderAccess: Free Cities are not city-states
 				m_isCityStatesUnlocked = true;
 				Realize();
 			end
@@ -373,7 +379,7 @@ function CheckCityStatesUnlocked( pLocalPlayer:table )
 		local localDiplomacy:table = pLocalPlayer:GetDiplomacy();
 		local aPlayers = PlayerManager.GetAliveMinors();
 		for _, pPlayer in ipairs(aPlayers) do
-			if (pPlayer:IsMinor() and localDiplomacy:HasMet(pPlayer:GetID())) then
+			if (pPlayer:IsMinor() and not SRA_IsFreeCities(pPlayer) and localDiplomacy:HasMet(pPlayer:GetID())) then		-- ScreenReaderAccess: Free Cities are not city-states
 				m_isCityStatesUnlocked = true;	
 			end
 		end
