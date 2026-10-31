@@ -1,4 +1,4 @@
-City report Districts: identical districts are said once with a count ("Neighborhood, 7").
+# City report Districts: identical districts are said once with a count ("Neighborhood, 7").
 # covers: **/CityReportData.lua
 # no-share-load: opens the city report
 load pt-mod2-t228
