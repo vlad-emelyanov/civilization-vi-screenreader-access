@@ -493,6 +493,92 @@ function HubAnnounce.OnCitySelectionChanged( owner:number, cityID:number, i:numb
 	HubCore.Announce( text, false, "selection" );
 end
 
+-- ===========================================================================
+--	LOYALTY WARNING (turn start)
+-- ===========================================================================
+local LOYALTY_WARN_TURNS	:number = 8;		-- a city that falls within this many turns is announced
+local LOYALTY_WARN_MAX		:number = 3;		-- lines per turn; the rest is counted
+
+-- Pure: "Lugdunum loyalty 62, falling 19 a turn, lost in 4 turns. Control+I for why". keyHint (optional) is the spoken key.
+function HubAnnounce.LoyaltyWarningText( name:string, current:number, perTurn:number, turns:number, keyHint:string )
+	local function Num( value:number )
+		value = math.floor( value * 10 + 0.5 ) / 10;
+		if value == math.floor( value ) then return tostring( math.floor( value ) ); end
+		return tostring( value );
+	end
+	local text:string = name .. " loyalty " .. Num( current ) .. ", falling " .. Num( -perTurn ) .. " a turn, lost in " .. turns .. ( turns == 1 and " turn" or " turns" );
+	if keyHint ~= nil and keyHint ~= "" then text = text .. ". " .. keyHint .. " for why"; end
+	return text;
+end
+
+-- Pure: entries { name, current, perTurn (negative), turns } -> the lines to speak: the cities that fall within LOYALTY_WARN_TURNS
+-- turns, soonest first (then the steepest fall), at most LOYALTY_WARN_MAX lines, then "and N more".
+function HubAnnounce.LoyaltyWarningLines( entries:table, keyHint:string )
+	local due:table = {};
+	for _, e in ipairs( entries ) do
+		if e.perTurn < 0 and e.turns >= 1 and e.turns <= LOYALTY_WARN_TURNS then table.insert( due, e ); end
+	end
+	table.sort( due, function( a, b )
+		if a.turns ~= b.turns then return a.turns < b.turns; end
+		if a.perTurn ~= b.perTurn then return a.perTurn < b.perTurn; end
+		return a.name < b.name;
+	end );
+	local lines:table = {};
+	for i, e in ipairs( due ) do
+		if i > LOYALTY_WARN_MAX then
+			table.insert( lines, "and " .. ( #due - LOYALTY_WARN_MAX ) .. " more" );
+			break;
+		end
+		table.insert( lines, HubAnnounce.LoyaltyWarningText( e.name, e.current, e.perTurn, e.turns, keyHint ) );
+	end
+	return lines;
+end
+
+-- Own cities that lose loyalty and will convert (the game's own condition for its map warning: outcome LOSING_LOYALTY, see
+-- CityBannerManager.UpdateLoyaltyWarning); empty without Rise and Fall.
+function HubAnnounce.GatherLoyaltyRisks()
+	local entries:table = {};
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	if player == nil or IdentityConversionOutcome == nil then return entries; end
+	for _, city in player:GetCities():Members() do
+		if city.GetCulturalIdentity ~= nil then
+			local identity:table = city:GetCulturalIdentity();
+			if identity ~= nil and identity:GetConversionOutcome() == IdentityConversionOutcome.LOSING_LOYALTY then
+				table.insert( entries, { name = Locale.Lookup( city:GetName() ), current = identity:GetLoyalty(),
+					perTurn = identity:GetLoyaltyPerTurn(), turns = identity:GetTurnsToConversion() } );
+			end
+		end
+	end
+	return entries;
+end
+
+function HubAnnounce.SpeakLoyaltyWarnings()
+	local ok:boolean, lines = pcall( function()
+		return HubAnnounce.LoyaltyWarningLines( HubAnnounce.GatherLoyaltyRisks(), HubEnemies.KeyHint( "KeyNavCityReport", "Control+I" ) );
+	end );
+	if not ok then print( "HubAnnounce loyalty warning error: " .. tostring( lines ) ); return; end
+	for _, line in ipairs( lines ) do HubCore.Announce( line, true, "loyalty" ); end
+end
+
+-- ===========================================================================
+--	CONFIRM -> RESULT (spy destination / mission, trade route)
+-- ===========================================================================
+-- A chooser's confirming Enter also starts the Enter watch (EnterFallback), which would say "<Unit>, needs orders" before the
+-- result line. The choosers raise LuaEvents.SRA_ConfirmPending; until the result speaks (or CONFIRM_HOLD seconds) that fallback is silent.
+local CONFIRM_HOLD:number = 3;
+
+function HubAnnounce.NoteConfirm()
+	HubCore.m_confirmUntil = UI.GetElapsedTime() + CONFIRM_HOLD;
+end
+
+function HubAnnounce.ClearConfirm()
+	HubCore.m_confirmUntil = nil;
+end
+
+function HubAnnounce.ConfirmPending( now:number )
+	return HubCore.m_confirmUntil ~= nil and now < HubCore.m_confirmUntil;
+end
+
 -- "Turn 5, 3600 BC". Said once per turn: a new turn and a finished load both announce it, and a loaded game
 -- gets no turn-begin event at all.
 local m_endedTurn:number = -1;			-- game turn for which a turn end was seen and is not yet confirmed or refuted (see TurnNotEnded)
@@ -510,6 +596,7 @@ function HubAnnounce.AnnounceTurn()
 		local ok:boolean, err = pcall( HubEnemies.SpeakAtTurnStart );
 		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end
 	end		-- what the enemies near us did
+	HubAnnounce.SpeakLoyaltyWarnings();		-- own cities that will flip within a few turns
 end
 
 -- The selection that happened while the game was loading, said again now that it is ready.

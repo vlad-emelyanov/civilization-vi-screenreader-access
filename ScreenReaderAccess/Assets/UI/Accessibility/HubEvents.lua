@@ -57,6 +57,7 @@ end
 -- outcome a moment later. kind "route": a trade route was requested (unit, origin city owner and id, destination name);
 -- kind "move": a trader was moved to another city (unit, plot it left, city name).
 function HubEvents.OnTradeResult( kind:string, unitID:number, a, b, c, d )
+	HubAnnounce.NoteConfirm();		-- the Enter watch stays silent until the result line
 	local owner:number = Game.GetLocalPlayer();
 	if kind == "route" then
 		HubCore.After( 1.0, function()
@@ -67,6 +68,7 @@ function HubEvents.OnTradeResult( kind:string, unitID:number, a, b, c, d )
 					if route.TraderUnitID == unitID then started = true; end
 				end
 			end
+			HubAnnounce.ClearConfirm();
 			if started then
 				HubCore.SayResult( "Trade route to " .. c .. " started" );
 			else
@@ -75,6 +77,7 @@ function HubEvents.OnTradeResult( kind:string, unitID:number, a, b, c, d )
 		end );
 	elseif kind == "move" then
 		HubCore.After( 0.5, function()
+			HubAnnounce.ClearConfirm();
 			local unit:table = Players[ owner ]:GetUnits():FindID( unitID );
 			if unit ~= nil and ( unit:GetX() ~= a or unit:GetY() ~= b ) then
 				HubCore.SayResult( "Trader moved to " .. c );

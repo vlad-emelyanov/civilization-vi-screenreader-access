@@ -404,3 +404,26 @@ function KeyNavList_ShortList( names:table, maxShown:number )
 	for i = 1, maxShown do shown[i] = names[i]; end
 	return table.concat( shown, ", " ) .. " and " .. ( #names - maxShown ) .. " more";
 end
+
+-- What a modal list that swallows every key says for a key it does not use (every key answers, speech-guidelines 4): Tab
+-- "No tabs here", a game screen key F1..F12 (F7 government ...) "Close the list first, Escape closes it". Nil for other keys
+-- (modifier keys, letters ...: they stay silent) and for Control / Shift / Alt combinations. Call on KeyUp.
+function KeyNavList_UnhandledKeyText( key:number, ctrl:boolean, shift:boolean, alt:boolean )
+	if ctrl or shift or alt or key == nil then return nil; end
+	if key == Keys.VK_TAB then return "No tabs here"; end
+	for i = 1, 12 do
+		if Keys[ "VK_F" .. i ] ~= nil and key == Keys[ "VK_F" .. i ] then
+			return "Close the list first, " .. SRKey( "Escape" ) .. " closes it";
+		end
+	end
+	return nil;
+end
+
+-- Speaks KeyNavList_UnhandledKeyText for a KeyUp input struct; true when something was said.
+function KeyNavList_SayUnhandledKey( input:table )
+	if input:GetMessageType() ~= KeyEvents.KeyUp then return false; end
+	local text = KeyNavList_UnhandledKeyText( input:GetKey(), input:IsControlDown(), input:IsShiftDown(), input:IsAltDown() );
+	if text == nil then return false; end
+	OutputMessageToScreenReader( text );
+	return true;
+end

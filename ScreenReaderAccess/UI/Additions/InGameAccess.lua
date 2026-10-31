@@ -78,6 +78,7 @@ end
 -- (or none could be selected). Say what is going on.
 function Hub.EnterFallback()
 	if not Hub.IsUnitOrdersLabel( m_enterLabel ) then return; end
+	if HubAnnounce.ConfirmPending( UI.GetElapsedTime() ) then return; end		-- a chooser's confirm: its result line comes, not the unit line
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit ~= nil and Hub.ReopenSpyChooser( unit ) then return; end
 	if unit ~= nil then
@@ -363,6 +364,7 @@ function Initialize()
 	HubCore.Listen( LuaEvents.SRA_NotificationActivated, HubCore.Safe( "NotificationActivated", HubRegions.OnNotificationActivated ) );
 	HubCore.Listen( LuaEvents.SRA_CapitalKey, HubCore.Safe( "CapitalKey", HubTargets.CapitalKey ) );		-- WorldInput: the capital key outside the plain map
 	HubCore.Listen( LuaEvents.SRA_AttackKey, HubCore.Safe( "AttackKey", HubTargets.AttackKey ) );
+	HubCore.Listen( LuaEvents.SRA_ConfirmPending, HubCore.Safe( "ConfirmPending", HubAnnounce.NoteConfirm ) );		-- spy / trade choosers: Enter confirmed, the result line follows
 	HubCore.Listen( LuaEvents.SRA_TradeResult, HubCore.Safe( "TradeResult", HubEvents.OnTradeResult ) );		-- trade choosers: outcome of the route / move
 	HubCore.Listen( LuaEvents.SRA_SpeechHold, HubCore.Safe( "SpeechHold", HubCore.SetSpeechHold ) );		-- popups that speak: event announcements wait
 	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) HubPlaces.OnCursorTo( x, y ); end ) );		-- City-States / espionage screens: Show on map
