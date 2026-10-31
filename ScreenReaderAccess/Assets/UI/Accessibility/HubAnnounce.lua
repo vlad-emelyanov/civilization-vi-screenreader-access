@@ -573,6 +573,17 @@ function HubAnnounce.NoteConfirm( pending:boolean )
 	HubCore.m_confirmUntil = UI.GetElapsedTime() + CONFIRM_HOLD;
 end
 
+-- The interface modes in which a chooser list (spy destination / mission, trade route, trader origin) owns Enter and speaks for it.
+local m_chooserEnterModes:table = {};
+for _, name in ipairs( { "SPY_TRAVEL_TO_CITY", "SPY_CHOOSE_MISSION", "MAKE_TRADE_ROUTE", "TELEPORT_TO_CITY" } ) do
+	if InterfaceModeTypes ~= nil and InterfaceModeTypes[name] ~= nil then m_chooserEnterModes[ InterfaceModeTypes[name] ] = true; end
+end
+
+-- Is a chooser list (or its confirm prompt) the active input? Its Enter speaks the prompt itself; the Enter watch stays silent.
+function HubAnnounce.ChooserOwnsEnter( mode:number )
+	return mode ~= nil and m_chooserEnterModes[ mode ] == true;
+end
+
 function HubAnnounce.ClearConfirm()
 	HubCore.m_confirmUntil = nil;
 end

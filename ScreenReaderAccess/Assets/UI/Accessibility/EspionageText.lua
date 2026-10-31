@@ -21,6 +21,12 @@ local function Turns( n:number, suffix:string )
 	return n .. ( n == 1 and " turn" or " turns" ) .. ( suffix or "" );
 end
 
+-- "this turn" / "1 turn" / "4 turns": when a spy arrives (0 = the same turn, never "0 turns")
+function EspionageText_Arrival( n:number )
+	if n <= 0 then return "this turn"; end
+	return Turns( n );
+end
+
 function EspionageText_Header( d:table )
 	local text:string = "Espionage: ";
 	if d.capacity ~= nil then
@@ -84,7 +90,7 @@ function EspionageText_Destination( d:table )
 	local parts:table = { d.name };
 	if d.owner ~= nil and d.owner ~= "" then table.insert( parts, d.owner ); end
 	if d.capital then table.insert( parts, "capital" ); end
-	if d.turns ~= nil then table.insert( parts, Turns( d.turns ) ); end
+	if d.turns ~= nil then table.insert( parts, d.turns <= 0 and "arrives this turn" or Turns( d.turns ) ); end
 	return table.concat( parts, ", " );
 end
 

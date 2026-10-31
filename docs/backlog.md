@@ -16,7 +16,6 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - **City-in-danger warning:** the raid line (2+ barbarian soldiers near a city) and the enemy summary exist, but Ostia was captured by England with only attack lines as warning. Needs a rule for at-war civ units near a weakly defended city.
 - **Keyboard path for corps/armies from the production panel, queue reordering/removal, the Manager tab** (`Panels/ProductionPanel.lua`).
 - **Small speech gaps from play-tests:** a pillaged Library blocking Great Library is not said at pillage time; no danger hint before a Barbarian Galley attack; a city production auto-swap to a newer unit is not announced; auto-explore end is not announced (HubPlaces keeps "exploring" until a player order; idea to probe: a unit the game itself offers as ready for orders (`GetFirstReadyUnit`/next-unit) a few seconds into the turn has stopped exploring, activity alone cannot tell, see engine-notes); WMD/ICBM and PRIORITY_TARGET still use a click.
-- **Stale line before a spy confirm prompt:** Enter on a destination in the spy list says "Bambi, ..., needs orders. Tab for its actions" before "Send Bambi to Argos? ..." (only the line before the final result is suppressed by `SRA_ConfirmPending`; the prompt itself is preceded by it).
 - **Silent or thin popups:** Suleiman "remove your spies" popup and Escape behaviour unchecked; advisor re-shown over a completed popup not reached.
 
 ## Unverified in game (code and unit tests only)

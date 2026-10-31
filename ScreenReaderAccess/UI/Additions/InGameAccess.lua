@@ -79,6 +79,7 @@ end
 function Hub.EnterFallback()
 	if not Hub.IsUnitOrdersLabel( m_enterLabel ) then return; end
 	if HubAnnounce.ConfirmPending( UI.GetElapsedTime() ) then return; end		-- a chooser's confirm: its result line comes, not the unit line
+	if HubAnnounce.ChooserOwnsEnter( UI.GetInterfaceMode() ) then return; end		-- a chooser list or its confirm prompt took the Enter and speaks for it
 	local unit:table = UI.GetHeadSelectedUnit();
 	if unit ~= nil and Hub.ReopenSpyChooser( unit ) then return; end
 	if unit ~= nil then
