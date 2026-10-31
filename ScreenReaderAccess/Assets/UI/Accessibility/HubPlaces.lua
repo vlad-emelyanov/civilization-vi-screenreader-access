@@ -106,6 +106,38 @@ end
 -- The game adds the explore operation to a unit that is told to explore, and again every turn and after a load, so the flag
 -- survives a hot reload. An order the player gives that unit (cancel, wake, move ...) ends it; the game's own events within
 -- half a second of the flag do not (the explore order may start a move of its own).
+-- THE one place that decides whether an exploring unit still is exploring (UNVERIFIED in game: which activity an
+-- auto-exploring unit reports; ACTIVITY_OPERATION is the guess, see docs/backlog.md "Unverified in game").
+local function ExploreStillActive( unit:table )
+	local ok:boolean, activity = pcall( UnitManager.GetActivityType, unit );
+	if not ok or activity == nil or ActivityTypes == nil then return true; end		-- unknown: keep the flag
+	return activity == ActivityTypes.ACTIVITY_OPERATION;
+end
+
+local EXPLORE_END_CHECKS	:number = 20;		-- consecutive polls (about 2 s) that must agree before "finished exploring"
+local m_exploreEnded		:table = {};		-- unit id -> polls in a row that found the unit no longer exploring
+
+-- Polled from Update: a unit whose auto-explore stopped (nothing left to explore) clears the flag and says so once.
+local function CheckExplorersEnded()
+	local player:number = Game.GetLocalPlayer();
+	for unitID, since in pairs( m_explorers ) do
+		local unit:table = UnitManager.GetUnit( player, unitID );
+		if unit == nil then
+			m_explorers[ unitID ] = nil;		-- dead or upgraded away: nothing to say
+			m_exploreEnded[ unitID ] = nil;
+		elseif UI.GetElapsedTime() - since > 1 and not ExploreStillActive( unit ) then
+			m_exploreEnded[ unitID ] = ( m_exploreEnded[ unitID ] or 0 ) + 1;
+			if m_exploreEnded[ unitID ] >= EXPLORE_END_CHECKS then
+				m_explorers[ unitID ] = nil;
+				m_exploreEnded[ unitID ] = nil;
+				OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " finished exploring", true );
+			end
+		else
+			m_exploreEnded[ unitID ] = nil;
+		end
+	end
+end
+
 function HubPlaces.OnOperationAdded( owner:number, unitID:number, hOperation:number, operationIndex:number )
 	if owner ~= Game.GetLocalPlayer() then return; end
 	local row:table = GameInfo.UnitOperations[ operationIndex ];
@@ -1057,6 +1089,7 @@ function HubPlaces.Update( deltaTime:number )
 	if m_campTimer > 0 then return; end
 	m_campTimer = CAMP_POLL_SECONDS;
 	HubPlaces.PushCampState( false );
+	CheckExplorersEnded();
 	-- remembered camps in view: their guards are refreshed, and only then is the treasury sampled (the baseline of a destroyed camp's gold)
 	local campInView:boolean = false;
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
