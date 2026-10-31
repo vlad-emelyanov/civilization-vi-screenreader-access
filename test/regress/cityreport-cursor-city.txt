@@ -1,0 +1,16 @@
+# Verified 2026-10-31: Control+I reports the own city under the map cursor, else the selected city.
+# covers: **/HubCityReport.lua
+# no-share-load: selects a city and moves the cursor by hand
+load pt-t103
+clear-advisors
+lua InGameAccess UI.SelectCity(CityManager.GetCityAt(63,30))
+# the hub moves the cursor to a new selection a moment later: set the cursor in a second step
+lua InGameAccess HubCursor.SetCursor(59,31,false,false,true,true)
+action KeyNavCityReport -Settle 2500
+expect ^Rome report
+key Escape -Settle 800
+lua InGameAccess HubCursor.SetCursor(60,31,false,false,true,true)
+action KeyNavCityReport -Settle 2500
+expect ^Ostia report
+key Escape -Settle 800
+no-lua-errors
