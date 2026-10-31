@@ -16,9 +16,70 @@ function HubEvents.OnUnitOperationStarted( ownerID:number, unitID:number, operat
 	if ownerID ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end
 	local row:table = GameInfo.UnitOperations[ operationID ];
 	if row == nil then return; end
+	if row.OperationType == "UNITOPERATION_SPREAD_RELIGION" or row.OperationType == "UNITOPERATION_CONVERT_BARBARIANS" then
+		HubEvents.ReligiousOrderResult( row.OperationType, unitID );
+		return;
+	end
 	local text = HubMenus.OPERATION_RESULTS[ row.OperationType ];
 	if type( text ) == "function" then text = text( unitID ); end
 	if text ~= nil then HubCore.SayResult( text ); end
+end
+
+-- Spread Religion / Convert Barbarians: the game says nothing, so we tell the outcome a moment later from the unit's state.
+-- Spread: the religion (unit:GetReligionType) and the city (Cities.GetPlotPurchaseCity of the unit's plot) are read at once, the charges
+-- (unit:GetSpreadCharges) after 0.8 s (the unit is gone when the last one was used = 0 left). Convert: the barbarian units on the plots
+-- within 1 tile are listed at once and again after 0.8 s; the ones that are gone from the barbarian side changed sides.
+function HubEvents.ReligiousOrderResult( operationType:string, unitID:number )
+	local owner:number = Game.GetLocalPlayer();
+	local unit:table = Players[ owner ]:GetUnits():FindID( unitID );
+	if unit == nil then return; end
+	local ux:number, uy:number = unit:GetX(), unit:GetY();
+	local religion:string, city:string = nil, nil;
+	local before:table = {};
+	pcall( function()
+		if operationType == "UNITOPERATION_SPREAD_RELIGION" then
+			local religionType = unit:GetReligionType();
+			if religionType ~= nil and religionType > 0 and GameInfo.Religions[ religionType ] ~= nil then
+				religion = Locale.Lookup( Game.GetReligion():GetName( religionType ) );
+			end
+			local owning = Cities.GetPlotPurchaseCity( Map.GetPlot( ux, uy ) );
+			if owning ~= nil then city = Locale.Lookup( owning:GetName() ); end
+		else
+			HubEvents.ForEachBarbarianNear( ux, uy, function( other ) before[ other:GetOwner() .. ":" .. other:GetID() ] = PlotDescription_GetUnitName( other ); end );
+		end
+	end );
+	HubCore.After( 0.8, function()
+		local same:table = Players[ owner ]:GetUnits():FindID( unitID );
+		local left:number = ( same ~= nil ) and same:GetSpreadCharges() or 0;
+		if operationType == "UNITOPERATION_SPREAD_RELIGION" then
+			HubCore.SayResult( ReligionText_SpreadResult( religion, city, left ) );
+			return;
+		end
+		local after:table = {};
+		pcall( function()
+			HubEvents.ForEachBarbarianNear( ux, uy, function( other ) after[ other:GetOwner() .. ":" .. other:GetID() ] = true; end );
+		end );
+		local names:table = {};
+		for key, name in pairs( before ) do
+			if not after[ key ] then table.insert( names, name ); end
+		end
+		table.sort( names );
+		HubCore.SayResult( ReligionText_ConvertResult( names, left ) );
+	end );
+end
+
+function HubEvents.ForEachBarbarianNear( x:number, y:number, fn )
+	for dy = -1, 1 do
+		for dx = -1, 1 do
+			local plot:table = Map.GetPlot( x + dx, y + dy );
+			if plot ~= nil and Map.GetPlotDistance( x, y, plot:GetX(), plot:GetY() ) <= 1 then
+				for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+					local player:table = Players[ other:GetOwner() ];
+					if player ~= nil and player:IsBarbarian() then fn( other ); end
+				end
+			end
+		end
+	end
 end
 
 -- Automate Exploration starts no operation event (UnitOperationStarted); the game only adds the operation.

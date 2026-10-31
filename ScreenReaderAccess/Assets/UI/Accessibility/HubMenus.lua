@@ -118,6 +118,7 @@ HubMenus.OPERATION_RESULTS.UNITOPERATION_DEPLOY = function() return CursorTarget
 local RESULT_SILENT = {
 	UNITOPERATION_FOUND_CITY = true, UNITOPERATION_BUILD_IMPROVEMENT = true, UNITCOMMAND_UPGRADE = true, PROMOTION = true,
 	UNITOPERATION_MOVE_TO = true, UNITCOMMAND_PROMOTE = true,
+	UNITOPERATION_SPREAD_RELIGION = true, UNITOPERATION_CONVERT_BARBARIANS = true,		-- HubEvents.ReligiousOrderResult tells the outcome
 	UNITCOMMAND_DELETE = true,		-- the yes/no popup announces itself; Escape/No says "Delete cancelled" (UnitPanel.OnNoDelete)
 };
 

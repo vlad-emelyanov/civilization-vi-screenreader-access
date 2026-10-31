@@ -23,6 +23,7 @@ include( "LensText" );		-- map lenses (number keys): on/off and legend, lens val
 include( "PlacementScan" );		-- city: where a district or wonder can go
 include( "StandingText" );		-- standing among the known civs (V list numbers, Control+R)
 include( "TopPanelData" );		-- top panel values as sentences (Control+Y, Control+G)
+include( "ReligionText" );		-- results of Spread Religion / Convert Barbarians (HubEvents)
 -- City report (Control+I): CityReportGather includes the game's CitySupport (GetCityData), which is heavy and may fail in
 -- a ruleset: a failure here only loses the report, never the rest of the hub.
 Hub.m_cityReportLoaded = pcall( function()
