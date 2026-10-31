@@ -1,0 +1,7 @@
+turn: 171
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain end
+mod commit: 85fdfa5
+created: 2026-10-31
+size: 1563 KB
