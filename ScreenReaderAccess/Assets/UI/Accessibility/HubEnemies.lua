@@ -814,10 +814,12 @@ function HubEnemies.CityDangerDecision( info:table )
 end
 
 -- Pure: speak again only when the count rises or the health falls (state: { count, health } of the last line, nil: not spoken yet).
--- Returns whether to speak and the state to keep (always the current values, so a fall and a new rise speak again).
-function HubEnemies.CityDangerRepeat( state:table, count:number, health:number )
+-- Returns whether to speak and the state to keep: the last ANNOUNCED count and health, so units oscillating around the threshold do not repeat it.
+function HubEnemies.CityDangerRepeat( state:table, count:number, health:number, turn:number )
 	local speak:boolean = state == nil or count > state.count or health < state.health;
-	return speak, { count = count, health = health };
+	if speak then return true, { count = count, health = health, turn = turn }; end
+	state.turn = turn;
+	return false, state;
 end
 
 -- info: { cityName, count, civs = { "Egypt" }, siegeNames = { "Catapult" }, defense, wallsText, healthText, hint }
@@ -908,7 +910,7 @@ function HubEnemies.SpeakCityDanger( nointerrupt:boolean )
 	for _, entry in ipairs( HubEnemies.ScanCityDanger() ) do
 		local id:number = entry.city:GetID();
 		live[ id ] = true;
-		local speak:boolean, state:table = HubEnemies.CityDangerRepeat( HubEnemies.m_cityDanger[ id ], entry.count, entry.health );
+		local speak:boolean, state:table = HubEnemies.CityDangerRepeat( HubEnemies.m_cityDanger[ id ], entry.count, entry.health, Game.GetCurrentGameTurn() );
 		if speak and spoken < DANGER_MAX_CITIES then
 			spoken = spoken + 1;
 			HubEnemies.m_cityDanger[ id ] = state;
@@ -919,8 +921,9 @@ function HubEnemies.SpeakCityDanger( nointerrupt:boolean )
 			HubEnemies.m_cityDanger[ id ] = state;
 		end
 	end
-	for id in pairs( HubEnemies.m_cityDanger ) do
-		if not live[ id ] then HubEnemies.m_cityDanger[ id ] = nil; end
+	-- a city out of danger is remembered for 5 turns (a pair of units stepping in and out of range does not repeat the line)
+	for id, state in pairs( HubEnemies.m_cityDanger ) do
+		if not live[ id ] and Game.GetCurrentGameTurn() - ( state.turn or 0 ) > 5 then HubEnemies.m_cityDanger[ id ] = nil; end
 	end
 end
 

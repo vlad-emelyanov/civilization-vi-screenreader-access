@@ -244,15 +244,17 @@ test("city danger decision: strength, siege, damaged city with an enemy next to 
 end)
 
 test("city danger repeats only when the count rises or the health falls", function()
-	local speak, state = HubEnemies.CityDangerRepeat(nil, 3, 300)
+	local speak, state = HubEnemies.CityDangerRepeat(nil, 3, 300, 10)
 	eq(speak, true)
-	speak, state = HubEnemies.CityDangerRepeat(state, 3, 300)
+	speak, state = HubEnemies.CityDangerRepeat(state, 3, 300, 11)
 	eq(speak, false)
-	speak, state = HubEnemies.CityDangerRepeat(state, 2, 300)
+	speak, state = HubEnemies.CityDangerRepeat(state, 2, 300, 12)
 	eq(speak, false)
-	speak, state = HubEnemies.CityDangerRepeat(state, 3, 300)		-- the count rose again
+	speak, state = HubEnemies.CityDangerRepeat(state, 3, 300, 13)		-- back to the announced count: silent
+	eq(speak, false)
+	speak, state = HubEnemies.CityDangerRepeat(state, 4, 300, 13)		-- more units than announced
 	eq(speak, true)
-	speak, state = HubEnemies.CityDangerRepeat(state, 3, 250)		-- health fell
+	speak, state = HubEnemies.CityDangerRepeat(state, 3, 250, 14)		-- health fell
 	eq(speak, true)
 end)
 

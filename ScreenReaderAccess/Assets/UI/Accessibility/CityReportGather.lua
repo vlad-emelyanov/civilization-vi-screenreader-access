@@ -76,6 +76,7 @@ end
 -- Border growth: the same calls as CityPanel.DisplayGrowthTile (GetNextPlot is -1 when no plot is left to claim). nextTile: where it is and
 -- what is on it, in the short plot form. nil without the culture capability.
 local function GatherBorders( pCity:table )
+	if not GameCapabilities.HasCapability( "CAPABILITY_CULTURE" ) then return nil; end
 	local culture:table = pCity:GetCulture();
 	if culture == nil then return nil; end
 	local b:table = {
