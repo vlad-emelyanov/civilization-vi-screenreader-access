@@ -1,0 +1,14 @@
+# Verified in game 2026-10-31. A Crossbowman in Rome (bug-ranged-unit-cannot-fire-in-city): the engine refuses every ranged attack
+# of a unit standing in a city center (CanStartOperation false, no targets, with or without enemies), so the reason says that, not
+# "no enemy it can target in range".
+# covers: **/UnitPanel.lua **/HubTargets.lua
+load bug-ranged-unit-cannot-fire-in-city
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_CROSSBOWMAN" then UI.DeselectAllUnits() UI.SelectUnit(u) end end
+wait Crossbowman -Timeout 10
+action RangedAttack -Settle 1500
+expect ^Cannot ranged attack: a unit inside a city cannot ranged attack, step out first
+action Attack -Settle 1500
+expect ^Ranged attack\. A unit inside a city cannot ranged attack, step out first\. .* to cancel
+key Escape -Settle 800
+no-lua-errors

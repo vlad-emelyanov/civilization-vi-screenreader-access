@@ -4347,9 +4347,18 @@ local function SRTypeName( hash:number )
 	return "";
 end
 
+local function SRIsAirUnit( unit:table )
+	local row = GameInfo.Units[ unit:GetUnitType() ];
+	return row ~= nil and row.Domain == "DOMAIN_AIR";
+end
+
 -- The engine gives no failure reason for a ranged / air attack that has no target: say what it is.
 local function SRRangedAttackReason( unit:table )
 	if unit:GetMovesRemaining() <= 0 then return "no moves left"; end
+	-- the engine refuses every ranged attack of a unit that stands in a city center (CanStartOperation false, no targets, with or
+	-- without enemies; verified for Archer, Crossbowman, Catapult in two saves): not a matter of targets
+	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+	if plot ~= nil and plot:IsCity() and not SRIsAirUnit( unit ) then return "a unit inside a city cannot ranged attack, step out first"; end
 	return "no enemy it can target in range";
 end
 
