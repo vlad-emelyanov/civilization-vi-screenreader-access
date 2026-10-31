@@ -447,6 +447,8 @@ end
 HubCore.Listen( LuaEvents.ProductionPanel_Open, HubCityReport.OnProductionPanelOpen );
 HubCore.Listen( LuaEvents.SRA_ProductionEscape, HubCityReport.OnProductionEscape );
 HubCore.Listen( LuaEvents.ProductionPanel_Close, HubCityReport.OnProductionPanelClose );
+-- The production panel has no timer: it asks for a check one second after a queue edit (refused edits raise no event).
+HubCore.Listen( LuaEvents.SRA_QueueOpCheck, function( id ) HubCore.After( 1.0, function() LuaEvents.SRA_QueueOpChecked( id ); end ); end );
 
 -- Control+I and the controller's Y: your city on the cursor tile comes before the selected one (the argument the key handler
 -- may pass is ignored).

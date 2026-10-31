@@ -598,6 +598,7 @@ end
 function Close()
 	if (Controls.SlideIn:IsStopped()) then			-- Need to check to make sure that we have not already begun the transition before attempting to close the panel.
 		m_srActive = false;							-- ScreenReaderAccess
+		m_srQueueOp = nil;							-- ScreenReaderAccess
 		m_srPlacementKey = nil;						-- ScreenReaderAccess
 		m_srAnnouncePending = false;				-- ScreenReaderAccess
 		m_srData = nil;								-- ScreenReaderAccess
@@ -634,6 +635,7 @@ function Open()
 		m_srAnnouncePending = true;				-- ScreenReaderAccess
 		m_srData = nil;							-- ScreenReaderAccess
 		m_srPending = nil;						-- ScreenReaderAccess
+		m_srQueueOp = nil;						-- ScreenReaderAccess
 		-- ScreenReaderAccess: an open city overview (CityPanelOverview) would swallow the first Escape (its own input handler
 		-- closes the overview silently), so the production panel would seem to ignore it. Close the overview first.
 		LuaEvents.CityPanel_ShowOverviewPanel( false );
@@ -2770,7 +2772,7 @@ function SRA_Queue.Entries( city:table )
 				key = ProductionText_QueueKey( typeKey, seen[ typeKey ] ),
 				typeKey = typeKey,
 				name = name or Locale.Lookup( row.Name ),
-				position = #entries,
+				position = i,
 				row = row,
 			} );
 		end
@@ -2917,7 +2919,7 @@ function SRA_Queue.Focused()
 			break;
 		end
 	end
-	OutputMessageToScreenReader( "Not a queue entry. The Queue tab lists the queue first" );
+	OutputMessageToScreenReader( "Only queue entries move. The Queue tab lists them" );
 	return nil;
 end
 
@@ -2930,7 +2932,8 @@ function SRA_Queue.Resolve( fromEvent:boolean )
 	local signature:string = "";
 	for _, entry in ipairs( entries ) do signature = signature .. entry.key .. "|"; end
 	if op.kind == "move" then
-		if not fromEvent and signature == op.before then return; end
+		-- unchanged order = refused (swapping two entries of one type changes nothing visible, that one counts as done)
+		if signature == op.before and not op.sameType then return; end
 		m_srQueueOp = nil;
 		if entries[ op.to + 1 ] ~= nil then m_srList.Open( "", entries[ op.to + 1 ].key, true, true ); end		-- focus follows the moved entry
 		OutputMessageToScreenReader( ProductionText_QueueMoved( op.name, op.to, #entries ) );
@@ -2941,6 +2944,20 @@ function SRA_Queue.Resolve( fromEvent:boolean )
 		if focus ~= nil and entries[ focus + 1 ] ~= nil then m_srList.Open( "", entries[ focus + 1 ].key, true, true ); else m_srList.Reset(); end
 		OutputMessageToScreenReader( ProductionText_QueueRemoved( op.name, #entries ) );
 	end
+end
+
+-- A refused swap / remove raises no event: the hub answers SRA_QueueOpCheck after a second, and an edit still waiting then was refused.
+local m_srQueueOpId:number = 0;
+function SRA_Queue.Arm()
+	m_srQueueOpId = m_srQueueOpId + 1;
+	m_srQueueOp.id = m_srQueueOpId;
+	LuaEvents.SRA_QueueOpCheck( m_srQueueOpId );
+end
+function SRA_Queue.OnChecked( id:number )
+	local op:table = m_srQueueOp;
+	if op == nil or op.id ~= id then return; end
+	m_srQueueOp = nil;
+	OutputMessageToScreenReader( ( op.kind == "move" and "Can't move " or "Can't remove " ) .. op.name );
 end
 
 -- Control+Up / Control+Down: the game's own swap with the neighbour (what its queue buttons do).
@@ -2954,7 +2971,10 @@ function SRA_Queue.Move( delta:number )
 	local signature:string = "";
 	for _, entry in ipairs( SRA_Queue.Entries( city ) ) do signature = signature .. entry.key .. "|"; end
 	m_srPending = nil;
-	m_srQueueOp = { kind = "move", name = item.name, to = target, before = signature };
+	local entries:table = SRA_Queue.Entries( city );
+	local sameType:boolean = entries[ item.queueIndex + 1 ] ~= nil and entries[ target + 1 ] ~= nil and entries[ item.queueIndex + 1 ].typeKey == entries[ target + 1 ].typeKey;
+	m_srQueueOp = { kind = "move", name = item.name, to = target, before = signature, sameType = sameType };
+	SRA_Queue.Arm();
 	SwapQueueItem( item.queueIndex, target );
 	SRA_Queue.Resolve( false );
 end
@@ -2967,6 +2987,7 @@ function SRA_Queue.Remove()
 	if item == nil then return; end
 	m_srPending = nil;
 	m_srQueueOp = { kind = "remove", name = item.name, from = item.queueIndex, size = item.queueSize };
+	SRA_Queue.Arm();
 	RemoveQueueItem( item.queueIndex );
 	SRA_Queue.Resolve( false );
 end
@@ -3784,6 +3805,7 @@ function Initialize()
 	ContextPtr:SetShutdown( OnShutdown );
 
 	SRListen( Events.CityProductionQueueChanged, OnCityProductionQueueChanged );
+	SRListen( LuaEvents.SRA_QueueOpChecked, SRA_Queue.OnChecked );		-- ScreenReaderAccess
 	SRListen( Events.TreasuryChanged, SRA_OnBalanceChanged );		-- ScreenReaderAccess
 	SRListen( Events.FaithChanged, SRA_OnBalanceChanged );		-- ScreenReaderAccess
 	SRListen( Events.CitySelectionChanged, OnCitySelectionChanged );
