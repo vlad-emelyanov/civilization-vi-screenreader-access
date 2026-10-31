@@ -19,6 +19,7 @@ local function city()
 		growth = { occupied = false, turnsUntilGrowth = 11, housingMultiplier = 1, housing = 14, foodPerTurn = 9, foodNeeded = 30,
 			happinessGrowthModifier = 0, otherGrowthModifier = 0, occupationMultiplier = 0, housingAdvice = "",
 			housingSources = { fromBuildings = 2, fromWater = 3, fromCivics = 0 } },
+		borders = { turns = 4, perTurn = 3, current = 18, cost = 40, none = false, nextTile = "2 tiles north-east, Hills, Iron" },
 		amenities = { have = 3, needed = 2, mood = "Content", growthPercent = 0, yieldPercent = 0, advice = "",
 			sources = { { label = "luxuries", value = 4 }, { label = "civics", value = 0 } }, losses = { { label = "war weariness", value = -1 } } },
 		defense = { hp = 200, hpMax = 200, wall = 100, wallMax = 100, strength = 28, underSiege = false },
@@ -39,11 +40,11 @@ local function find(items, key)
 	for _, item in ipairs(items) do if item.key == key then return item end end
 end
 
-test("a base game city gives 8 items in order", function()
+test("a base game city gives 9 items in order", function()
 	local items = CityReport_BuildItems(city())
 	local keys = {}
 	for i, item in ipairs(items) do keys[i] = item.key end
-	eq(table.concat(keys, ","), "yields,growth,amenities,religion,defense,production,districts,citizens")
+	eq(table.concat(keys, ","), "yields,growth,borders,amenities,religion,defense,production,districts,citizens")
 	for _, item in ipairs(items) do
 		istrue(item.text ~= nil and item.text ~= "", item.key .. " has text")
 		istrue(item.detail ~= nil and item.detail ~= "", item.key .. " has detail")
@@ -177,7 +178,7 @@ test("religion comes right after loyalty", function()
 	d.loyalty = { current = 100, max = 100, perTurn = 8, level = "Loyal", sources = {}, influence = {} }
 	local keys = {}
 	for i, item in ipairs(CityReport_BuildItems(d)) do keys[i] = item.key end
-	eq(table.concat(keys, ","), "yields,growth,amenities,loyalty,religion,defense,production,districts,citizens")
+	eq(table.concat(keys, ","), "yields,growth,borders,amenities,loyalty,religion,defense,production,districts,citizens")
 end)
 
 test("power: underpowered, powered, none needed, generates only, absent", function()
@@ -221,7 +222,7 @@ test("power comes right after loyalty", function()
 	d.power = { current = 2, required = 2, generatedTotal = 0, status = "powered" }
 	local keys = {}
 	for i, item in ipairs(CityReport_BuildItems(d)) do keys[i] = item.key end
-	eq(table.concat(keys, ","), "yields,growth,amenities,loyalty,power,religion,defense,production,districts,citizens")
+	eq(table.concat(keys, ","), "yields,growth,borders,amenities,loyalty,power,religion,defense,production,districts,citizens")
 end)
 
 test("great works and trading posts are optional items", function()
@@ -297,4 +298,20 @@ test("district and focus lines, totals", function()
 	eq(f[3].text, "Ignore food, off")
 	eq(f[4].text, "Ignore gold, on")
 	eq(CityManage_Totals(city()), "Food plus 4, production 12")
+end)
+
+test("borders: turns, detail with the next tile, fully grown, no culture", function()
+	local item = find(CityReport_BuildItems(city()), "borders")
+	eq(item.text, "Borders: next tile in 4 turns")
+	eq(item.detail, "Culture plus 3 per turn. 18 of 40 culture for the next tile. Next tile: 2 tiles north-east, Hills, Iron")
+	local d = city(); d.borders.turns = 1
+	eq(find(CityReport_BuildItems(d), "borders").text, "Borders: next tile in 1 turn")
+	d = city(); d.borders.none = true
+	eq(find(CityReport_BuildItems(d), "borders").text, "Borders: fully grown")
+	d = city(); d.borders.turns = -1; d.borders.perTurn = 0
+	eq(find(CityReport_BuildItems(d), "borders").text, "Borders: not growing, no culture")
+	d = city(); d.borders.turns = 99999
+	eq(find(CityReport_BuildItems(d), "borders").text, "Borders: not growing, no culture")
+	d = city(); d.borders = nil
+	eq(find(CityReport_BuildItems(d), "borders"), nil)
 end)

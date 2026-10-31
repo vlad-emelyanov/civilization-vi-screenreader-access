@@ -1,0 +1,18 @@
+# Written blind (not yet recorded). Shift+I (KeyNavUnitDetails) reads the stats of the units on the cursor tile, else the selected unit; a foreign unit says what its tooltip shows (owner, level, strengths, health). The detailed tile text (I) gives a foreign unit's strength and a city's strength, walls and health. The barbarian Archer is created next to the capital by the tuner.
+# covers: **/UnitDetails.lua **/HubCursor.lua **/PlotDescription.lua
+# no-share-load: creates a barbarian unit and moves the cursor by hand
+load early-t60
+clear-advisors
+lua GameCore_Tuner local c=Players[0]:GetCities():GetCapitalCity(); local b=nil; for i=0,63 do if Players[i] and Players[i]:IsBarbarian() then b=Players[i] end end; for dy=-2,2 do for dx=-2,2 do local pl=Map.GetPlot(c:GetX()+dx,c:GetY()+dy); if b and pl and not pl:IsWater() and not pl:IsImpassable() and pl:GetUnitCount()==0 and not pl:IsCity() then b:GetUnits():Create(GameInfo.Units["UNIT_ARCHER"].Index, pl:GetX(), pl:GetY()) return 1 end end end return 0
+lua InGameAccess for i=0,63 do if Players[i] and Players[i]:IsBarbarian() then for _,u in Players[i]:GetUnits():Members() do HubCursor.SetCursor(u:GetX(),u:GetY(),false,false,true,true) end end end
+action KeyNavUnitDetails -Settle 1500
+expect ^Barbarian Archer, level \d+\. Strength \d+\. Ranged \d+, range \d+\. Health 100 of 100
+action KeyNavPlotDetails -Settle 1500
+expect Barbarian Archer, strength \d+, ranged \d+
+lua InGameAccess local c=Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(),c:GetY(),false,false,true,true)
+action KeyNavPlotDetails -Settle 1500
+expect , city, strength \d+.*health \d+ of \d+|capital, strength \d+.*health \d+ of \d+
+lua InGameAccess UI.DeselectAllUnits()
+action KeyNavUnitDetails -Settle 1500
+expect \d+ of \d+ moves|Strength \d+|No unit here
+no-lua-errors

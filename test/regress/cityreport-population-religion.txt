@@ -9,6 +9,8 @@ key Down -Settle 800
 expect ^Population \d+ of \d+ housing
 expect-not housing \d+ of \d+, \d+ of \d+$
 key Down -Settle 800
+expect ^Borders: 
+key Down -Settle 800
 expect ^Amenities \d+ of \d+
 key Down -Settle 800
 expect ^Loyalty \d+

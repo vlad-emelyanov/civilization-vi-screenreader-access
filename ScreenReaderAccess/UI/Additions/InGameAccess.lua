@@ -294,6 +294,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavJumpCellUp",		function() HubCursor.MoveCursor( 0, 1, 5 ); end );
 	Hub.RegisterAction( "KeyNavJumpCellDown",		function() HubCursor.MoveCursor( 0, -1, 5 ); end );
 	Hub.RegisterAction( "KeyNavPlotDetails",		HubCursor.SpeakPlotDetails );
+	Hub.RegisterAction( "KeyNavUnitDetails",		HubCursor.SpeakUnitDetails );
 	Hub.RegisterAction( "KeyNavCursorToSelection",	HubCursor.CursorToSelection );
 	Hub.RegisterAction( "KeyNavWhatsNext",			HubAnnounce.SpeakWhatsNext );
 	Hub.RegisterAction( "KeyNavUnitActions",		Hub.UnitActionsKey );

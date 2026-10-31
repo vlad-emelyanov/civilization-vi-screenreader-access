@@ -4,6 +4,7 @@
 --------------------------------------------------------------
 
 include( "ResourceTech" );
+include( "UnitDetails" );
 
 local ROOT3_2:number = 0.8660254;	-- row height of the hex grid in units of the plot width
 
@@ -224,13 +225,18 @@ function PlotDescription_GetCivName( playerId:number )
 	return _CivName(playerId);
 end
 
-local function _UnitsText( plot:table, excludeUnitId:number )
+-- withStrength (the detailed read): a foreign unit also says its strength ("Egyptian Archer, strength 15"), as the game's unit tooltip shows it.
+local function _UnitsText( plot:table, excludeUnitId:number, withStrength:boolean )
 	local parts:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
 	for _, unit in ipairs(Units.GetUnitsInPlot(plot)) do
 		if (excludeUnitId == nil or unit:GetID() ~= excludeUnitId or unit:GetOwner() ~= localPlayer) and PlotDescription_IsUnitVisible(unit) then
 			local text:string = PlotDescription_GetUnitName(unit);
 			if PlotDescription_IsEmbarked(unit) then text = text .. ", embarked"; end
+			if withStrength and unit:GetOwner() ~= localPlayer then
+				local strength:string = UnitDetails_ShortStrength( unit:GetCombat(), unit:GetRangedCombat(), unit:GetBombardCombat() );
+				if strength ~= nil then text = text .. ", " .. strength; end
+			end
 			local damage:number = unit:GetDamage();
 			if damage > 0 then
 				text = text .. " " .. (unit:GetMaxDamage() - damage) .. " of " .. unit:GetMaxDamage() .. " health";
@@ -415,6 +421,16 @@ local function _OwnerText( plot:table )
 	return _CivName(owner);
 end
 
+-- "strength 28, walls 100 of 100, health 200 of 200" of a city (the numbers the city banner shows), or nil. Same district calls as the
+-- city attack reasons (HubTargets.CityAttackReason).
+function PlotDescription_CityDefense( city:table )
+	local district:table = CityManager.GetDistrictAt( city:GetX(), city:GetY() );
+	if district == nil then return nil; end
+	return UnitDetails_CityDefenseText( math.floor( district:GetDefenseStrength() + 0.5 ),
+		district:GetDamage( DefenseTypes.DISTRICT_OUTER ), district:GetMaxDamage( DefenseTypes.DISTRICT_OUTER ),
+		district:GetDamage( DefenseTypes.DISTRICT_GARRISON ), district:GetMaxDamage( DefenseTypes.DISTRICT_GARRISON ) );
+end
+
 -- ===========================================================================
 --	Short description
 -- ===========================================================================
@@ -460,13 +476,17 @@ function PlotDescription_GetShort( plot:table, options:table )
 			else
 				text = text .. ", city";
 			end
+			if options.detailed == true and visibility == "visible" then
+				local okDefense:boolean, defense = pcall(PlotDescription_CityDefense, city);
+				if okDefense and defense ~= nil then text = text .. ", " .. defense; end
+			end
 			table.insert(parts, text);
 		end
 	end
 
 	-- Units (only what is visible right now)
 	if visibility == "visible" then
-		for _, text in ipairs(_UnitsText(plot, options.excludeUnitId)) do table.insert(parts, text); end
+		for _, text in ipairs(_UnitsText(plot, options.excludeUnitId, options.detailed == true)) do table.insert(parts, text); end
 	end
 
 	if targetInfo ~= nil then
@@ -520,7 +540,9 @@ end
 function PlotDescription_GetDetailed( plot:table, options:table )
 	if plot == nil then return "Edge of the map"; end
 	local visibility:string = PlotDescription_GetVisibility(plot);
-	local parts:table = { PlotDescription_GetShort(plot, options) };
+	local detailedOptions:table = { detailed = true };
+	for key, value in pairs(options or {}) do detailedOptions[key] = value; end
+	local parts:table = { PlotDescription_GetShort(plot, detailedOptions) };
 	if visibility == "unexplored" then
 		table.insert(parts, "coordinates " .. plot:GetX() .. ", " .. plot:GetY());
 		return table.concat(parts, ". ");

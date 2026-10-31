@@ -232,3 +232,38 @@ test("civilian risk: not in a city, ships cannot take a civilian on land", funct
 	eq(HubEnemies.CivilianAtRisk(false, true, true), true)		-- embarked civilian
 	eq(HubEnemies.CivilianAtRisk(false, false, false), true)
 end)
+
+test("city danger decision: strength, siege, damaged city with an enemy next to it", function()
+	eq(select(1, HubEnemies.CityDangerDecision({ count = 1, siege = 0, strength = 60, defense = 28, adjacent = 0 })), false)		-- one unit alone is no danger
+	eq(select(1, HubEnemies.CityDangerDecision({ count = 3, siege = 0, strength = 60, defense = 28, adjacent = 0 })), true)
+	eq(select(1, HubEnemies.CityDangerDecision({ count = 2, siege = 0, strength = 40, defense = 28, adjacent = 0 })), false)		-- 40 does not clearly exceed 28 * 1.5
+	eq(select(1, HubEnemies.CityDangerDecision({ count = 1, siege = 1, strength = 50, defense = 28, adjacent = 0 })), true)
+	eq(select(1, HubEnemies.CityDangerDecision({ count = 1, siege = 0, strength = 10, defense = 28, adjacent = 1, damaged = true })), true)
+	eq(select(1, HubEnemies.CityDangerDecision({ count = 1, siege = 0, strength = 10, defense = 28, adjacent = 0, damaged = true })), false)
+	eq(select(1, HubEnemies.CityDangerDecision({ count = 0 })), false)
+end)
+
+test("city danger repeats only when the count rises or the health falls", function()
+	local speak, state = HubEnemies.CityDangerRepeat(nil, 3, 300, 10)
+	eq(speak, true)
+	speak, state = HubEnemies.CityDangerRepeat(state, 3, 300, 11)
+	eq(speak, false)
+	speak, state = HubEnemies.CityDangerRepeat(state, 2, 300, 12)
+	eq(speak, false)
+	speak, state = HubEnemies.CityDangerRepeat(state, 3, 300, 13)		-- back to the announced count: silent
+	eq(speak, false)
+	speak, state = HubEnemies.CityDangerRepeat(state, 4, 300, 13)		-- more units than announced
+	eq(speak, true)
+	speak, state = HubEnemies.CityDangerRepeat(state, 3, 250, 14)		-- health fell
+	eq(speak, true)
+end)
+
+test("city danger wording", function()
+	eq(HubEnemies.CityDangerText{ cityName = "Rome", count = 3, civs = { "Egypt" }, siegeNames = {}, defense = 28, wallsText = "walls 50 of 100",
+		hint = "Control+I" },
+		"Rome in danger: 3 units of Egypt within 3 tiles, city strength 28, walls 50 of 100. Control+I for the city")
+	eq(HubEnemies.CityDangerText{ cityName = "Ostia", count = 1, civs = { "Egypt" }, siegeNames = { "Catapult" }, healthText = "health 120 of 200" },
+		"Ostia in danger: 1 unit of Egypt within 3 tiles, including Catapult, health 120 of 200")
+	eq(HubEnemies.CityDangerText{ cityName = "Rome", count = 4, civs = { "Egypt", "Greece" } },
+		"Rome in danger: 4 hostile units within 3 tiles")
+end)

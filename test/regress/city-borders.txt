@@ -1,0 +1,17 @@
+# Written blind (not yet recorded). The city report has a Borders item right after Population: turns until the next tile; Space tells culture per turn, progress and where the border grows next.
+# covers: **/CityReportData.lua **/CityReportGather.lua
+# no-share-load: opens the city report
+load early-t60
+clear-advisors
+action CapitalCity -Settle 1500
+key Control+I -Settle 2500
+expect ^.+ report, \d+ options
+key Down -Settle 800
+expect ^Population \d+ of \d+ housing
+key Down -Settle 800
+expect ^Borders: (next tile in \d+ turns?|next tile next turn|fully grown|not growing, no culture), 3 of \d+
+key Space -Settle 1500
+expect Culture (plus|minus) [\d.]+ per turn|no tile left to claim
+key Escape -Settle 1500
+expect ^Closed
+no-lua-errors

@@ -7,7 +7,8 @@ clear-advisors
 action CapitalCity -Settle 1500
 key Control+I -Settle 2500
 expect ^.+ report, \d+ options
-# the item follows the Districts item (yields, growth, amenities, [loyalty,] defense, production, districts)
+# the item follows the Districts item (yields, growth, borders, amenities, [loyalty,] defense, production, districts)
+key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
 key Down -Settle 800
