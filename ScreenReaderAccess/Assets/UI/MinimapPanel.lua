@@ -1,6 +1,7 @@
 -- Copyright 2016-2018, Firaxis Games
 include( "InstanceManager" );
 include("GameCapabilities");
+include( "ScreenReader" );		-- ScreenReaderAccess
 
 
 -- ===========================================================================
@@ -771,6 +772,13 @@ end
 --	Game Engine Event
 -- ===========================================================================
 function OnInterfaceModeChanged(eOldMode:number, eNewMode:number)
+	-- Begin ScreenReaderAccess mod change: the full-screen map (End, or the minimap button) used to open and close silently
+	if eNewMode == InterfaceModeTypes.FULLSCREEN_MAP then
+		OutputMessageToScreenReader( "Full-screen map. " .. SRKey( "Escape" ) .. " closes it" );
+	elseif eOldMode == InterfaceModeTypes.FULLSCREEN_MAP then
+		OutputMessageToScreenReader( "Map closed" );
+	end
+	-- End ScreenReaderAccess mod change
 	--and eNewMode ~= InterfaceModeTypes.VIEW_MODAL_LENS
 	if eOldMode == InterfaceModeTypes.VIEW_MODAL_LENS then
 		if not Controls.LensPanel:IsHidden() then
