@@ -52,7 +52,7 @@ end
 -- the game's header text is upper case ("CHOOSE ARTIFACT"): spoken as a sentence
 local function SRA_Sentence( text:string )
 	text = string.lower( text );
-	return ( string.gsub( text, "^%l", string.upper ) );
+	return string.upper( string.sub( text, 1, 1 ) ) .. string.sub( text, 2 );
 end
 
 -- Enter / Space act on KeyUp only after their KeyDown reached the popup: the KeyUp of the key that opened it must not choose unheard
