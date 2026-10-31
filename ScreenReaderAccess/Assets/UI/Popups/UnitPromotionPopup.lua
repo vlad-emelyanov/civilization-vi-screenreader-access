@@ -81,8 +81,11 @@ end
 -- ===========================================================================
 function OnPromoteUnitPopup()
 	local pUnit:table	= UI.GetHeadSelectedUnit();
+	-- ScreenReaderAccess change: no selected unit (a hot reload, the unit died) or no promotion data: nothing to show
+	if pUnit == nil then return; end
 
 	local bCanStart, tResults = UnitManager.CanStartCommand( pUnit, UnitCommandTypes.PROMOTE, true, true);
+	if tResults == nil then return; end
 	local tPromotions		= tResults[UnitCommandResults.PROMOTIONS];
 
 	local unitExperience = pUnit:GetExperience();
