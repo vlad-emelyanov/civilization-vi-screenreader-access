@@ -2494,11 +2494,16 @@ end
 -- Items are rebuilt from the panel's data at key time, in the order the panel shows them for the current tab:
 -- Production/Queue: repairs, then districts with their buildings, wonders, units, projects; Purchase tabs: districts,
 -- buildings, units. Only what can be built (bought) is listed; a toggle item at the end shows the rest (ProductionText_Arrange).
--- Tab cycles the panel's tabs. Corps/armies and queue editing are not covered.
+-- Tab cycles the panel's tabs. Units with a Corps / Army button in the game's row get extra items right after them; the Queue
+-- tab starts with the city's build queue (Control+Up / Control+Down move the focused entry, Delete / Backspace remove it).
+-- The Manager tab is not covered.
 -- ===========================================================================
 local m_srList:table = nil;
 local m_srHintSaid:boolean = false;		-- "Space for description" is said once per session
 local m_srShowUnavailable:boolean = false;		-- the toggle item: unavailable items are listed after it (kept for the session, all tabs)
+local m_srQueueOp:table = nil;		-- the last queue edit (move / remove) waiting for CityProductionQueueChanged
+local SRA_Queue:table = {};			-- queue entries and edits (functions below)
+local SRA_Formation:table = {};		-- corps and army items
 
 -- GetData() is expensive and is called on every key; cache it per Refresh (View sets it, Open/Close clear it).
 local function SRA_Data()
@@ -2534,11 +2539,11 @@ local function SRA_StackReason( kItem:table, reasonText:string )
 end
 
 -- Red failure lines of a tooltip; skipFunds drops the "not enough gold/faith" lines (spoken separately).
-local function SRA_Reasons( kItem:table, skipFunds:boolean )
+local function SRA_Reasons( kItem:table, skipFunds:boolean, tooltip:string )
 	local reasons:table = {};
 	local funds1:string = CleanTextForSpeech( Locale.Lookup( "LOC_BUILDING_INSUFFICIENT_FUNDS" ) );
 	local funds2:string = CleanTextForSpeech( Locale.Lookup( "LOC_BUILDING_INSUFFICIENT_FAITH" ) );
-	for reason in string.gmatch( kItem.ToolTip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
+	for reason in string.gmatch( tooltip or kItem.ToolTip or "", "%[COLOR:Red%](.-)%[ENDCOLOR%]" ) do
 		local text:string = CleanTextForSpeech( reason );
 		if not ( skipFunds and ( text == funds1 or text == funds2 ) ) then table.insert( reasons, SRA_StackReason( kItem, text ) or text ); end
 	end
@@ -2661,6 +2666,148 @@ local function SRA_PurchaseItem( kItem:table, kind:string, section:string )
 	};
 end
 
+-- Corps / army rows. The game shows a button for them when kItem.Corps / kItem.Army is set (CAN_TRAIN_CORPS / CAN_TRAIN_ARMY); it
+-- is greyed out when CorpsDisabled / ArmyDisabled. Names: the unit plus the game's flag suffix ("Warrior Corps", "Destroyer Fleet").
+-- formation: "corps" or "army".
+function SRA_Formation.Name( kItem:table, formation:string )
+	local row:table = GameInfo.Units[ kItem.Type ];
+	local sea:boolean = row ~= nil and row.Domain == "DOMAIN_SEA";
+	local tag:string;
+	if formation == "corps" then tag = sea and "LOC_UNITFLAG_FLEET_SUFFIX" or "LOC_UNITFLAG_CORPS_SUFFIX";
+	else tag = sea and "LOC_UNITFLAG_ARMADA_SUFFIX" or "LOC_UNITFLAG_ARMY_SUFFIX"; end
+	return ProductionText_FormationName( Locale.Lookup( kItem.Name ), Locale.Lookup( tag ) );
+end
+
+function SRA_Formation.Item( kItem:table, formation:string, purchase:boolean, section:string )
+	local field:string = ( formation == "corps" ) and "Corps" or "Army";
+	local name:string = SRA_Formation.Name( kItem, formation );
+	local cost:number = kItem[ field .. "Cost" ];
+	local disabled:boolean = kItem[ field .. "Disabled" ] == true;
+	local tooltip:string = kItem[ field .. "Tooltip" ];
+	local turnsLeft:number = kItem[ field .. "TurnsLeft" ];
+	local item:table = {
+		key = ( purchase and "buy:unit:" or "unit:" ) .. tostring( kItem.Hash ) .. ":" .. formation,
+		kind = "unit",
+		formation = formation,
+		section = section,
+		data = kItem,
+		speakName = name,
+		turnsLeft = turnsLeft,
+		purchase = purchase,
+	};
+	if purchase then
+		local isGold:boolean = kItem.Yield == "YIELD_GOLD";
+		local currency:string = isGold and "gold" or "faith";
+		local other:string = SRA_Reasons( kItem, true, tooltip );
+		local missing:number = cost - SRA_Balance( kItem.Yield );
+		local state:string = "can afford";
+		if disabled then
+			if missing > 0 then state = "can't afford, " .. missing .. " more needed" .. ( other ~= "" and ( ", " .. other ) or "" );
+			else state = "unavailable" .. ( other ~= "" and ( ": " .. other ) or "" ); end
+		end
+		item.text = name .. ", " .. cost .. " " .. currency .. ", " .. state;
+		item.choosable = not disabled;
+		item.cantAfford = disabled and missing > 0;
+		item.reason = "Can't buy " .. name .. ( ( disabled and missing > 0 ) and ( ": not enough " .. currency .. ", " .. missing .. " more needed" ) or "" ) .. ( other ~= "" and ( ": " .. other ) or "" );
+	else
+		local reasons:string = SRA_Reasons( kItem, false, tooltip );
+		if disabled then item.text = name .. ", unavailable" .. ( reasons ~= "" and ( ": " .. reasons ) or "" );
+		else item.text = ProductionText_FormationRow( name, SRA_TurnsText( turnsLeft ), cost, kItem.Progress ); end
+		item.choosable = not disabled;
+		item.reason = "Can't build " .. name .. ( reasons ~= "" and ( ": " .. reasons ) or "" );
+	end
+	item.detail = function()
+		local row:table = GameInfo.Units[ kItem.Hash ];
+		return SRDescriptionFirst( kItem.Name, row ~= nil and row.Description or nil, tooltip );
+	end;
+	return item;
+end
+
+-- Appends the corps and army items of a unit row after the unit's own item.
+function SRA_Formation.Append( items:table, kUnit:table, purchase:boolean, section:string )
+	if kUnit.Corps then table.insert( items, SRA_Formation.Item( kUnit, "corps", purchase, section ) ); end
+	if kUnit.Army then table.insert( items, SRA_Formation.Item( kUnit, "army", purchase, section ) ); end
+end
+
+-- The city's build queue as { key, name, position (0 = in production), row, typeKey } entries. The key is the type plus the
+-- occurrence of that type (the same unit can be queued twice), so the focus follows an entry when it moves.
+function SRA_Queue.Entries( city:table )
+	local entries:table = {};
+	local queue:table = city:GetBuildQueue();
+	if queue == nil then return entries; end
+	local seen:table = {};
+	for i = 0, queue:GetSize() - 1 do
+		local entry:table = queue:GetAt( i );
+		local row:table = nil;
+		local formation:string = nil;
+		local name:string = nil;
+		if entry ~= nil then
+			if entry.Directive == CityProductionDirectives.TRAIN then
+				row = GameInfo.Units[ entry.UnitType ];
+				local fm = entry.MilitaryFormationType;
+				if row ~= nil and fm ~= nil then
+					local sea:boolean = row.Domain == "DOMAIN_SEA";
+					if fm == MilitaryFormationTypes.CORPS_FORMATION or fm == MilitaryFormationTypes.CORPS_MILITARY_FORMATION then
+						formation = "corps";
+						name = ProductionText_FormationName( Locale.Lookup( row.Name ), Locale.Lookup( sea and "LOC_UNITFLAG_FLEET_SUFFIX" or "LOC_UNITFLAG_CORPS_SUFFIX" ) );
+					elseif fm == MilitaryFormationTypes.ARMY_FORMATION or fm == MilitaryFormationTypes.ARMY_MILITARY_FORMATION then
+						formation = "army";
+						name = ProductionText_FormationName( Locale.Lookup( row.Name ), Locale.Lookup( sea and "LOC_UNITFLAG_ARMADA_SUFFIX" or "LOC_UNITFLAG_ARMY_SUFFIX" ) );
+					end
+				end
+			elseif entry.Directive == CityProductionDirectives.CONSTRUCT then row = GameInfo.Buildings[ entry.BuildingType ];
+			elseif entry.Directive == CityProductionDirectives.ZONE then row = GameInfo.Districts[ entry.DistrictType ];
+			elseif entry.Directive == CityProductionDirectives.PROJECT then row = GameInfo.Projects[ entry.ProjectType ];
+			end
+		elseif i == 0 then
+			local hash:number = queue:GetCurrentProductionTypeHash();
+			if hash ~= nil and hash ~= 0 then row = GameInfo.Buildings[ hash ] or GameInfo.Districts[ hash ] or GameInfo.Units[ hash ] or GameInfo.Projects[ hash ]; end
+		end
+		if row ~= nil then
+			local typeKey:string = tostring( row.Hash ) .. ( formation ~= nil and ( ":" .. formation ) or "" );
+			seen[ typeKey ] = ( seen[ typeKey ] or 0 ) + 1;
+			table.insert( entries, {
+				key = ProductionText_QueueKey( typeKey, seen[ typeKey ] ),
+				typeKey = typeKey,
+				name = name or Locale.Lookup( row.Name ),
+				position = #entries,
+				row = row,
+			} );
+		end
+	end
+	return entries;
+end
+
+-- "Library, in production, 5 turns" / "Library" with their keys: Space adds the description.
+function SRA_Queue.Hint()
+	return SRKey( "Control+Up" ) .. " moves it earlier, " .. SRKey( "Control+Down" ) .. " later, " .. SRKey( "Delete", "X" ) .. " removes it";
+end
+
+function SRA_Queue.Items( city:table )
+	local items:table = {};
+	local entries:table = SRA_Queue.Entries( city );
+	local queue:table = city:GetBuildQueue();
+	for _, entry in ipairs( entries ) do
+		local turns:string = nil;
+		if entry.position == 0 then turns = SRA_TurnsText( queue:GetTurnsLeft() ); end
+		local e:table = entry;
+		table.insert( items, {
+			key = entry.key,
+			kind = "queue",
+			section = "Queue",
+			text = ProductionText_QueueItem( entry.name, entry.position == 0, turns ),
+			name = entry.name,
+			queueIndex = entry.position,
+			queueSize = #entries,
+			choosable = true,
+			detail = function()
+				return SRDescriptionFirst( e.row.Name, e.row.Description, nil ) .. ". " .. SRA_Queue.Hint();
+			end,
+		} );
+	end
+	return items;
+end
+
 -- The panel's items in the game's category order, unavailable ones included (SRA_GetItems arranges them).
 local function SRA_BuildAllItems()
 	local items:table = {};
@@ -2680,11 +2827,18 @@ local function SRA_BuildAllItems()
 		end
 		local unitsSection:string = Locale.Lookup( "LOC_TECH_FILTER_UNITS" );
 		for _, kUnit in ipairs( data.UnitPurchases ) do
-			if kUnit.Yield == yield then table.insert( items, SRA_PurchaseItem( kUnit, "unit", unitsSection ) ); end
+			if kUnit.Yield == yield then
+				table.insert( items, SRA_PurchaseItem( kUnit, "unit", unitsSection ) );
+				SRA_Formation.Append( items, kUnit, true, unitsSection );
+			end
 		end
 		return items;
 	end
 
+	local queueCity:table = UI.GetHeadSelectedCity();
+	if mode == LISTMODE.PROD_QUEUE and queueCity ~= nil then
+		for _, queueItem in ipairs( SRA_Queue.Items( queueCity ) ) do table.insert( items, queueItem ); end
+	end
 	local districtsSection:string = Locale.Lookup( "LOC_HUD_DISTRICTS_BUILDINGS" );
 	local builtDistricts:table = {};		-- "City Center, already built" rows go after everything that can be built in this section
 	for _, kDistrict in ipairs( data.DistrictItems ) do
@@ -2709,7 +2863,10 @@ local function SRA_BuildAllItems()
 	local queueMode:boolean = ( mode == LISTMODE.PROD_QUEUE );
 	local unitsSection:string = Locale.Lookup( "LOC_TECH_FILTER_UNITS" );
 	for _, kUnit in ipairs( data.UnitItems ) do
-		if queueMode or not kUnit.IsCurrentProduction then table.insert( items, SRA_Item( kUnit, "unit", unitsSection, nil ) ); end
+		if queueMode or not kUnit.IsCurrentProduction then
+			table.insert( items, SRA_Item( kUnit, "unit", unitsSection, nil ) );
+			SRA_Formation.Append( items, kUnit, false, unitsSection );
+		end
 	end
 	local projectsSection:string = Locale.Lookup( "LOC_HUD_PROJECTS" );
 	for _, kProject in ipairs( data.ProjectItems ) do
@@ -2751,6 +2908,69 @@ local function SRA_ResolvePending( fromEvent:boolean )
 	end
 end
 
+-- The queue entry the focus is on, or nil (says why).
+function SRA_Queue.Focused()
+	local key = m_srList.GetFocusKey();
+	for _, item in ipairs( SRA_GetItems() ) do
+		if item.key == key then
+			if item.kind == "queue" then return item; end
+			break;
+		end
+	end
+	OutputMessageToScreenReader( "Not a queue entry. The Queue tab lists the queue first" );
+	return nil;
+end
+
+-- Outcome of the last move / remove, from CityProductionQueueChanged (or at once when the queue already changed).
+function SRA_Queue.Resolve( fromEvent:boolean )
+	local op:table = m_srQueueOp;
+	local city:table = UI.GetHeadSelectedCity();
+	if op == nil or city == nil then return; end
+	local entries:table = SRA_Queue.Entries( city );
+	local signature:string = "";
+	for _, entry in ipairs( entries ) do signature = signature .. entry.key .. "|"; end
+	if op.kind == "move" then
+		if not fromEvent and signature == op.before then return; end
+		m_srQueueOp = nil;
+		if entries[ op.to + 1 ] ~= nil then m_srList.Open( "", entries[ op.to + 1 ].key, true, true ); end		-- focus follows the moved entry
+		OutputMessageToScreenReader( ProductionText_QueueMoved( op.name, op.to, #entries ) );
+	elseif op.kind == "remove" then
+		if #entries >= op.size then return; end
+		m_srQueueOp = nil;
+		local focus = ProductionText_QueueFocusAfterRemove( op.from, #entries );
+		if focus ~= nil and entries[ focus + 1 ] ~= nil then m_srList.Open( "", entries[ focus + 1 ].key, true, true ); else m_srList.Reset(); end
+		OutputMessageToScreenReader( ProductionText_QueueRemoved( op.name, #entries ) );
+	end
+end
+
+-- Control+Up / Control+Down: the game's own swap with the neighbour (what its queue buttons do).
+function SRA_Queue.Move( delta:number )
+	local item:table = SRA_Queue.Focused();
+	if item == nil then return; end
+	local target, edge = ProductionText_QueueTarget( item.queueIndex, delta, item.queueSize );
+	if target == nil then OutputMessageToScreenReader( edge ); return; end
+	local city:table = UI.GetHeadSelectedCity();
+	if city == nil then return; end
+	local signature:string = "";
+	for _, entry in ipairs( SRA_Queue.Entries( city ) ) do signature = signature .. entry.key .. "|"; end
+	m_srPending = nil;
+	m_srQueueOp = { kind = "move", name = item.name, to = target, before = signature };
+	SwapQueueItem( item.queueIndex, target );
+	SRA_Queue.Resolve( false );
+end
+function SRA_Queue.MoveUp() SRA_Queue.Move( -1 ); end
+function SRA_Queue.MoveDown() SRA_Queue.Move( 1 ); end
+
+-- Delete / Backspace: the game's RemoveQueueItem (its right click). No confirmation: the game keeps the progress made.
+function SRA_Queue.Remove()
+	local item:table = SRA_Queue.Focused();
+	if item == nil then return; end
+	m_srPending = nil;
+	m_srQueueOp = { kind = "remove", name = item.name, from = item.queueIndex, size = item.queueSize };
+	RemoveQueueItem( item.queueIndex );
+	SRA_Queue.Resolve( false );
+end
+
 -- Name of a unit at war with us standing on the tile of the district (or the building's district) a repair item would repair, else nil.
 local function SRA_EnemyOnRepairTile( city:table, kItem:table, kind:string )
 	local result:string = nil;
@@ -2782,16 +3002,22 @@ local function SRA_OnActivate( item:table )
 		OutputMessageToScreenReader( ProductionText_ToggleSaid( item.count, m_srShowUnavailable ) );
 		return;
 	end
+	if item.kind == "queue" then
+		OutputMessageToScreenReader( item.name .. ", " .. ( item.queueIndex + 1 ) .. " of " .. item.queueSize .. " in the queue. " .. SRA_Queue.Hint() );
+		return;
+	end
 	local city:table = UI.GetHeadSelectedCity();
 	if city == nil then return; end
 	local kItem:table = item.data;
-	local name:string = Locale.Lookup( kItem.Name );
+	local name:string = item.speakName or Locale.Lookup( kItem.Name );		-- a corps / army item names the formation
 	m_srPending = nil;
 
 	if item.purchase then
 		local before:number = SRA_Balance( kItem.Yield );
 		if item.kind == "district" then PurchaseDistrict( city, kItem );
 		elseif item.kind == "building" then PurchaseBuilding( city, kItem );
+		elseif item.formation == "corps" then PurchaseUnitCorps( city, kItem );
+		elseif item.formation == "army" then PurchaseUnitArmy( city, kItem );
 		else PurchaseUnit( city, kItem ); end
 		local mode:number = UI.GetInterfaceMode();
 		if mode == InterfaceModeTypes.DISTRICT_PLACEMENT or mode == InterfaceModeTypes.BUILDING_PLACEMENT then
@@ -2818,7 +3044,7 @@ local function SRA_OnActivate( item:table )
 
 	local queue:table = city:GetBuildQueue();
 	m_srPending = {
-		kind = "produce", name = name, queueMode = queueMode, repair = ( kItem.Repair == true ), turns = SRA_TurnsText( kItem.TurnsLeft ),
+		kind = "produce", name = name, queueMode = queueMode, repair = ( kItem.Repair == true ), turns = SRA_TurnsText( item.turnsLeft or kItem.TurnsLeft ),
 		hash0 = queue:GetCurrentProductionTypeHash(), size0 = queue:GetSize(),
 	};
 	if not queueMode and m_srPending.hash0 ~= nil and m_srPending.hash0 ~= 0 and m_srPending.hash0 ~= kItem.Hash then
@@ -2859,7 +3085,9 @@ local function SRA_OnActivate( item:table )
 		end
 		-- No placement needed (already placed): it went into the queue.
 	elseif item.kind == "unit" then
-		BuildUnit( city, kItem );
+		if item.formation == "corps" then BuildUnitCorps( city, kItem );
+		elseif item.formation == "army" then BuildUnitArmy( city, kItem );
+		else BuildUnit( city, kItem ); end
 		CloseAfterNewProduction();
 	elseif item.kind == "building" then
 		BuildBuilding( city, kItem );
@@ -2930,7 +3158,9 @@ local function SRA_Announce( keepGuard:boolean, keepKey:string, queueTitle:boole
 	end
 	local recommendedKey = nil;
 	local recommendedName = nil;
+	local queueFirstKey = nil;
 	for _, item in ipairs( SRA_GetItems() ) do
+		if item.kind == "queue" and queueFirstKey == nil then queueFirstKey = item.key; end
 		if item.choosable then
 			if firstChoosable == nil then firstChoosable = item.key; end
 			if currentKey == nil and currentHash ~= 0 and not item.purchase and item.data ~= nil and item.data.Hash == currentHash then currentKey = item.key; end
@@ -2954,6 +3184,7 @@ local function SRA_Announce( keepGuard:boolean, keepKey:string, queueTitle:boole
 	-- the item focused before a Tab stays focused when the new tab lists it; else the production in progress (so a quick Enter
 	-- cannot replace it by accident); a repair at the top and the recommendation come first otherwise
 	if currentKey ~= nil and not firstIsRepair and mode ~= LISTMODE.PURCHASE_GOLD and mode ~= LISTMODE.PURCHASE_FAITH then firstChoosable = currentKey; end
+	if queueFirstKey ~= nil and not firstIsRepair then firstChoosable = queueFirstKey; end		-- the Queue tab opens on the queue itself
 	if carriedKey ~= nil then firstChoosable = carriedKey; end
 	m_srList.Open( title, firstChoosable, false, keepGuard, queueTitle );
 end
@@ -2990,6 +3221,10 @@ end
 
 -- Events that report the outcome of Enter (see SRA_ResolvePending).
 function SRA_OnProductionChanged()
+	if m_srQueueOp ~= nil then
+		local okQ:boolean, errQ = xpcall( function() SRA_Queue.Resolve( true ); end, KeyNavErrorHandler );
+		if not okQ then print( "ProductionPanel queue error: " .. tostring(errQ) ); end
+	end
 	if m_srPending ~= nil and m_srPending.kind == "produce" then
 		local ok:boolean, err = xpcall( function() SRA_ResolvePending( true ); end, KeyNavErrorHandler );
 		if not ok then print( "ProductionPanel pending error: " .. tostring(err) ); end
@@ -3542,8 +3777,8 @@ function Initialize()
 		onClose = SRA_OnClose,
 		sectionCounts = true,		-- "Warrior, in Units, 12 items" when Down enters a group; "Units, 12: Warrior, ..." when PageUp / PageDown enter a group (like the J list)
 		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
-		extraKeys = { [Keys.VK_TAB] = SRA_NextTab },
-		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab },
+		extraKeys = { [Keys.VK_TAB] = SRA_NextTab, [Keys.VK_DELETE] = SRA_Queue.Remove, [Keys.VK_BACK] = SRA_Queue.Remove, [Gamepad.Key( "X" )] = SRA_Queue.Remove },
+		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab, [Keys.VK_UP] = SRA_Queue.MoveUp, [Keys.VK_DOWN] = SRA_Queue.MoveDown },
 	};
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );

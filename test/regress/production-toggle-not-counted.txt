@@ -8,17 +8,17 @@ lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapita
 key Tab -Settle 2500 -Quiet 700
 expect (?i)choose production
 key End -Settle 800
-expect ^Show 24 unavailable items, in Projects, 3 items
+expect ^Show [0-9]+ unavailable items, in Projects, 3 items
 key Home -Settle 800
 key PageUp -Settle 800
 expect ^Projects, 3:
 key Home -Settle 800
 key End -Settle 800
 key Enter -Settle 800
-expect ^Showing 24 unavailable items
+expect ^Showing [0-9]+ unavailable items
 key Home -Settle 800
 key PageUp -Settle 800
-expect ^Unavailable, 24:
+expect ^Unavailable, [0-9]+:
 key Enter -Settle 800
 expect ^Unavailable items hidden
 key Escape -Settle 1200

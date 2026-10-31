@@ -1,0 +1,28 @@
+# Written blind (not verified in game; run with --record first). The Queue tab starts with the city's build queue; Control+Up / Control+Down move the focused entry with the game's swap, Delete / Backspace remove it (RemoveQueueItem).
+# Fixture pt-mod2-t228 (Rome, Modern). The tuner appends three units through the game's BUILD operation, so the queue has at least 3 entries (more when the capital already produces something).
+# covers: **/ProductionPanel.lua **/ProductionText.lua **/KeyNavList.lua
+# no-share-load: changes the build queue
+load pt-mod2-t228
+clear-advisors
+lua InGame local c=Players[0]:GetCities():GetCapitalCity(); for _,u in ipairs({"UNIT_BUILDER","UNIT_TRADER","UNIT_BUILDER"}) do local p={}; p[CityOperationTypes.PARAM_UNIT_TYPE]=GameInfo.Units[u].Hash; p[CityOperationTypes.PARAM_INSERT_MODE]=CityOperationTypes.VALUE_APPEND; CityManager.RequestOperation(c, CityOperationTypes.BUILD, p) end
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2500 -Quiet 700
+expect (?i)choose production
+key Tab -Settle 1500
+expect (?i), queue.*in production.*in Queue, \d+ items, 1 of
+# the head cannot go earlier
+key Control+Up -Settle 800
+expect ^Already first
+key Down -Settle 800
+expect ^[^,]+, 2 of
+key Control+Up -Settle 1500
+expect ^[^,]+ moved to 1 of \d+
+# the focus stays on the moved entry: Control+Down moves the same entry back
+key Control+Down -Settle 1500
+expect ^[^,]+ moved to 2 of \d+
+key Delete -Settle 1500
+expect removed from the queue, \d+ left
+key Backspace -Settle 1500
+expect removed from the queue
+key Escape -Settle 1200
+no-lua-errors

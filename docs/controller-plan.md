@@ -79,7 +79,7 @@ A GTA-style weapon wheel for the short lists of the main interface: the ring's T
 
 ## X in lists
 
-Each list names its X action (the key the list already has for it): notifications: dismiss (Delete); places: send a unit there (M); every other list: nothing yet. (X is not a section or group key: those are the bumpers.) A list declares it with `extraKeys[ Gamepad.Key( "X" ) ]` (so keyboard users are unaffected) and its help entry mentions "X".
+Each list names its X action (the key the list already has for it): notifications: dismiss (Delete); production queue tab: remove the focused queue entry (Delete); places: send a unit there (M); every other list: nothing yet. (X is not a section or group key: those are the bumpers.) A list declares it with `extraKeys[ Gamepad.Key( "X" ) ]` (so keyboard users are unaffected) and its help entry mentions "X".
 
 ## Controller mode on the bare map: the catcher
 
