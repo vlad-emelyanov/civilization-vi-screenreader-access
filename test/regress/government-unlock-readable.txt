@@ -1,0 +1,14 @@
+# Government screen: the Governments tab says why a change is impossible, items lead with the name and stay short, the policy Unlock item says what it unlocks.
+# covers: **/GovernmentScreen.lua
+load pt-mod2-t216
+clear-advisors
+action ToggleGovernment -Settle 2500
+key Tab -Settle 1200
+expect ^Policies,
+key Tab -Settle 1200
+expect ^Governments, current: [A-Za-z ]+\. You can
+key Down -Settle 600
+expect-not (?i)bonus
+key Space -Settle 600
+key Escape -Settle 1500
+no-lua-errors

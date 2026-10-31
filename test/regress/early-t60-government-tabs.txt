@@ -7,7 +7,7 @@ expect ^My government, Autocracy
 key Tab -Settle 1200
 expect ^Policies, Autocracy
 key Tab -Settle 1200
-expect ^Governments, current: Autocracy, can't change now
+expect ^Governments, current: Autocracy. You can only change government on the turn you complete a civic
 expect-not Enter to switch to it
 key Control+Tab -Settle 1200
 expect ^Policies, Autocracy
