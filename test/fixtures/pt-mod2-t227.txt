@@ -1,0 +1,7 @@
+turn: 227
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain, war with Greece
+mod commit: 0015017
+created: 2026-10-31
+size: 1275 KB

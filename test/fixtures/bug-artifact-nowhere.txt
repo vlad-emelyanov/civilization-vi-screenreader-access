@@ -1,0 +1,7 @@
+turn: 214
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: after Excavate Artifact t213 + end turn: no choose artifact, great works shows 0 works, no feedback where artifact went
+mod commit: 0015017
+created: 2026-10-31
+size: 1187 KB

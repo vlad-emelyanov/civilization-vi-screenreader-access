@@ -1,0 +1,7 @@
+turn: 218
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Isidora archaeologist sent to Antiquity Site 11 tiles west t213; t218 browse says No antiquity sites revealed, she is embarked 5 tiles north of Lugdunum
+mod commit: 0015017
+created: 2026-10-31
+size: 1214 KB
