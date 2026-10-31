@@ -744,9 +744,10 @@ function HubEnemies.ScanThreats()
 			end
 		end
 	end
-	-- any other visible hostile land soldier within NEAR_CITY tiles of a city of ours (a lone archer escorting a settler is no raid)
+	-- any other visible hostile soldier within NEAR_CITY tiles of a city of ours (a lone archer escorting a settler is no raid;
+	-- ships do not raid but bombard, so a Barbarian Frigate off the coast is listed too)
 	result.nearCity = {};
-	for _, s in ipairs( landSoldiers ) do
+	for _, s in ipairs( soldiers ) do
 		for _, city in ipairs( cities ) do
 			local d:number = Dist( s.x, s.y, city:GetX(), city:GetY() );
 			if d <= NEAR_CITY then

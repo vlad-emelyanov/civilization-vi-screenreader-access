@@ -1,0 +1,10 @@
+# Verified in game 2026-10-31. A barbarian Frigate 3 tiles off Rome (spawned next to the capital of bug-ranged-unit-cannot-fire-in-city)
+# is listed under Threats ("near your city"); ships used to be left out of the near-city rule (only land soldiers counted).
+# covers: **/HubEnemies.lua **/HubPlaces.lua
+# no-share-load: spawns a barbarian Frigate
+load bug-ranged-unit-cannot-fire-in-city
+clear-advisors
+lua GameCore_Tuner Players[63]:GetUnits():Create(GameInfo.Units["UNIT_FRIGATE"].Index, 59, 34) return 1
+lua InGameAccess local s = "" for _, i in ipairs(HubEnemies.ThreatItems()) do s = s .. i.text .. "|" end print("THREATS " .. s)
+expect-lua Barbarian Frigate, near your city
+no-lua-errors
