@@ -2609,7 +2609,7 @@ local function SRA_Item( kItem:table, kind:string, section:string, owner:string 
 		end
 		if cost ~= nil and cost > 0 then
 			local costText:string = tostring( cost );
-			if kItem.Progress ~= nil and kItem.Progress > 0 then costText = kItem.Progress .. " of " .. costText; end
+			if kItem.Progress ~= nil and kItem.Progress > 0 then costText = math.min( kItem.Progress, cost ) .. " of " .. costText; end
 			table.insert( parts, costText .. " production" );
 		end
 		if recommended then table.insert( parts, "recommended" ); end

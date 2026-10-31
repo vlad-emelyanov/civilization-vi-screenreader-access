@@ -133,6 +133,8 @@ end
 function PlotDescription_CoGarrisonNames( unit:table )
 	local names:table = {};
 	if unit == nil then return names; end
+	-- only a unit that has a ranged strength is affected (a Settler / Builder has no ranged attack to lose)
+	if unit:GetRangedCombat() <= 0 then return names; end
 	local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 	if plot == nil or not plot:IsCity() then return names; end
 	local ok:boolean, units = pcall( Units.GetUnitsInPlot, plot );

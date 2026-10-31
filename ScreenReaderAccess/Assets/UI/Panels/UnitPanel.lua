@@ -12,6 +12,7 @@ include( "EspionageSupport" );
 include("GameCapabilities");
 include("ScreenReader");	-- ScreenReaderAccess mod: CleanTextForSpeech
 include("PlotDescription");	-- ScreenReaderAccess mod: PlotDescription_NearestHostile
+include("ReligionText");	-- ScreenReaderAccess mod: descriptions of the religious actions
 include("SRListen");	-- ScreenReaderAccess mod: listeners that a hot reload can remove again
 
 
@@ -4358,6 +4359,7 @@ local function SRRangedAttackReason( unit:table )
 	-- a ranged unit that shares a city center with ANOTHER military unit gets no ranged attack from the engine (alone it can fire);
 	-- observed in the game, not explained (docs/engine-notes.md, "A unit standing in a city center")
 	if not SRIsAirUnit( unit ) then
+		if unit:GetRangedCombat() <= 0 then return PlotDescription_GetUnitName( unit ) .. " has no ranged attack"; end
 		local sharing:string = PlotDescription_CoGarrisonText( PlotDescription_CoGarrisonNames( unit ) );
 		if sharing ~= nil then return sharing; end
 	end
@@ -4729,6 +4731,15 @@ local function SRBuildActions()
 						local bare:string = string.lower( string.gsub( detail, "[%s%.]+$", "" ) );
 						if bare == "" or bare == string.lower( SRActionName( action, tooltip ) ) then
 							detail = "Removes the unit permanently. Asks before deleting.";
+						end
+					end
+					-- Convert Barbarians / Evangelize Belief / Launch Inquisition / Spread Religion: the tooltip is only the name, so Space repeated it
+					if action.userTag ~= nil then
+						local typeNameS:string = SRTypeName( action.userTag );
+						local described:string = ReligionText_ActionDescription( typeNameS );
+						if described ~= nil then
+							local bareS:string = string.lower( string.gsub( detail, "[%s%.]+$", "" ) );
+							if bareS == "" or bareS == string.lower( SRActionName( action, tooltip ) ) then detail = described; end
 						end
 					end
 					if reason == "not possible on this tile" or isTransfer then

@@ -37,7 +37,7 @@ read_globals = {
 globals = {
 	"Hub", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubMessages", "HubPlaces", "HubOverview", "BlindSpots", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp", "HubGamepad", "HubPad", "HubLenses", "HubScreens", "Gamepad", "LoadParagraphs", "Gamepad_CatchKey", "HelpText_Sections", "HelpText_KeyText", "HelpText_Line", "HelpText_Build",
 	"CleanTextForSpeech", "SRDescriptionFirst", "DealSpeech_AvailableText", "DealSpeech_ChangeText", "DealSpeech_DealItemText", "DealSpeech_Intro",
-	"DealSpeech_ItemText", "DealSpeech_Summary", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
+	"DealSpeech_ItemText", "DealSpeech_CityName", "DealSpeech_RemovalChange", "DealSpeech_Summary", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
 	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",
 	"KeyNavEditBox_Cancel", "KeyNavEditBox_Describe", "KeyNavEditBox_HandleInput", "KeyNavEditBox_IsEditing",
 	"KeyNavEditBox_Update", "KeyNavErrorHandler", "KeyNavItems", "KeyNavKeyHandler", "KeyNavLabel",
@@ -51,7 +51,7 @@ globals = {
 	"PlacementScan_Blockers", "PlacementScan_Sort", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
 	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_GetDirectionWord",
 	"PlotDescription_GetRelative", "PlotDescription_GetShort", "PlotDescription_GetUnitName", "PlotDescription_FormationName", "PlotDescription_IsEmbarked", "PlotDescription_UnitStateText",
-	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "PlotDescription_DangerReason", "PlotDescription_DistrictReason", "PlotDescription_ReplaceDistrictRefusal", "PlotDescription_NearestHostile", "PlotDescription_CoGarrisonText", "PlotDescription_CoGarrisonNames", "ReligionText_Beliefs", "ReligionText_Capital", "ReligionText_CityLine", "ReligionText_Count", "ReligionText_Followers", "ReligionText_Founder", "ReligionText_Join", "ReligionText_ToChoose", "PrintKeyMap",
+	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "PlotDescription_DangerReason", "PlotDescription_DistrictReason", "PlotDescription_ReplaceDistrictRefusal", "PlotDescription_NearestHostile", "PlotDescription_CoGarrisonText", "PlotDescription_CoGarrisonNames", "ReligionText_ActionDescription", "ReligionText_ConvertResult", "ReligionText_SpreadResult", "ReligionText_SpreadsLeft", "ReligionText_Beliefs", "ReligionText_Capital", "ReligionText_CityLine", "ReligionText_Count", "ReligionText_Followers", "ReligionText_Founder", "ReligionText_Join", "ReligionText_ToChoose", "PrintKeyMap",
 	"PrintKeyboardNavigationElements", "SRListen", "SRUnlistenAll", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",
 	"SettleScan_CheckPlot", "SettleScan_Scan", "SettleScan_Ring1Resources", "BuildScan_Improvements", "BuildScan_CanBuild",
 	"LensText_Actions", "LensText_ActiveLens", "LensText_Legend", "LensText_OnKey", "LensText_OnModeChanged", "LensText_Setup", "LensText_PlotText", "LensText_Prefix", "LensText_Toggled",

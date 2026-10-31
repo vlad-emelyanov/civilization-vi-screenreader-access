@@ -59,7 +59,7 @@ function HubAnnounce.SpeakWhatsNext()
 	if okWait and isWait then
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if okCongress and inSession then
-			OutputMessageToScreenReader( "World Congress in session. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it" );
+			OutputMessageToScreenReader( "World Congress in session. " .. SRKey( "Enter" ) .. " or " .. HubCore.KeyHint( "KeyNavNotifications", "Control+N", "RB" ) .. " resumes it" );
 			return;
 		end
 	end
@@ -281,7 +281,7 @@ end
 -- " Promotion available, Shift+U" for a unit that can be promoted (empty otherwise).
 function HubAnnounce.PromotionHint( unit:table )
 	local ok:boolean, can, results = pcall( function() return UnitManager.CanStartCommand( unit, UnitCommandTypes.PROMOTE, true, true ); end );
-	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then return "Promotion available, " .. SRKey( "Shift+U", "D-pad right menu" ); end
+	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then return "Promotion available, " .. HubCore.KeyHint( "ExtraHotkeysPromote", "Shift+U", "D-pad right menu" ); end
 	return nil;
 end
 
@@ -291,13 +291,13 @@ end
 function HubAnnounce.UpgradeText( info:table, repeated:boolean )
 	if info == nil or info.target == nil then return nil; end
 	if info.available then
-		if repeated then return "Upgrade available, " .. SRKey( "U", "D-pad right menu" ); end
+		if repeated then return "Upgrade available, " .. HubCore.KeyHint( "ExtraHotkeysUpgrade", "U", "D-pad right menu" ); end
 		local text:string = "Upgrade to " .. info.target .. " available";
 		if info.cost ~= nil and info.cost > 0 then text = text .. ", " .. info.cost .. " gold"; end
 		if info.resourceCost ~= nil and info.resourceCost > 0 and info.resource ~= nil then
 			text = text .. ", " .. info.resourceCost .. " " .. info.resource;
 		end
-		return text .. ", " .. SRKey( "U", "D-pad right menu" );
+		return text .. ", " .. HubCore.KeyHint( "ExtraHotkeysUpgrade", "U", "D-pad right menu" );
 	end
 	if repeated then return nil; end
 	return "Upgrade to " .. info.target .. " unavailable, " .. SRKey( "U says why", "the D-pad right menu says why" );
@@ -726,7 +726,7 @@ local function TurnNotEnded( turn:number )
 		-- (the panel says "Please wait" for the whole session: the congress screen is what needs the player)
 		local okCongress:boolean, inSession:boolean = pcall( function() return Game.GetWorldCongress():IsInSession(); end );
 		if text == "" and okCongress and inSession then
-			local congress:string = "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or " .. SRKey( "Control+N", "RB" ) .. " resumes it";
+			local congress:string = "Turn not ended: World Congress is waiting for your votes. " .. SRKey( "Enter" ) .. " or " .. HubCore.KeyHint( "KeyNavNotifications", "Control+N", "RB" ) .. " resumes it";
 			OutputMessageToScreenReader( congress, true );
 			return;
 		end
