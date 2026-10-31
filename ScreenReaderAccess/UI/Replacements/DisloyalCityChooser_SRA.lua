@@ -41,6 +41,11 @@ function OnOpen()
 	end 
 
 	g_pSelectedCity = localPlayer:GetCities():GetNextRebelledCity();
+	-- ScreenReaderAccess mod change: no rebelled city (already answered): stay closed, the original would fail on the nil city
+	if g_pSelectedCity == nil then
+		print( "DisloyalCityChooser: GetNextRebelledCity returned nil, popup not opened" );
+		return;
+	end
 
 	Controls.PanelHeader:LocalizeAndSetText("LOC_DISLOYAL_CITY_HEADER");
     Controls.CityHeader:LocalizeAndSetText("LOC_DISLOYAL_CITY_NAME_LABEL");
@@ -81,8 +86,21 @@ local function SRA_Items()
 	return items;
 end
 
+local function SRA_CanDo( flag:number )
+	if g_pSelectedCity == nil then return false; end
+	local tParameters:table = {};
+	tParameters[UnitOperationTypes.PARAM_FLAGS] = flag;
+	return CityManager.CanStartCommand( g_pSelectedCity, CityCommandTypes.DESTROY, tParameters ) == true;
+end
+
+-- speaks after the check, never before a command that cannot start
 local function SRA_OnActivate( item:table )
-	if item.id == "KeepButton" then
+	local keep:boolean = item.id == "KeepButton";
+	if not SRA_CanDo( keep and CityDestroyDirectives.KEEP or CityDestroyDirectives.REJECT ) then
+		OutputMessageToScreenReader( m_srCityName .. ": the game does not allow this choice right now, nothing happened. " .. SRKey( "Escape" ) .. " closes the popup" );
+		return;
+	end
+	if keep then
 		OutputMessageToScreenReader( "Kept " .. m_srCityName );
 		OnKeepButton();
 	else

@@ -14,7 +14,9 @@ test("joined hostile emergency: name, target, turns, goal and progress", functio
 	local e = { TargetID = 2, HasBegun = true, TurnsLeft = 12, ShortGoalDescription = "Capture Carthage.",
 		GoalsTable = { { Name = "Capture Carthage", Completed = true }, { Name = "Hold it", Completed = false } } }
 	local text, detail = EmergencyText_Item(e, ctx({ name = "Siege" }))
-	eq(text, "Emergency: Siege, against Dido, joined, 12 turns left, goal: Capture Carthage, progress 1 of 2", "text")
+	eq(text, "Emergency: Siege, against Dido, joined, 12 turns left", "text")
+	assert(detail:find("^Goal: Capture Carthage. Progress 1 of 2"), detail)
+	assert(not detail:find("Emergency: Siege", 1, true), "line not repeated")
 	assert(detail:find("Goals: Capture Carthage (done); Hold it (open)", 1, true), detail)
 end)
 
@@ -31,7 +33,8 @@ test("the local player is the target", function()
 		GoalsTable = { { Name = "A", Completed = true }, { Name = "B", Completed = false } },
 		TargetGoalsTable = { { Name = "Keep your cities", Completed = false } } }
 	local text, detail = EmergencyText_Item(e, ctx({ name = "Siege" }))
-	eq(text, "Emergency: Siege, against you, you are the target, 5 turns left, goal: Survive, the members completed 1 of 2", "target")
+	eq(text, "Emergency: Siege, against you, you are the target, 5 turns left", "target")
+	assert(detail:find("^Goal: Survive. The members completed 1 of 2"), detail)
 	assert(detail:find("Goals: Keep your cities (open)", 1, true), detail)
 end)
 
@@ -40,7 +43,8 @@ test("scored competition: score, how to score and rewards on Space", function()
 		ScoresTables = { [0] = 14, [1] = 20 }, MemberIDs = { 1, 0 }, ScoreSourcesTable = { "Build districts", "Train units" },
 		MemberRewardsTextFirst = { "+2 Era Score" }, MemberRewardsTextBottom = { "Nothing" }, ExtraRewards = "A gift." }
 	local text, detail = EmergencyText_Item(e, ctx({ hostile = false, noTarget = true, name = "Race" }))
-	eq(text, "Competition: Race, joined, 20 turns left, goal: Most points, your score 14", "text")
+	eq(text, "Competition: Race, joined, 20 turns left", "text")
+	assert(detail:find("^Goal: Most points. Progress 0 of 0") == nil and detail:find("^Goal: Most points. Your score 14"), detail)
 	assert(detail:find("How to score: Build districts; Train units", 1, true), detail)
 	assert(detail:find("Members: Civ1 20; you 14", 1, true), detail)
 	assert(detail:find("Rewards for the best: +2 Era Score", 1, true), detail)

@@ -68,26 +68,27 @@ function EmergencyText_Item( e:table, ctx:table )
 		text = text .. ", " .. ( e.TurnsLeft == 0 and "ends this turn" or ( Turns( e.TurnsLeft ) .. " left" ) );
 	end
 
+	-- Space starts with the goal, progress and score (the line above is not repeated)
+	local first:table = {};
 	local done, total = GoalCounts( e );
 	if e.HasBegun and not ended then
 		local short:string = Strip( ctx, isTarget and e.TargetShortGoalDescription or e.ShortGoalDescription );
-		if short ~= "" then text = text .. ", goal: " .. short; end
+		if short ~= "" then table.insert( first, "Goal: " .. short ); end
 		if total > 0 then
-			text = text .. ( isTarget and ( ", the members completed " .. done .. " of " .. total ) or ( ", progress " .. done .. " of " .. total ) );
+			table.insert( first, isTarget and ( "The members completed " .. done .. " of " .. total ) or ( "Progress " .. done .. " of " .. total ) );
 		end
 	end
 	local scores:table = e.ScoresTables;
 	if e.HasBegun and not ended and scores ~= nil and scores[ ctx.localID ] ~= nil and not isTarget then
-		text = text .. ", your score " .. tostring( scores[ ctx.localID ] );
+		table.insert( first, "Your score " .. tostring( scores[ ctx.localID ] ) );
 	end
 
 	-- Space: everything the popup says, in order
-	local parts:table = {};
-	table.insert( parts, text );
+	local parts:table = first;
 	local about:string = Strip( ctx, e.ShortDescriptionText );
 	if about ~= "" then table.insert( parts, about ); end
 	local goal:string = Strip( ctx, e.GoalDescription );
-	if goal ~= "" and not ended then table.insert( parts, "Goal: " .. goal ); end
+	if goal ~= "" and not ended then table.insert( parts, "Goal in full: " .. goal ); end
 	if e.HasBegun then
 		local goals:table = {};
 		local source:table = isTarget and e.TargetGoalsTable or e.GoalsTable;
@@ -114,5 +115,6 @@ function EmergencyText_Item( e:table, ctx:table )
 	if ctx.hostile then AddAll( parts, ctx, "Rewards for the target", e.TargetRewardsText ); end
 	local extra:string = Strip( ctx, e.ExtraRewards );
 	if extra ~= "" then table.insert( parts, extra ); end
+	if #parts == 0 then return text, text; end
 	return text, table.concat( parts, ". " );
 end

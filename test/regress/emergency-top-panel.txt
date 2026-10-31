@@ -7,6 +7,6 @@ action KeyNavTopPanel -Settle 1500
 key End -Settle 800
 expect (?i)(competition|emergency): .*(left|ends this turn|ended|not joined)
 key Space -Settle 800
-expect (?i)(members|how to score|goal|rewards)
+expect (?i)(goal:|members completed|progress \d+|your score|members:|how to score|rewards)
 key Escape -Settle 800
 no-lua-errors
