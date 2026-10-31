@@ -3288,7 +3288,21 @@ end
 -- ===========================================================================
 --	UI Event
 -- ===========================================================================
+-- Alt+Up / Alt+Down move the focused queue entry (KeyDown). Control+Up / Control+Down never reach a context: the game takes them as input actions.
+local function SRA_AltArrow( pInputStruct:table )
+	if m_srList == nil or not m_srActive or ContextPtr:IsHidden() or not pInputStruct:IsAltDown() or pInputStruct:IsControlDown() or pInputStruct:IsShiftDown() then return false; end
+	local key:number = pInputStruct:GetKey();
+	if key ~= Keys.VK_UP and key ~= Keys.VK_DOWN then return false; end
+	local msg:number = pInputStruct:GetMessageType();
+	if msg == KeyEvents.KeyDown then
+		local ok:boolean, err = xpcall( key == Keys.VK_UP and SRA_Queue.MoveUp or SRA_Queue.MoveDown, KeyNavErrorHandler );
+		if not ok then print( "ProductionPanel queue move error: " .. tostring(err) ); end
+	end
+	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
+end
+
 function OnInputHandler( pInputStruct:table )
+	if SRA_AltArrow( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	if m_srList ~= nil and m_srList.HandleInput( pInputStruct ) then return true; end		-- ScreenReaderAccess
 	local uiMsg = pInputStruct:GetMessageType();
 	if uiMsg == KeyEvents.KeyUp then 
@@ -3801,8 +3815,7 @@ function Initialize()
 		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item
 		extraKeys = { [Keys.VK_TAB] = SRA_NextTab, [Keys.VK_DELETE] = SRA_Queue.Remove, [Keys.VK_BACK] = SRA_Queue.Remove, [Gamepad.Key( "X" )] = SRA_Queue.Remove },
 		ctrlKeys = { [Keys.VK_TAB] = SRA_PrevTab },
-		altKeys = { [Keys.VK_UP] = SRA_Queue.MoveUp, [Keys.VK_DOWN] = SRA_Queue.MoveDown },
-	};
+		};
 	ContextPtr:SetInputHandler( OnInputHandler, true );
 	ContextPtr:SetShutdown( OnShutdown );
 
