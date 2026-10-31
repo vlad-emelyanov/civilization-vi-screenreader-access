@@ -1205,6 +1205,7 @@ local function SRA_Cancel()
 		SRA_AnnounceList();
 		return;
 	end
+	LuaEvents.SRA_ConfirmPending( false );
 	OnClose();
 	SRA_Say( "Cancelled" );
 end

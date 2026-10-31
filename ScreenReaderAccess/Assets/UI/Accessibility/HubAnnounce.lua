@@ -506,7 +506,8 @@ function HubAnnounce.LoyaltyWarningText( name:string, current:number, perTurn:nu
 		if value == math.floor( value ) then return tostring( math.floor( value ) ); end
 		return tostring( value );
 	end
-	local text:string = name .. " loyalty " .. Num( current ) .. ", falling " .. Num( -perTurn ) .. " a turn, lost in " .. turns .. ( turns == 1 and " turn" or " turns" );
+	local rate:string = ( -perTurn < 1 ) and "less than 1" or Num( -perTurn );
+	local text:string = name .. " loyalty " .. Num( current ) .. ", falling " .. rate .. " a turn, lost in " .. turns .. ( turns == 1 and " turn" or " turns" );
 	if keyHint ~= nil and keyHint ~= "" then text = text .. ". " .. keyHint .. " on that city for why"; end
 	return text;
 end
@@ -567,7 +568,8 @@ end
 -- result line. The choosers raise LuaEvents.SRA_ConfirmPending; until the result speaks (or CONFIRM_HOLD seconds) that fallback is silent.
 local CONFIRM_HOLD:number = 3;
 
-function HubAnnounce.NoteConfirm()
+function HubAnnounce.NoteConfirm( pending:boolean )
+	if pending == false then HubCore.m_confirmUntil = nil; return; end		-- the confirm failed or the chooser closed: no result is coming
 	HubCore.m_confirmUntil = UI.GetElapsedTime() + CONFIRM_HOLD;
 end
 

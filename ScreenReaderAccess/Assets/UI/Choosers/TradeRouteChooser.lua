@@ -1420,6 +1420,7 @@ local function SRA_Confirm()
 	if RequestTradeRoute() then		-- also leaves the interface mode, which closes this chooser
 		LuaEvents.SRA_TradeResult( "route", unitID, originOwner, originID, pending.name );
 	else
+		LuaEvents.SRA_ConfirmPending( false );		-- no result is coming: Enter speaks normally again
 		OutputMessageToScreenReader( "Trade route not started" );
 	end
 end
@@ -1432,6 +1433,7 @@ local function SRA_Back()
 end
 
 local function SRA_Cancel()
+	LuaEvents.SRA_ConfirmPending( false );
 	OnClose();
 	OutputMessageToScreenReader( "Trade route cancelled" );
 end
