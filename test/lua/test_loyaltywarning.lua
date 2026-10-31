@@ -46,6 +46,11 @@ test("LoyaltyWarningLines: far, rising or unknown conversions are not warned", f
 	eq(#HubAnnounce.LoyaltyWarningLines({ { name = "Edge", current = 10, perTurn = -2, turns = 8 } }, nil), 1, "8 turns is warned")
 end)
 
+test("Chooser owns Enter only in a chooser mode", function()
+	eq(HubAnnounce.ChooserOwnsEnter(nil), false, "no mode")
+	eq(HubAnnounce.ChooserOwnsEnter(12345), false, "unknown mode")
+end)
+
 test("Confirm hold: silent for 3 seconds or until cleared", function()
 	Clock.now = 10
 	eq(HubAnnounce.ConfirmPending(Clock.now), false, "idle")

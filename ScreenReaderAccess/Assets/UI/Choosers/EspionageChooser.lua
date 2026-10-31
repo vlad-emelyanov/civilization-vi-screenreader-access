@@ -1097,7 +1097,7 @@ local function SRA_AskTravel()
 	end
 	local travel:number, establish:number = SRA_TravelTimes( city );
 	local missions:number = #SRA_MissionItems();
-	SRA_Say( "Send " .. SRA_SpyName() .. " to " .. SRA_CityName( city ) .. "? Arrives in " .. SRA_Plural( travel + establish, "turn", "turns" )
+	SRA_Say( "Send " .. SRA_SpyName() .. " to " .. SRA_CityName( city ) .. "? Arrives " .. EspionageText_Arrival( travel + establish )
 		.. ". " .. SRA_Plural( missions, "mission", "missions" ) .. " possible there, " .. SRKey( "Space" ) .. " lists them. " .. SRKey( "Enter" ) .. " to confirm, " .. SRKey( "Escape" ) .. " to go back" );
 end
 
@@ -1151,7 +1151,7 @@ local function SRA_ConfirmTravel()
 	m_srConfirm = nil;
 	LuaEvents.SRA_ConfirmPending();		-- the hub's Enter watch must not say the unit line before the result
 	OnConfirmPlacement();		-- the game: TeleportToSelectedCity, which requests the operation and leaves the chooser mode
-	SRA_Say( spyName .. " travels to " .. cityName .. ", arrives in " .. SRA_Plural( travel + establish, "turn", "turns" ) );
+	SRA_Say( spyName .. " travels to " .. cityName .. ", arrives " .. EspionageText_Arrival( travel + establish ) );
 end
 
 local function SRA_ConfirmMission()

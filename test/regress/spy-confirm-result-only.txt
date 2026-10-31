@@ -1,5 +1,5 @@
 # Verified in game 2026-10-31. Fixture bug-spy-list-over-historic-moment (idle spy Bambi in Rome).
-# Item 1: after the confirming Enter on a spy destination the player hears only "<Spy> travels to X, arrives in N turns", no stale
+# Item 1 (also the first Enter that raises "Send X to Y?" has no "needs orders" line before it): after the confirming Enter on a spy destination the player hears only "<Spy> travels to X, arrives in N turns|this turn", no stale
 # "<Spy>, ..., needs orders. Tab for its actions" line before or after it. Item 2: Tab and F7 in the spy list are not silent.
 # covers: **/InGameAccess.lua **/HubAnnounce.lua **/EspionageChooser.lua **/KeyNavList.lua
 # no-share-load: sends the spy away
@@ -18,11 +18,12 @@ expect ^Close the list first, Escape closes it
 key Down -Count 3 -Fast -Settle 600
 expect ^Argos, Greece
 key Enter -Settle 1500
-expect ^Send Bambi to .+\? Arrives in
+expect ^Send Bambi to .+\? Arrives (in \d+ turns?|this turn)
+expect-not needs orders
 key Tab -Settle 1000
 expect ^No tabs here
 key Enter -Settle 4000
-expect ^Bambi travels to .+, arrives in \d+ turns?
+expect ^Bambi travels to .+, arrives (in \d+ turns?|this turn)
 expect-not needs orders
 expect-not Tab for its actions
 no-lua-errors
