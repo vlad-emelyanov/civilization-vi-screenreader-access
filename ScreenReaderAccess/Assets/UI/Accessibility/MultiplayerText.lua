@@ -41,22 +41,29 @@ end
 -- were given. Returns the threshold that is due now (the smallest one the remaining time has reached; a timer first seen at 25
 -- seconds gives the 30 warning, not 60 as well) or nil. Remaining time above 60 seconds clears `warned` (a new turn).
 local THRESHOLDS:table = { 10, 30, 60 };
-function MPText_TimerDue( remaining:number, warned:table )
-	if remaining == nil then return nil; end
+function MPText_TimerPending( remaining:number, warned:table )
+	if remaining == nil or remaining <= 0 then return nil; end
 	if remaining > 60 then
 		for _, t in ipairs( THRESHOLDS ) do warned[ t ] = nil; end
 		return nil;
 	end
-	if remaining <= 0 then return nil; end
 	local due = nil;
 	for _, t in ipairs( THRESHOLDS ) do
 		if remaining <= t and not warned[ t ] then due = due or t; end
 	end
-	if due ~= nil then
-		for _, t in ipairs( THRESHOLDS ) do
-			if t >= due then warned[ t ] = true; end
-		end
+	return due;
+end
+
+-- Marks the warning `due` (and the larger ones) as given.
+function MPText_TimerMark( due:number, warned:table )
+	for _, t in ipairs( THRESHOLDS ) do
+		if t >= due then warned[ t ] = true; end
 	end
+end
+
+function MPText_TimerDue( remaining:number, warned:table )
+	local due = MPText_TimerPending( remaining, warned );
+	if due ~= nil then MPText_TimerMark( due, warned ); end
 	return due;
 end
 

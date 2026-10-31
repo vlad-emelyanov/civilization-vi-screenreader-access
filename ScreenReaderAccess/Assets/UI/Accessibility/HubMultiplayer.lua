@@ -142,12 +142,19 @@ function HubMultiplayer.OnTurnTimerUpdated( elapsedTime:number, maxTurnTime:numb
 	local remaining:number = maxTurnTime - elapsedTime;
 	m_timer.remaining = remaining;
 	m_timer.stamp = UI.GetElapsedTime();
-	local due = MPText_TimerDue( remaining, m_timer.warned );
+	local due = MPText_TimerPending( remaining, m_timer.warned );
 	if due == nil or not HubCore.m_ready or not HubCore.IsLocalPlayerActive() then return; end
-	-- only while this player's turn is running and not yet ended (after the end, the action panel says "Waiting for players")
+	-- only while this player's turn is running and not yet ended (after the end, the action panel says "Waiting for players");
+	-- a warning that is not spoken stays due
 	local player:table = Players[ Game.GetLocalPlayer() ];
 	if player == nil or not player:IsTurnActive() or HubAnnounce.IsWaiting() then return; end
+	MPText_TimerMark( due, m_timer.warned );
 	OutputMessageToScreenReader( MPText_TimerWarning( remaining ), true );
+end
+
+-- A new turn starts: the warnings are due again (also for a timer of 60 seconds or less, which never rises above 60).
+function HubMultiplayer.OnTurnBegin()
+	m_timer.warned = {};
 end
 
 -- The "Turn timer" entry of the top panel list; nil without a timer or when the last reading is old.
@@ -186,11 +193,15 @@ end
 function HubMultiplayer.OnPlayerDisconnected( playerID:number )
 	if not RealPlayer( playerID ) or not IsNetwork() then return; end
 	HubCore.After( 1.5, function()
-		local cfg:table = PlayerConfigurations[ playerID ];
-		if cfg == nil or not HubCore.m_ready then return; end
-		if cfg:GetSlotStatus() == SlotStatus.SS_COMPUTER or not cfg:IsHuman() then
-			HubCore.Announce( MPText_PlayerNotice( PlayerName( playerID ), "ai" ), true, "chat" );
-		end
+		local ok:boolean, err = pcall( function()
+			local cfg:table = PlayerConfigurations[ playerID ];
+			if cfg == nil or not HubCore.m_ready then return; end
+			-- 4 = computer slot (the game's ChatPanel compares with the literal; SlotStatus may not exist in this context)
+			if cfg:GetSlotStatus() == 4 or not cfg:IsHuman() then
+				HubCore.Announce( MPText_PlayerNotice( PlayerName( playerID ), "ai" ), true, "chat" );
+			end
+		end );
+		if not ok then print( "HubMultiplayer AI check error: " .. tostring( err ) ); end
 	end );
 end
 
@@ -201,5 +212,6 @@ function HubMultiplayer.Init()
 	HubCore.Listen( Events.MultiplayerPlayerConnected, HubCore.Safe( "MultiplayerPlayerConnected", HubMultiplayer.OnPlayerConnected ) );
 	HubCore.Listen( Events.MultiplayerPrePlayerDisconnected, HubCore.Safe( "MultiplayerPrePlayerDisconnected", HubMultiplayer.OnPlayerDisconnecting ) );
 	HubCore.Listen( Events.MultiplayerPostPlayerDisconnected, HubCore.Safe( "MultiplayerPostPlayerDisconnected", HubMultiplayer.OnPlayerDisconnected ) );
+	HubCore.Listen( Events.LocalPlayerTurnBegin, HubCore.Safe( "MPTurnBegin", HubMultiplayer.OnTurnBegin ) );
 	TopPanelData_TimerText = HubMultiplayer.TimerText;
 end

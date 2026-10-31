@@ -52,6 +52,23 @@ test("a timer first seen late gives only the matching warning", function()
 	eq(MPText_TimerDue(nil, w2), nil)
 end)
 
+test("a pending warning stays due until it is marked (gated warnings are not lost)", function()
+	local w = {}
+	eq(MPText_TimerPending(25, w), 30)
+	eq(MPText_TimerPending(24, w), 30)
+	MPText_TimerMark(30, w)
+	eq(MPText_TimerPending(24, w), nil)
+	eq(MPText_TimerPending(9, w), 10)
+end)
+
+test("a timer of 60 seconds or less warns again after the warned table is reset for a new turn", function()
+	local w = {}
+	eq(MPText_TimerDue(45, w), 60)
+	eq(MPText_TimerDue(40, w), nil)
+	w = {}
+	eq(MPText_TimerDue(45, w), 60)
+end)
+
 test("timer wording", function()
 	eq(MPText_TimerWarning(29.6), "30 seconds left in the turn")
 	eq(MPText_TimerWarning(59.9), "1 minute left in the turn")
