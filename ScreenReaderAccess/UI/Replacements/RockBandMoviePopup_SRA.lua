@@ -1,6 +1,7 @@
 -- Copyright 2016-2018, Firaxis Games
 -- TODO: Use lock system
 include("InputSupport");
+include("ScreenReader");		-- ScreenReaderAccess mod change
 
 
 -- ===========================================================================
@@ -25,6 +26,8 @@ local ROCK_BAND_NAME_GRID_MINIMUM_SIZE:number = 415;
 --	Closes the immediate popup, will raise more if queued.
 -- ===========================================================================
 function Close()
+	LuaEvents.SRA_SpeechHold( "RockBandMovie", false );		-- ScreenReaderAccess mod change
+	if m_kCurrentPopup == nil then UIManager:DequeuePopup( ContextPtr ); return; end		-- ScreenReaderAccess mod change: closed twice
 
 	UI.PlaySound("Stop_RockBand");
 
@@ -100,6 +103,11 @@ function ShowPopup( kData:table )
 	local gridSize:number = Controls.RockBandName:GetSizeX() + ROCK_BAND_NAME_GRID_MARGIN;
 	Controls.RockBandNameGrid:SetSizeX(math.max(gridSize, ROCK_BAND_NAME_GRID_MINIMUM_SIZE));
 	Controls.RockBandLevel:SetText(kData.rockLevel);
+
+	-- Begin ScreenReaderAccess mod change: "<Band name>, level 2, plays a concert. Enter to see the result"
+	LuaEvents.SRA_SpeechHold( "RockBandMovie", true );
+	OutputMessageToScreenReader(CleanTextForSpeech(kData.Name) .. ", level " .. tostring(kData.rockLevel) .. ", plays a concert. " .. SRKey( "Enter" ) .. " to see the result");
+	-- End ScreenReaderAccess mod change
 end
 
 -- ===========================================================================
@@ -172,11 +180,11 @@ end
 --	Native Input / ESC support
 -- ===========================================================================
 function KeyHandler( key:number )
-    if key == Keys.VK_ESCAPE then
+    if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then		-- ScreenReaderAccess mod change: Enter too
 		Close();
 		return true;
     end
-    return false;
+    return not ContextPtr:IsHidden();		-- ScreenReaderAccess mod change: modal
 end
 function OnInputHander( pInputStruct:table )
 	local uiMsg :number = pInputStruct:GetMessageType();

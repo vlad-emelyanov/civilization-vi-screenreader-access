@@ -13,6 +13,7 @@
 
 include( "ScreenReader" );
 include( "ToolTipHelper_PlayerYields" );
+include( "EmergencyText" );
 
 local function Num( value:number )
 	return Locale.ToNumber( value, "#,###.#" );
@@ -236,6 +237,33 @@ local function TradeItem( items:table, player:table )
 	Add( items, { key = "trade", text = text, detail = text } );
 end
 
+-- Active emergencies and scored competitions (Gathering Storm), one entry each, only while there are any. The World Tracker
+-- shows the same table; wording in EmergencyText.lua.
+local function EmergencyItems( items:table, playerID:number )
+	if Game.GetEmergencyManager == nil or GameInfo.Emergencies_XP2 == nil then return; end
+	local manager:table = Game.GetEmergencyManager();
+	if manager == nil then return; end
+	local diplomacy:table = Players[ playerID ]:GetDiplomacy();
+	for index, e in ipairs( manager:GetEmergencyInfoTable( playerID ) or {} ) do
+		local definition:table = GameInfo.EmergencyAlliances[ e.EmergencyType ];
+		local meta:table = definition ~= nil and GameInfo.Emergencies_XP2[ definition.EmergencyType ] or nil;
+		local function PlayerName( id:number )
+			if id ~= playerID and not diplomacy:HasMet( id ) then return "a civilization you have not met"; end
+			return Clean( Locale.Lookup( PlayerConfigurations[ id ]:GetCivilizationShortDescription() ) );
+		end
+		local text, detail = EmergencyText_Item( e, {
+			localID = playerID,
+			hostile = meta ~= nil and meta.Hostile == true,
+			noTarget = meta ~= nil and meta.NoTarget == true,
+			name = Locale.Lookup( e.NameText ),
+			targetName = ( e.TargetID ~= nil and e.TargetID >= 0 ) and PlayerName( e.TargetID ) or "",
+			clean = Clean,
+			playerName = PlayerName,
+		} );
+		Add( items, { key = "emergency" .. index .. "_" .. tostring( e.EmergencyType ) .. "_" .. tostring( e.TargetID ), text = text, detail = detail } );
+	end
+end
+
 -- Runs one item builder; an API missing in this ruleset loses that item only, not the whole panel.
 local function Guard( name:string, f )
 	local ok:boolean, err = pcall( f );
@@ -299,6 +327,7 @@ function TopPanelData_BuildItems()
 	Guard( "era", function() EraItem( items, playerID ); end );
 	Guard( "envoys", function() EnvoyItem( items, player ); end );
 	Guard( "trade", function() TradeItem( items, player ); end );
+	Guard( "emergencies", function() EmergencyItems( items, playerID ); end );
 	return items;
 end
 

@@ -1,0 +1,18 @@
+# Written blind (offline). DisloyalCityChooser (Expansion1 "Keep or Free City" popup) was silent and its Escape did nothing. Needs a state where Players[0]:GetCities():GetNextRebelledCity() is not nil (a foreign city rebelled to a free city and your loyalty is strongest there); no fixture has one yet, so this script is manual: run it by name once a fixture exists (replace the load line).
+# covers: **/DisloyalCityChooser_SRA.lua
+# manual
+# no-share-load: needs a fresh load
+# own-load: needs a fresh load
+load bug-crisis-popup-silent
+clear-advisors
+lua InGame LuaEvents.NotificationPanel_OpenDisloyalCityChooser()
+wait (?i)asks to join you -Timeout 8
+expect (?i)asks to join you.*population \d+.*keep city or refuse city
+key Down -Settle 600
+expect (?i)refuse city
+key Space -Settle 600
+expect (?i)free city
+key Up -Settle 600
+key Enter -Settle 2000
+expect (?i)kept
+no-lua-errors

@@ -2,6 +2,7 @@
 -- ===========================================================================
 include("Colors");
 include("InstanceManager");
+include("ScreenReader");		-- ScreenReaderAccess mod change
 
 -- ===========================================================================
 --	CONSTANTS
@@ -81,6 +82,23 @@ function Open( ownerID:number, unitID:number, resultID:number, totalTourism:numb
 			m_unitID = unitID;
 			m_ownerID = ownerID;
 			UIManager:QueuePopup(ContextPtr, PopupPriority.Medium);
+
+			-- Begin ScreenReaderAccess mod change: "Legends of Rock: <result>. <description>. Tourism gained 120. Albums sold 4000. The band gains a promotion. Enter to close"
+			local parts:table = {};
+			local function add(text:string)
+				text = CleanTextForSpeech(text or "");
+				if text ~= "" then table.insert(parts, text); end
+			end
+			add(Locale.Lookup(TIER_STRINGS[rockTier]) .. ": " .. Locale.Lookup(kResultData.Name));
+			add(Locale.Lookup(kResultData.Description));
+			add("Tourism gained " .. tostring(totalTourism));
+			add("Albums sold " .. tostring(kResultData.AlbumSales));
+			if bCanPromote then add("The band gains a promotion"); end
+			if bCanLevelUp then add("The band gains a level, now level " .. tostring(pRockBand:GetRockBandLevel())); end
+			if kResultData.Dies then add("The band dies"); end
+			LuaEvents.SRA_SpeechHold( "RockBand", true );
+			OutputMessageToScreenReader(table.concat(parts, ". ") .. ". " .. SRKey( "Enter" ) .. " to close");
+			-- End ScreenReaderAccess mod change
 		end
 	else
 		UI.DataError("Invalid ResultID for Rock Band recap! ID: " .. resultID .. " was given.");
@@ -100,6 +118,7 @@ end
 --	Actual close function, asserts if already closed
 -- ===========================================================================
 function Close()
+	LuaEvents.SRA_SpeechHold( "RockBand", false );		-- ScreenReaderAccess mod change
 	if not ContextPtr:IsHidden() then
 		UI.PlaySound("UI_Screen_Close");
 	end
@@ -120,11 +139,11 @@ end
 -- ===========================================================================
 function OnInputHandler( pInputStruct:table )
 	local uiMsg :number = pInputStruct:GetMessageType();
-	if uiMsg == KeyEvents.KeyUp and pInputStruct:GetKey() == Keys.VK_ESCAPE then
+	if uiMsg == KeyEvents.KeyUp and (pInputStruct:GetKey() == Keys.VK_ESCAPE or pInputStruct:GetKey() == Keys.VK_RETURN) then		-- ScreenReaderAccess mod change: Enter too
 		Close();
 		return true;
 	end
-	return false;
+	return not ContextPtr:IsHidden();		-- ScreenReaderAccess mod change: modal
 end
 
 -- ===========================================================================

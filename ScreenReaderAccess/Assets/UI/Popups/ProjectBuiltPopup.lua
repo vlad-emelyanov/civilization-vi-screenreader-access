@@ -2,6 +2,7 @@
 -- For some projects (not all) play a movie showing off the completion.
 
 include("PopupManager");
+include("ScreenReader");		-- ScreenReaderAccess mod change
 
 
 -- ===========================================================================
@@ -85,6 +86,15 @@ function ShowPopup( kData:table )
 
 	UI.PlaySound("Mute_Narrator_Advisor_All");
 
+	-- Begin ScreenReaderAccess mod change: "Project completed: Manhattan Project. <quote>. Enter to continue" (the original never set m_kCurrentPopup)
+	m_kCurrentPopup = kData;
+	local text:string = "Project completed: " .. CleanTextForSpeech(Locale.Lookup(kData.Name)) .. ".";
+	local quote:string = Locale.Lookup(kData.Description or "");
+	if quote ~= nil and quote ~= "" then text = text .. " " .. CleanTextForSpeech(quote); end
+	LuaEvents.SRA_SpeechHold( "ProjectBuilt", true, "/InGame/WorldPopups/" .. ContextPtr:GetID() );
+	OutputMessageToScreenReader(text .. " " .. SRKey( "Enter" ) .. " to continue");
+	-- End ScreenReaderAccess mod change
+
 	Controls.ProjectName:SetText( Locale.ToUpper(kData.Name) );
 	Controls.ProjectIcon:SetIcon( kData.Icon );
 	if Locale.Lookup(kData.Description) ~= nil then
@@ -121,6 +131,7 @@ end
 function Close()
 
 	StopSound();
+	LuaEvents.SRA_SpeechHold( "ProjectBuilt", false );		-- ScreenReaderAccess mod change
 
 	local isDone:boolean  = true;
 
@@ -192,11 +203,12 @@ end
 --	UI Event Handler
 -- ===========================================================================
 function KeyHandler( key:number )
-    if key == Keys.VK_ESCAPE then
+    if key == Keys.VK_ESCAPE or key == Keys.VK_RETURN then		-- ScreenReaderAccess mod change: Enter too
+		if m_kCurrentPopup == nil then return false; end
 		Close();
 		return true;
     end
-    return false;
+    return ContextPtr:IsVisible();		-- ScreenReaderAccess mod change: modal
 end
 function OnInputHandler( pInputStruct:table )
 	local uiMsg = pInputStruct:GetMessageType();
