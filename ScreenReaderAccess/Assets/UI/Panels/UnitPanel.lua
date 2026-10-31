@@ -4358,6 +4358,7 @@ local function SRRangedAttackReason( unit:table )
 	-- a ranged unit that shares a city center with ANOTHER military unit gets no ranged attack from the engine (alone it can fire);
 	-- observed in the game, not explained (docs/engine-notes.md, "A unit standing in a city center")
 	if not SRIsAirUnit( unit ) then
+		if unit:GetRangedCombat() <= 0 then return PlotDescription_GetUnitName( unit ) .. " has no ranged attack"; end
 		local sharing:string = PlotDescription_CoGarrisonText( PlotDescription_CoGarrisonNames( unit ) );
 		if sharing ~= nil then return sharing; end
 	end
