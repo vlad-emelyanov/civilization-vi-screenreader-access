@@ -1,0 +1,57 @@
+# Written blind 2026-10-31 (never run; record it first: regress diplomacy-intel --record). The intel report: I on a civilization in the V list, Escape back to the same civilization, I on "You" (world relations), the "Intel report" entry at the end of the diplomacy overview.
+# covers: **/DiplomacyIntel.lua **/HubMenus.lua **/HubCore.lua **/DiplomacyActionView.lua **/HelpText.lua
+# no-share-load: Enter in the V list starts a diplomacy session with an AI civ
+load medieval-t100
+clear-advisors
+action KeyNavDiplomacy -Settle 1500
+expect ^Dido, Phoenicia
+# Space on a civilization: the one-line summary
+key Space -Settle 1500
+expect Relationship .*opens the full intel report
+# I opens the report; the groups come in the order Relationship, Agendas, Agreements, Their relations, Access, Gossip
+key I -Settle 2500
+expect ^Intel on .* of .*, \d+ options
+expect Relationship, \d+: Relationship: \w+
+key Down -Settle 600
+key PageDown -Settle 600
+expect ^Agendas, \d+:
+key PageDown -Settle 600
+expect ^Agreements, \d+:
+key PageDown -Settle 600
+expect ^Their relations, \d+:
+key PageDown -Settle 600
+expect ^Access, \d+: Access level:
+key Space -Settle 800
+key PageDown -Settle 600
+expect ^Gossip, \d+: (Turn \d+: |No gossip yet)
+# Enter has nothing to run: it reads the detail (never silent)
+key Enter -Settle 800
+# Escape goes back to the V list on the same civilization
+key Escape -Settle 1500
+expect ^Back
+expect Dido, Phoenicia
+# I on "You" (the last item): world relations
+key End -Settle 800
+expect ^You,
+key I -Settle 2000
+expect ^World relations, \d+ options
+expect Wars, \d+:
+key Escape -Settle 1500
+expect ^Back
+expect ^You,
+key Escape -Settle 1500
+expect ^Closed
+# the overview of a leader: "Intel report" is the last entry and opens the same report as a sub list
+action KeyNavDiplomacy -Settle 1500
+key Enter -Settle 3000
+expect ^Diplomacy with
+key End -Settle 800
+expect ^Intel report,
+key Enter -Settle 2000
+expect ^Intel on .* of .*, \d+ options
+key Escape -Settle 1500
+expect ^Back
+expect ^Intel report
+key Escape -Settle 2500
+expect ^Diplomacy closed
+no-lua-errors

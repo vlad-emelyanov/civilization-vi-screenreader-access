@@ -19,7 +19,7 @@ expect ^Diplomacy with
 key Down -Settle 500
 key Down -Settle 500
 key Down -Settle 500
-expect ^Make Deal, 4 of 8
+expect ^Make Deal, 4 of 9
 key Enter -Settle 3500
 expect ^Deal with
 # X = F13 reads the summary
@@ -37,7 +37,7 @@ expect ^Diplomacy with
 key Down -Settle 500
 key Down -Settle 500
 key Down -Settle 500
-expect ^Make Deal, 4 of 8
+expect ^Make Deal, 4 of 9
 key Enter -Settle 3500
 expect ^Deal with
 # RB: next section (Your items), LB: back
@@ -59,7 +59,7 @@ expect ^Diplomacy with
 key Down -Settle 500
 key Down -Settle 500
 key Down -Settle 500
-expect ^Make Deal, 4 of 8
+expect ^Make Deal, 4 of 9
 key Enter -Settle 3500
 expect ^Deal with
 key Tab -Settle 800

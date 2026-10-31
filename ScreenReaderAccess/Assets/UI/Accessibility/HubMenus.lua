@@ -3,6 +3,8 @@
 --	Part of the InGameAccess hub (see docs/features.md, Architecture): included by
 --	UI/Additions/InGameAccess.lua. State and functions other hub modules use are fields of HubMenus.
 -- ===========================================================================
+include( "DiplomacyIntel" );		-- the intel report (I in the V list)
+
 HubMenus = {};
 
 local m_unitActions			:table = {};		-- plain list of the selected unit's actions, sent by UnitPanel (SRA_UnitActions)
@@ -374,6 +376,17 @@ local function BuildCivItems()
 			head = Locale.Lookup( config:GetLeaderName() ) .. ", " .. entry.name .. ", " .. state;
 		end
 		local item:table = { key = "civ:" .. entry.id, civ = entry.id, isYou = entry.isYou, text = StandingText_ListItem( entry, head ) };
+		-- Space: a one-line summary of the intel report (I opens it); on "You" the world relations
+		if entry.isYou then
+			item.detail = "World relations: " .. SRKey( "I", "X" ) .. " lists the wars, alliances and denunciations between the civilizations you have met";
+		else
+			local civId:number = entry.id;
+			item.detail = function()
+				local ok:boolean, text = pcall( DiplomacyIntel.Summary, civId );
+				if not ok then print( "HubMenus intel summary error: " .. tostring( text ) ); end
+				return ok and text or nil;
+			end;
+		end
 		if entry.isYou then you = item; else table.insert( items, item ); end
 	end
 	-- you come last (Up from the first civ wraps to it), so the first item stays the first civ met
@@ -388,7 +401,59 @@ function HubMenus.SpeakStanding()
 	OutputMessageToScreenReader( StandingText_Line( entries, 1 ) );
 end
 
+-- ---------------------------------------------------------------------------
+--	INTEL (I in the V list): the leader's intel panels as a list (DiplomacyIntel.lua); on "You" the world relations.
+--	Escape goes back to the V list on the same civilization.
+-- ---------------------------------------------------------------------------
+local m_intel:table = nil;		-- { civ = player id, world = true on the You item, items = the snapshot taken when the list opened }
+local m_intelList:table;
+
+local function BuildIntelItems()
+	if m_intel == nil then return {}; end
+	-- gathered once per opening (the gather scans gossip and database tables): not on every key
+	if m_intel.items == nil then
+		m_intel.items = m_intel.world and DiplomacyIntel.WorldItems() or DiplomacyIntel.Items( m_intel.civ );
+	end
+	return m_intel.items;
+end
+
+local function OpenIntelFor( item:table )
+	if item.isYou then
+		m_intel = { civ = item.civ, world = true };
+		HubCore.OpenMode( "intel", m_intelList, "World relations" );
+	else
+		m_intel = { civ = item.civ };
+		HubCore.OpenMode( "intel", m_intelList, DiplomacyIntel.Title( item.civ ) );
+	end
+end
+
+local function IntelKey()
+	local key = m_civMenu.GetFocusKey();
+	for _, item in ipairs( BuildCivItems() ) do
+		if item.key == key then OpenIntelFor( item ); return; end
+	end
+	OutputMessageToScreenReader( "Item no longer available" );
+end
+
+local m_civKeys:table = { [Keys.I] = IntelKey };
+if Gamepad.Key( "X" ) ~= nil then m_civKeys[ Gamepad.Key( "X" ) ] = IntelKey; end
+
+m_intelList = KeyNavList_Create{
+	build		= BuildIntelItems,
+	isActive	= function() return HubCore.IsModeOpen( "intel" ); end,
+	sectionCounts = true,
+	-- Enter has nothing to run in a report: it reads the item's detail like Space (never silent)
+	onActivate	= function( item ) OutputMessageToScreenReader( item.detail or "No further details" ); end,
+	onClose		= function()
+		local civ = m_intel ~= nil and m_intel.civ or nil;
+		m_intel = nil;
+		if civ == nil then HubCore.CloseMode( true, false ); return; end
+		HubCore.OpenModeAt( "civ", m_civMenu, "civ:" .. civ, "Back" );
+	end,
+};
+
 m_civMenu = KeyNavList_Create{
+	extraKeys	= m_civKeys,
 	build		= BuildCivItems,
 	isActive	= function() return HubCore.IsModeOpen( "civ" ); end,
 	wheel		= true,		-- the pad wheel: a short list of the main interface
