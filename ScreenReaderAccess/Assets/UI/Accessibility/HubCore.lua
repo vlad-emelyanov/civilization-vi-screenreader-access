@@ -623,3 +623,11 @@ function HubCore.OpenMode( name:string, list:table, title:string, onClose )
 	HubCore.m_mode = { name = name, list = list, onClose = onClose };
 	list.Open( title );
 end
+
+-- Like OpenMode for coming BACK to a list: no opening sentence, the focus goes to the item with this key, spoken after `prefix` ("Back").
+function HubCore.OpenModeAt( name:string, list:table, key, prefix:string, onClose )
+	HubCore.CloseMode( false, false );
+	HubCore.m_mode = { name = name, list = list, onClose = onClose };
+	list.Open( "", key, true );
+	list.Focus( key, prefix );
+end

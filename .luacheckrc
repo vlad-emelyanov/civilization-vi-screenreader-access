@@ -30,12 +30,12 @@ read_globals = {
 	"UnitCommandTypes", "UnitManager", "UnitOperationResults", "UnitOperationTypes", "Units", "UserConfiguration",
 	-- provided by game files pulled in with include(): ToolTipHelper_PlayerYields, Civ6Common
 	"Round", "Clamp", "GetCityData", "DATA_DOMINANT_RELIGION", "YIELD_STATE", "GetScienceTooltip", "GetCultureTooltip", "GetFaithTooltip", "GetGoldTooltip", "MoveUnitToPlot",
-	"GameRandomEvents", "Territories", "View", "WarTypes", "WorldBuilder", "YieldTypes", "include", "ToolTipHelper", "Cities", "Locale",
+	"GameRandomEvents", "Territories", "View", "WarTypes", "DealAgreementTypes", "Relationship", "WorldBuilder", "YieldTypes", "include", "ToolTipHelper", "Cities", "Locale",
 }
 
 -- Globals the mod defines in Assets/UI/Accessibility/*.lua (shared via include()). Keep in sync.
 globals = {
-	"Hub", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubMessages", "HubPlaces", "HubOverview", "BlindSpots", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp", "HubGamepad", "HubPad", "HubLenses", "HubScreens", "Gamepad", "LoadParagraphs", "Gamepad_CatchKey", "HelpText_Sections", "HelpText_KeyText", "HelpText_Line", "HelpText_Build",
+	"Hub", "DiplomacyIntel", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubMessages", "HubPlaces", "HubOverview", "BlindSpots", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp", "HubGamepad", "HubPad", "HubLenses", "HubScreens", "Gamepad", "LoadParagraphs", "Gamepad_CatchKey", "HelpText_Sections", "HelpText_KeyText", "HelpText_Line", "HelpText_Build",
 	"CleanTextForSpeech", "SRDescriptionFirst", "DealSpeech_AvailableText", "DealSpeech_ChangeText", "DealSpeech_DealItemText", "DealSpeech_Intro",
 	"DealSpeech_ItemText", "DealSpeech_CityName", "DealSpeech_RemovalChange", "DealSpeech_Summary", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
 	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",

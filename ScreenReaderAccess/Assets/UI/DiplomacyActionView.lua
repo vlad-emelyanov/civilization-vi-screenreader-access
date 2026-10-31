@@ -15,12 +15,13 @@ include( "CivilizationIcon" );
 include( "ScreenReader" );	-- ScreenReaderAccess
 include( "KeyNavList" );	-- ScreenReaderAccess
 include( "DiplomacyText" );	-- ScreenReaderAccess
+include( "DiplomacyIntel" );	-- ScreenReaderAccess
 
 -- ScreenReaderAccess: the leader's answers on the conversation page, as a keyboard list (see SRA_* below).
 local m_srSelections	:table = {};
 local m_srList			:table = nil;
 local m_srOverviewList	:table = nil;	-- the overview (things you can propose) as a keyboard list
-local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" / "war"), nil = top level
+local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" / "war" / "intel"), nil = top level
 local m_srPendingAnswer	:string = nil;	-- key of the answer chosen while a cinema scene was showing
 local m_srLeavingAt			:number = 0;		-- time Goodbye was chosen; m_srLeaving never lasts longer than 3 s (SRA_IsLeaving)
 local m_srLeaving			:boolean = false;	-- Goodbye was chosen: the screen closes when the session ends, and takes no answers meanwhile
@@ -3255,13 +3256,18 @@ function SRA_OverviewEntries()
 		table.insert( top, { key = "sub:war", text = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ) .. ", " .. #war .. " options", sub = "war", title = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI" ) ), detail = CleanTextForSpeech( Locale.Lookup( "LOC_DIPLOMACY_CASUS_BELLI_TT" ) ) } );
 	end
 	-- available entries first (like the Tab unit menu): "Send Delegation, unavailable" does not lead the list
-	return SRAvailableFirst( top ), SRAvailableFirst( discuss ), SRAvailableFirst( war );
+	local ordered:table = SRAvailableFirst( top );
+	-- the intel report (DiplomacyIntel.lua) is the last entry: a sub list like Discuss
+	table.insert( ordered, { key = "sub:intel", text = "Intel report", sub = "intel", title = DiplomacyIntel.Title( ms_SelectedPlayerID ),
+		detail = "Why they like or dislike you, their agendas, running agreements, their relations, access level and gossip" } );
+	return ordered, SRAvailableFirst( discuss ), SRAvailableFirst( war );
 end
 
 local function SRA_OverviewBuild()
 	local top:table, discuss:table, war:table = SRA_OverviewEntries();
 	if m_srOverviewSub == "discuss" then return discuss; end
 	if m_srOverviewSub == "war" then return war; end
+	if m_srOverviewSub == "intel" then return DiplomacyIntel.Items( ms_SelectedPlayerID ); end
 	return top;
 end
 
@@ -3341,6 +3347,9 @@ local function SRA_OnOverviewActivate( item:table )
 		m_srOverviewSub = item.sub;
 		m_srOverviewList.Reset();
 		m_srOverviewList.Open( item.title or item.text );
+	elseif item.callback == nil then
+		-- an intel report item has nothing to run: Enter reads its detail like Space
+		OutputMessageToScreenReader( item.detail or "No further details" );
 	else
 		item.callback();
 	end

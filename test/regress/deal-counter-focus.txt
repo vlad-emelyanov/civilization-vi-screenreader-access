@@ -11,7 +11,7 @@ expect ^Diplomacy with
 key Down -Settle 500
 key Down -Settle 500
 key Down -Settle 500
-expect ^Make Deal, 4 of 8
+expect ^Make Deal, 4 of 9
 key Enter -Settle 3500
 expect ^Deal with
 key Tab -Settle 800
