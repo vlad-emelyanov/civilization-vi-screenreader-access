@@ -1,4 +1,4 @@
-# Written blind (2026-10-31, not yet recorded; run with --record). Scenario trader-in-capital on medieval-t100.
+# Verified in game 2026-10-31. Scenario trader-in-capital on medieval-t100.
 # Item 1: after the confirming Enter the player hears only "Trade route to X started", no stale "<Trader>, needs orders. Tab for its actions" before it.
 # Item 2: Tab and F7 in the route list are not silent.
 # covers: **/InGameAccess.lua **/HubAnnounce.lua **/HubEvents.lua **/TradeRouteChooser.lua **/KeyNavList.lua

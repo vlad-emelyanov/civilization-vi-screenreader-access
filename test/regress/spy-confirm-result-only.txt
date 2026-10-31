@@ -1,4 +1,4 @@
-# Written blind (2026-10-31, not yet recorded; run with --record). Fixture bug-spy-list-over-historic-moment (idle spy Bambi in Rome).
+# Verified in game 2026-10-31. Fixture bug-spy-list-over-historic-moment (idle spy Bambi in Rome).
 # Item 1: after the confirming Enter on a spy destination the player hears only "<Spy> travels to X, arrives in N turns", no stale
 # "<Spy>, ..., needs orders. Tab for its actions" line before or after it. Item 2: Tab and F7 in the spy list are not silent.
 # covers: **/InGameAccess.lua **/HubAnnounce.lua **/EspionageChooser.lua **/KeyNavList.lua
@@ -6,12 +6,17 @@
 load bug-spy-list-over-historic-moment
 key Escape -Settle 1500
 expect ^Cancelled
+key Enter -Settle 1800
+key Enter -Settle 1800
+key Enter -Settle 1800
 key Enter -Settle 2500
 expect ^Choose destination for Bambi: \d+ cities
 key Tab -Settle 1000
 expect ^No tabs here
 key F7 -Settle 1000
 expect ^Close the list first, Escape closes it
+key Down -Count 3 -Fast -Settle 600
+expect ^Argos, Greece
 key Enter -Settle 1500
 expect ^Send Bambi to .+\? Arrives in
 key Tab -Settle 1000

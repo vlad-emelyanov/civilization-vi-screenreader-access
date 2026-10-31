@@ -10,5 +10,7 @@ expect ^Governments, current: [A-Za-z ]+\. You can
 key Down -Settle 600
 expect-not (?i)bonus
 key Space -Settle 600
+expect-not \.\.
+expect (?i)percent|Combat Strength|Housing|Amenit
 key Escape -Settle 1500
 no-lua-errors

@@ -3010,11 +3010,17 @@ local function SRA_GovernmentItems()
 		-- bonuses, legacy bonus and the switch hint go to the Space detail
 		local details:table = {};
 		local inherent:string = SRA_Clean( government.BonusInherentText );
-		if inherent ~= "" then table.insert( details, inherent ); end
-		local accumulated:string = SRA_Clean( government.BonusAccumulatedText );
-		if accumulated ~= "" then table.insert( details, accumulated ); end
-		local legacy:string = SRA_Clean( government.BonusAccumulatedTooltip );
-		if legacy ~= "" then table.insert( details, legacy ); end
+		-- the three texts end in a period and the legacy tooltip repeats the accumulated text: strip, and say each once
+		local function addDetail( text:string )
+			text = string.gsub( text, "[%s%.]+$", "" );
+			text = string.gsub( text, "%.%s*%.", "." );
+			if text == "" then return; end
+			for _, seen in ipairs( details ) do if seen == text then return; end end
+			table.insert( details, text );
+		end
+		addDetail( inherent );
+		addDetail( SRA_Clean( government.BonusAccumulatedText ) );
+		addDetail( SRA_Clean( government.BonusAccumulatedTooltip ) );
 		if unlocked and not isCurrent and IsAbleToChangeGovernment() then table.insert( details, SRKey( "Enter" ) .. " to switch to it" ); end
 		table.insert( items, {
 			key = "government:" .. governmentType, kind = "government", governmentType = governmentType,
