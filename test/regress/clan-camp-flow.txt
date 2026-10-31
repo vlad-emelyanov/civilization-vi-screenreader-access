@@ -20,11 +20,11 @@ expect (?i)\w+ clan, .*Barbarian Outpost.*T to treat with the clan, 2 of 2
 key T -Settle 2500 -Quiet 800
 expect (?i)^Treat With .* Clan
 expect (?i)\d options?
-expect (?i)^(Hire|Incite|Bribe|Ransom)\b.*, 1 of \d
+expect (?i)^(Hire|Incite|Bribe|Ransom)\b.*[,.] 1 of \d
 key Down -Settle 800
-expect , 2 of \d
+expect [,.] 2 of \d
 key Up -Settle 800
-expect , 1 of \d
+expect [,.] 1 of \d
 key Escape -Settle 1000
 expect ^Closed
 lua InGameAccess HubCore.CloseMode( false, true ) return 1

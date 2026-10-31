@@ -21,7 +21,7 @@ key Tab -Settle 1000
 expect ^City Status, 3 of 4 tabs\. .*population \d+, housing \d+.*, 1 of \d+
 key Space -Settle 600
 key Tab -Settle 1000
-expect ^Gossip, 4 of 4 tabs\. (Turn \d+: .+|No gossip yet), 1 of \d+
+expect ^Gossip, 4 of 4 tabs\. (Turn \d+: .+|No gossip yet)[,.] 1 of \d+
 key Tab -Settle 1000
 expect ^Yields, 1 of 4 tabs\.
 key Control+Tab -Settle 1000
