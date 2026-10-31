@@ -10,6 +10,8 @@ include( "SupportFunctions" );
 include( "Civ6Common" );
 include( "Colors") ;
 include( "ScreenReader" );
+include( "Gamepad" );
+include( "LoadParagraphs" );
 
 -- ===========================================================================
 --	Action Hotkeys
@@ -37,11 +39,12 @@ local TIMEOUT_LOAD			:number = 1000;	-- # of frames before a timeout occurs obta
 local m_isLoadComplete				:boolean = false;
 local m_isResyncLoad				:boolean = false;
 local m_isTraitsFullDescriptions	:boolean = false;
-local m_featureTexts				:table = {};	-- Screen reader text for each unique ability / unit / building shown
-
+local m_openingLine				:string = "";
 
 -- ===========================================================================
 --	Screen reader helpers
+--	The game's narrator reads the era and leader text, so nothing is read on its own: one short line, then the player browses
+--	the paragraphs (LoadParagraphs) with Up / Down / Home / End. The speech text is built from the normal-case strings.
 -- ===========================================================================
 function CleanForSpeech( text:string )
 	return CleanTextForSpeech(text);	-- shared helper in Accessibility/ScreenReader.lua
@@ -53,22 +56,21 @@ function AddFeatureText( header:string, description:string )
 	if description ~= nil and description ~= "" then
 		text = text .. (text ~= "" and ": " or "") .. CleanForSpeech(description);
 	end
-	if text ~= "" then table.insert(m_featureTexts, text); end
+	LoadParagraphs.Add( text );
 end
 
-function AnnounceLoadScreenContent()
-	OutputMessageToScreenReader(Locale.Lookup("LOC_LOADING_PLEASE_WAIT"), true);
-	OutputMessageToScreenReader(CleanForSpeech(Controls.CivName:GetText()), true);
-	OutputMessageToScreenReader(CleanForSpeech(Controls.LeaderName:GetText()), true);
-	if not Controls.EraInfo:IsHidden() then
-		OutputMessageToScreenReader(CleanForSpeech(Controls.EraInfo:GetText()), true);
-	end
-	if not Controls.LeaderInfo:IsHidden() then
-		OutputMessageToScreenReader(CleanForSpeech(Controls.LeaderInfo:GetText()), true);
-	end
-	for _, text in ipairs(m_featureTexts) do
-		OutputMessageToScreenReader(text, true);
-	end
+function AddControlParagraph( control:table )
+	if control ~= nil and not control:IsHidden() then LoadParagraphs.Add( CleanForSpeech(control:GetText()) ); end
+end
+
+function AnnounceLoadScreenContent( civName:string, leaderName:string )
+	m_openingLine = LoadParagraphs.OpeningLine( CleanForSpeech(civName), CleanForSpeech(leaderName), SRKey("Up"), SRKey("Down") );
+	OutputMessageToScreenReader(m_openingLine, true);
+end
+
+function OnParagraphKey( what:string )
+	local text:string = LoadParagraphs.Move( what );
+	if text ~= nil then OutputMessageToScreenReader(text); end
 end
 
 
@@ -109,6 +111,27 @@ end
 --	Input Processing
 -- ===========================================================================
 function OnInput( uiMsg, wParam, lParam )
+	-- The engine hands over either an input struct (first argument) or the legacy (message, key, lparam) numbers; accept both.
+	local isControl:boolean = false;
+	if type(uiMsg) ~= "number" then
+		local pInputStruct:table = Gamepad.WrapInput( uiMsg );	-- controller mode: D-pad = arrows, Y = Space
+		uiMsg = pInputStruct:GetMessageType();
+		wParam = pInputStruct:GetKey();
+		isControl = pInputStruct:IsControlDown();
+	end
+	if (uiMsg == KeyEvents.KeyDown or uiMsg == KeyEvents.KeyUp) and not isControl and LoadParagraphs.Count() > 0 then
+		local what:string = nil;
+		if wParam == Keys.VK_DOWN then what = "down";
+		elseif wParam == Keys.VK_UP then what = "up";
+		elseif wParam == Keys.VK_HOME then what = "home";
+		elseif wParam == Keys.VK_END then what = "end";
+		elseif wParam == Keys.VK_SPACE then what = "repeat";
+		end
+		if what ~= nil then
+			if uiMsg == KeyEvents.KeyUp then OnParagraphKey( what ); end
+			return true;
+		end
+	end
     if uiMsg == KeyEvents.KeyUp then
         if wParam == Keys.VK_ESCAPE or wParam == Keys.VK_RETURN then
 			if m_isLoadComplete then
@@ -153,7 +176,7 @@ end
 function OnShow()
 	
 	m_isLoadComplete	= false;
-	m_featureTexts		= {};
+	LoadParagraphs.Reset();
 	m_isResyncLoad		= UI.IsResyncLoadInProgress(); -- Remember if this is a resync load for later.
 
 	UIManager:SetUICursor( 1 );
@@ -281,7 +304,9 @@ function OnLoadScreenContentReady()
 		if (not Controls.Portrait:HasTexture()) then
 			UI.DataError("We are lacking a texture for "..portraitName);
 		end
-		Controls.CivName:SetText( Locale.ToUpper( Locale.Lookup(playerConfig:GetCivilizationDescription())) );
+		local civNameText:string = Locale.Lookup(playerConfig:GetCivilizationDescription());
+		local leaderNameText:string = "";
+		Controls.CivName:SetText( Locale.ToUpper( civNameText ) );
 
 	
 		local eraInfoText;
@@ -316,7 +341,8 @@ function OnLoadScreenContentReady()
 		local kLeader	:table = GameInfo.Leaders[leaderType];
 		local leaderName;
 		if kLeader ~= nil then
-			leaderName = Locale.ToUpper(Locale.Lookup( kLeader.Name ));
+			leaderNameText = Locale.Lookup( kLeader.Name );
+			leaderName = Locale.ToUpper( leaderNameText );
 
 			local details = "LOC_LOADING_INFO_" .. leaderType;
 			if(Locale.HasTextKey(details)) then
@@ -328,6 +354,7 @@ function OnLoadScreenContentReady()
 
 		if(challengeName) then
 			Controls.LeaderName:SetText(challengeName);
+			leaderNameText = challengeName;
 		elseif(leaderName) then
 			Controls.LeaderName:SetText(leaderName);
 		else
@@ -360,6 +387,10 @@ function OnLoadScreenContentReady()
 		else
 			Controls.LeaderInfo:SetHide(true);
 		end
+
+		LoadParagraphs.Add( CleanForSpeech( civNameText .. ( leaderNameText ~= "" and ", " .. leaderNameText or "" ) ) );
+		AddControlParagraph( Controls.EraInfo );
+		AddControlParagraph( Controls.LeaderInfo );
 
 		local civType	:string = playerConfig:GetCivilizationTypeName();
 		local iconName	:string = "ICON_"..civType;
@@ -445,7 +476,7 @@ function OnLoadScreenContentReady()
 			else
 				instance.Description:SetShow(false);
 			end
-			AddFeatureText( instance.Header:GetText(), instance.Description:GetText() );
+			AddFeatureText( (item.Name ~= nil and item.Name ~= "NONE") and Locale.Lookup( item.Name ) or "", instance.Description:GetText() );
 		end
 
 		local size:number = SIZE_BUILDING_ICON;
@@ -460,7 +491,7 @@ function OnLoadScreenContentReady()
 			local headerText:string = Locale.ToUpper(Locale.Lookup( item.Name ));
 			instance.Header:SetText( headerText );
 			instance.Description:SetText(Locale.Lookup(item.Description));
-			AddFeatureText( headerText, Locale.Lookup(item.Description) );
+			AddFeatureText( Locale.Lookup( item.Name ), Locale.Lookup(item.Description) );
 		end
 
 
@@ -475,9 +506,11 @@ function OnLoadScreenContentReady()
 			local headerText:string = Locale.ToUpper(Locale.Lookup( item.Name ));
 			instance.Header:SetText( headerText );
 			instance.Description:SetText(Locale.Lookup(item.Description));
-			AddFeatureText( headerText, Locale.Lookup(item.Description) );
+			AddFeatureText( Locale.Lookup( item.Name ), Locale.Lookup(item.Description) );
 		end
-		AnnounceLoadScreenContent();
+		AnnounceLoadScreenContent( civNameText, leaderNameText );
+		-- Browsing starts while loading; the engine accepts a Lua input handler here (unverified, see OnLoadGameViewStateDone).
+		ContextPtr:SetInputHandler( OnInput );
 	end
 end
 

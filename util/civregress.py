@@ -35,6 +35,7 @@ key/action/wait/lua count as a failed step and the script goes on.
 
 A script whose checks were all skipped by a shared load is reported as SKIPPED-ALL with a warning (it checked nothing).
 Two separate header kinds (the first says "may START on a shared game", the second "may the NEXT script reuse what it leaves"):
+`# before-enter: <keys>` (space separated plain keys, e.g. `Down Down`): the `load` presses them on the load screen before Enter begins the game (their SR> lines count; use with `# own-load`).
 `# own-load: <reason>`: the script does its own load because it checks what the load itself says (the turn announcement, a popup the
 load opens); the checks right after a skipped load would be skipped. It does not dirty the game: the next script may share it.
 `# no-share-load: <reason>`: the script changes game state the reset check cannot see (gold, tiles, units, focus, a deal, turns, a
@@ -141,6 +142,7 @@ class ScriptError(Exception):
 class Step:
     def __init__(self, kind, arg, line):
         self.kind, self.arg, self.line = kind, arg, line
+        self.before_enter = ""
 
     def __repr__(self):
         return "Step(%r, %r, line %d)" % (self.kind, self.arg, self.line)
@@ -215,6 +217,8 @@ def parse_script(text, name="script"):
     steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
     steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
     steps.options = parse_options(text, name)
+    m = re.search(r"^#\s*before-enter:(.*)$", text, re.M)
+    before_enter = ",".join(m.group(1).split()) if m else ""
     m = re.search(r"^#\s*dirty-group:\s*([\w.-]+)", text, re.M)
     if m:
         steps.dirty_group = m.group(1)
@@ -242,7 +246,10 @@ def parse_script(text, name="script"):
             raise ScriptError("%s:%d: 'lua' needs <state> <expression>" % (name, no))
         if kind in ("load", "scenario") and len(arg.split()) != 1:
             raise ScriptError("%s:%d: '%s' takes one name" % (name, no, kind))
-        steps.append(Step(kind, arg, no))
+        step = Step(kind, arg, no)
+        if kind == "load":
+            step.before_enter = before_enter   # '# before-enter: Down Down' = keys pressed on the load screen before Enter
+        steps.append(step)
         scenario = scenario or kind == "scenario"
     if scenario:
         if steps.dirty_group:
@@ -292,7 +299,8 @@ def civctl_args(step):
     """Step -> (argument list for civctl, temp file to delete or None)."""
     k = step.kind
     if k == "load":
-        return ["load", step.arg, "-KeepAdvisors"], None   # scripts say `clear-advisors` themselves, where they want it
+        extra = ["-BeforeEnter", step.before_enter] if getattr(step, "before_enter", "") else []
+        return ["load", step.arg, "-KeepAdvisors"] + extra, None   # scripts say `clear-advisors` themselves, where they want it
     if k in ("key", "action", "wait"):
         return [k] + join_positional(step.arg), None
     if k == "scenario":
