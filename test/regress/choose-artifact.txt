@@ -1,20 +1,25 @@
-# Verified 2026-10-31 in the game. The ChooseArtifact popup was mouse-only. REAL path: the Archaeologist extracts via the unit actions (Excavate Artifact),
-# then the popup is opened with the game's own LuaEvents.NotificationPanel_OpenArtifactPanel (the Artifact Extracted notification itself opens the Historic Moment popup instead,
-# not this one). Enter picks and speaks "Artifact from X chosen"; no great-work showcase followed in this fixture (the engine had no pending choice behind the event).
+# Verified 2026-10-31 in the game with a REAL Archaeologist (bought in Antium, which has the Archaeological Museum: the unit has a home city; a unit made by
+# GetUnits():Create has none and its artifact is lost, no Choose Artifact notification). Excavate Artifact raises two notifications at once: "Choose Artifact"
+# (CHOOSE_ARTIFACT_PLAYER, also the end-turn blocker ENDTURN_BLOCKING_ARTIFACT, which opens the popup on End Turn Enter once civic/production are chosen) and
+# "Artifact Extracted". Here the popup is opened from the Control+N notification list. Enter picks, then the great work showcase speaks.
 # covers: **/ChooseArtifact.lua
-# no-share-load: excavates with the archaeologist and opens a popup context by hand
+# no-share-load: excavates with the archaeologist and opens a popup context
 load excavate-ready
 clear-advisors
-lua InGameAccess local u=Players[0]:GetUnits(); for i,x in u:Members() do if x:GetX()==49 and x:GetY()==27 and x:GetUnitType()==GameInfo.Units["UNIT_ARCHAEOLOGIST"].Index then UI.SelectUnit(x) end end
+lua InGameAccess for _,x in Players[0]:GetUnits():Members() do if x:GetX()==49 and x:GetY()==27 and x:GetUnitType()==GameInfo.Units["UNIT_ARCHAEOLOGIST"].Index then UI.SelectUnit(x) end end
 key Tab -Settle 1500
-expect Jovilius actions
+expect actions
 key Down -Settle 600
 expect Excavate Artifact
-key Enter -Settle 3000 -Quiet 1000
+key Enter -Settle 3000 -Quiet 1500
 expect Excavate Artifact
-lua InGame LuaEvents.NotificationPanel_OpenArtifactPanel()
-# the opening lines arrive after the lua step: Space (repeats the explanation) collects them as (earlier) lines
-key Space -Settle 1500
+expect Choose Artifact
+# the real notification list opens the popup
+action KeyNavNotifications -Settle 1500
+expect ^Notifications, \d+ options
+key Down -Settle 600
+expect ^Choose Artifact, \d+ of \d+
+key Enter -Settle 3000 -Quiet 1000
 expect ^Choose artifact
 expect , 1 of 2$
 # Right and Up/Down move to the other civilization, announced at once
@@ -35,8 +40,9 @@ key J -Settle 800
 lua ChooseArtifact return ContextPtr:IsHidden()
 expect-lua ^false$
 key Right -Settle 600
-key Enter -Settle 3000 -Quiet 1000
+key Enter -Settle 3500 -Quiet 1500
 expect ^Artifact from .+ chosen
+expect New great work: .+Displayed in the .+Museum
 lua ChooseArtifact return ContextPtr:IsHidden()
 expect-lua ^true$
 no-lua-errors

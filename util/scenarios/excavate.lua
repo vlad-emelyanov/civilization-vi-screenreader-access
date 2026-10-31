@@ -1,13 +1,15 @@
--- Scenario: excavate. STATUS: verified 2026-10-31 (pt-modern-t212, also fixture excavate-ready which already has the archaeologist on its site)
--- Fixture: pt-modern-t212 (Natural History civic known, Antiquity Sites at 49,25 / 49,27 inside our borders; fixture excavate-ready = this + a
---   Gathering-Storm Archaeologist standing on 49,27).
+-- Scenario: excavate. STATUS: verified 2026-10-31 (pt-modern-t212). Prefer the fixture excavate-ready: it holds a REAL archaeologist.
+-- WARNING: a unit made here by GetUnits():Create has NO home city/museum (GetArchaeology():GetHomeCityID() == -1). Excavate Artifact then raises only
+--   "Artifact Extracted"; the artifact is dropped (no "Choose Artifact" notification or end-turn blocker, no popup, no great work). A real
+--   Archaeologist is bought in a city with an Archaeological Museum (Antium in pt-modern-t212; InGame state: CityManager.RequestCommand(city,
+--   CityCommandTypes.PURCHASE, {PARAM_UNIT_TYPE = hash, PARAM_MILITARY_FORMATION_TYPE = STANDARD_MILITARY_FORMATION, PARAM_YIELD_TYPE = GOLD}),
+--   one turn later UnitManager.RequestOperation(unit, MOVE_TO, {X, Y}) to the site). This script only serves to test the "no museum" case.
+-- Fixture: pt-modern-t212 (Natural History civic known, Antiquity Sites at 49,25 / 49,27 inside our borders).
 -- Gives player 0 an Archaeologist on the first revealed RESOURCE_ANTIQUITY_SITE plot we own (idempotent: reuses one that stands on a site).
--- Then (keys): the unit is selected by `civctl lua InGameAccess` (UI.SelectUnit), Tab (unit actions), Down to "Excavate Artifact", Enter ->
---   "Excavate Artifact" and, ~1 s later, "Notification: Artifact Extracted". The engine opens NO popup by itself (the site's artifact is
---   resolved when the turn ends), but the unit stays GetNextExtractingArchaeologist(), so the real popup is opened with the game's own event:
---     civctl lua InGame 'LuaEvents.NotificationPanel_OpenArtifactPanel()'      -> context FakePopups/ChooseArtifact
---   "Your Archaeologist X has discovered an ancient battlefield littered with items from A and B ... CHOOSE which nation's artifact": two buttons
---   (Button1 = acting player, Button2 = target player); their handlers send the game's own PlayerOperations.CHOOSE_ARTIFACT_PLAYER.
+-- Then (keys): select the unit (`civctl lua InGameAccess` UI.SelectUnit), Tab, Down to "Excavate Artifact", Enter -> "Excavate Artifact"; with a REAL unit
+--   "Notification: Choose Artifact, Artifact Extracted" follow at once, and the popup (context FakePopups/ChooseArtifact) opens from Enter on that notification in
+--   the Control+N list or on End Turn Enter (blocker ENDTURN_BLOCKING_ARTIFACT, after the civic/production blockers): two buttons (Button1 = acting player,
+--   Button2 = target player), their handlers send PlayerOperations.CHOOSE_ARTIFACT_PLAYER, then the great work showcase.
 -- Notes: GetUnits():Create only on a plot we own (nil on foreign land). Never save the game over a fixture afterwards. A stray Enter ends the turn.
 local me = Players[0]
 local siteType = GameInfo.Resources["RESOURCE_ANTIQUITY_SITE"].Index
