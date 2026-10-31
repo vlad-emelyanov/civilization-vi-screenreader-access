@@ -88,6 +88,27 @@ class FileTests(unittest.TestCase):
         self.assertEqual(t.cmd_on(quiet), 1)
         self.assertFalse(os.path.exists(t.BACKUP))
 
+    def test_on_recovers_real_values_from_file_when_game_holds_test_values(self):
+        # game running with the test values in memory, no backup (crashed run), UserOptions.txt still the user's
+        orig = (t.game_running, t.read_values, t.write_values)
+        t.game_running = lambda: True
+        t.read_values = lambda running=None: dict(t.TEST_VALUES)
+        written = []
+        t.write_values = lambda values, running=None: written.append(dict(values))
+        try:
+            self.assertEqual(t.cmd_on(quiet), 0)
+        finally:
+            t.game_running, t.read_values, t.write_values = orig
+        with open(t.BACKUP) as f:
+            self.assertEqual(json.load(f)["TutorialLevel"], "0")
+        self.assertEqual(written, [t.TEST_VALUES])   # the test values are (re)applied, config included
+
+    def test_recoverable_values(self):
+        self.assertIsNone(t.recoverable_values(None))
+        self.assertIsNone(t.recoverable_values(dict(t.TEST_VALUES)))
+        self.assertIsNone(t.recoverable_values({"TutorialLevel": "0"}))   # incomplete
+        self.assertEqual(t.recoverable_values(t.file_values())["QuickCombat"], "0")
+
     def test_on_failure_restores(self):
         orig = t.write_values
         calls = []

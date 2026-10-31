@@ -1101,7 +1101,9 @@ def run_with_test_options(scripts, runner, share, use_test_options=True, out=pri
             import testopts as testopts_mod
         testopts_mod.RUNNER = runner   # tuner Lua through civctl (the batch child may hold the single tuner connection)
         if testopts_mod.cmd_on(out):
-            raise RuntimeError("testopts on refused")
+            # no safe way to tell the user's options from the test values: a run on unknown options (advisor popups in the middle
+            # of the scripts) only produced "STILL FAILING" scripts that pass alone, so stop here
+            raise SystemExit("testopts on refused: fix the options first (python util/testopts.py status), no regress run started")
     except Exception as e:
         out("WARNING: test options not applied (%s); running with the real options" % e)
         return run_all(scripts, runner, share, out, retry=retry, progress=progress)

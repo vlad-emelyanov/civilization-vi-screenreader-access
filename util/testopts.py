@@ -199,10 +199,35 @@ def read_backup():
         return None
 
 
+def file_values_or_none():
+    try:
+        return file_values()
+    except OSError:
+        return None
+
+
+def recoverable_values(values):
+    """The values of UserOptions.txt as the user's real ones: every managed key present, numeric, and not all test values."""
+    if not values:
+        return None
+    values = clean_values(values)
+    if set(values) != set(KEYS) or values == TEST_VALUES:
+        return None
+    return values
+
+
 def cmd_on(out=print):
     running = game_running()
     cur = clean_values(read_values(running))
     if read_backup() is None:
+        if cur == TEST_VALUES:
+            # A crashed run left the test values in memory (the game restarted from a UserOptions.txt it had rewritten with them,
+            # and `restore` found no backup). The 9 "STILL FAILING" scripts of a `changed` run came from running on in that state
+            # (advisor popups in the middle of the scripts): if the file still holds the user's values, those are the real ones.
+            real = recoverable_values(file_values_or_none())
+            if real is not None:
+                cur = real
+                out("testopts: no backup and the game holds the test values; taking the values of UserOptions.txt as the real ones: %s" % real)
         if cur == TEST_VALUES:
             out("testopts: REFUSED: no backup, but the current options already equal the test values (a crashed run?). Run "
                 "`python util/testopts.py restore` if you know a backup exists, else set your options in the game's Options screen.")
