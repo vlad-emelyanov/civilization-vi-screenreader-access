@@ -35,6 +35,7 @@ local m_SelectedCityID			:number = -1;
 local m_isLoadComplete          :boolean = false;
 local m_srList					:table = nil;		-- ScreenReaderAccess: city list
 local m_srAssigning				:boolean = false;	-- ScreenReaderAccess: an assignment was requested, speak the result
+local m_srJustAppointed			:boolean = false;	-- ScreenReaderAccess: the governor was appointed a moment ago, say so in the opening line
 local m_srReopens				:boolean = false;	-- ScreenReaderAccess: the replace-confirmation path reopens the governor panel afterwards
 
 
@@ -357,7 +358,8 @@ function OnSelectCity( owner:number, cityID:number )
 end
 
 -- ===========================================================================
-function OnRequestAssignment( governorIndex:number )
+function OnRequestAssignment( governorIndex:number, _p, _c, justAppointed )
+	m_srJustAppointed = justAppointed == true;		-- ScreenReaderAccess
 
 	SetSelectedGovernor(governorIndex);
 	m_SelectedCityOwner = -1;
@@ -596,13 +598,15 @@ function SRA_Announce()
 	if m_srList == nil or m_SelectedGovernorDef == nil then return; end
 	local name:string = SRA_Clean( m_SelectedGovernorDef.Name );
 	local items:table = SRA_CityItems();
+	local lead:string = m_srJustAppointed and ( name .. " appointed. " ) or "";
+	m_srJustAppointed = false;
 	if #items == 0 then
-		SRA_Say( "Assign " .. name .. ": no city available", true );
+		SRA_Say( lead .. "Assign " .. name .. ": no city available", true );
 		return;
 	end
 	m_srList.Reset();
 	m_srList.Open( "", nil, true );
-	SRA_Say( "Assign " .. name .. ": choose a city. " .. items[1].text .. ", 1 of " .. #items, true );
+	SRA_Say( lead .. "Assign " .. name .. ": choose a city. " .. items[1].text .. ", 1 of " .. #items, true );
 end
 
 -- Spoken when the game confirms the assignment.

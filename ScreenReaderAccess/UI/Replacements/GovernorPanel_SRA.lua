@@ -539,7 +539,13 @@ function OnGovernorAppointed(playerID, governorID)
 	if ContextPtr:IsVisible() and playerID == Game.GetLocalPlayer() then
 		Refresh();
 		local governorDefinition:table = GameInfo.Governors[governorID];
-		if governorDefinition ~= nil then OutputMessageToScreenReader( Locale.Lookup(governorDefinition.Name) .. " appointed" ); end		-- ScreenReaderAccess
+		local srWillChoose:boolean = false;		-- ScreenReaderAccess: the city chooser opens next and says "appointed" itself, in one utterance
+		if governorDefinition ~= nil and not IsCannotAssign(governorDefinition) then
+			local srGov:object = Players[playerID] ~= nil and Players[playerID]:GetGovernors() or nil;
+			local srApp:object = srGov ~= nil and srGov:GetGovernor(governorDefinition.Hash) or nil;
+			srWillChoose = not (srApp ~= nil and srApp:GetNeutralizedTurns() > 0);
+		end
+		if governorDefinition ~= nil and not srWillChoose then OutputMessageToScreenReader( Locale.Lookup(governorDefinition.Name) .. " appointed" ); end		-- ScreenReaderAccess
 		m_srAppointWait = nil;		-- ScreenReaderAccess
 		if (governorDefinition ~= nil and not IsCannotAssign(governorDefinition)) then
 			local pPlayer:object = Players[playerID];
@@ -554,7 +560,7 @@ function OnGovernorAppointed(playerID, governorID)
 			if (appointedGovernor ~= nil and appointedGovernor:GetNeutralizedTurns() > 0) then
 				return;
 			end
-			LuaEvents.GovernorAssignmentChooser_RequestAssignment( governorID );
+			LuaEvents.GovernorAssignmentChooser_RequestAssignment( governorID, nil, nil, true );		-- ScreenReaderAccess: 4th argument = just appointed
 			Close();
 		end
 	end
