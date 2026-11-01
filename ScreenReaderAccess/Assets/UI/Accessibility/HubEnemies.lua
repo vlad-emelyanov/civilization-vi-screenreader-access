@@ -179,6 +179,7 @@ function HubEnemies.Reset()
 	HubEnemies.m_raidExpected = nil;
 	HubEnemies.m_raidSig, HubEnemies.m_dangerSig, HubEnemies.m_escortHinted = {}, {}, {};
 	HubEnemies.m_cityDanger = {};
+	HubEnemies.m_explorerSaid = {};
 end
 
 -- Start of our turn (after the "Turn N" line): the line, or nothing.
@@ -221,6 +222,12 @@ function HubEnemies.SpeakAtTurnStart()
 	if not okThreats then print( "HubEnemies threat error: " .. tostring( err ) ); end
 	local okDanger:boolean, dangerErr = pcall( HubEnemies.SpeakCityDanger, true );
 	if not okDanger then print( "HubEnemies city danger error: " .. tostring( dangerErr ) ); end
+	local okExplorers:boolean, explorerLines = pcall( HubEnemies.ExplorerLines );
+	if okExplorers then
+		for _, line in ipairs( explorerLines ) do HubCore.Announce( line, true, "enemies" ); end
+	else
+		print( "HubEnemies explorer error: " .. tostring( explorerLines ) );
+	end
 end
 
 -- ===========================================================================
@@ -243,6 +250,7 @@ HubEnemies.m_raidSig = {};				-- "city:owner" -> signature of the raid line last
 HubEnemies.m_dangerSig = {};			-- civilian unit id -> signature of the danger line last spoken
 HubEnemies.m_escortHinted = {};			-- "unit:partner" -> true: "X here too" was said
 HubEnemies.m_checkArmed = false;
+HubEnemies.m_explorerSaid = {};			-- "unit:enemy" -> turn an exploring recon unit was told about that enemy
 
 -- KeyText wrapped for speech: the pad button (a Gamepad.Map name) replaces it for the controller player.
 function HubEnemies.KeyHint( actionName:string, default:string, button:string )
@@ -570,6 +578,54 @@ function HubEnemies.CheckScouts( atTurnStart:boolean )
 					HubEnemies.m_raidExpected = { turn = Game.GetCurrentGameTurn(), dir = dir };
 					table.insert( lines, HubEnemies.EscapedText( known.name, dir ) );
 				end
+			end
+		end
+	end
+	return lines;
+end
+
+-- Recon units on auto-explore: "Your exploring Scout is 2 tiles from a Barbarian Slinger. Tab for actions, any order takes it over"
+function HubEnemies.ExplorerDangerText( unitName:string, enemyName:string, distance:number, keyHint:string )
+	local tiles:string = ( distance == 1 ) and "1 tile" or ( distance .. " tiles" );
+	return "Your exploring " .. unitName .. " is " .. tiles .. " from " .. enemyName .. ". " .. keyHint .. " for actions, any order takes it over";
+end
+
+-- "Scout stopped exploring, Danger, Barbarian Warrior 1 tile east, needs orders" (reason nil: the game gave none)
+function HubEnemies.ExplorerStoppedText( unitName:string, reason:string )
+	local text:string = unitName .. " stopped exploring";
+	if reason ~= nil and reason ~= "" then text = text .. ", " .. reason; end
+	return text .. ", needs orders";
+end
+
+-- The same enemy is told again after this many turns only
+HubEnemies.EXPLORER_REPEAT_TURNS = 5;
+function HubEnemies.ExplorerWarnDue( said:table, key:string, turn:number )
+	local last:number = said[ key ];
+	return last == nil or turn - last >= HubEnemies.EXPLORER_REPEAT_TURNS;
+end
+
+-- Danger lines for our exploring recon units (a visible hostile soldier or a remembered camp within 2 tiles), at turn start.
+function HubEnemies.ExplorerLines()
+	local lines:table = {};
+	if HubPlaces == nil or HubPlaces.ExplorerUnits == nil then return lines; end
+	local turn:number = Game.GetCurrentGameTurn();
+	local hostiles:table = VisibleHostiles();
+	local camps:table = HubPlaces.RememberedCampPlots();
+	for _, unit in ipairs( HubPlaces.ExplorerUnits() ) do
+		local bestName:string, bestKey:string, bestD:number = nil, nil, 3;
+		for _, h in ipairs( hostiles ) do
+			local d:number = Dist( h.x, h.y, unit:GetX(), unit:GetY() );
+			if h.soldier and d <= 2 and d < bestD then bestName, bestKey, bestD = "a " .. PlotDescription_GetUnitName( h.unit ), h.key, d; end
+		end
+		for _, plot in ipairs( camps ) do
+			local d:number = Dist( plot:GetX(), plot:GetY(), unit:GetX(), unit:GetY() );
+			if d <= 2 and d < bestD then bestName, bestKey, bestD = "a barbarian camp", "camp:" .. plot:GetIndex(), d; end
+		end
+		if bestKey ~= nil then
+			local said:string = unit:GetID() .. ":" .. bestKey;
+			if HubEnemies.ExplorerWarnDue( HubEnemies.m_explorerSaid, said, turn ) then
+				HubEnemies.m_explorerSaid[ said ] = turn;
+				table.insert( lines, HubEnemies.ExplorerDangerText( Locale.Lookup( unit:GetName() ), bestName, bestD, SRKey( "Tab" ) ) );
 			end
 		end
 	end

@@ -79,7 +79,14 @@ function HubPlaces.UnitActivity( unit:table, forList:boolean )
 	if activity ~= nil and not awake and unit:GetFortifyTurns() > 0 then return "fortified"; end
 	if Is( "ACTIVITY_SENTRY" ) then return "on alert"; end
 	if Is( "ACTIVITY_INTERCEPT" ) then return "intercepting"; end
-	if m_explorers[ unit:GetID() ] then return "exploring"; end
+	if m_explorers[ unit:GetID() ] then
+		-- a unit the game offers for orders is not exploring any more (the operation resumes within a moment of the turn start)
+		if HubPlaces.ExplorerStopped( unit ) then
+			m_explorers[ unit:GetID() ] = nil;
+		else
+			return "exploring";
+		end
+	end
 	local dest:table = QueuedDestination( unit );
 	if dest ~= nil and ( dest:GetX() ~= unit:GetX() or dest:GetY() ~= unit:GetY() ) then
 		local text:string = "moving to " .. PlaceName( dest );
@@ -117,6 +124,56 @@ function HubPlaces.OnOrderStarted( owner:number, unitID:number )
 	if owner ~= Game.GetLocalPlayer() or since == nil then return; end
 	local now:number = UI.GetElapsedTime();
 	if now - since > 0.5 and now - HubCore.m_lastKeyTime < 1.5 then m_explorers[ unitID ] = nil; end
+end
+
+-- ---------------------------------------------------------------------------
+-- Auto-explore end. A unit exploring has ACTIVITY_OPERATION and is not "ready to select" (verified, fixture pt-early-t78);
+-- one the game itself offers for orders (IsReadyToSelect, also what N / Next Unit and the end-turn blocker use) stopped.
+-- ---------------------------------------------------------------------------
+local m_explorerCheckAt		:number = -1;
+local EXPLORER_SETTLE		:number = 2.5;		-- seconds after the turn start before a ready explorer counts as stopped
+
+function HubPlaces.ExplorerStopped( unit:table )
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return false; end
+	local begun:table = HubCore.m_turnBegin;
+	if begun ~= nil and begun.turn == Game.GetCurrentGameTurn() and UI.GetElapsedTime() - begun.time < EXPLORER_SETTLE then return false; end
+	local ok:boolean, ready = pcall( function() return unit:IsReadyToSelect(); end );
+	return ok and ready == true;
+end
+
+-- Our units with the explore order (the game re-adds it each turn; an order of the player or the unit's death ends it).
+function HubPlaces.ExplorerUnits()
+	local list:table = {};
+	local me:table = Players[ Game.GetLocalPlayer() ];
+	if me == nil then return list; end
+	for id in pairs( m_explorers ) do
+		local unit:table = me:GetUnits():FindID( id );
+		if unit ~= nil then table.insert( list, unit ); else m_explorers[ id ] = nil; end
+	end
+	return list;
+end
+
+-- LocalPlayerTurnBegin: look at the explorers a moment later
+function HubPlaces.ArmExplorerCheck()
+	m_explorerCheckAt = UI.GetElapsedTime() + EXPLORER_SETTLE + 0.3;
+end
+
+-- An explorer the game offers for orders has stopped: forget the flag and say so, with the danger next to it if there is one
+function HubPlaces.CheckExplorers()
+	local me:table = Players[ Game.GetLocalPlayer() ];
+	if me == nil or not HubCore.IsLocalPlayerActive() then return; end
+	for id in pairs( m_explorers ) do
+		local unit:table = me:GetUnits():FindID( id );
+		if unit == nil then
+			m_explorers[ id ] = nil;
+		elseif HubPlaces.ExplorerStopped( unit ) then
+			m_explorers[ id ] = nil;
+			local name:string, relative:string = PlotDescription_NearestHostile( unit, 3 );
+			local reason:string = nil;
+			if name ~= nil then reason = PlotDescription_DangerReason( "Danger", name, relative ); end
+			HubCore.Announce( HubEnemies.ExplorerStoppedText( Locale.Lookup( unit:GetName() ), reason ), true, "explorer" );
+		end
+	end
 end
 
 -- True once for a unit that was just picked from the places list: the selection announcement adds how to cancel its orders.
@@ -1057,6 +1114,11 @@ function HubPlaces.PushCampState( force:boolean )
 end
 
 function HubPlaces.Update( deltaTime:number )
+	if m_explorerCheckAt > 0 and UI.GetElapsedTime() >= m_explorerCheckAt then
+		m_explorerCheckAt = -1;
+		local okCheck:boolean, checkErr = pcall( HubPlaces.CheckExplorers );
+		if not okCheck then print( "HubPlaces explorer check error: " .. tostring( checkErr ) ); end
+	end
 	m_campTimer = m_campTimer - deltaTime;
 	if m_campTimer > 0 then return; end
 	m_campTimer = CAMP_POLL_SECONDS;

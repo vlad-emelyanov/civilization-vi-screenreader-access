@@ -267,3 +267,25 @@ test("city danger wording", function()
 	eq(HubEnemies.CityDangerText{ cityName = "Rome", count = 4, civs = { "Egypt", "Greece" } },
 		"Rome in danger: 4 hostile units within 3 tiles")
 end)
+
+test("exploring recon unit: danger line", function()
+	eq(HubEnemies.ExplorerDangerText("Scout", "a Barbarian Slinger", 2, "Tab"),
+		"Your exploring Scout is 2 tiles from a Barbarian Slinger. Tab for actions, any order takes it over")
+	eq(HubEnemies.ExplorerDangerText("Scout", "a barbarian camp", 1, "Tab"),
+		"Your exploring Scout is 1 tile from a barbarian camp. Tab for actions, any order takes it over")
+end)
+
+test("explorer stopped line", function()
+	eq(HubEnemies.ExplorerStoppedText("Scout", "Danger, Barbarian Warrior 1 tile east"),
+		"Scout stopped exploring, Danger, Barbarian Warrior 1 tile east, needs orders")
+	eq(HubEnemies.ExplorerStoppedText("Scout", nil), "Scout stopped exploring, needs orders")
+end)
+
+test("explorer warning: once per enemy per 5 turns", function()
+	local said = {}
+	eq(HubEnemies.ExplorerWarnDue(said, "1:63:5", 10), true)
+	said["1:63:5"] = 10
+	eq(HubEnemies.ExplorerWarnDue(said, "1:63:5", 14), false)
+	eq(HubEnemies.ExplorerWarnDue(said, "1:63:5", 15), true)
+	eq(HubEnemies.ExplorerWarnDue(said, "1:63:6", 11), true)
+end)

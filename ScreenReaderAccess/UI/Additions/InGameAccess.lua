@@ -354,6 +354,7 @@ function Initialize()
 	HubCore.AddEvent( "ImprovementRemovedFromMap",	HubPlaces.OnImprovementRemovedFromMap );
 	HubCore.AddEvent( "UnitMoveComplete",			HubPlaces.OnUnitMoveComplete );
 	HubCore.AddEvent( "LocalPlayerTurnBegin",		HubPlaces.RefreshSeen );
+	HubCore.AddEvent( "LocalPlayerTurnBegin",		HubPlaces.ArmExplorerCheck );		-- an explorer the game offers for orders a moment later has stopped
 	HubCore.Listen( LuaEvents.SRA_TechTreeKeyOnCamp, HubCore.Safe( "TechTreeKeyOnCamp", HubPlaces.OnTechTreeKeyOnCamp ) );		-- LaunchBar: T on a clan camp treats with the clan
 	HubPlaces.PushCampState( true );
 	-- "Promoted: X" is spoken by the UnitPromotionPopup override (the only keyboard way to promote)

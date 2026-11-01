@@ -16,7 +16,7 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - **Production queue reordering on the controller** (Alt+Up/Down are keyboard only; remove is X).
 - **Production queue: refused swap and disabled corps rows** ("Can't move X" after a second, a disabled Corps row in the Unavailable group) have not been seen in the game.
 - **Keyboard path for the production Manager tab** (`Panels/ProductionPanel.lua`).
-- **Small speech gaps from play-tests:** a pillaged Library blocking Great Library is not said at pillage time; no danger hint before a Barbarian Galley attack; a city production auto-swap to a newer unit is not announced; auto-explore end is not announced (HubPlaces keeps "exploring" until a player order; idea to probe: a unit the game itself offers as ready for orders (`GetFirstReadyUnit`/next-unit) a few seconds into the turn has stopped exploring, activity alone cannot tell, see engine-notes); WMD/ICBM and PRIORITY_TARGET still use a click.
+- **Small speech gaps from play-tests:** a pillaged Library blocking Great Library is not said at pillage time; no danger hint before a Barbarian Galley attack; a city production auto-swap to a newer unit is not announced; WMD/ICBM and PRIORITY_TARGET still use a click.
 - **Silent or thin popups:** Suleiman "remove your spies" popup and Escape behaviour unchecked; advisor re-shown over a completed popup not reached.
 
 ## Unverified in game (code and unit tests only)

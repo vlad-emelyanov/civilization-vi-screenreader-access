@@ -1,0 +1,17 @@
+# An explorer the game offers for orders has stopped exploring (said once, with the danger next to it), and an exploring recon unit near an enemy gets the danger line.
+# The explore flag is injected through the hub's own event handler (a Scout would need a turn change); the Spearman stands for the explorer.
+# (SR lines of a lua step show up with the next key: the Home presses)
+# covers: **/HubPlaces.lua **/HubEnemies.lua
+# no-share-load: injects an explorer flag
+load pt-early-t78
+clear-advisors
+lua InGameAccess HubPlaces.OnOperationAdded(0, 1638401, 0, GameInfo.UnitOperations.UNITOPERATION_AUTOMATE_EXPLORE.Index); for _, l in ipairs(HubEnemies.ExplorerLines()) do OutputMessageToScreenReader(l) end
+key Home -Settle 500
+expect ^Your exploring Spearman is [12] tiles? from a Barbarian .*Tab for actions, any order takes it over
+lua InGameAccess HubPlaces.OnOperationAdded(0, 1638401, 0, GameInfo.UnitOperations.UNITOPERATION_AUTOMATE_EXPLORE.Index); HubPlaces.CheckExplorers()
+key Home -Settle 500
+expect ^Spearman stopped exploring.*needs orders
+lua InGameAccess for _, l in ipairs(HubEnemies.ExplorerLines()) do OutputMessageToScreenReader(l) end
+key Home -Settle 500
+expect-not Your exploring
+no-lua-errors
