@@ -85,7 +85,28 @@ function Hub.EnterHeldBackLine( why:string )
 	print( "InGameAccess: Enter held back (" .. why .. "), label '" .. tostring( m_enterLabel ) .. "'" );
 	if ( SRSpeechCount or 0 ) ~= m_enterSpeech then return; end		-- something already answered
 	if HubCore.IsGamePopupOpen() then return; end		-- a popup / screen took the key and speaks for itself
-	HubCore.SayResult( "Enter held back, the game did not take it. Press " .. SRKey( "Enter" ) .. " again to end the turn" );
+	local mode0:number = UI.GetInterfaceMode();
+	if mode0 ~= InterfaceModeTypes.SELECTION or HubAnnounce.ChooserOwnsEnter( mode0 ) or HubAnnounce.ConfirmPending( UI.GetElapsedTime() ) then return; end
+	-- A slow turn end looks the same for 0.8 s (a selected awake Great General, a big autosave ...): look again after 0.7 s more
+	-- and speak only if the turn, the label and the interface mode are all unchanged and nobody (this context or another) took the key.
+	local turn:number = Game.GetCurrentGameTurn();
+	local speech:number = SRSpeechCount or 0;
+	local label:string = m_enterLabel;
+	local endSeq:number = HubCore.m_turnEndSeq or 0;
+	HubCore.After( 0.7, function()
+		-- LocalPlayerTurnEnd fired since the key: the game took the Enter, however slowly the turn changes
+		if ( HubCore.m_turnEndSeq or 0 ) ~= endSeq then return; end
+		local player:table = Players[ Game.GetLocalPlayer() or -1 ];
+		if player == nil or not player:IsTurnActive() or Game.GetCurrentGameTurn() ~= turn then return; end		-- the turn ended (slowly)
+		if ( SRSpeechCount or 0 ) ~= speech then return; end
+		local mode:number = UI.GetInterfaceMode();
+		if mode ~= InterfaceModeTypes.SELECTION then return; end
+		if HubAnnounce.ChooserOwnsEnter( mode ) or HubAnnounce.ConfirmPending( UI.GetElapsedTime() ) then return; end
+		if HubCore.IsGamePopupOpen() then return; end
+		local now:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
+		if now == nil or now:GetText() ~= label then return; end		-- the label moved on: the game reacted
+		HubCore.SayResult( "Enter held back, the game did not take it. Press " .. SRKey( "Enter" ) .. " again to end the turn" );
+	end );
 end
 
 function Hub.EnterFallback()
@@ -96,7 +117,7 @@ function Hub.EnterFallback()
 		if player == nil or not player:IsTurnActive() then return; end		-- the turn ended (or an AI turn): "Turn ended" speaks
 		if not HubAnnounce.IsEndTurnText( CleanTextForSpeech( m_enterLabel ) ) then return; end		-- another blocker: its screen speaks
 		if selected == nil then Hub.EnterHeldBackLine( "no unit selected" ); return; end
-		local okReady:boolean, ready = pcall( function() return selected:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( selected, true ) == "needs orders"; end );
+		local okReady:boolean, ready = pcall( function() return selected:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( selected, true ) == "needs orders" and not HubAnnounce.IsSupportGreatPerson( selected ); end );		-- a Great General never blocks (the label wins)
 		if not ( okReady and ready ) then Hub.EnterHeldBackLine( "selected unit does not block" ); return; end
 		m_enterLabel = Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" );
 	end
@@ -134,7 +155,6 @@ function Hub.HandleInput( input:table )
 	if not HubCore.IsLocalPlayerActive() then return false; end
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
 	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN then
-		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
 		if HubSettle ~= nil and HubSettle.OnOtherKey ~= nil then HubSettle.OnOtherKey( input:GetKey() ); end
 	end
 	if HubCore.m_mode ~= nil then

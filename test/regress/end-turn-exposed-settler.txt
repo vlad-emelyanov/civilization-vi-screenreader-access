@@ -1,5 +1,6 @@
 # Round 24: Enter with a builder (or settler) outside a city and a barbarian soldier within 3 tiles warns "Builder exposed: ... Enter again
-# ends the turn anyway" and does not end the turn; any other key in between cancels (the next Enter warns again); a second Enter ends it.
+# ends the turn anyway" and does not end the turn. The warning is said once per unit and situation: another key in between does not
+# re-arm it (the next Enter ends the turn), nor does N; N before the warning says "Next turn. Enter warns first: Builder exposed".
 # Fixture pt-early-t64: builder 3 tiles south-west of Rome, barbarian archer 3 tiles east of it. Our soldiers are removed so the blockers
 # are only production, the builder, the settler (Space skips them) and the city's ranged attack.
 # covers: **/HubEnemies.lua **/HubAnnounce.lua **/InGameAccess.lua
@@ -20,8 +21,8 @@ key Enter -Settle 2000
 key Enter -Settle 2000
 expect ^Builder exposed: Barbarian Archer 3 tiles east\. Enter again ends the turn anyway$
 key Down -Settle 800
-key Enter -Settle 2000
-expect ^Builder exposed: Barbarian Archer 3 tiles east\. Enter again ends the turn anyway$
+action KeyNavWhatsNext -Settle 1500
+expect-not Builder exposed
 key Enter -Settle 4000
 expect Turn ended
 no-lua-errors

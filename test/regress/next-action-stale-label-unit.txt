@@ -6,7 +6,8 @@ load pt-greece-t60
 clear-advisors
 lua InGameAccess UnitManager.RequestCommand(Players[0]:GetUnits():FindID(131073), UnitCommandTypes.WAKE)
 key OemPeriod -Settle 2500 -NoQuiet
-lua InGameAccess ContextPtr:LookUpControl("/InGame/HUD/ActionPanel/EndTurnText"):SetText(Locale.Lookup("LOC_ACTION_PANEL_NEXT_TURN"))
+lua InGameAccess ContextPtr:LookUpControl("/InGame/HUD/ActionPanel/EndTurnText"):SetText(Locale.Lookup("LOC_ACTION_PANEL_NEXT_TURN")) HubCore.m_lastUnitMoveTime = UI.GetElapsedTime()
+# the override only applies within 2 s of a finished move (the stamp above fakes it)
 action KeyNavWhatsNext -Settle 1500
 expect ^Unit needs orders: Warrior
 expect-not (?i)next turn

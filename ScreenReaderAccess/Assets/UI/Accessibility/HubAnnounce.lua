@@ -73,17 +73,24 @@ function HubAnnounce.SpeakWhatsNext()
 		local okReady:boolean, stale = pcall( HubAnnounce.LabelHidesReadyUnit );
 		if okReady and stale then text = CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" ) ); end
 	end
+	local awakeIds:table = nil;
 	local spoken:string = HubCore.Capitalize( text );
 	local okDetail:boolean, detailed = pcall( HubAnnounce.BlockerDetail, spoken, text );
 	if okDetail and detailed ~= nil then spoken = detailed; end
 	-- "Next turn" is what Enter does; an awake unit that does not block (a Great General) is named once as plain information
 	if okWait and isWait and HubAnnounce.IsEndTurnText( text ) then
-		local okAwake:boolean, awake = pcall( HubAnnounce.AwakeUnitsNote );
-		if okAwake and awake ~= nil then spoken = spoken .. ", " .. awake; end
+		local okAwake:boolean, awake, ids = pcall( HubAnnounce.AwakeUnitsNote );
+		if okAwake and awake ~= nil then spoken = spoken .. ", " .. awake; awakeIds = ids; end
+	end
+	-- a waiting exposed-unit warning: say what Enter will do
+	if okWait and isWait and HubAnnounce.IsEndTurnText( text ) then
+		local okWarn:boolean, warn = pcall( function() return HubEnemies ~= nil and HubEnemies.WarnPreview() or nil; end );
+		if okWarn and warn ~= nil then spoken = spoken .. ". " .. SRKey( "Enter" ) .. " warns first: " .. warn; end
 	end
 	local okRaid:boolean, raid = pcall( function() return HubEnemies ~= nil and HubEnemies.RaidExpectedLine() or nil; end );
 	if okRaid and raid ~= nil then spoken = spoken .. ". " .. raid; end
 	OutputMessageToScreenReader( spoken );
+	if awakeIds ~= nil then HubAnnounce.MarkAwakeNoted( awakeIds ); end
 end
 
 -- True for the panel's plain end-turn texts ("Next turn", "End turn"), i.e. no blocker is shown.
@@ -97,9 +104,27 @@ function HubAnnounce.IsEndTurnText( text:string )
 end
 
 -- The panel shows no blocker, but one of our units still needs orders (the label updates a moment after the unit arrived).
+-- Only within STALE_LABEL_WINDOW seconds of one of our units finishing a move (HubCore.m_lastUnitMoveTime, set by UnitMoveComplete):
+-- that is the only time the label really lags. Later the panel label is the truth (the game's own blocker list), whatever
+-- IsReadyToSelect says: a Great General that moved is "ready to select" but never a blocker, and the label says "Next turn".
+local STALE_LABEL_WINDOW:number = 2;
 function HubAnnounce.LabelHidesReadyUnit()
-	local units:table = HubAnnounce.ReadyUnits();
-	return #units > 0;
+	if UI.GetElapsedTime() - ( HubCore.m_lastUnitMoveTime or -100 ) >= STALE_LABEL_WINDOW then return false; end
+	for _, unit in ipairs( HubAnnounce.ReadyUnits() ) do
+		if not HubAnnounce.IsSupportGreatPerson( unit ) then return true; end
+	end
+	return false;
+end
+
+-- Pure: unit type names that never block the turn (no attack, no orders needed): Great General and Great Admiral.
+function HubAnnounce.IsSupportTypeName( typeName:string )
+	if typeName == nil then return false; end
+	return string.find( typeName, "^UNIT_GREAT_GENERAL" ) ~= nil or string.find( typeName, "^UNIT_GREAT_ADMIRAL" ) ~= nil;
+end
+
+function HubAnnounce.IsSupportGreatPerson( unit:table )
+	local row:table = GameInfo.Units[ unit:GetUnitType() ];
+	return row ~= nil and HubAnnounce.IsSupportTypeName( row.UnitType );
 end
 
 -- Awake units with moves that the game does not count as blockers (IsReadyToSelect false). Names of units that are new
@@ -111,7 +136,11 @@ function HubAnnounce.AwakeUnits()
 	local list:table = {};
 	if player == nil then return list; end
 	for _, unit in player:GetUnits():Members() do
-		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "awake" then table.insert( list, unit ); end
+		if unit:GetMovesRemaining() > 0 then
+			local activity:string = HubPlaces.UnitActivity( unit, true );
+			-- a Great General that moved is IsReadyToSelect (activity "needs orders") but the game does not count it as a blocker
+			if activity == "awake" or ( activity == "needs orders" and HubAnnounce.IsSupportGreatPerson( unit ) ) then table.insert( list, unit ); end
+		end
 	end
 	return list;
 end
@@ -127,13 +156,19 @@ function HubAnnounce.AwakeUnitsNote()
 	local turn:number = Game.GetCurrentGameTurn();
 	if HubAnnounce.m_awakeTurn ~= turn then HubAnnounce.m_awakeTurn = turn; HubAnnounce.m_awakeNoted = {}; end
 	local names:table = {};
+	local ids:table = {};
 	for _, unit in ipairs( HubAnnounce.AwakeUnits() ) do
 		if not HubAnnounce.m_awakeNoted[ unit:GetID() ] then
-			HubAnnounce.m_awakeNoted[ unit:GetID() ] = true;
+			table.insert( ids, unit:GetID() );
 			table.insert( names, Locale.Lookup( unit:GetName() ) );
 		end
 	end
-	return HubAnnounce.AwakeText( names );
+	return HubAnnounce.AwakeText( names ), ids;
+end
+
+-- Called once the note was really spoken: only then are the units "noted".
+function HubAnnounce.MarkAwakeNoted( ids:table )
+	for _, id in ipairs( ids or {} ) do HubAnnounce.m_awakeNoted[ id ] = true; end
 end
 
 -- Pure wording: "Unit needs orders" + "Archer, 2 tiles east of Rome" + "Enter selects it" -> "Unit needs orders: Archer, ...
@@ -155,7 +190,7 @@ function HubAnnounce.ReadyUnits()
 	if player == nil then return list, selectedReady; end
 	local selected:table = UI.GetHeadSelectedUnit();
 	for _, unit in player:GetUnits():Members() do
-		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "needs orders" then
+		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "needs orders" and not HubAnnounce.IsSupportGreatPerson( unit ) then
 			table.insert( list, unit );
 			if selected ~= nil and unit:GetID() == selected:GetID() then selectedReady = true; end
 		end
@@ -878,6 +913,7 @@ function HubAnnounce.OnLocalPlayerTurnUnready()
 end
 
 function HubAnnounce.OnLocalPlayerTurnEnd()
+	HubCore.m_turnEndSeq = ( HubCore.m_turnEndSeq or 0 ) + 1;		-- the sure sign that Enter ended the turn (Hub.EnterHeldBackLine)
 	if HubEnemies ~= nil then
 		local ok:boolean, err = pcall( HubEnemies.TakeSnapshot );
 		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end

@@ -191,9 +191,24 @@ test("end-turn guard: warn, confirm within 10 s, no nagging after, new set warns
 	eq(HubEnemies.GuardDecision(g, 5, "1", 120), "pass")		-- the player confirmed: no nagging this turn
 	eq(HubEnemies.GuardDecision(g, 5, "1;2", 121), "warn")		-- another set
 	eq(HubEnemies.GuardDecision(g, 5, "1;2", 135), "warn")		-- too late: warns again
-	HubEnemies.EndTurnGuardOtherKey()
-	eq(HubEnemies.GuardDecision(g, 5, "1;2", 136), "warn")		-- another key in between
 	eq(HubEnemies.GuardDecision(g, 6, "1", 140), "warn")		-- next turn
+end)
+
+test("exposed warning: once per unit; again only after a move, a closer threat or damage", function()
+	local warned = {}
+	local item = function(x, y, dist, damage) return { id = 7, name = "Military Engineer", enemy = "Barbarian Archer", relative = "", x = x, y = y, dist = dist, damage = damage } end
+	local fresh, sig = HubEnemies.FreshExposed({ item(5, 5, 3, 0) }, warned)
+	eq(#fresh, 1); eq(sig, "7")
+	HubEnemies.MarkWarned(fresh, warned)
+	eq(#HubEnemies.FreshExposed({ item(5, 5, 3, 0) }, warned), 0)		-- parked: silent
+	eq(#HubEnemies.FreshExposed({ item(5, 5, 4, 0) }, warned), 0)		-- threat went away: silent
+	eq(#HubEnemies.FreshExposed({ item(5, 5, 2, 0) }, warned), 1)		-- threat closer
+	eq(#HubEnemies.FreshExposed({ item(5, 6, 3, 0) }, warned), 1)		-- unit moved
+	eq(#HubEnemies.FreshExposed({ item(5, 5, 3, 20) }, warned), 1)		-- lost health
+	eq(#HubEnemies.FreshExposed({}, warned), 0)		-- not exposed any more: forgotten
+	eq(#HubEnemies.FreshExposed({ item(5, 5, 3, 0) }, warned), 1)		-- a new threat warns again
+	local _, who = HubEnemies.ExposedText({ item(5, 5, 3, 0) })
+	eq(who, "Military Engineer")
 end)
 
 test("threat items: one per unit key across rules", function()
@@ -297,4 +312,12 @@ test("naval warnings", function()
 	eq(HubEnemies.NavalWarnDue(said, "a", 14), false)
 	eq(HubEnemies.NavalWarnDue(said, "a", 15), true)
 	eq(HubEnemies.NavalWarnDue(said, "b", 11), true)
+end)
+
+test("support great persons never block the turn", function()
+	include("HubAnnounce")
+	eq(HubAnnounce.IsSupportTypeName("UNIT_GREAT_GENERAL"), true)
+	eq(HubAnnounce.IsSupportTypeName("UNIT_GREAT_ADMIRAL"), true)
+	eq(HubAnnounce.IsSupportTypeName("UNIT_MILITARY_ENGINEER"), false)
+	eq(HubAnnounce.IsSupportTypeName(nil), false)
 end)
