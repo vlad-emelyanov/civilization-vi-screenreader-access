@@ -1,0 +1,7 @@
+turn: 152
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: N says 'Unit needs orders: Timur ... Enter selects it' but Enter ends the turn (Timur does not block); turn 152 Rome
+mod commit: 134ee7b
+created: 2026-11-01
+size: 1593 KB

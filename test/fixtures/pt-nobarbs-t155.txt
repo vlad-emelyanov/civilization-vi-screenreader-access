@@ -1,0 +1,7 @@
+turn: 155
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain: Ottoman peace bought (13 gpt), wonders Mont St Michel+Colosseum built, Erzurum walls 400 too strong
+mod commit: 134ee7b
+created: 2026-11-01
+size: 1613 KB

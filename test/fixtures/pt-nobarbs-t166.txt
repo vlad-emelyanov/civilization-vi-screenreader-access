@@ -1,0 +1,7 @@
+turn: 166
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain end: Five-Year Plan + Raj slotted, Infantry bought, AT Crew raid near Rome
+mod commit: 134ee7b
+created: 2026-11-01
+size: 1680 KB

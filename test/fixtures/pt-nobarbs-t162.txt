@@ -1,0 +1,7 @@
+turn: 162
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain: policy slot filled (Levee en Masse), 2 wonders, great people stacked in Cumae
+mod commit: 134ee7b
+created: 2026-11-01
+size: 1657 KB
