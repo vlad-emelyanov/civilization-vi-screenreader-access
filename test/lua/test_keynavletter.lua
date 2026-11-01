@@ -27,6 +27,7 @@ end
 local function tap(list, key, mods)
 	ClearPrinted()
 	mods = mods or {}
+	if not mods.stale then Clock.now = Clock.now + 1 end
 	local down = list.HandleInput(Input{ key = key, ctrl = mods.ctrl, shift = mods.shift, alt = mods.alt })
 	local up = list.HandleInput(Input{ key = key, up = true, ctrl = mods.ctrl, shift = mods.shift, alt = mods.alt })
 	return down, up
@@ -83,6 +84,30 @@ test("off by default: letters are not consumed and silent", function()
 	local down, up = tap(s.list, Keys.A)
 	eq(down, false); eq(up, false)
 	eq(#Spoken(), 0)
+end)
+
+test("letterJump as a function: only while it answers true; otherwise the letter is not consumed", function()
+	local on = false
+	local s = newList(policies(), { letterJump = function() return on end })
+	s.list.Open("T")
+	local down, up = tap(s.list, Keys.A)
+	eq(down, false); eq(up, false)
+	eq(#Spoken(), 0)
+	on = true
+	tap(s.list, Keys.A)
+	listeq(Spoken(), { "Ancestral: y, 3 of 4" })
+end)
+
+test("a letter KeyUp within 0.3 s of Open is ignored", function()
+	local s = newList(policies())
+	Clock.now = 100
+	s.list.Open("T")
+	Clock.now = 100.1
+	tap(s.list, Keys.A, { stale = true })
+	eq(#Spoken(), 0)
+	Clock.now = 100.5
+	tap(s.list, Keys.A, { stale = true })
+	listeq(Spoken(), { "Ancestral: y, 3 of 4" })
 end)
 
 test("KeyNavList_LetterTarget: case, leading blanks, wrap", function()

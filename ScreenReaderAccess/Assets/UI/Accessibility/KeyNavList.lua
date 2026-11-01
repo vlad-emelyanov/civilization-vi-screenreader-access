@@ -84,7 +84,7 @@ end
 function KeyNavList_Create( config:table )
 	local list:table = {};
 	local letterKeys:table = {};
-	if config.letterJump then
+	if config.letterJump ~= nil and config.letterJump ~= false then
 		for code = 65, 90 do
 			local name:string = string.char( code );
 			if Keys[ name ] ~= nil then letterKeys[ Keys[ name ] ] = name; end
@@ -278,6 +278,15 @@ function KeyNavList_Create( config:table )
 		Speak( items, target, true, true );
 	end
 
+	local function LetterJumpOn()
+		local on = config.letterJump;
+		if type( on ) == "function" then
+			local ok:boolean, result = xpcall( on, KeyNavErrorHandler );
+			return ok and result == true;
+		end
+		return on == true;
+	end
+
 	-- A letter key (letterJump): the next item starting with that letter.
 	local function LetterJump( letter:string )
 		m_lostGuard = false;
@@ -435,8 +444,9 @@ function KeyNavList_Create( config:table )
 			if not isDown then action = config.onClose; end
 		elseif config.extraKeys ~= nil and config.extraKeys[ key ] ~= nil then
 			if not isDown then action = config.extraKeys[ key ]; end
-		elseif letterKeys[ key ] ~= nil then
-			if not isDown then
+		elseif letterKeys[ key ] ~= nil and LetterJumpOn() then
+			-- a KeyUp within 0.3 s of Open is the tail of the key that opened the list: ignored
+			if not isDown and not ( UI ~= nil and UI.GetElapsedTime ~= nil and UI.GetElapsedTime() - m_openedAt < 0.3 ) then
 				local letter:string = letterKeys[ key ];
 				action = function() LetterJump( letter ); end
 			end

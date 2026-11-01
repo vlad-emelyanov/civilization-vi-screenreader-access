@@ -3150,6 +3150,7 @@ local function SRA_OnActivate( item:table )
 		end
 		local label:string = SRA_SlotLabel( slot.UI_RowIndex, slot );
 		local slotIndex:number = slot.GC_SlotIndex;
+		local wasEmpty:boolean = slot.GC_PolicyType == EMPTY_POLICY_TYPE;
 		SetActivePolicyAtSlotIndex( slotIndex, item.policyType );
 		SRA_RefreshSlots();
 		m_srCatalogSlotIndex = nil;
@@ -3157,7 +3158,9 @@ local function SRA_OnActivate( item:table )
 		local message:string = m_kPolicyCatalogData[ item.policyType ].Name .. " in " .. label;
 		-- on to the next empty slot (after this one, wrapping), so that Enter opens its catalog at once; none left: Confirm
 		local nextKey:string = "confirm";
-		if empty > 0 then
+		if not wasEmpty then
+			nextKey = "slot:" .. slotIndex;		-- a replacement: the focus stays on the slot
+		elseif empty > 0 then
 			local slotItems:table = SRA_SlotItems();
 			local here:number = 1;
 			for i, other in ipairs( slotItems ) do
@@ -3314,7 +3317,7 @@ function Initialize()
 		onClose = SRA_OnClose,
 		extraKeys = { [Keys.VK_DELETE] = SRA_OnDelete, [Gamepad.Key("X")] = SRA_OnDelete, [Keys.VK_TAB] = SRA_OnTab },
 		ctrlKeys = { [Keys.VK_TAB] = SRA_OnTabPrev },
-		letterJump = true,
+		letterJump = function() return m_srCatalogSlotIndex ~= nil; end,
 	};
 
 	-- Static controls:

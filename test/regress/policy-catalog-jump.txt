@@ -20,8 +20,10 @@ key A -Settle 600
 expect (?i)^A\w+.*\d+ of \d+
 key Q -Settle 600
 expect ^Nothing starting with Q
+key Home -Settle 600
+expect ^(Military|Economic|Diplomatic|Great person|Wildcard)?.*, 1 of \d+
 key PageDown -Settle 600
-expect (?i)^(Economic|Diplomatic|Great person|Wildcard), \d*:?
+expect ^(Economic|Diplomatic|Great person|Wildcard): 
 key Escape -Settle 800
 expect ^Back
 no-lua-errors
