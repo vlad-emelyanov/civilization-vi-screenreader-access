@@ -1,0 +1,15 @@
+# Written blind 2026-11-01 (not yet recorded; run civregress --record first). Places, Your units: the order is by type name, then unit id, whatever the reference plot (the map cursor or the selection); a sleeping Builder forms the group "Idle" at the start of the list.
+# covers: **/HubPlaces.lua **/HubAnnounce.lua
+# no-share-load: puts a Builder to sleep
+load pt-greece-t82
+clear-advisors
+lua InGameAccess local function keys(ctx) local out = {} for _, c in ipairs(HubPlaces.BuildCategories(ctx)) do if c.name == "Your units" then for _, i in ipairs(c.items) do out[#out+1] = i.key end end end return table.concat(out, ",") end local a = keys({ plot = Map.GetPlot(0, 0) }) local b = keys({ plot = Map.GetPlot(40, 20) }) return tostring(a == b) .. " " .. a
+expect-lua ^true u:
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetUnitType()].UnitType == "UNIT_BUILDER" then UnitManager.RequestOperation(u, GameInfo.UnitOperations["UNITOPERATION_SLEEP"].Hash) break end end return 1
+lua InGame UI.DeselectAllUnits()
+action KeyNavPlaces -Settle 1500
+key Tab -Settle 800
+expect ^Your units, \d+ of \d+ categories
+expect Idle, 1: Builder, sleeping
+key Escape -Settle 1000
+no-lua-errors

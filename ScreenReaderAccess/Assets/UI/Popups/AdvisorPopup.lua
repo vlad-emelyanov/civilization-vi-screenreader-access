@@ -295,6 +295,7 @@ function ShowAdvisorPopup( advisorData:AdvisorItem )
 	m_keyNavAnnouncement = table.concat( srParts, ". " );
 	if srSummary ~= "" then
 		m_keyNavSummary = srSummary .. ". " .. SRKey( "Space" ) .. " reads all, " .. SRKey( "Enter" ) .. " closes.";
+		LuaEvents.SRA_PopupSpeaks();		-- the hub says "Turn N" first when this popup opens before the turn line (it queues this one behind)
 		OutputMessageToScreenReader( m_keyNavSummary, false );
 	end
 

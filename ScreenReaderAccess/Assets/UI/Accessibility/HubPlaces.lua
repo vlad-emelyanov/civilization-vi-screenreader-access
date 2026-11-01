@@ -297,27 +297,139 @@ local function CityItems( ctx:table )
 	return SortItems( items );
 end
 
+-- ---------------------------------------------------------------------------
+--	IDLE CIVILIANS: Builders, Settlers, Traders and great people that were put to sleep or fortified and
+--	then forgotten. They form the group "Idle" at the start of Your units (and are not listed again under their type). The
+--	turns they have been idle are known from fortify turns, else from the first turn start at which the hub saw the unit idle
+--	(lost on a load: no number then).
+-- ---------------------------------------------------------------------------
+HubPlaces.m_idleSince = {};		-- unit id -> game turn at which the hub first saw it idle
+local IDLE_ACTIVITIES		:table = { ["sleeping"] = true, ["fortified"] = true, ["on alert"] = true };
+local IDLE_HINT_EVERY		:number = 10;		-- turns between the turn-start hints
+HubPlaces.m_idleHintTurn = -100;
+HubPlaces.m_traderWait = {};		-- trader id -> game turn at which the hub first saw it without orders (idle only from the next turn on)
+
+-- Pure: does this activity word (HubPlaces.UnitActivity) make a civilian idle? A Trader that needs orders has no route either.
+function HubPlaces.IsIdleActivity( activity:string, isTrader:boolean )
+	if activity == nil then return false; end
+	return IDLE_ACTIVITIES[ activity ] == true or ( isTrader and activity == "needs orders" );
+end
+
+-- Pure: "idle for 20 turns" once it is known to be at least 2 turns.
+function HubPlaces.IdleTurnsText( turns:number )
+	if turns == nil or turns < 2 then return nil; end
+	return "idle for " .. turns .. " turns";
+end
+
+-- Pure: "2 Builders idle, J lists them" from the names of the idle builders.
+function HubPlaces.IdleHintText( names:table, key:string )
+	local counts:table, order:table = {}, {};
+	for _, name in ipairs( names ) do
+		if counts[ name ] == nil then counts[ name ] = 0; table.insert( order, name ); end
+		counts[ name ] = counts[ name ] + 1;
+	end
+	table.sort( order );
+	local parts:table = {};
+	for _, name in ipairs( order ) do
+		table.insert( parts, counts[ name ] .. " " .. ( counts[ name ] == 1 and name or ( name .. "s" ) ) );
+	end
+	return table.concat( parts, ", " ) .. " idle, " .. key .. " lists them";
+end
+
+-- Pure: the Idle group first, then the groups by name; inside a group by unit id (the order never depends on where the cursor or the selection is).
+function HubPlaces.UnitItemLess( a:table, b:table )
+	if ( a.idle == true ) ~= ( b.idle == true ) then return a.idle == true; end
+	if a.section ~= b.section then return a.section < b.section; end
+	return a.unitId < b.unitId;
+end
+
+-- The activity word when this unit of ours is an idle civilian, else nil.
+function HubPlaces.IdleActivity( unit:table )
+	local row:table = GameInfo.Units[ unit:GetUnitType() ];
+	if row == nil then return nil; end
+	local isTrader:boolean = row.MakeTradeRoute == true;
+	local isCivilian:boolean = isTrader or HubCore.IsSettler( unit ) or BuildScan_Improvements( unit ) ~= nil;
+	if not isCivilian then
+		local gp = unit:GetGreatPerson();
+		isCivilian = gp ~= nil and ( gp:GetIndividual() or -1 ) >= 0;
+	end
+	if not isCivilian then return nil; end
+	local activity:string = HubPlaces.UnitActivity( unit, true );
+	if isTrader and activity == "needs orders" then
+		local since:number = HubPlaces.m_traderWait[ unit:GetID() ];
+		if since == nil or since >= Game.GetCurrentGameTurn() then return nil; end		-- it arrived this turn
+	end
+	if HubPlaces.IsIdleActivity( activity, isTrader ) then return activity; end
+	return nil;
+end
+
+-- At a turn start: remember since when each civilian has been idle, forget the others.
+function HubPlaces.TrackIdle()
+	local player:table = LocalPlayer();
+	if player == nil then return; end
+	local turn:number = Game.GetCurrentGameTurn();
+	local seen:table, waiting:table = {}, {};
+	for _, unit in player:GetUnits():Members() do
+		local row:table = GameInfo.Units[ unit:GetUnitType() ];
+		if row ~= nil and row.MakeTradeRoute == true and HubPlaces.UnitActivity( unit, true ) == "needs orders" then
+			waiting[ unit:GetID() ] = HubPlaces.m_traderWait[ unit:GetID() ] or turn;
+		end
+	end
+	HubPlaces.m_traderWait = waiting;
+	for _, unit in player:GetUnits():Members() do
+		local ok:boolean, activity = pcall( HubPlaces.IdleActivity, unit );
+		if ok and activity ~= nil then
+			seen[ unit:GetID() ] = HubPlaces.m_idleSince[ unit:GetID() ] or turn;
+		end
+	end
+	HubPlaces.m_idleSince = seen;
+end
+
+-- Turn start (HubAnnounce.AnnounceTurn): track, and every 10 turns say that Builders sleep while they have a job to do.
+function HubPlaces.OnTurnStart()
+	local turn:number = Game.GetCurrentGameTurn();
+	HubPlaces.TrackIdle();
+	if turn - HubPlaces.m_idleHintTurn < IDLE_HINT_EVERY then return; end
+	HubPlaces.m_idleHintTurn = turn;		-- the check (a scan per builder) runs once per 10 turns, found something or not
+	local names:table = {};
+	for _, unit in LocalPlayer():GetUnits():Members() do
+		if HubPlaces.m_idleSince[ unit:GetID() ] ~= nil and BuildScan_Improvements( unit ) ~= nil
+			and HubSettle ~= nil and HubSettle.NothingToImproveReason( unit ) == nil then
+			table.insert( names, Locale.Lookup( GameInfo.Units[ unit:GetUnitType() ].Name ) );
+		end
+	end
+	if #names == 0 then return; end
+	HubCore.Announce( HubPlaces.IdleHintText( names, HubCore.KeyHint( "KeyNavPlaces", "J", "LB" ) ), true, "turn" );
+end
+
 local function UnitItems( ctx:table )
 	local items:table = {};
+	local turn:number = Game.GetCurrentGameTurn();
 	for _, unit in LocalPlayer():GetUnits():Members() do
 		local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
 		local name:string = Locale.Lookup( unit:GetName() );
 		local text:string = name;
 		local activity:string = HubPlaces.UnitActivity( unit, true );
 		if activity ~= nil then text = text .. ", " .. activity; end
+		local okIdle:boolean, idleActivity = pcall( HubPlaces.IdleActivity, unit );
+		local idle:boolean = okIdle and idleActivity ~= nil;
+		if idle then
+			local since:number = HubPlaces.m_idleSince[ unit:GetID() ];
+			local turns:number = since ~= nil and ( turn - since ) or 0;
+			if idleActivity == "fortified" and unit:GetFortifyTurns() > turns then turns = unit:GetFortifyTurns(); end
+			local turnsText:string = HubPlaces.IdleTurnsText( turns );
+			if turnsText ~= nil then text = text .. ", " .. turnsText; end
+		end
 		local position:string = HubAnnounce.PositionText( plot );
 		if position ~= nil then text = text .. ", " .. position; end
 		local item:table = MakeItem( "u:" .. unit:GetID(), "unit", name, text, plot, ctx );
 		item.unitId = unit:GetID();
-		item.section = name;		-- the unit type: PageUp / PageDown (a held bumper plus up / down) jump from type to type
+		item.idle = idle;
+		item.section = idle and "Idle" or name;		-- the unit type (Idle first): PageUp / PageDown (a held bumper plus up / down) jump from group to group
 		table.insert( items, item );
 	end
-	-- by type name, then as everywhere (nearest first)
-	table.sort( items, function( a, b )
-		if a.section ~= b.section then return a.section < b.section; end
-		if a.distance ~= b.distance then return a.distance < b.distance; end
-		return a.key < b.key;
-	end );
+	-- Idle first, then by type name, then by unit id: the order does not change between key presses or with the selection
+	table.sort( items, HubPlaces.UnitItemLess );
 	return items;
 end
 
