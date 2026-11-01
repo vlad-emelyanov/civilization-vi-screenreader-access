@@ -37,6 +37,7 @@ local POINT_IMPROVEMENTS	:table = { IMPROVEMENT_GOODY_HUT = true, IMPROVEMENT_BA
 
 local m_seen				:table = {};		-- plot index -> { kind = "point" | "foreign", name, owner, id }: what was last seen there
 local m_primed				:boolean = false;	-- the first scan since the memory was empty has run (see Prime)
+local m_explorerCheckAt		:number = -1;
 local m_explorers			:table = {};		-- unit id -> true: the game added the explore operation to it (see OnOperationAdded)
 local m_data				:table = nil;		-- the open list: { cats = { { name, items } }, ctx = { plot, unit }, focusKey }
 local m_cat					:number = 1;		-- the category shown
@@ -81,14 +82,7 @@ function HubPlaces.UnitActivity( unit:table, forList:boolean )
 	if activity ~= nil and not awake and unit:GetFortifyTurns() > 0 then return "fortified"; end
 	if Is( "ACTIVITY_SENTRY" ) then return "on alert"; end
 	if Is( "ACTIVITY_INTERCEPT" ) then return "intercepting"; end
-	if m_explorers[ unit:GetID() ] then
-		-- a unit the game offers for orders is not exploring any more (the operation resumes within a moment of the turn start)
-		if HubPlaces.ExplorerStopped( unit ) then
-			m_explorers[ unit:GetID() ] = nil;
-		else
-			return "exploring";
-		end
-	end
+	if m_explorers[ unit:GetID() ] and not HubPlaces.ExplorerStopped( unit ) then return "exploring"; end	-- the flag itself is cleared by the turn-start check only
 	local dest:table = QueuedDestination( unit );
 	if dest ~= nil and ( dest:GetX() ~= unit:GetX() or dest:GetY() ~= unit:GetY() ) then
 		local text:string = "moving to " .. PlaceName( dest );
@@ -118,7 +112,10 @@ end
 function HubPlaces.OnOperationAdded( owner:number, unitID:number, hOperation:number, operationIndex:number )
 	if owner ~= Game.GetLocalPlayer() then return; end
 	local row:table = GameInfo.UnitOperations[ operationIndex ];
-	if row ~= nil and row.OperationType == "UNITOPERATION_AUTOMATE_EXPLORE" then m_explorers[ unitID ] = UI.GetElapsedTime(); end
+	if row ~= nil and row.OperationType == "UNITOPERATION_AUTOMATE_EXPLORE" then
+		m_explorers[ unitID ] = UI.GetElapsedTime();
+		if m_explorerCheckAt < 0 then HubPlaces.ArmExplorerCheck( false ); end
+	end
 end
 
 function HubPlaces.OnOrderStarted( owner:number, unitID:number )
@@ -132,15 +129,32 @@ end
 -- Auto-explore end. A unit exploring has ACTIVITY_OPERATION and is not "ready to select" (verified, fixture pt-early-t78);
 -- one the game itself offers for orders (IsReadyToSelect, also what N / Next Unit and the end-turn blocker use) stopped.
 -- ---------------------------------------------------------------------------
-local m_explorerCheckAt		:number = -1;
-local EXPLORER_SETTLE		:number = 2.5;		-- seconds after the turn start before a ready explorer counts as stopped
+local EXPLORER_SETTLE		:number = 2.5;		-- seconds of ACTIVE turn time before a ready explorer counts as stopped
+local EXPLORER_GIVE_UP		:number = 20;		-- seconds after which the check stops waiting for the turn to settle
+local EXPLORER_NEW_ORDER	:number = 1;		-- an explore order given this recently is not judged yet
+local m_activeTime			:number = 0;		-- active-turn seconds since the turn start (the load counts as one), frames capped so a hitch adds little
+local m_explorerDeadline	:number = 0;
 
-function HubPlaces.ExplorerStopped( unit:table )
+-- Pure: has the explorer stopped? ready = the game offers it for orders; orderAge = seconds since the explore order was (re)added
+function HubPlaces.ExplorerStopDue( activeTime:number, ready:boolean, orderAge:number )
+	if not ready or activeTime < EXPLORER_SETTLE then return false; end
+	return orderAge == nil or orderAge > EXPLORER_NEW_ORDER;
+end
+
+function HubPlaces.AddActiveTime( deltaTime:number )
+	if deltaTime ~= nil and HubCore.IsLocalPlayerActive() then m_activeTime = m_activeTime + math.min( deltaTime, 0.25 ); end
+end
+
+function HubPlaces.ExplorerReady( unit:table )
 	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return false; end
-	local begun:table = HubCore.m_turnBegin;
-	if begun ~= nil and begun.turn == Game.GetCurrentGameTurn() and UI.GetElapsedTime() - begun.time < EXPLORER_SETTLE then return false; end
 	local ok:boolean, ready = pcall( function() return unit:IsReadyToSelect(); end );
 	return ok and ready == true;
+end
+
+function HubPlaces.ExplorerStopped( unit:table )
+	if not HubPlaces.ExplorerReady( unit ) then return false; end
+	local since:number = m_explorers[ unit:GetID() ];
+	return HubPlaces.ExplorerStopDue( m_activeTime, true, since ~= nil and UI.GetElapsedTime() - since or nil );
 end
 
 -- Our units with the explore order (the game re-adds it each turn; an order of the player or the unit's death ends it).
@@ -156,14 +170,21 @@ function HubPlaces.ExplorerUnits()
 end
 
 -- LocalPlayerTurnBegin: look at the explorers a moment later
-function HubPlaces.ArmExplorerCheck()
+function HubPlaces.ArmExplorerCheck( turnStart:boolean )
+	if turnStart ~= false then m_activeTime = 0; end
 	m_explorerCheckAt = UI.GetElapsedTime() + EXPLORER_SETTLE + 0.3;
+	m_explorerDeadline = UI.GetElapsedTime() + EXPLORER_GIVE_UP;
 end
 
 -- An explorer the game offers for orders has stopped: forget the flag and say so, with the danger next to it if there is one
 function HubPlaces.CheckExplorers()
 	local me:table = Players[ Game.GetLocalPlayer() ];
-	if me == nil or not HubCore.IsLocalPlayerActive() then return; end
+	if me == nil then return; end
+	if not HubCore.IsLocalPlayerActive() or m_activeTime < EXPLORER_SETTLE then
+		-- not settled yet: look again shortly, for a while
+		if UI.GetElapsedTime() < m_explorerDeadline then m_explorerCheckAt = UI.GetElapsedTime() + 0.5; end
+		return;
+	end
 	for id in pairs( m_explorers ) do
 		local unit:table = me:GetUnits():FindID( id );
 		if unit == nil then
@@ -1228,6 +1249,7 @@ function HubPlaces.PushCampState( force:boolean )
 end
 
 function HubPlaces.Update( deltaTime:number )
+	HubPlaces.AddActiveTime( deltaTime );
 	if m_explorerCheckAt > 0 and UI.GetElapsedTime() >= m_explorerCheckAt then
 		m_explorerCheckAt = -1;
 		local okCheck:boolean, checkErr = pcall( HubPlaces.CheckExplorers );

@@ -593,14 +593,14 @@ function SRA_ReplyDetail( selection:table, statementTypeName:string )
 end
 
 -- The leader's words when ApplyStatement made none (no statement text, an error, a statement from our own side): who is waiting for the answer
-function SRA_AnnounceWaiting( statementTypeName:string )
+function SRA_AnnounceWaiting( statementTypeName:string, applied:boolean )
 	if m_srList == nil or ms_OtherPlayerID == -1 or ms_OtherPlayerID == nil or ms_ActiveSessionID == nil then return; end
 	if statementTypeName == "MAKE_DEAL" or statementTypeName == "MAKE_DEMAND" or ms_currentViewMode == DEAL_MODE then return; end
 	local config = PlayerConfigurations[ ms_OtherPlayerID ];
 	if config == nil then return; end
 	local who:string = Locale.Lookup( config:GetLeaderName() ) .. " of " .. DiplomacyText_CivWithArticle( Locale.Lookup( config:GetCivilizationShortDescription() ) );
 	local speech:string = who .. " is waiting for your answer";
-	if #m_srSelections > 0 then
+	if applied ~= false and #m_srSelections > 0 then
 		m_srList.Reset();
 		m_srList.Open( speech );
 	else
@@ -2935,9 +2935,12 @@ function OnDiplomacyStatement(fromPlayer : number, toPlayer : number, kVariants 
 				-- Begin ScreenReaderAccess change: whatever happens in there, the player hears the leader (or who waits for the answer) before the answers
 				m_srStatementSpoken = false;
 				print( "DiplomacyStatement: " .. tostring(statementTypeName) .. "/" .. tostring(statementSubTypeName) .. " from=" .. tostring(fromPlayer) .. " to=" .. tostring(toPlayer) .. " session=" .. tostring(kVariants.SessionID) .. " mode=" .. tostring(ms_currentViewMode) );
+				m_srSelections = {};	-- a failing ApplyStatement must not leave the answers of the previous statement
 				local srOk:boolean, srErr = xpcall( function() handler.ApplyStatement(handler, statementTypeName, statementSubTypeName, toPlayer, kVariants); end, KeyNavErrorHandler );
 				if not srOk then print( "DiplomacyActionView ApplyStatement error: " .. tostring(srErr) ); end
-				if not m_srStatementSpoken then SRA_AnnounceWaiting( statementTypeName ); end
+				-- our own statement without answers (denounce, declaration, greeting): the AI's reply follows, nothing to announce
+				local srOwn:boolean = ( fromPlayer == ms_LocalPlayerID and #m_srSelections == 0 );
+				if not m_srStatementSpoken and not srOwn then SRA_AnnounceWaiting( statementTypeName, srOk ); end
 				-- End ScreenReaderAccess change
 				m_isInHotload = false;	-- If this far (and was hotloading) nothing left to hotload.
 			end
