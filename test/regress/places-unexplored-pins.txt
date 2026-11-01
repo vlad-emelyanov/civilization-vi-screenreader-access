@@ -1,0 +1,59 @@
+# Written blind 2026-10-31 (not yet recorded; run with civregress --record first). Places list (J): the new last categories "Unexplored"
+# (nearest edge of the known map in six directions, from the selected unit or the capital) and "Pins" (the game's map pins), and Control+P (KeyNavMapPin):
+# type a name, Enter places the pin ("Pin placed: iron"), an empty name places an unnamed one, on a tile with a pin a Rename / Delete list; Delete twice in the Pins category removes it.
+# Keys are typed lowercase (scancodes without Shift). Fixture pt-greece-t30 (Athens, Knossos, turn 30: a small explored area, so all directions have an edge).
+# covers: **/HubPlaces.lua **/HubPins.lua **/MapPins.lua **/UnexploredScan.lua **/PlotDescription.lua **/KeyNavEditBox.lua **/HubCursor.lua **/HelpText.lua UI/Additions/InGameAccess.lua Database/keynav_queries_configuration.sql
+# no-share-load: places and removes map pins
+load pt-greece-t30
+clear-advisors
+action KeyNavPlaces -Settle 1500
+expect ^Places\.
+# no pins yet: Pins is not a category, Unexplored is the last one
+key Control+Tab -Settle 1200
+expect ^Unexplored, \d+ of \d+ categories, [1-6] items?\. Unexplored [a-z-]+, nearest edge \d+ tiles?, 1 of [1-6]
+key Down -Settle 800
+expect ^Unexplored [a-z-]+, nearest edge \d+ tiles?, 2 of
+key Space -Settle 1000
+expect (?i)tiles? [a-z-]+ of
+key Escape -Settle 1200
+expect ^Closed
+# a pin with a name
+action KeyNavMapPin -Settle 900
+expect ^editing Name for the pin at
+key I -Settle 300
+key R -Settle 300
+key O -Settle 300
+key N -Settle 300
+key Enter -Settle 1000
+expect ^Pin placed: iron
+# the cursor tile reads the pin
+action KeyNavPlotDetails -Settle 1000
+expect pin: iron
+# the same tile again: Rename / Delete
+action KeyNavMapPin -Settle 1000
+expect ^Pin iron, .*2 items
+key Escape -Settle 1000
+expect ^Closed
+# the Pins category (last)
+action KeyNavPlaces -Settle 1500
+key Control+Tab -Settle 1200
+expect ^Pins, \d+ of \d+ categories, 1 item\. iron,
+key Space -Settle 1000
+expect (?i)tiles? [a-z-]+ of
+key Delete -Settle 800
+expect ^Remove the pin iron\?
+key Delete -Settle 1000
+expect ^Pin removed
+key Escape -Settle 1200
+# an empty name; Delete from the tile's own list
+action KeyNavMapPin -Settle 900
+expect ^editing Name for the pin at
+key Enter -Settle 1500
+expect ^Pin placed$
+action KeyNavMapPin -Settle 1000
+expect ^Pin Unnamed pin,
+key Down -Settle 800
+expect ^Delete, 2 of 2
+key Enter -Settle 1000
+expect ^Pin removed$
+no-lua-errors

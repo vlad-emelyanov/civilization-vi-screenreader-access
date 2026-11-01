@@ -22,6 +22,8 @@
 --	offers an "Attack party" first: the two fastest military land units. A camp destroyed in view is announced with the gold gained.
 -- ===========================================================================
 include( "BlindSpots" );
+include( "UnexploredScan" );
+include( "MapPins" );
 
 HubPlaces = {};
 
@@ -813,6 +815,59 @@ local function CaptureItems( ctx:table )
 	return SortItems( items );
 end
 
+-- Where to explore next: for each of six directions the nearest frontier plot (UnexploredScan) around the selected unit, else the capital.
+-- A ship looks along the coast. Scans the whole map once per opening (BuildCategories), never per frame. Nothing left: one item that says so.
+local function UnexploredItems( ctx:table )
+	local items:table = {};
+	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	if vis == nil then return items; end
+	local ref:table = nil;
+	local naval:boolean = false;
+	if ctx.unit ~= nil then
+		ref = Map.GetPlot( ctx.unit:GetX(), ctx.unit:GetY() );
+		local row:table = GameInfo.Units[ ctx.unit:GetUnitType() ];
+		naval = row ~= nil and row.Domain == "DOMAIN_SEA";
+	end
+	if ref == nil then
+		local okCapital:boolean, capital = pcall( function() return LocalPlayer():GetCities():GetCapitalCity(); end );
+		if okCapital and capital ~= nil then ref = Map.GetPlot( capital:GetX(), capital:GetY() ); end
+	end
+	if ref == nil then ref = ctx.plot; end
+	if ref == nil then return items; end
+	for _, edge in ipairs( UnexploredScan.Find( ref:GetX(), ref:GetY(), vis, naval ) ) do
+		local plot:table = Map.GetPlot( edge.x, edge.y );
+		if plot ~= nil then
+			local item:table = MakeItem( "x:" .. edge.sector, "unexplored", "the " .. edge.sector .. " edge", UnexploredScan.Text( edge.sector, edge.distance ), plot, ctx );
+			item.distance = edge.distance;		-- from the reference of the scan, not of the list
+			table.insert( items, item );
+		end
+	end
+	if #items == 0 then
+		table.insert( items, { key = "x:none", kind = "none", name = "unexplored", text = UnexploredScan.NONE_TEXT, x = ref:GetX(), y = ref:GetY(), distance = 0 } );
+	end
+	return SortItems( items );
+end
+
+-- The map pins we see (MapPins): "Iron here, 5 tiles south-east of Rome"; a teammate's pin says who placed it.
+local function PinItems( ctx:table )
+	local items:table = {};
+	for _, pin in ipairs( MapPins.All() ) do
+		local plot:table = Map.GetPlot( pin.x, pin.y );
+		if plot ~= nil then
+			local name:string = MapPins.DisplayName( pin.name );
+			local placedBy:string = nil;
+			if not pin.mine then
+				local cfg:table = PlayerConfigurations[ pin.owner ];
+				placedBy = ( cfg ~= nil ) and CleanTextForSpeech( Locale.Lookup( cfg:GetPlayerName() ) ) or "a teammate";
+			end
+			local item:table = MakeItem( "p:" .. pin.owner .. ":" .. pin.id, "pin", name, MapPins.ItemText( pin.name, Where( plot, ctx ), placedBy ), plot, ctx );
+			item.pinId, item.pinMine, item.pinPlacedBy = pin.id, pin.mine, placedBy;
+			table.insert( items, item );
+		end
+	end
+	return SortItems( items );
+end
+
 -- Alarmed scouts, raiders and the enemies next to a civilian of ours (HubEnemies): the first category while any is active.
 local function ThreatItems( ctx:table )
 	local items:table = {};
@@ -903,6 +958,7 @@ function HubPlaces.BuildCategories( ctx:table )
 			{ name = "Notifications", build = NotificationItems },
 		{ name = "Foreign cities", build = ForeignItems }, { name = "Foreign lands", build = HubPlaces.ForeignLandsItems },
 		{ name = "Civilians to capture", build = CaptureItems },
+		{ name = "Unexplored", build = UnexploredItems }, { name = "Pins", build = PinItems },
 	};
 	for _, source in ipairs( sources ) do
 		local ok:boolean, items = xpcall( function() return source.build( ctx ); end, KeyNavErrorHandler );
@@ -1028,6 +1084,10 @@ end
 -- usual); a unit of yours is selected, which announces it with what it is doing.
 local function ActivateItem( item:table )
 	local inTarget:boolean = HubTargets.GetTargetMode() ~= nil;
+	if item.kind == "none" then
+		OutputMessageToScreenReader( item.text );
+		return;
+	end
 	if item.kind == "unit" and not inTarget then
 		local unit:table = LocalPlayer():GetUnits():FindID( item.unitId );
 		if unit == nil then
@@ -1055,6 +1115,10 @@ end
 local function SendKey()
 	local item:table = FocusedItem();
 	if item == nil then return; end
+	if item.kind == "none" then
+		OutputMessageToScreenReader( "Nowhere to send a unit to" );
+		return;
+	end
 	if HubTargets.GetTargetMode() ~= nil then
 		OutputMessageToScreenReader( SRKey( "Enter" ) .. " moves the target there. " .. SRKey( "Escape" ) .. " closes the list" );
 		return;
@@ -1070,6 +1134,56 @@ local function SendKey()
 		return;
 	end
 	HubPlaces.OpenSend( { name = item.name, x = item.x, y = item.y, back = "places", key = item.key, capture = ( item.kind == "capture" ), soldiers = ( item.kind == "threat" ), camp = ( item.camp == true ) } );
+end
+
+-- Delete on a pin: the first press asks, the second one (same pin, within a few seconds) removes it through the game's own call.
+local DELETE_CONFIRM_SECONDS	:number = 6;
+local m_deleteAsk				:table = { key = nil, time = -100 };
+
+local function DeleteKey()
+	local item:table = FocusedItem();
+	if item == nil then return; end
+	if item.kind ~= "pin" then
+		OutputMessageToScreenReader( "Only a pin can be removed here" );
+		return;
+	end
+	if not item.pinMine then
+		OutputMessageToScreenReader( "That pin was placed by " .. ( item.pinPlacedBy or "a teammate" ) .. ", only they can remove it" );
+		return;
+	end
+	local now:number = UI.GetElapsedTime();
+	if m_deleteAsk.key ~= item.key or now - m_deleteAsk.time > DELETE_CONFIRM_SECONDS then
+		m_deleteAsk.key, m_deleteAsk.time = item.key, now;
+		OutputMessageToScreenReader( "Remove the pin " .. item.name .. "? " .. SRKey( "Delete" ) .. " again to confirm" );
+		return;
+	end
+	m_deleteAsk.key = nil;
+	if not MapPins.Delete( item.pinId ) then
+		OutputMessageToScreenReader( "The pin could not be removed" );
+		return;
+	end
+	-- the item leaves the list; the focus goes to its neighbour (an empty category is dropped)
+	local cat:table = m_data.cats[ m_cat ];
+	local at:number = 1;
+	for i, other in ipairs( cat.items ) do
+		if other.key == item.key then at = i; end
+	end
+	table.remove( cat.items, at );
+	if #cat.items == 0 then
+		table.remove( m_data.cats, m_cat );
+		if #m_data.cats == 0 then
+			HubCore.CloseMode( false, false );
+			OutputMessageToScreenReader( "Pin removed" );
+			return;
+		end
+		m_cat = math.min( m_cat, #m_data.cats );
+		cat = m_data.cats[ m_cat ];
+		m_list.Open( "Places", DefaultFocusKey( cat ), true, true );
+		SpeakFocus( "Pin removed. " .. CategoryHead( cat ) .. ". " );
+		return;
+	end
+	m_list.Open( "Places", cat.items[ math.min( at, #cat.items ) ].key, true, true );
+	SpeakFocus( "Pin removed. " );
 end
 
 -- T on a clan camp: the banner's own call opens the DLC's Treat With Clan popup (our keyboard copy of it speaks)
@@ -1173,7 +1287,7 @@ local m_facade:table = {
 };
 
 -- X on the controller sends a unit there (what M does)
-local m_placesKeys:table = { [Keys.VK_TAB] = function() SwitchCategory( 1 ); end, [Keys.M] = SendKey, [Keys.T] = TreatKey };
+local m_placesKeys:table = { [Keys.VK_TAB] = function() SwitchCategory( 1 ); end, [Keys.M] = SendKey, [Keys.T] = TreatKey, [Keys.VK_DELETE] = DeleteKey };
 if Gamepad.Key( "X" ) ~= nil then m_placesKeys[ Gamepad.Key( "X" ) ] = SendKey; end
 
 m_list = KeyNavList_Create{

@@ -95,6 +95,7 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 	local localPlayer:number = Game.GetLocalPlayer();
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
 	options.resourceTech = true;
+	options.pins = true;		-- "pin: <name>" when a map pin stands here (MapPins)
 	local mode:number = HubTargets.GetTargetMode();
 	local placement:string = HubCore.PlacementPlotText( plot );
 	local info:string = nil;

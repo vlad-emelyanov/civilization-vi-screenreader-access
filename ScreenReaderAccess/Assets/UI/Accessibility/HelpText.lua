@@ -118,7 +118,8 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "close the browser, the cursor goes back to the unit" },
 	} },
 	{ title = "Places list", entries = {
-		{ action = "KeyNavPlaces",		default = "J",			text = "places list: threats first (a barbarian scout that has seen your city, raiders, enemies next to your settler or builder), cities, units, points of interest (barbarian camps say what guards them; Space says what destroying one gives), blind spots (land near your cities out of sight or unexplored, where barbarian camps can appear; unexplored areas may include sea and mountains), notification places, foreign cities, enemy civilians you can capture" },
+		{ action = "KeyNavPlaces",		default = "J",			text = "places list: threats first (a barbarian scout that has seen your city, raiders, enemies next to your settler or builder), cities, units, points of interest (barbarian camps say what guards them; Space says what destroying one gives), blind spots (land near your cities out of sight or unexplored, where barbarian camps can appear; unexplored areas may include sea and mountains), notification places, foreign cities, enemy civilians you can capture; at the end Unexplored (the nearest edge of the known map in each of six directions, from the selected unit or the capital: where to explore next) and Pins (your map pins and those teammates share)" },
+		{ action = "KeyNavMapPin",		default = "Control+P",	text = "map pin on the map cursor tile, a bookmark: type a name and press Enter (Enter on an empty name places an unnamed pin, Escape cancels); on a tile that already has your pin: a list with Rename and Delete. Pins are listed in the places list (category Pins) and the cursor says pin: <name>" },
 		{ action = "KeyNavAreaOverview",	default = "Shift+J",	text = "area overview of the map cursor: a list with the area (terrain, coast, river, luxury and strategic resources within 3 tiles; your city's area when the cursor is in your territory), the continent (tiles known, how far it reaches, cities on it, unexplored edges) and one item per direction (terrain, borders, ocean, first city, how much is unexplored); only explored tiles count; Space repeats, Escape closes" },
 		{ action = "KeyNavSendHere",		default = "Shift+M",	text = "send a unit to the cursor tile (any tile, also unexplored): list of your units that can get there with the turns they need, fastest first; Enter sends the chosen one; Escape closes" },
 		{ keys = "Tab and Control+Tab",	text = "next and previous category (controller: RB and LB; past the last or first category they move on to the next or previous list of the ring)" },
@@ -129,6 +130,7 @@ local m_sections:table = {
 		{ keys = "Control+N then M",	text = "send a unit to the place of a notification" },
 		{ keys = "X",					text = "controller: the same as M, send one of your units there" },
 		{ keys = "T",					text = "on a barbarian clan camp in view (Barbarian Clans mode): treat with the clan, opens hire, incite, bribe or ransom; also on the map with the cursor on the camp, instead of the tech tree" },
+		{ keys = "Delete",				text = "in the Pins category: remove the pin (press it twice to confirm)" },
 		{ keys = "Escape",				text = "close the list" },
 	} },
 	{ title = "Cities", entries = {

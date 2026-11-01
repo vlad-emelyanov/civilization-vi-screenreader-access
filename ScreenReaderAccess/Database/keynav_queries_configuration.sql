@@ -77,3 +77,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavUnitDetails','Unit details','Read the 
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavUnitDetails',0,'KBMouse','LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_I');
 INSERT INTO "InputActions" VALUES ('KeyNavChat','Chat','Multiplayer games: open the chat list (type a message, read the chat history)','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavChat',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_T');
+INSERT INTO "InputActions" VALUES ('KeyNavMapPin','Map pin','Put a named map pin on the map cursor tile (a bookmark), or rename or delete the pin that is already there','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavMapPin',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_P');
