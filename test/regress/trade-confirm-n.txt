@@ -1,0 +1,14 @@
+# UNVERIFIED (written offline). N while "Start trade route to X?" is asked says what Enter and Escape do (the hub's N did not reach the modal chooser).
+# covers: **/TradeRouteChooser.lua **/TradeText.lua
+# no-share-load: scenario trader-in-capital
+load medieval-t100
+scenario trader-in-capital
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_TRADER" then UI.SelectUnit(u) break end end
+wait Trade route from -Timeout 15
+key Enter -Settle 1000
+expect ^Start trade route to .+\? Enter to confirm, Escape to go back
+key N -Settle 800
+expect ^Enter confirms the route to .+, Escape goes back to the list
+key Escape -Settle 1000
+no-lua-errors

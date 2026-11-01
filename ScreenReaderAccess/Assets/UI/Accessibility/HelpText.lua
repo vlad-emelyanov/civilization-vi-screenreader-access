@@ -164,7 +164,7 @@ local m_sections:table = {
 		{ keys = "Escape",				text = "go back one step, then cancel the placement" },
 	} },
 	{ title = "Screens", entries = {
-		{ action = "ToggleTechTree",	default = "T",			text = "tech tree: Left and Right eras, Up and Down nodes, Enter sets the target (on a node you cannot research yet it says how many nodes and turns lie on the way, what comes next and which current research it replaces; a blocked node's own turns are for that tech alone), Shift+Enter queues" },
+		{ action = "ToggleTechTree",	default = "T",			text = "tech tree: Left and Right eras, Up and Down nodes, Enter sets the target (on a node you cannot research yet it says how many nodes and turns lie on the way, what comes next and which current research it replaces; Enter on a node that drops research with 3 turns or fewer left asks first, a second Enter does it; a blocked node's own turns are for that tech alone), Shift+Enter queues" },
 		{ action = "ToggleCivicsTree",	default = "C",			text = "civics tree: the same keys as the tech tree" },
 		{ keys = "J, Q and F",			text = "in the trees: J current research and the target at the end of the queue (controller: left trigger), Q the queue (controller: right trigger), F search by name; Shift+Enter queues the node (controller: X, also in the R list)" },
 		{ keys = "R",					text = "in the trees: lists the techs (civics) that unlock the improvement of resources near your cities, cheapest first; Up and Down, Enter sets the target, Shift+Enter or controller X queues, Escape leaves. A node that does so also says \"improves 2 Horses and 1 Sheep near your cities\"" },
@@ -176,7 +176,7 @@ local m_sections:table = {
 		{ action = "ToggleReligion",	default = "L",			text = "religion screen, also to found a religion and choose beliefs; Tab next tab, C confirms or continues (controller: X), F filters the list (controller: left trigger)" },
 		{ action = "ToggleGreatPeople",	default = "O",			text = "great people: Enter opens recruit, pass, patronize; Tab previously recruited" },
 		{ action = "KeyNavGreatWorks",	default = "Control+W",	text = "great works: Enter picks up and places, V describes the work (controller: X), Tab next building" },
-		{ action = "ToggleTradeRoutes",	default = "F4",			text = "trade routes: Tab switches tabs, B switches whose benefits (controller: X), Enter selects a trader" },
+		{ action = "ToggleTradeRoutes",	default = "F4",			text = "trade routes: Tab switches tabs, B switches whose benefits (controller: X), Enter selects a trader; when a destination asks \"Start trade route\", N says what Enter and Escape do" },
 		{ action = "ToggleEspionage",	default = "F3",			text = "espionage: operatives, city activity, mission history; Enter gives a spy orders" },
 		{ action = "ToggleRankings",	default = "F1",			text = "world rankings: Tab switches victory types, H explains the victory (controller: X)" },
 		{ action = "KeyNavReports",		default = "F8",			text = "reports: yields, resources, city status, gossip; Tab switches tabs" },

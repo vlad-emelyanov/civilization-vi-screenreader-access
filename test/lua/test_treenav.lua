@@ -140,7 +140,7 @@ test("Enter: request, then the queue is read back after it settled", function()
 	s.nav.Update(0.1)
 	listeq(Spoken(), {})
 	s.nav.Update(0.3)
-	listeq(Spoken(), { "Target: Iron Working, path: Bronze Working, Iron Working, 13 turns" })
+	listeq(Spoken(), { "Target: Iron Working, path: Bronze Working, Iron Working, 13 turns to reach it. Now researching Bronze Working instead of Archery" })
 	ClearPrinted()
 	s.nav.Update(2)
 	listeq(Spoken(), {})				-- spoken once
@@ -321,7 +321,34 @@ test("Enter on an available node keeps the plain wording", function()
 	ClearPrinted()
 	press(s, Keys.VK_RETURN)
 	s.nav.Update(2)
-	listeq(Spoken(), { "Target: Bronze Working, 4 turns" })
+	listeq(Spoken(), { "Target: Bronze Working, 4 turns. Replaces Archery" })
+end)
+
+test("Enter that would drop almost finished research asks first, the second Enter does it", function()
+	INFO.ARCHERY.turns = 1
+	local s = newNav({ prereqs = function(k) return FAR_PRE[k] end, itemWord = "tech" })
+	s.nav.Open()
+	press(s, Keys.VK_RIGHT)		-- Iron Working needs Bronze Working
+	ClearPrinted()
+	press(s, Keys.VK_RETURN)
+	listeq(s.requests, {})
+	listeq(Spoken(), { "Archery finishes in 1 turn. Enter again drops it for Bronze Working, on the way to Iron Working" })
+	s.queueResult = { keys = { "BRONZE", "IRON" }, names = { "Bronze Working", "Iron Working" }, turns = 13, each = { 4, 9 } }
+	press(s, Keys.VK_RETURN)
+	listeq(s.requests, { "IRON" })
+	-- another key in between cancels the ask
+	INFO.ARCHERY.turns = 5
+end)
+
+test("Enter that drops research with more than 3 turns left says what was replaced", function()
+	local s = newNav({ prereqs = function(k) return FAR_PRE[k] end, itemWord = "tech" })
+	s.nav.Open()
+	press(s, Keys.VK_END)		-- Bronze Working, available
+	s.queueResult = { keys = { "BRONZE" }, names = { "Bronze Working" }, turns = 4, each = { 4 } }
+	ClearPrinted()
+	press(s, Keys.VK_RETURN)
+	s.nav.Update(2)
+	listeq(Spoken(), { "Target: Bronze Working, 4 turns. Replaces Archery" })
 end)
 
 test("Open and J add the target when the queue goes beyond the current research", function()

@@ -84,8 +84,11 @@ test("Detail: researched, no prerequisites, boost done, no yield", function()
 end)
 
 test("Queue read back", function()
-	eq(TreeText_Queue("Target", "Iron Working", { "Bronze Working", "Iron Working" }, 13), "Target: Iron Working, path: Bronze Working, Iron Working, 13 turns")
+	eq(TreeText_Queue("Target", "Iron Working", { "Bronze Working", "Iron Working" }, 13), "Target: Iron Working, path: Bronze Working, Iron Working, 13 turns to reach it")
 	eq(TreeText_Queue("Target", "Archery", { "Archery" }, 5), "Target: Archery, 5 turns")
+	eq(TreeText_Queue("Target", "Shipbuilding", { "Sailing", "Shipbuilding" }, 31, "Currency"), "Target: Shipbuilding, path: Sailing, Shipbuilding, 31 turns to reach it. Now researching Sailing instead of Currency")
+	eq(TreeText_ReplaceAsk("Currency", 1, "Sailing", "Shipbuilding"), "Currency finishes in 1 turn. Enter again drops it for Sailing, on the way to Shipbuilding")
+	eq(TreeText_ReplaceAsk("Currency", 2, "Sailing", "Sailing"), "Currency finishes in 2 turns. Enter again drops it for Sailing")
 	eq(TreeText_Queue("Added to queue", "Mining", { "Archery", "Mining" }, 0), "Added to queue: Mining, path: Archery, Mining")
 end)
 

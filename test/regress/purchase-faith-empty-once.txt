@@ -1,0 +1,16 @@
+# UNVERIFIED (written offline). Purchase with faith with nothing to buy: the full sentence once on entering the tab, Down says only "Nothing to buy".
+# covers: **/ProductionPanel.lua, **/KeyNavList.lua
+# no-share-load: opens the production panel
+load pt-greece-t94
+clear-advisors
+lua InGame UI.DeselectAllUnits(); UI.SelectCity(Players[0]:GetCities():GetCapitalCity())
+key Tab -Settle 2000
+expect (?i)choose production
+key Control+Tab -Settle 1200
+expect ^Nothing to buy with faith in .+
+key Down -Settle 600
+expect ^Nothing to buy$
+expect-not Nothing to buy with faith
+key Escape -Settle 1200
+key Escape -Settle 1200
+no-lua-errors

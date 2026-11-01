@@ -5,7 +5,7 @@
 load bug-dedication-blocker
 clear-advisors
 key Enter -Settle 2500
-expect ^New era: The world has entered the .+\. You are in an? .+ Age\..*Enter to continue
+expect ^New era: The world has entered the .+\. You are in an? .+ Age.*Enter to continue
 key Enter -Settle 2500
 expect ^Choose dedications: \d+ to choose\. .*, 1 of \d+
 key Down -Settle 800

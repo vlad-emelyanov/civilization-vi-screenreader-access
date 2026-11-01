@@ -19,11 +19,12 @@ end
 -- A unit cannot be bought (built) because a unit of its formation class already stands in the city:
 -- "Archer stands in Rome". others: { { formation = "FORMATION_CLASS_LAND_COMBAT", name = "Archer" }, ... } on the city plot.
 -- Returns nil when none of them shares the class (the failure is something else).
-function ProductionText_StackBlocker( formation:string, cityName:string, others:table )
+-- withWayOut: adds what to do about it ("Archer stands in Rome: move it out or upgrade it first").
+function ProductionText_StackBlocker( formation:string, cityName:string, others:table, withWayOut )
 	if formation == nil then return nil; end
 	for _, other in ipairs( others or {} ) do
 		if other.formation == formation and other.name ~= nil and other.name ~= "" then
-			return other.name .. " stands in " .. ( cityName or "the city" );
+			return other.name .. " stands in " .. ( cityName or "the city" ) .. ( withWayOut and ( formation == "FORMATION_CLASS_CIVILIAN" and ": move it out first" or ": move it out or upgrade it first" ) or "" );
 		end
 	end
 	return nil;

@@ -66,11 +66,12 @@ local function _StripIconMarkup(message: string)
 end
 
 -- One stop where the text already ends in one ("age..", "city. .", "city.,", a sentence glued to a game text that ends in a period);
--- a real ellipsis "..." stays, numbers ("1.5") are untouched.
+-- "!." / "?." lose the period; a real ellipsis "..." stays, numbers ("1.5") are untouched.
 local function _CollapseStops(text: string)
 	text = string.gsub(text, "%.%.%.", "");
 	local collapsed:number = 1;
 	while collapsed > 0 do text, collapsed = string.gsub(text, "%.%s*[%.,]", "."); end
+	text = string.gsub(text, "([!?])%.", "%1");		-- "INSPIRATION!." -> "INSPIRATION!" (an exclamation already ends the sentence)
 	return (string.gsub(text, "", "..."));
 end
 

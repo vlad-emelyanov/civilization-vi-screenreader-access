@@ -41,6 +41,7 @@ end)
 
 test("origin city item", function()
 	eq(TradeText_Origin{ name = "Florence", distance = 5 }, "Florence, 5 tiles")
+	eq(TradeText_WhatsNext("Rome", "Enter", "Escape"), "Enter confirms the route to Rome, Escape goes back to the list")
 end)
 
 test("route passes cities and hazards", function()
