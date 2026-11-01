@@ -451,8 +451,8 @@ function OnLoadScreenContentReady()
 		local uniqueAbilities;
 		local uniqueUnits;
 		local uniqueBuildings;
-		uniqueAbilities, uniqueUnits, uniqueBuildings = GetLeaderUniqueTraits( leaderType );
-		local CivUniqueAbilities, CivUniqueUnits, CivUniqueBuildings = GetCivilizationUniqueTraits( civType );
+		uniqueAbilities, uniqueUnits, uniqueBuildings = GetLeaderUniqueTraits( leaderType, true );		-- ScreenReaderAccess: full descriptions (the screen's own short "A unique land unit" says nothing)
+		local CivUniqueAbilities, CivUniqueUnits, CivUniqueBuildings = GetCivilizationUniqueTraits( civType, true );
 	
 		-- Merge tables
 		for i,v in ipairs(CivUniqueAbilities)	do table.insert(uniqueAbilities, v) end

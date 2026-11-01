@@ -132,9 +132,61 @@ function KeyNavSetup_PulldownItem( control:object, parameter:table, label:string
 	};
 end
 
+-- Leader entry of the selection list: "Pericles, Greece". The civilization is left out for the random entries (no info) and
+-- when the leader's name already carries it ("Eleanor of Aquitaine (England)"). info = GetPlayerInfo( domain, leaderType ).
+function KeyNavSetup_LeaderOptionName( leaderName:string, info:table )
+	local civName:string = "";
+	if info ~= nil and info.CivilizationName ~= nil and info.CivilizationName ~= "LOC_RANDOM_CIVILIZATION" then
+		civName = CleanTextForSpeech( Locale.Lookup( info.CivilizationName ) );
+	end
+	if civName == "" or string.find( string.lower( leaderName ), string.lower( civName ), 1, true ) ~= nil then return leaderName; end
+	return leaderName .. ", " .. civName;
+end
+
+-- What the leader flyout of the game shows, one line each: civilization ability, leader ability, then every unique unit,
+-- building, district and improvement ("Unique unit: Hoplite: ..."). nil when there is nothing (the random entries).
+function KeyNavSetup_LeaderDetail( info:table )
+	if info == nil or info.CivilizationName == "LOC_RANDOM_CIVILIZATION" then return nil; end
+	local function Line( kind:string, name:string, description:string )
+		local text:string = CleanTextForSpeech( Locale.Lookup( name or "" ) );
+		local body:string = CleanTextForSpeech( Locale.Lookup( description or "" ) );
+		if body ~= "" then text = text .. ( text ~= "" and ": " or "" ) .. body; end
+		if text == "" then return nil; end
+		return ( string.gsub( kind .. ": " .. text, "[%.%s]+$", "" ) );
+	end
+	local lines:table = {};
+	local function Add( line:string ) if line ~= nil then table.insert( lines, line ); end end
+	if info.CivilizationAbility ~= nil then Add( Line( "Civilization ability", info.CivilizationAbility.Name, info.CivilizationAbility.Description ) ); end
+	if info.LeaderAbility ~= nil then Add( Line( "Leader ability", info.LeaderAbility.Name, info.LeaderAbility.Description ) ); end
+	for _, u in ipairs( info.Uniques or {} ) do
+		local icon:string = tostring( u.Icon or "" );
+		local kind:string = "Unique";
+		if string.find( icon, "^ICON_UNIT" ) then kind = "Unique unit";
+		elseif string.find( icon, "^ICON_BUILDING" ) then kind = "Unique building";
+		elseif string.find( icon, "^ICON_DISTRICT" ) then kind = "Unique district";
+		elseif string.find( icon, "^ICON_IMPROVEMENT" ) then kind = "Unique improvement"; end
+		Add( Line( kind, u.Name, u.Description ) );
+	end
+	if #lines == 0 then return nil; end
+	return table.concat( lines, ". " ) .. ".";
+end
+
+local function LeaderInfo( v:table )
+	if GetPlayerInfo == nil or v == nil or v.Value == nil then return nil; end
+	local ok, info = pcall( GetPlayerInfo, v.Domain, v.Value );
+	if ok then return info; end
+	return nil;
+end
+
 -- Leader / civilization pulldown of a player; Enter opens the mod-side selection list.
 function KeyNavSetup_LeaderItem( control:object, playerParams:table, leaderParam:table, label:string )
 	local item:table = KeyNavSetup_PulldownItem(control, leaderParam, label);
+	item.optionText = function( v:table )
+		return KeyNavSetup_LeaderOptionName( tostring( v.Name ), LeaderInfo( v ) );
+	end;
+	item.optionDetail = function( v:table )
+		return KeyNavSetup_LeaderDetail( LeaderInfo( v ) );
+	end;
 	local function Apply( v )
 		playerParams:SetParameterValue(leaderParam, v);
 		local colorParameter = playerParams.Parameters["PlayerColorAlternate"];
@@ -441,7 +493,9 @@ function KeyNavSetup_NewController( cfg:table )
 	-- -----------------------------------------------------------------------
 	local function SelectionText()
 		local v:table = m_selection.options[m_selection.index];
-		return tostring(v.Name)..", "..tostring(m_selection.index).." of "..tostring(#m_selection.options);
+		local name:string = tostring(v.Name);
+		if m_selection.item.optionText ~= nil then name = m_selection.item.optionText(v); end
+		return name..", "..tostring(m_selection.index).." of "..tostring(#m_selection.options);
 	end
 
 	local function OpenSelection( item:table )
@@ -451,7 +505,7 @@ function KeyNavSetup_NewController( cfg:table )
 		if #options == 0 then return; end
 		local label:string = item.label or "";
 		m_selection = { item = item, options = options, index = current, originalIndex = (not noOriginal) and current or nil };
-		OutputMessageToScreenReader(label..", "..SelectionText()..". " .. SRKey( "Up/Down" ) .. " to choose, " .. SRKey( "Enter" ) .. " to select, " .. SRKey( "Escape" ) .. " to cancel", false);
+		OutputMessageToScreenReader(label..", "..SelectionText()..". " .. SRKey( "Up/Down" ) .. " to choose, " .. ( item.optionDetail ~= nil and ( SRKey( "Space" ) .. " for abilities, " ) or "" ) .. SRKey( "Enter" ) .. " to select, " .. SRKey( "Escape" ) .. " to cancel", false);
 	end
 
 	local function SelectionKey( key:number )
@@ -467,6 +521,8 @@ function KeyNavSetup_NewController( cfg:table )
 				sel.index = #sel.options;
 			end
 			OutputMessageToScreenReader(SelectionText(), false);
+		elseif key == Keys.VK_SPACE and sel.item.optionDetail ~= nil then
+			OutputMessageToScreenReader(sel.item.optionDetail(sel.options[sel.index]) or "No details", false);
 		elseif key == Keys.VK_RETURN then
 			m_selection = nil;
 			-- item.validate() (optional): false if what the list was opened for changed meanwhile (slot taken, parameters
