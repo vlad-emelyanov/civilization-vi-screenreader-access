@@ -30,8 +30,15 @@
 --	    reimplemented here because that file defines many globals), housing from Districts.Housing and the plot's appeal for
 --	    districts that are not one-per-city (neighbourhoods).
 --
---	Sorting. Districts: total adjacency (descending), owned before purchasable, fewer losses, nearer to the city. Wonders:
---	owned before purchasable, fewer losses, nearer.
+--	Sorting. Districts: score = total adjacency minus loss (descending), owned before purchasable, fewer removals, nearer to
+--	the city. Wonders: owned before purchasable, smaller loss, fewer removals, nearer.
+--	Loss (PlacementScan_Loss, in adjacency points) is what the placement destroys, only counted for what the engine says it
+--	removes: an improvement 2, a feature (woods, marsh) 1, a bonus resource 2, a luxury or strategic resource 4, plus 2 when a
+--	citizen works the tile, plus the tile's food again when the city grows by 2 food or less (it can ill afford to lose it).
+--	So a worked Farm on Wheat costs 6 (8 or more in a starving city) and is only "Best" when its adjacency leads every other
+--	tile by more than that; a resource tile never wins a tie against a tile that loses nothing.
+--	candidate.loss = number, candidate.lossText = "removes Farm on Wheat, a citizen works it" ("" when nothing goes), candidate.tileYields
+--	= "4 food, 1 production" (what the tile gave, only with a removal).
 -- ===========================================================================
 
 include( "ScreenReader" );
@@ -88,6 +95,82 @@ local function _RemovalName( plot:table, text:string )
 		if Locale.Lookup( "LOC_DISTRICT_ZONE_WILL_REMOVE_IMPROVEMENT", name ) == text then return name; end
 	end
 	return nil;
+end
+
+-- Loss points of one placement (see the header). info = { improvement, resource, feature (names, only what is removed),
+-- rclass = "bonus" | "luxury" | "strategic" | other, worked = bool, food = tile food }, foodSurplus = the city's food per turn.
+function PlacementScan_Loss( info:table, foodSurplus:number )
+	local loss:number = 0;
+	if info.improvement ~= nil then loss = loss + 2; end
+	if info.feature ~= nil then loss = loss + 1; end
+	if info.resource ~= nil then
+		loss = loss + ( ( info.rclass == "luxury" or info.rclass == "strategic" ) and 4 or 2 );
+	end
+	if loss > 0 then
+		if info.worked then loss = loss + 2; end
+		if foodSurplus ~= nil and foodSurplus <= 2 then loss = loss + ( info.food or 0 ); end
+	end
+	return loss;
+end
+
+-- "removes Farm on Wheat, a citizen works it": an improvement is named with what it stands on (the resource, else the feature).
+function PlacementScan_LossText( info:table )
+	local base:table = {};
+	if info.feature ~= nil then table.insert( base, info.feature ); end
+	if info.resource ~= nil then table.insert( base, info.resource ); end
+	local text:string;
+	if info.improvement ~= nil then
+		text = "removes " .. info.improvement;
+		if #base > 0 then text = text .. " on " .. table.concat( base, " and " ); end
+	elseif #base > 0 then
+		text = "removes " .. table.concat( base, " and " );
+	else
+		return "";
+	end
+	if info.worked then text = text .. ", a citizen works it"; end
+	return text;
+end
+
+-- What the plot loses, by the names in `removes` (the engine's own list, so a resource that stays is not claimed lost).
+local function _LossInfo( plot:table, removes:table )
+	local info:table = {};
+	local function Removed( name:string ) for _, r in ipairs( removes ) do if r == name then return true; end end return false; end
+	local feature:number = plot:GetFeatureType();
+	if feature ~= nil and feature >= 0 and GameInfo.Features[ feature ] ~= nil then
+		local name:string = Locale.Lookup( GameInfo.Features[ feature ].Name );
+		if Removed( name ) then info.feature = name; end
+	end
+	local resource:number = plot:GetResourceType();
+	if resource ~= nil and resource >= 0 and GameInfo.Resources[ resource ] ~= nil then
+		local row:table = GameInfo.Resources[ resource ];
+		local name:string = Locale.Lookup( row.Name );
+		if Removed( name ) then
+			info.resource = name;
+			local class:string = string.lower( string.gsub( row.ResourceClassType or "", "^RESOURCECLASS_", "" ) );
+			info.rclass = class;
+		end
+	end
+	local improvement:number = plot:GetImprovementType();
+	if improvement ~= nil and improvement >= 0 and GameInfo.Improvements[ improvement ] ~= nil then
+		local name:string = Locale.Lookup( GameInfo.Improvements[ improvement ].Name );
+		if Removed( name ) then info.improvement = name; end
+	end
+	local okW:boolean, workers = pcall( function() return plot:GetWorkerCount(); end );
+	info.worked = okW and ( workers or 0 ) > 0;
+	local okF:boolean, food = pcall( function() return plot:GetYield( YIELD_START ); end );
+	info.food = okF and food or 0;
+	return info;
+end
+
+local function _TileYields( plot:table )
+	local parts:table = {};
+	for index = YIELD_START, YIELD_END do
+		local ok:boolean, amount = pcall( function() return plot:GetYield( index ); end );
+		if ok and amount ~= nil and amount > 0 and GameInfo.Yields[ index ] ~= nil then
+			table.insert( parts, amount .. " " .. string.lower( Locale.Lookup( GameInfo.Yields[ index ].Name ) ) );
+		end
+	end
+	return table.concat( parts, ", " );
 end
 
 local function _LowerFirst( text:string )
@@ -213,6 +296,15 @@ local function _MakeCandidate( scan:table, plot:table, owned:boolean )
 		candidate.tileCost = ( ok and cost ~= nil ) and cost or 0;
 		candidate.shortBy = math.max( 0, candidate.tileCost - ( scan.gold or 0 ) );		-- > 0: the purchase cannot be paid now
 	end
+	candidate.loss, candidate.lossText, candidate.tileYields = 0, "", "";
+	if #candidate.removes > 0 then
+		local info:table = _LossInfo( plot, candidate.removes );
+		candidate.loss = PlacementScan_Loss( info, scan.foodSurplus );
+		candidate.lossText = PlacementScan_LossText( info );
+		if candidate.lossText == "" then candidate.lossText = "removes " .. table.concat( candidate.removes, " and " ); end
+		if candidate.loss == 0 then candidate.loss = #candidate.removes; end
+		candidate.tileYields = _TileYields( plot );
+	end
 	return candidate;
 end
 
@@ -223,8 +315,10 @@ function PlacementScan_Sort( scan:table )
 		local aShort:boolean = ( a.shortBy or 0 ) > 0;
 		local bShort:boolean = ( b.shortBy or 0 ) > 0;
 		if aShort ~= bShort then return bShort; end
-		if isDistrict and a.total ~= b.total then return a.total > b.total; end
+		local aLoss:number, bLoss:number = a.loss or 0, b.loss or 0;
+		if isDistrict and ( a.total - aLoss ) ~= ( b.total - bLoss ) then return ( a.total - aLoss ) > ( b.total - bLoss ); end
 		if a.owned ~= b.owned then return a.owned; end
+		if aLoss ~= bLoss then return aLoss < bLoss; end
 		if #a.removes ~= #b.removes then return #a.removes < #b.removes; end
 		if a.distance ~= b.distance then return a.distance < b.distance; end
 		return a.plotIndex < b.plotIndex;
@@ -238,6 +332,8 @@ function PlacementScan_Scan( city:table, kind:string, hash:number, purchaseYield
 	};
 	local okGold:boolean, gold = pcall( function() return math.floor( Players[ city:GetOwner() ]:GetTreasury():GetGoldBalance() ); end );
 	scan.gold = okGold and gold or 0;
+	local okSurplus:boolean, surplus = pcall( function() return city:GetGrowth():GetFoodSurplus(); end );
+	scan.foodSurplus = okSurplus and surplus or nil;
 	local row:table;
 	if kind == "district" then
 		row = GameInfo.Districts[ hash ];

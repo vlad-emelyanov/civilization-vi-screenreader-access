@@ -48,7 +48,7 @@ globals = {
 	"KeyNavSetup_OpenPicker", "KeyNavSetup_ParameterItem", "KeyNavSetup_PulldownItem", "KeyNavSetup_SectionPrefix",
 	"KeyNavSetup_SortByPosition", "KeyNavSetup_LeaderOptionName", "KeyNavSetup_LeaderDetail", "GetPlayerInfo", "KeyNavToggleDontShow", "KeyNav_Tick", "ExposedMembers", "OutputMessageToScreenReader", "SRSpeechCount", "SRChooserNextKey", "SRRequestQueueBehind", "SRTakeQueueBehind", "SRKey", "SRAvailableFirst", "SRPadHint", "SRKbHint", "SRActionResultText", "SRPlotResourceHidden", "SRHiddenHarvestSentence", "SRStripHiddenHarvest", "SRMenuRank", "SRTribalVillageReason", "SRGreatPersonActivateName", "SRFoundReligionRefusal", "SRTryFoundReligionHotkey", "SRCursorKeysText",
 	"DistrictAdvice_Line", "DistrictAdvice_BestSpot", "DistrictAdvice_Entry", "DistrictAdvice_Spots",
-	"PlacementScan_Blockers", "PlacementScan_Sort", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
+	"PlacementScan_Blockers", "PlacementScan_Sort", "PlacementScan_Loss", "PlacementScan_LossText", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
 	"UnitDetails_Text", "UnitDetails_Gather", "UnitDetails_Order", "UnitDetails_ForPlot", "UnitDetails_ShortStrength", "UnitDetails_CityDefenseText", "PlotDescription_CityDefense",
 	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_BuildingsText", "PlotDescription_DistrictBuildings", "PlotDescription_GetDirectionWord",
 	"PlotDescription_GetRelative", "PlotDescription_GetShort", "PlotDescription_GetUnitName", "PlotDescription_FormationName", "PlotDescription_IsEmbarked", "PlotDescription_UnitStateText",

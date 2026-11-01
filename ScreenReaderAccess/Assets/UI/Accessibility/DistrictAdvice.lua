@@ -82,7 +82,11 @@ function DistrictAdvice_BestSpot( entry:table )
 	end
 	if entry.relative ~= nil and entry.relative ~= "" then table.insert( parts, entry.relative ); end
 	if entry.owned == false and entry.tileCost ~= nil and entry.tileCost > 0 then table.insert( parts, "tile costs " .. entry.tileCost .. " gold" ); end
-	if entry.removes ~= nil and #entry.removes > 0 then table.insert( parts, "removes " .. table.concat( entry.removes, ", " ) ); end
+	if entry.lossText ~= nil and entry.lossText ~= "" then
+		table.insert( parts, 1, entry.lossText );		-- what it destroys comes before the bonus
+	elseif entry.removes ~= nil and #entry.removes > 0 then
+		table.insert( parts, "removes " .. table.concat( entry.removes, ", " ) );
+	end
 	return "Best spot: " .. table.concat( parts, ", " );
 end
 
@@ -125,7 +129,7 @@ function DistrictAdvice_Entry( city:table, hash:number )
 		local best:table = scan.best;
 		if best ~= nil then
 			entry = { name = scan.name, hash = hash, total = best.total or 0, adjacency = best.adjacency, relative = best.relative,
-				owned = best.owned, tileCost = best.tileCost, removes = best.removes, spots = #scan.list };
+				owned = best.owned, tileCost = best.tileCost, removes = best.removes, lossText = best.lossText, spots = #scan.list };
 		end
 	end );
 	if not ok then print( "DistrictAdvice error: " .. tostring( err ) ); end

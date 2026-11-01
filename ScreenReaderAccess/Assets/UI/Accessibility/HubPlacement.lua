@@ -44,8 +44,9 @@ local function PlacementEffects( c:table, withBuy:boolean )
 	local parts:table = {};
 	local hostile:string = HostileUnitText( c );
 	if hostile ~= nil then table.insert( parts, hostile ); end
+	-- what the placement destroys comes first (a blind player trusts the order and the front of the item): "removes Farm on Wheat, worked"
+	if #c.removes > 0 then table.insert( parts, c.lossText or ( "removes " .. table.concat( c.removes, " and " ) ) ); end
 	for _, text in ipairs( c.adjacency ) do table.insert( parts, text ); end
-	if #c.removes > 0 then table.insert( parts, "removes " .. table.concat( c.removes, " and " ) ); end
 	for _, text in ipairs( c.notes ) do table.insert( parts, text ); end
 	if withBuy and not c.owned then
 		table.insert( parts, "buy tile " .. c.tileCost .. " gold" );
@@ -96,7 +97,12 @@ local function PlacementDetail( c:table )
 	elseif m_placeScan.kind == "district" then
 		text = text .. ". No adjacency bonus";
 	end
-	if #c.removes > 0 then text = text .. ". Removes " .. table.concat( c.removes, " and " ); end
+	if #c.removes > 0 then
+		local loss:string = c.lossText;
+		if loss == nil or loss == "" then loss = "removes " .. table.concat( c.removes, " and " ); end
+		text = text .. ". " .. string.upper( string.sub( loss, 1, 1 ) ) .. string.sub( loss, 2 );
+		if c.tileYields ~= nil and c.tileYields ~= "" then text = text .. ". The tile gives " .. c.tileYields .. " now"; end
+	end
 	for _, note in ipairs( c.notes ) do text = text .. ". " .. note; end
 	if not c.owned then text = text .. ". You do not own this tile yet, buying it costs " .. c.tileCost .. " gold"; end
 	local plot:table = Map.GetPlotByIndex( c.plotIndex );
