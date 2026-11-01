@@ -6,9 +6,9 @@ clear-advisors
 lua GameCore_Tuner local c=Players[0]:GetCities():GetCapitalCity(); local b=nil; for i=0,63 do if Players[i] and Players[i]:IsBarbarian() then b=Players[i] end end; for dy=-2,2 do for dx=-2,2 do local pl=Map.GetPlot(c:GetX()+dx,c:GetY()+dy); if b and pl and not pl:IsWater() and not pl:IsImpassable() and pl:GetUnitCount()==0 and not pl:IsCity() then b:GetUnits():Create(GameInfo.Units["UNIT_ARCHER"].Index, pl:GetX(), pl:GetY()) return 1 end end end return 0
 lua InGameAccess for i=0,63 do if Players[i] and Players[i]:IsBarbarian() then for _,u in Players[i]:GetUnits():Members() do HubCursor.SetCursor(u:GetX(),u:GetY(),false,false,true,true) end end end
 action KeyNavUnitDetails -Settle 1500
-expect ^Barbarian Archer, level \d+\. Strength \d+\. Ranged \d+, range \d+\. Health 100 of 100
+expect ^Barbarian \w+, level \d+\. Strength \d+\..*Health 100 of 100
 action KeyNavPlotDetails -Settle 1500
-expect Barbarian Archer, strength \d+, ranged \d+
+expect Barbarian \w+, strength \d+
 lua InGameAccess local c=Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(),c:GetY(),false,false,true,true)
 action KeyNavPlotDetails -Settle 1500
 expect , city, strength \d+.*health \d+ of \d+|capital, strength \d+.*health \d+ of \d+

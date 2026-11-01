@@ -1,4 +1,4 @@
--- Scenario: city-danger. STATUS: unverified (written blind, the war API is a guess)
+-- Scenario: city-danger. STATUS: unverified (verified: DeclareWarOn(id, WarTypes.FORMAL_WAR, true) from the attacker's side declares war)
 -- Fixture: early-t60 (capital Rome at 60,33). Any game with a capital of player 0 and a second living major civilization works.
 -- Then: HubEnemies.SpeakCityDanger(false) (or the next turn start) -> "<city> in danger: 3 units of <civ> within 3 tiles, city strength N, ...
 --   Control+I for the city". A second call says nothing; one more unit placed afterwards speaks again.
@@ -15,6 +15,7 @@ if not other then error("scenario city-danger: no other major civilization") end
 pcall(function() me:GetDiplomacy():SetHasMet(other) end)
 pcall(function() Players[other]:GetDiplomacy():SetHasMet(0) end)
 local tried = {
+	function() Players[other]:GetDiplomacy():DeclareWarOn(0, WarTypes.FORMAL_WAR, true) end,
 	function() Players[other]:GetDiplomacy():DeclareWar(0) end,
 	function() me:GetDiplomacy():DeclareWar(other) end,
 	function() DiplomacyManager.DeclareWar(other, 0) end,

@@ -4,9 +4,11 @@
 load early-t60
 scenario city-danger
 clear-advisors
-lua InGameAccess HubEnemies.SpeakCityDanger(false)
+lua InGameAccess HubEnemies.m_cityDanger = {}; HubEnemies.SpeakCityDanger(false) return 'spoke'
+wait in danger: -Timeout 5
 expect ^\S.* in danger: 3 units of \S.* within 3 tiles, city strength \d+
 expect Control\+I for the city
-lua InGameAccess HubEnemies.SpeakCityDanger(false)
+lua InGameAccess HubEnemies.SpeakCityDanger(false) return 'again'
+key Down -Settle 1200
 expect-not in danger
 no-lua-errors
