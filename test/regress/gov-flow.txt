@@ -38,7 +38,8 @@ expect (?i)^Policies
 key Enter -Settle 800
 expect (?i)choose a policy
 key Enter -Settle 1000
-expect (?i)\d+ empty
+expect (?i) in military slot 1
+expect ^Empty, economic slot 1
 key Escape -Settle 1000
 expect ^Policy changes not confirmed: fill the empty .* first, then confirm\. Escape again to discard them
 expect-not (?i)^Government closed

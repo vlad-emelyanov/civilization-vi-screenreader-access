@@ -15,6 +15,7 @@
 --		tabEdge    = function(step) return bool end,      -- optional: true when the sections cannot go further in that direction (+1 / -1); the hub then moves the LB / RB ring on
 --		wheel      = true,                                -- optional: the pad's wheel (hold LT, point the left stick) works here; short lists of the main interface only
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
+--		letterJump = true,                                -- optional (off by default): an unmodified letter A-Z (KeyUp) jumps to the next item whose item.jumpText (default item.text) starts with it, wrapping; the same letter again goes on; "Nothing starting with Q". extraKeys win over the letters
 --		emptyText  = function() return "..." end,         -- optional: spoken (string or function(opening): opening is true when the list was just opened, false on a key) instead of "<title>, nothing available" / "Nothing available" when the list is empty
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, uncounted = <true: not counted in its group's count>, detail = <string or function,
@@ -65,8 +66,30 @@ function KeyNavList_GroupTarget( items:table, index:number, delta:number )
 	return starts[ current - 1 ] or starts[ #starts ];
 end
 
+-- Pure. The index of the next item after `index` (wrapping, the item at `index` last) whose jumpText / text starts with `letter`
+-- (case insensitive, leading blanks ignored), or nil.
+function KeyNavList_LetterTarget( items:table, index:number, letter:string )
+	local count:number = #items;
+	if count == 0 or letter == nil then return nil; end
+	letter = string.lower( letter );
+	for step = 1, count do
+		local i:number = ( ( ( index or 0 ) + step - 1 ) % count ) + 1;
+		local text = items[ i ].jumpText or items[ i ].text or "";
+		local first = string.match( text, "^[ 	]*(.)" );
+		if first ~= nil and string.lower( first ) == letter then return i; end
+	end
+	return nil;
+end
+
 function KeyNavList_Create( config:table )
 	local list:table = {};
+	local letterKeys:table = {};
+	if config.letterJump ~= nil and config.letterJump ~= false then
+		for code = 65, 90 do
+			local name:string = string.char( code );
+			if Keys[ name ] ~= nil then letterKeys[ Keys[ name ] ] = name; end
+		end
+	end
 	Gamepad.Follow();
 	local m_focusKey = nil;
 	local m_lastSection:string = nil;
@@ -255,6 +278,31 @@ function KeyNavList_Create( config:table )
 		Speak( items, target, true, true );
 	end
 
+	local function LetterJumpOn()
+		local on = config.letterJump;
+		if type( on ) == "function" then
+			local ok:boolean, result = xpcall( on, KeyNavErrorHandler );
+			return ok and result == true;
+		end
+		return on == true;
+	end
+
+	-- A letter key (letterJump): the next item starting with that letter.
+	local function LetterJump( letter:string )
+		m_lostGuard = false;
+		local items:table = Build();
+		if #items == 0 then
+			OutputMessageToScreenReader( EmptyText( "Nothing available" ) );
+			return;
+		end
+		local target = KeyNavList_LetterTarget( items, FindIndex( items ) or 0, letter );
+		if target == nil then
+			OutputMessageToScreenReader( "Nothing starting with " .. letter );
+			return;
+		end
+		Speak( items, target, true, false );
+	end
+
 	-- Sections: does the list have a Tab handler, and can it not go further in that direction (the hub's ring takes over then)?
 	function list.HasTabs()
 		return config.extraKeys ~= nil and config.extraKeys[ Keys.VK_TAB ] ~= nil;
@@ -396,6 +444,12 @@ function KeyNavList_Create( config:table )
 			if not isDown then action = config.onClose; end
 		elseif config.extraKeys ~= nil and config.extraKeys[ key ] ~= nil then
 			if not isDown then action = config.extraKeys[ key ]; end
+		elseif letterKeys[ key ] ~= nil and LetterJumpOn() then
+			-- a KeyUp within 0.3 s of Open is the tail of the key that opened the list: ignored
+			if not isDown and not ( UI ~= nil and UI.GetElapsedTime ~= nil and UI.GetElapsedTime() - m_openedAt < 0.3 ) then
+				local letter:string = letterKeys[ key ];
+				action = function() LetterJump( letter ); end
+			end
 		else
 			return false;
 		end
