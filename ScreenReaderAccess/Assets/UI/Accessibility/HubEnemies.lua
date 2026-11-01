@@ -180,6 +180,7 @@ function HubEnemies.Reset()
 	HubEnemies.m_raidSig, HubEnemies.m_dangerSig, HubEnemies.m_escortHinted = {}, {}, {};
 	HubEnemies.m_cityDanger = {};
 	HubEnemies.m_explorerSaid = {};
+	HubEnemies.m_navalSaid = {};
 end
 
 -- Start of our turn (after the "Turn N" line): the line, or nothing.
@@ -819,6 +820,87 @@ function HubEnemies.ScanThreats()
 	return result;
 end
 
+-- ---------------------------------------------------------------------------
+-- Ships: a barbarian galley off a coastal city, an enemy ship near our ships and embarked units (no raid count: ships do not raid)
+-- ---------------------------------------------------------------------------
+HubEnemies.NAVAL_RADIUS = 3;
+HubEnemies.NAVAL_REPEAT_TURNS = 5;		-- the same ship is told again after this many turns only
+HubEnemies.m_navalSaid = {};
+
+function HubEnemies.NavalWarnDue( said:table, key:string, turn:number )
+	local last:number = said[ key ];
+	return last == nil or turn - last >= HubEnemies.NAVAL_REPEAT_TURNS;
+end
+
+local function TilesText( distance:number )
+	return distance .. " " .. Plural( distance );
+end
+
+-- "Barbarian Galley 3 tiles north-east of Rome, a coastal city: it can attack the city from the sea"
+function HubEnemies.NavalCityText( enemyName:string, distance:number, relative:string, cityName:string )
+	local where:string = TilesText( distance );
+	if relative ~= nil and relative ~= "" then where = where .. " " .. relative .. " of " .. cityName; else where = where .. " from " .. cityName; end
+	return enemyName .. " " .. where .. ", a coastal city: it can attack the city from the sea";
+end
+
+-- "Your Trireme in danger: Barbarian Galley 2 tiles east"
+function HubEnemies.NavalUnitText( unitName:string, enemyName:string, distance:number, relative:string )
+	local text:string = "Your " .. unitName .. " in danger: " .. enemyName .. " " .. TilesText( distance );
+	if relative ~= nil and relative ~= "" then text = text .. " " .. relative; end
+	return text;
+end
+
+-- Lines for the ships in view that are due: { { key, text, x, y } }.
+function HubEnemies.ScanNaval()
+	local lines:table = {};
+	local ships:table = {};
+	for _, h in ipairs( VisibleHostiles() ) do
+		if h.soldier and HubEnemies.IsNaval( h.unit ) then table.insert( ships, h ); end
+	end
+	if #ships == 0 then return lines; end
+	local turn:number = Game.GetCurrentGameTurn();
+	for _, s in ipairs( ships ) do
+		if Players[ s.owner ]:IsBarbarian() then
+			local best:table, bestDistance:number = nil, 99;
+			for _, city in ipairs( OwnCities() ) do
+				local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
+				local d:number = Dist( s.x, s.y, city:GetX(), city:GetY() );
+				if plot ~= nil and plot:IsCoastalLand() and d < bestDistance then best, bestDistance = city, d; end
+			end
+			if best ~= nil and bestDistance <= HubEnemies.NAVAL_RADIUS then
+				local key:string = "city:" .. s.key;
+				if HubEnemies.NavalWarnDue( HubEnemies.m_navalSaid, key, turn ) then
+					HubEnemies.m_navalSaid[ key ] = turn;
+					table.insert( lines, { key = key, x = s.x, y = s.y, text = HubEnemies.NavalCityText( PlotDescription_GetUnitName( s.unit ), bestDistance,
+						PlotDescription_GetRelative( Map.GetPlot( best:GetX(), best:GetY() ), Map.GetPlot( s.x, s.y ) ), Locale.Lookup( best:GetName() ) ) } );
+				end
+			end
+		end
+	end
+	local me:table = Players[ Game.GetLocalPlayer() ];
+	for _, unit in me:GetUnits():Members() do
+		local plot:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+		-- civilians are the civilian line's business; a unit in a city is covered by the city
+		if plot ~= nil and not HubEnemies.IsCivilian( unit ) and ( HubEnemies.IsNaval( unit ) or PlotDescription_IsEmbarked( unit ) )
+				and not CityOnTile( plot, unit:GetX(), unit:GetY() ) then
+			local nearest:table, nearestDistance:number = nil, 99;
+			for _, s in ipairs( ships ) do
+				local d:number = Dist( s.x, s.y, unit:GetX(), unit:GetY() );
+				if d <= HubEnemies.NAVAL_RADIUS and d < nearestDistance then nearest, nearestDistance = s, d; end
+			end
+			if nearest ~= nil then
+				local key:string = "unit:" .. unit:GetID() .. ":" .. nearest.key;
+				if HubEnemies.NavalWarnDue( HubEnemies.m_navalSaid, key, turn ) then
+					HubEnemies.m_navalSaid[ key ] = turn;
+					table.insert( lines, { key = key, x = unit:GetX(), y = unit:GetY(), text = HubEnemies.NavalUnitText( Locale.Lookup( unit:GetName() ),
+						PlotDescription_GetUnitName( nearest.unit ), nearestDistance, PlotDescription_GetRelative( plot, Map.GetPlot( nearest.x, nearest.y ) ) ) } );
+				end
+			end
+		end
+	end
+	return lines;
+end
+
 -- Speaks the raid and danger lines that are new or changed since they were last spoken. nointerrupt: wait for the line
 -- that is being spoken (turn start); false: an event in the middle of our turn.
 function HubEnemies.SpeakThreats( nointerrupt:boolean )
@@ -840,6 +922,9 @@ function HubEnemies.SpeakThreats( nointerrupt:boolean )
 			HubEnemies.m_dangerSig[ danger.key ] = danger.sig;
 			HubCore.Announce( danger.text, nointerrupt, "danger", HubMessages.PlotIndexOf( danger.unit:GetX(), danger.unit:GetY() ) );
 		end
+	end
+	for _, line in ipairs( HubEnemies.ScanNaval() ) do
+		HubCore.Announce( line.text, nointerrupt, "danger", HubMessages.PlotIndexOf( line.x, line.y ) );
 	end
 	for key in pairs( HubEnemies.m_raidSig ) do if not liveRaids[ key ] then HubEnemies.m_raidSig[ key ] = nil; end end
 	for key in pairs( HubEnemies.m_dangerSig ) do if not liveCivilians[ key ] then HubEnemies.m_dangerSig[ key ] = nil; end end

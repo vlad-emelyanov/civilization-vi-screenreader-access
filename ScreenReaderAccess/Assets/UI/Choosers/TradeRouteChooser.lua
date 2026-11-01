@@ -1298,6 +1298,80 @@ local function SRA_HasQuest( cityOwner:number )
 	return false;
 end
 
+-- What the route passes: the cities on its path and, within 2 tiles of it, a barbarian camp or a hostile soldier we can see (revealed plots,
+-- currently visible units only: what a sighted player would see on the map). Returns { cities = { names }, hazards = { { name, distance } } }.
+local PATH_WATCH_RADIUS:number = 2;
+
+local function SRA_PathSurroundings( entry:table, originCity, destCity )
+	local result:table = { cities = {}, hazards = {} };
+	local localID:number = Game.GetLocalPlayer();
+	local vis:table = PlayersVisibility[ localID ];
+	if vis == nil or entry == nil or entry.pathPlots == nil then return result; end
+	local near:table = {};		-- plot index -> distance to the path
+	for _, plotIndex in pairs( entry.pathPlots ) do
+		local plot:table = Map.GetPlotByIndex( plotIndex );
+		if plot ~= nil then
+			local frontier:table = { plot };
+			local ring:table = { [ plotIndex ] = 0 };
+			if near[ plotIndex ] == nil or near[ plotIndex ] > 0 then near[ plotIndex ] = 0; end
+			for d = 1, PATH_WATCH_RADIUS do
+				local nextFrontier:table = {};
+				for _, p in ipairs( frontier ) do
+					for dir = 0, DirectionTypes.NUM_DIRECTION_TYPES - 1 do
+						local n:table = Map.GetAdjacentPlot( p:GetX(), p:GetY(), dir );
+						if n ~= nil and ring[ n:GetIndex() ] == nil then
+							ring[ n:GetIndex() ] = d;
+							table.insert( nextFrontier, n );
+							if near[ n:GetIndex() ] == nil or near[ n:GetIndex() ] > d then near[ n:GetIndex() ] = d; end
+						end
+					end
+				end
+				frontier = nextFrontier;
+			end
+		end
+	end
+	local originX:number, originY:number = originCity:GetX(), originCity:GetY();
+	local destX:number, destY:number = destCity:GetX(), destCity:GetY();
+	for i = 1, table.count( entry.pathPlots ) do		-- in the order of the path
+		local plotIndex = entry.pathPlots[i];
+		local plot:table = Map.GetPlotByIndex( plotIndex );
+		if plot ~= nil and plot:IsCity() and vis:IsRevealed( plotIndex ) and not ( plot:GetX() == originX and plot:GetY() == originY )
+				and not ( plot:GetX() == destX and plot:GetY() == destY ) then
+			local city = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
+			if city ~= nil then table.insert( result.cities, Locale.Lookup( city:GetName() ) ); end
+		end
+	end
+	for plotIndex, distance in pairs( near ) do
+		local plot:table = Map.GetPlotByIndex( plotIndex );
+		if plot ~= nil and vis:IsRevealed( plotIndex ) and vis:IsVisible( plotIndex ) then
+			local improvement:number = plot:GetImprovementType();
+			if improvement ~= nil and improvement >= 0 then
+				local row:table = GameInfo.Improvements[ improvement ];
+				if row ~= nil and row.ImprovementType == "IMPROVEMENT_BARBARIAN_CAMP" then
+					table.insert( result.hazards, { name = Locale.Lookup( row.Name ), distance = distance } );
+				end
+			end
+		end
+	end
+	local me:table = Players[ localID ];
+	local diplomacy:table = me ~= nil and me:GetDiplomacy() or nil;
+	for id = 0, 63 do
+		local player:table = Players[ id ];
+		if id ~= localID and player ~= nil and ( player:IsBarbarian() or ( diplomacy ~= nil and diplomacy:IsAtWarWith( id ) ) ) then
+			for _, unit in player:GetUnits():Members() do
+				local x:number, y:number = unit:GetX(), unit:GetY();
+				local plot:table = Map.GetPlot( x, y );
+				local distance = plot ~= nil and near[ plot:GetIndex() ] or nil;
+				if distance ~= nil and vis:IsVisible( x, y ) and vis:IsUnitVisible( unit )
+						and ( unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 ) then
+					table.insert( result.hazards, { name = Locale.Lookup( unit:GetName() ), distance = distance } );
+				end
+			end
+		end
+	end
+	return result;
+end
+
 function SRA_BuildItems()
 	local items:table = {};
 	local originCity = GetOriginCity();
@@ -1319,7 +1393,7 @@ function SRA_BuildItems()
 				quest = SRA_HasQuest( entry.owner ),
 				previous = ( key == m_srPrevKey ),
 				tooltip = CleanTextForSpeech( kRouteInfo.TooltipText ),
-				pathLength = table.count( entry.pathPlots ),
+				pathLength = table.count( entry.pathPlots ), entry = entry,
 			} );
 		end
 	end
@@ -1334,7 +1408,13 @@ function SRA_BuildItems()
 				local city = CityManager.GetCity( ownerID, cityID );
 				local theirs:table = {};
 				if origin ~= nil and city ~= nil then theirs = SRA_YieldList( GetYieldsForRoute( origin, city, true ) ); end
-				return TradeText_Detail{ tooltip = route.tooltip, theirName = route.name, theirYields = theirs, pathLength = route.pathLength };
+				local around:table = { cities = {}, hazards = {} };
+				if origin ~= nil and city ~= nil then
+					local ok:boolean, found = pcall( SRA_PathSurroundings, route.entry, origin, city );
+					if ok then around = found; end
+				end
+				return TradeText_Detail{ tooltip = route.tooltip, theirName = route.name, theirYields = theirs, pathLength = route.pathLength,
+					passCities = around.cities, hazards = around.hazards };
 			end,
 		} );
 	end

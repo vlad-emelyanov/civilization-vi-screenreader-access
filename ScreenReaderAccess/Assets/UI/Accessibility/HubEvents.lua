@@ -433,6 +433,57 @@ function HubEvents.OnCityAddedToMap( ownerID:number, cityID:number, x:number, y:
 	HubCore.SayResult( name .. " " .. verb );
 end
 
+-- ===========================================================================
+--	A city's production swapped by the game (a newer unit replaces the queued one when its tech is learned)
+-- ===========================================================================
+local m_prodSnap		:table = {};		-- cityID -> hash of the unit in production when the turn ended
+local m_prodCompleted	:table = {};		-- cityID -> true when it finished something since then (that is no swap)
+
+-- Pure: did the game swap the production? Both hashes are units, they differ and nothing was completed in between.
+function HubEvents.ProductionSwapped( oldHash, nowHash, completed:boolean )
+	return oldHash ~= nil and nowHash ~= nil and oldHash ~= 0 and nowHash ~= 0 and oldHash ~= nowHash and not completed;
+end
+
+function HubEvents.ProductionSwapText( cityName:string, oldName:string, newName:string )
+	return cityName .. " now builds " .. newName .. " instead of " .. oldName;
+end
+
+local function CurrentUnitHash( city:table )
+	local queue:table = city:GetBuildQueue();
+	if queue == nil then return nil; end
+	local hash = queue:GetCurrentProductionTypeHash();
+	if hash == nil or hash == 0 or GameInfo.Units[ hash ] == nil then return nil; end
+	return hash;
+end
+
+-- Turn end and after the check at turn start: what every city of ours is building.
+function HubEvents.SnapshotProduction()
+	m_prodSnap, m_prodCompleted = {}, {};
+	local me:table = Players[ Game.GetLocalPlayer() ];
+	if me == nil then return; end
+	for _, city in me:GetCities():Members() do m_prodSnap[ city:GetID() ] = CurrentUnitHash( city ); end
+end
+
+function HubEvents.OnCityProductionCompleted( ownerID:number, cityID:number )
+	if ownerID == Game.GetLocalPlayer() then m_prodCompleted[ cityID ] = true; end
+end
+
+-- Start of our turn: the cities whose unit in production is another one than at turn end, without a completion.
+function HubEvents.SpeakProductionSwaps()
+	local me:table = Players[ Game.GetLocalPlayer() ];
+	if me == nil then return; end
+	for _, city in me:GetCities():Members() do
+		local oldHash = m_prodSnap[ city:GetID() ];
+		local nowHash = CurrentUnitHash( city );
+		if HubEvents.ProductionSwapped( oldHash, nowHash, m_prodCompleted[ city:GetID() ] == true ) then
+			local text:string = HubEvents.ProductionSwapText( Locale.Lookup( city:GetName() ),
+				Locale.Lookup( GameInfo.Units[ oldHash ].Name ), Locale.Lookup( GameInfo.Units[ nowHash ].Name ) );
+			HubCore.Announce( text, true, "production", HubMessages ~= nil and HubMessages.PlotIndexOf( city:GetX(), city:GetY() ) or nil );
+		end
+	end
+	HubEvents.SnapshotProduction();
+end
+
 -- A builder finished an improvement on its own plot.
 function HubEvents.OnImprovementAddedToMap( x:number, y:number, improvementType:number, owner:number )
 	if owner ~= Game.GetLocalPlayer() or not HubCore.m_ready then return; end

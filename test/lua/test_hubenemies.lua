@@ -289,3 +289,12 @@ test("explorer warning: once per enemy per 5 turns", function()
 	eq(HubEnemies.ExplorerWarnDue(said, "1:63:5", 15), true)
 	eq(HubEnemies.ExplorerWarnDue(said, "1:63:6", 11), true)
 end)
+
+test("naval warnings", function()
+	eq(HubEnemies.NavalCityText("Barbarian Galley", 3, "north-east", "Rome"), "Barbarian Galley 3 tiles north-east of Rome, a coastal city: it can attack the city from the sea")
+	eq(HubEnemies.NavalUnitText("Trireme", "Barbarian Galley", 1, "east"), "Your Trireme in danger: Barbarian Galley 1 tile east")
+	local said = { a = 10 }
+	eq(HubEnemies.NavalWarnDue(said, "a", 14), false)
+	eq(HubEnemies.NavalWarnDue(said, "a", 15), true)
+	eq(HubEnemies.NavalWarnDue(said, "b", 11), true)
+end)

@@ -36,7 +36,7 @@ read_globals = {
 -- Globals the mod defines in Assets/UI/Accessibility/*.lua (shared via include()). Keep in sync.
 globals = {
 	"Hub", "DiplomacyIntel", "HubCore", "HubCursor", "HubTargets", "HubAnnounce", "HubSettle", "HubPlacement", "HubMenus", "HubRegions", "HubMessages", "HubPlaces", "HubOverview", "BlindSpots", "HubCityReport", "HubEvents", "HubEnemies", "HubHelp", "HubGamepad", "HubPad", "HubLenses", "HubScreens", "HubMultiplayer", "HubPins", "MapPins", "UnexploredScan", "MPText_CleanChat", "MPText_ChatLine", "MPText_Duration", "MPText_TimerDue", "MPText_TimerPending", "MPText_TimerMark", "MPText_TimerWarning", "MPText_TimerItem", "MPText_ChatTitle", "MPText_PlayerNotice", "TopPanelData_TimerText", "Gamepad", "LoadParagraphs", "Gamepad_CatchKey", "HelpText_Sections", "HelpText_KeyText", "HelpText_Line", "HelpText_Build",
-	"CleanTextForSpeech", "SRDescriptionFirst", "DealSpeech_AvailableText", "DealSpeech_ChangeText", "DealSpeech_DealItemText", "DealSpeech_Intro",
+	"CleanTextForSpeech", "SRDescriptionFirst", "DealSpeech_AvailableText", "DealSpeech_ChangeText", "DealSpeech_DealItemText", "DealSpeech_KeepFocusKey", "DealSpeech_Intro",
 	"DealSpeech_ItemText", "DealSpeech_CityName", "DealSpeech_RemovalChange", "DealSpeech_Summary", "GetDlcContext", "GetLocalizedDirectionString", "HideIfVisible", "KeyNavActivate",
 	"KeyNavAfterPageChange", "KeyNavAnnounceFocus", "KeyNavAnnouncePage", "KeyNavEditBox_Begin",
 	"KeyNavEditBox_Cancel", "KeyNavEditBox_Describe", "KeyNavEditBox_HandleInput", "KeyNavEditBox_IsEditing",
@@ -63,7 +63,7 @@ globals = {
 	"GreatPeopleText_PastItem", "GreatPeopleText_PatronageReason",
 	"PromotionText_Detail", "PromotionText_Done", "PromotionText_Item", "PromotionText_Opening",
 	"PromotionText_Reason", "PromotionText_State",
-	"TradeText_Detail", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
+	"TradeText_Detail", "TradeText_HazardText", "TradeText_PassText", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
 	"CityReport_BuildItems", "CityReport_Gather", "CityManage_Gather", "CityManage_YieldType", "CityManage_Totals",
 	"CityManage_TileState", "CityManage_TileText", "CityManage_TileItems", "CityManage_DistrictText", "CityManage_DistrictItems",
 	"CityManage_FocusItems", "TXT_NO_PRODUCTION", "SIZE_PRODUCTION_ICON",
@@ -85,7 +85,7 @@ globals = {
 	"TreeText_Detail", "TreeText_Queue", "TreeText_Group", "TreeText_Match", "TreeNav_Create", "TreeNav_ItemName", "TreeNav_Round",
 	"GreatWorksText_Plural", "GreatWorksText_SlotWord", "GreatWorksText_Yields", "GreatWorksText_Work", "GreatWorksText_Theming", "GreatWorksText_Header",
 	"GreatWorksText_Slot", "GreatWorksText_Destination", "GreatWorksText_Summary", "GreatWorksText_Pickup", "GreatWorksText_Moved", "GreatWorksText_Showcase",
-	"ProductionText_Current", "ProductionText_Replaces", "ProductionText_Identity", "ProductionText_StackBlocker", "ProductionText_Toggle", "ProductionText_ToggleSaid", "ProductionText_Arrange", "ProductionText_FormationName", "ProductionText_FormationRow", "ProductionText_QueueKey", "ProductionText_QueueItem", "ProductionText_QueueTarget", "ProductionText_QueueMoved", "ProductionText_QueueRemoved", "ProductionText_QueueFocusAfterRemove", "ClimateText_Plural", "ClimateText_Signed", "ClimateText_Percent", "ClimateText_Tab", "ClimateText_Phase", "ClimateText_Temperature",
+	"ProductionText_Current", "ProductionText_Replaces", "ProductionText_Identity", "ProductionText_StackBlocker", "ProductionText_Toggle", "ProductionText_ToggleSaid", "ProductionText_Arrange", "ProductionText_PillagedPrereq", "ProductionText_FormationName", "ProductionText_FormationRow", "ProductionText_QueueKey", "ProductionText_QueueItem", "ProductionText_QueueTarget", "ProductionText_QueueMoved", "ProductionText_QueueRemoved", "ProductionText_QueueFocusAfterRemove", "ClimateText_Plural", "ClimateText_Signed", "ClimateText_Percent", "ClimateText_Tab", "ClimateText_Phase", "ClimateText_Temperature",
 	"ClimateText_Contribution", "ClimateText_Summary", "ClimateText_Chance", "ClimateText_Volcanoes", "ClimateText_Row", "ClimateText_Event", "ClimateText_Effects",
 	"TreatClanText_Opening", "TreatClanText_Target", "TreatClanText_Item", "TreatClanText_Result",
 	"PlotDescription_ResetClanMode", "PlotDescription_GetClan", "PlotDescription_GetClanPhrase", "PlotDescription_CanTreatWithClan",

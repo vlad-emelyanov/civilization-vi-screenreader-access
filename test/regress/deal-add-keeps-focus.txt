@@ -1,0 +1,22 @@
+# After an add in Their items the list focus stays on the item (blind-written, never run: record it first with util/civregress.py deal-add-keeps-focus --record).
+# Before: the deal refresh dropped the focus to the first item, so the next Enter announced instead of adding.
+# covers: **/SRA_DealView.lua **/DealSpeech.lua
+# no-share-load: opens a deal
+load bug-deal-accept-contradiction
+clear-advisors
+action KeyNavDiplomacy -Settle 2500
+key Down -Settle 600
+key Enter -Settle 2500
+key Down -Count 4 -Settle 400
+expect ^Make Deal
+key Enter -Settle 3500
+key Tab -Count 2 -Settle 800
+key Down -Count 2 -Settle 500
+expect ^Gold per turn
+key Enter -Settle 3000
+expect ^Added: They give: 10 gold per turn
+# the focus is where it was: Down moves to the next item (not "1 of N" of the first)
+key Down -Settle 800
+expect-not Select an item first
+key Escape -Settle 1500
+no-lua-errors

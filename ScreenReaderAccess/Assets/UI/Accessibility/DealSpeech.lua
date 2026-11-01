@@ -188,3 +188,14 @@ function DealSpeech_RemovalChange( change )
 	if string.sub( change, 1, 9 ) == "Changed: " then return "Now: " .. string.sub( change, 10 ); end
 	return change;
 end
+
+-- Which item keeps the list focus after the deal refresh rebuilt the list: the same key when it is still there, else the item that
+-- moved into its place (the next one; the last when it was the last). keys = list of item keys, oldIndex = its place before. nil: empty list.
+function DealSpeech_KeepFocusKey( keys, oldKey, oldIndex )
+	if keys == nil or #keys == 0 then return nil; end
+	for i, key in ipairs( keys ) do
+		if key == oldKey then return key, i; end
+	end
+	local index = math.min( math.max( oldIndex or 1, 1 ), #keys );
+	return keys[ index ], index;
+end

@@ -3638,12 +3638,21 @@ local function SRA_OpenOptions()
 	m_srOptList.Open( header ~= "" and header or "Choose an option" );
 end
 
+local m_srAvailKeep:table = nil;		-- { section, key, index } of the item just added: the deal refresh keeps the focus there
+
 local function SRA_OnAvailableActivate( item:table )
 	if SRA_CannotAdd() then SRA_Say( "You can't add to this offer" ); return; end
+	m_srAvailKeep = nil;
+	if m_srSection == 2 or m_srSection == 3 then
+		local items:table = ( m_srSection == 2 ) and SRA_AvailableItems( LOCAL_PLAYER ) or SRA_AvailableItems( OTHER_PLAYER );
+		for i, candidate in ipairs( items ) do
+			if candidate.key == item.key then m_srAvailKeep = { section = m_srSection, key = item.key, index = i, time = UI.GetElapsedTime() }; break; end
+		end
+	end
 	local before:table = SRA_DealTexts();
 	m_srBeforeOption = before;
 	item.rec.callback();
-	if SRA_OptionsOpen() then SRA_OpenOptions(); return; end
+	if SRA_OptionsOpen() then m_srAvailKeep = nil; SRA_OpenOptions(); return; end
 	SRA_SpeakChange( before, "Nothing added, it is already in the deal or not possible" );
 end
 
@@ -3889,6 +3898,21 @@ end
 -- focus (the first enabled one, e.g. Accept Deal) that is named in the speech. Returns that sentence (nil: no buttons).
 function SRA_RefocusAfterRefresh()
 	for _, list in ipairs( m_srLists ) do list.Reset(); end
+	-- an item was just added from Your / Their items: the focus stays on it, or moves to the next one when it left the list
+	local keep:table = m_srAvailKeep;
+	m_srAvailKeep = nil;
+	if keep ~= nil and keep.section == m_srSection and UI.GetElapsedTime() - ( keep.time or 0 ) < 4 then
+		local items:table = SRA_BuildSection( keep.section );
+		local keys:table = {};
+		for i, candidate in ipairs( items ) do keys[i] = candidate.key; end
+		local key, index = DealSpeech_KeepFocusKey( keys, keep.key, keep.index );
+		if key ~= nil then
+			m_srLists[ keep.section ].Open( SRA_SECTIONS[ keep.section ], key, true );
+			m_srNeedAnnounce = false;
+			m_srActionTime = nil;
+			return "Focus: " .. items[ index ].text .. ", " .. index .. " of " .. #items .. ".";
+		end
+	end
 	-- an incoming AI action while the player browses another section must not move them: keep the section, forget the
 	-- focus (rebuilt from the visible state) and let the next Enter announce first
 	local own:boolean = ( m_srActionTime ~= nil and UI.GetElapsedTime() - m_srActionTime < 8 );
