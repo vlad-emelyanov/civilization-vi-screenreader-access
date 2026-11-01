@@ -7,6 +7,7 @@
 --	    this context (InGameAccess.xml, SRChatBox) through KeyNavEditBox and sent with Network.SendChat to everybody.
 --	  * the turn timer: Events.TurnTimerUpdated (what the action panel's meter listens to) gives the warnings at 60, 30 and 10
 --	    seconds and the "Turn timer" entry of the top panel list. Without a timer (maxTurnTime <= 0) the handler returns at once.
+--	  * host migration: "Anna is now the host" (Events.MultiplayerMatchHostMigrated), spoken and logged.
 --	  * players dropping out: the status panel already says connected / disconnected / kicked; this module logs those lines in
 --	    the messages history and says when a dropped human slot is played by the computer.
 --	Wording lives in Accessibility/MultiplayerText.lua (tested offline).
@@ -189,6 +190,27 @@ function HubMultiplayer.OnPlayerDisconnecting( playerID:number )
 	Log( MPText_PlayerNotice( PlayerName( playerID ), Network.IsPlayerKicked( playerID ) and "kicked" or "disconnected" ) );		-- the status panel speaks it
 end
 
+-- True when the local turn is ready (not active any more, or the action panel waits for players) and another living human
+-- besides `droppedID` is still playing theirs.
+function HubMultiplayer.StillWaitingForOthers( droppedID:number )
+	local localID:number = Game.GetLocalPlayer();
+	local me:table = Players[ localID ];
+	if me == nil or ( me:IsTurnActive() and not HubAnnounce.IsWaiting() ) then return false; end
+	for _, other in ipairs( PlayerManager.GetAliveMajors() ) do
+		local id:number = other:GetID();
+		local cfg:table = PlayerConfigurations[ id ];
+		if id ~= localID and id ~= droppedID and cfg ~= nil and cfg:IsHuman() and other:IsTurnActive() then return true; end
+	end
+	return false;
+end
+
+-- Events.MultiplayerMatchHostMigrated( newHostID, oldHostID ) (the chat panel's event): spoken without interrupting, logged in Control+M.
+function HubMultiplayer.OnHostMigrated( newHostID:number, oldHostID:number )
+	if not IsNetwork() or not RealPlayer( newHostID ) then return; end
+	local text:string = MPText_HostNotice( PlayerName( newHostID ), newHostID == Game.GetLocalPlayer() );
+	if HubCore.m_ready then HubCore.Announce( text, true, "chat" ); end		-- Announce logs it for Control+M
+end
+
 -- Events.MultiplayerPostPlayerDisconnected: a moment later the slot may be played by the computer (the game shows nothing).
 function HubMultiplayer.OnPlayerDisconnected( playerID:number )
 	if not RealPlayer( playerID ) or not IsNetwork() then return; end
@@ -199,6 +221,10 @@ function HubMultiplayer.OnPlayerDisconnected( playerID:number )
 			-- 4 = computer slot (the game's ChatPanel compares with the literal; SlotStatus may not exist in this context)
 			if cfg:GetSlotStatus() == 4 or not cfg:IsHuman() then
 				HubCore.Announce( MPText_PlayerNotice( PlayerName( playerID ), "ai" ), true, "chat" );
+			end
+			-- our turn is done and another human still has to finish theirs
+			if HubMultiplayer.StillWaitingForOthers( playerID ) then
+				HubCore.Announce( MPText_StillWaiting(), true, "chat" );
 			end
 		end );
 		if not ok then print( "HubMultiplayer AI check error: " .. tostring( err ) ); end
@@ -212,6 +238,7 @@ function HubMultiplayer.Init()
 	HubCore.Listen( Events.MultiplayerPlayerConnected, HubCore.Safe( "MultiplayerPlayerConnected", HubMultiplayer.OnPlayerConnected ) );
 	HubCore.Listen( Events.MultiplayerPrePlayerDisconnected, HubCore.Safe( "MultiplayerPrePlayerDisconnected", HubMultiplayer.OnPlayerDisconnecting ) );
 	HubCore.Listen( Events.MultiplayerPostPlayerDisconnected, HubCore.Safe( "MultiplayerPostPlayerDisconnected", HubMultiplayer.OnPlayerDisconnected ) );
+	HubCore.Listen( Events.MultiplayerMatchHostMigrated, HubCore.Safe( "MultiplayerMatchHostMigrated", HubMultiplayer.OnHostMigrated ) );
 	HubCore.Listen( Events.LocalPlayerTurnBegin, HubCore.Safe( "MPTurnBegin", HubMultiplayer.OnTurnBegin ) );
 	TopPanelData_TimerText = HubMultiplayer.TimerText;
 end

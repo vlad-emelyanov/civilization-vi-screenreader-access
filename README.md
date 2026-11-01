@@ -27,6 +27,10 @@ The console app also turns an Xbox-style controller (XInput) into keyboard input
 
 Steam Input must be disabled for the game (Steam library, Civilization VI, Properties, Controller, "Disable Steam Input"), otherwise every press arrives twice. Start the console app with `--no-gamepad` to turn the feature off, or `--gamepad-log` to print every key it sends.
 
+## Playing with friends
+
+Every human in a multiplayer game needs the same version of this mod in their own Mods folder. The mod is built with `AffectsSavedGames=true`, so it becomes part of the game's mod list, and it is not on the Steam Workshop, so it does not download by itself: copy the mod folder to each friend. A friend without it cannot join: the game refuses them with its "mod missing" message (`KICK_MOD_MISSING`), and the host sees them leave. The staging room tells you when a friend is downloading mods or has them, when the host changes, and which human seats of a loaded save are still empty.
+
 ## Contributing
 
 Help, advice and feedback are welcome.
