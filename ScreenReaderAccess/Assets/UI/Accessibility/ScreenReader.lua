@@ -74,12 +74,24 @@ local function _CollapseStops(text: string)
 	return (string.gsub(text, "", "..."));
 end
 
+-- Characters the game text uses that the speech pipeline turns into "?": no-break space (also U+202F), ellipsis, curly quotes, dashes.
+local function _NormalizeGlyphs(text: string)
+	text = string.gsub(text, "\194\160", " ");
+	text = string.gsub(text, "\226\128\175", " ");
+	text = string.gsub(text, "\226\128\166", "...");
+	text = string.gsub(text, "\226\128[\152\153]", "'");
+	text = string.gsub(text, "\226\128[\156\157]", "\"");
+	text = string.gsub(text, "\226\128[\147\148]", " - ");
+	return text;
+end
+
 -- message: The message to be output to screenreaders
 -- nointerrupt: Defaults to false. If set, will not try to interrupt currently speaking prompts. Useful for things that aren't in response to user action
 function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 	if type(message) == "string" then
 		-- Raw game text: line breaks become pauses; icons become words or nothing; leftover markup tags such as
 		-- [COLOR:Red] or [ENDCOLOR] are dropped (text already cleaned by CleanTextForSpeech has none left).
+		message = _NormalizeGlyphs(message);
 		message = string.gsub(message, "%[NEWLINE%]", ", ");
 		message = _StripIconMarkup(message);
 		-- Only the game's known markup is dropped; anything else in brackets is real text (a player called "[KOS] Bob").
@@ -141,6 +153,7 @@ end
 -- Prepares game text (with [NEWLINE] and [ICON_x] style markup) for speech.
 function CleanTextForSpeech(text: string)
 	if text == nil then return ""; end
+	text = _NormalizeGlyphs(text);
 	-- line breaks become sentence breaks, but never ".." / "?. ." / a leading or trailing ". " (empty lines, lines ending in punctuation)
 	text = string.gsub(text, "%[NEWLINE%]", "");
 	text = _StripIconMarkup(text);
