@@ -1,8 +1,12 @@
-# Blind-written (the verifier records it): the promotion key (Shift+U) is never silent while a spy's list is open; it says why nothing opens.
+# the promotion key (Shift+U) is never silent while a spy's list is open; it says why nothing opens.
 # Fixture bug-spy-list-over-historic-moment (turn 210: idle spy Bambi, destination list open).
 # covers: **/EspionageChooser.lua **/PromotionText.lua **/UnitPanel.lua
 # no-share-load: cancels the chooser
 load bug-spy-list-over-historic-moment
+lua GameCore_Tuner for i,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=='UNIT_SPY' then u:GetExperience():ChangeExperience(40) end end
+clear-advisors
+lua InGame return UnitManager.CanStartCommand(UI.GetHeadSelectedUnit(), UnitCommandTypes.PROMOTE, true, true)
+expect-lua true
 action ExtraHotkeysPromote -Settle 1200
 expect ^Close the destination list first, Escape closes it
 key Escape -Settle 1200

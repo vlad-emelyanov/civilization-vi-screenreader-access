@@ -1278,17 +1278,32 @@ local function SRA_SayUnhandled( input:table )
 	KeyNavList_SayUnhandledKey( input );
 end
 
--- The promotion key (the user's binding: the input action) while the list takes the keys: why nothing opens. Only when the spy can be promoted;
+-- InputActionTriggered never fires for a key this handler swallows (verified), so match the pressed key against the action's current binding text
+local function SRA_IsPromoteKey( input:table )
+	local key:number = input:GetKey();
+	local name:string = nil;
+	for i = 65, 90 do if Keys[string.char( i )] == key then name = string.char( i ); break; end end
+	if name == nil then return false; end
+	local id = Input.GetActionId( "ExtraHotkeysPromote" );
+	if id == nil then return false; end
+	local bound = Input.GetGestureDisplayString( id, 0 );
+	if bound == nil then return false; end
+	local pressed:string = ( input:IsControlDown() and "Ctrl+" or "" ) .. ( input:IsAltDown() and "Alt+" or "" ) .. ( input:IsShiftDown() and "Shift+" or "" ) .. name;
+	return string.lower( string.gsub( bound, "%s", "" ) ) == string.lower( pressed ) or string.lower( string.gsub( bound, "%s", "" ) ) == string.lower( pressed:gsub( "Ctrl%+", "Control+" ) );
+end
+
+-- The promotion key (the user's binding) while the list takes the keys: why nothing opens. Only when the spy can be promoted;
 -- otherwise UnitPanel's blocked-hotkey path says "Cannot promote ...".
-function SRA_OnInputAction( actionId:number )
-	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() or ContextPtr:IsHidden() then return; end
-	if actionId ~= Input.GetActionId( "ExtraHotkeysPromote" ) or SRA_PopupAbove() then return; end
+local function SRA_SayPromoteBlocked()
+	if SRA_PopupAbove() then return false; end
 	local unit:table = UI.GetHeadSelectedUnit();
-	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return false; end
 	local ok:boolean, can, results = pcall( function() return UnitManager.CanStartCommand( unit, UnitCommandTypes.PROMOTE, true, true ); end );
 	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then
 		OutputMessageToScreenReader( PromotionText_ListOpen( m_currentChooserMode == EspionageChooserModes.DESTINATION_CHOOSER, SRKey( "Escape" ) ) );
+		return true;
 	end
+	return false;
 end
 
 function SRA_HandleInput( input:table )
@@ -1314,7 +1329,8 @@ function SRA_HandleInput( input:table )
 		return true;
 	end
 	if not m_srList.HandleInput( input ) then
-		if not SRChooserNextKey( input, SRA_Head() ) then SRA_SayUnhandled( input ); end
+		if input:GetMessageType() == KeyEvents.KeyUp and SRA_IsPromoteKey( input ) and SRA_SayPromoteBlocked() then		-- said why
+		elseif not SRChooserNextKey( input, SRA_Head() ) then SRA_SayUnhandled( input ); end
 	end
 	return true;		-- everything else is swallowed while the chooser is shown
 end
@@ -1346,7 +1362,6 @@ function Initialize()
 	SRListen( Events.UnitSelectionChanged, OnUnitSelectionChanged );		-- ScreenReaderAccess
 	SRListen( Events.UnitActivityChanged, OnUnitActivityChanged );		-- ScreenReaderAccess
 	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );		-- ScreenReaderAccess
-	SRListen( Events.InputActionTriggered, SRA_OnInputAction );		-- ScreenReaderAccess
 
 	-- Animation controller
 	m_AnimSupport = CreateScreenAnimation(Controls.SlideAnim);

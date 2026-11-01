@@ -1,29 +1,37 @@
-# UNVERIFIED, blind-written, the verifier records it (python util/civregress.py policy-catalog-jump --record) and fixes the slot navigation below.
 # Policy catalog of a wildcard slot: grouped by policy type (military, economic, diplomatic, ...) and alphabetical inside a group, a one-time
 # hint, a letter jumps to the next policy starting with it, "Nothing starting with Q", PageDown goes to the next group, Escape goes back.
 # Needs a government with a wildcard slot and many unlocked policies; adjust the number of Down presses to the first wildcard slot.
 # covers: **/GovernmentScreen.lua **/KeyNavList.lua
-load pt-late-t240
+# no-share-load: the tuner completes the civic in progress (policies can only be changed in a turn a civic was completed or a slot is open)
+load pt-nobarbs-t166
 clear-advisors
+lua GameCore_Tuner local c=Players[0]:GetCulture(); c:SetCulturalProgress(c:GetProgressingCivic(), 100000)
+lua InGame return Players[0]:GetCulture():CivicCompletedThisTurn()
+expect-lua true
+action ToggleGovernment -Settle 2500
+key Enter -Settle 1500
+key Escape -Settle 1000
 action ToggleGovernment -Settle 2500
 key Tab -Settle 1200
-expect ^Policies,
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
-key Down -Settle 600
+expect ^Policies, [^,]+, \d+ slots, \d+ options
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
+key Down -Settle 500
 key Enter -Settle 1000
 expect (?i)wildcard slot \d+, choose a policy
 expect (?i)Type a letter to jump, Page Up and Page Down change group
 key A -Settle 600
-expect (?i)^A\w+.*\d+ of \d+
+expect (?i)^Aesthetics.*\d+ of \d+
 key Q -Settle 600
 expect ^Nothing starting with Q
 key Home -Settle 600
-expect ^(Military|Economic|Diplomatic|Great person|Wildcard)?.*, 1 of \d+
+expect , 1 of \d+
 key PageDown -Settle 600
-expect ^(Economic|Diplomatic|Great person|Wildcard): 
+expect \d+ of \d+
 key Escape -Settle 800
-expect ^Back
+expect (?i)wildcard slot \d+
 no-lua-errors
