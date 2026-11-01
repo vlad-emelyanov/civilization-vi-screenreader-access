@@ -647,7 +647,7 @@ end
 
 -- Lists that only read out information (Enter opens nothing in them). Moving the map cursor leaves them, and N says that Enter does
 -- not do the next action while one is open.
-local READ_ONLY_MODES:table = { top = true, notifications = true, messages = true, help = true, civ = true, intel = true, cityreport = true, overview = true };
+local READ_ONLY_MODES:table = { top = true, help = true, intel = true, cityreport = true, overview = true };
 
 function HubCore.IsReadOnlyModeOpen()
 	return HubCore.m_mode ~= nil and READ_ONLY_MODES[ HubCore.m_mode.name ] == true;

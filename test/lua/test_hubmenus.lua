@@ -17,6 +17,18 @@ test("repair claim: first speaker wins, a later order speaks again", function()
 	eq(HubMenus.ClaimRepairSpeech(7, 12.5), true)
 end)
 
+test("read-only modes: only lists whose Enter opens nothing", function()
+	for _, name in ipairs{ "top", "help", "intel", "cityreport", "overview" } do
+		HubCore.m_mode = { name = name }
+		eq(HubCore.IsReadOnlyModeOpen(), true)
+	end
+	for _, name in ipairs{ "notifications", "messages", "civ", "menu" } do
+		HubCore.m_mode = { name = name }
+		eq(HubCore.IsReadOnlyModeOpen(), false)
+	end
+	HubCore.m_mode = nil
+end)
+
 test("repair text", function()
 	eq(HubMenus.RepairText("Iron Mine"), "Repairing Iron Mine, done next turn")
 	eq(HubMenus.RepairText(""), "Repairing, done next turn")

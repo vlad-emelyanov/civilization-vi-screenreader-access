@@ -3857,6 +3857,7 @@ function SRA_ArmOpen()
 	m_srNeedAnnounce = false;
 	m_srActionSig = "";
 	m_srSection = ( ms_InitiatedByPlayerID == ms_OtherPlayerID ) and 4 or 1;
+	m_srAmountKey = nil;
 	for _, list in ipairs( m_srLists ) do list.Reset(); end
 	if m_srOptList ~= nil then m_srOptList.Reset(); end
 end
@@ -3991,6 +3992,7 @@ function SRA_OnHide()
 	m_srShown = false;
 	m_srAnnounced = false;
 	m_srStatement = nil;
+	m_srAmountKey = nil;
 	m_srOpenWait = -1;
 	m_srFlushWait = -1;
 	local accepted:boolean = ( m_srAcceptTime ~= nil and UI.GetElapsedTime() - m_srAcceptTime < 5 );
