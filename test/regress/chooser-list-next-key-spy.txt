@@ -1,0 +1,20 @@
+# N in the spy destination list and in its confirm prompt is not silent (see chooser-list-next-key). Fixture bug-spy-list-over-historic-moment (idle spy Bambi in Rome).
+# covers: **/EspionageChooser.lua **/ScreenReader.lua
+# no-share-load: opens and cancels the chooser
+load bug-spy-list-over-historic-moment
+key Escape -Settle 1500
+expect ^Cancelled
+key Enter -Settle 1800
+key Enter -Settle 1800
+key Enter -Settle 1800
+key Enter -Settle 2500
+expect ^Choose destination for Bambi: \d+ cities
+action KeyNavWhatsNext -Settle 1000
+expect ^Choose destination for Bambi\. Enter picks, Escape cancels
+key Control+N -Settle 1000
+expect ^Notifications are closed while the list is open\. Choose destination for Bambi
+key Enter -Settle 1000
+action KeyNavWhatsNext -Settle 1000
+key Escape -Settle 1000
+key Escape -Settle 1000
+no-lua-errors

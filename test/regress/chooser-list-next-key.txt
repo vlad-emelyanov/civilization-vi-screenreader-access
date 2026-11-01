@@ -1,0 +1,19 @@
+# N and Control+N in a modal chooser list were silent (the chooser swallows the key before the hub). Now they say what is open and what Enter / Escape do.
+# covers: **/TradeRouteChooser.lua **/EspionageChooser.lua **/TradeOriginChooser.lua **/ScreenReader.lua
+# no-share-load: scenario trader-in-capital, opens choosers
+load medieval-t100
+scenario trader-in-capital
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_TRADER" then UI.SelectUnit(u) break end end
+wait Trade route from -Timeout 15
+action KeyNavWhatsNext -Settle 1000
+expect ^Choosing a trade route for .+\. Enter picks, Escape cancels
+key Control+N -Settle 1000
+expect ^Notifications are closed while the list is open\. Choosing a trade route for
+key Enter -Settle 1000
+expect ^Start trade route to .+\?
+action KeyNavWhatsNext -Settle 1000
+expect ^Enter confirms
+key Escape -Settle 1000
+key Escape -Settle 1000
+no-lua-errors

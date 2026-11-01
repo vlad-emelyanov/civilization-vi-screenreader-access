@@ -1283,7 +1283,7 @@ function SRA_HandleInput( input:table )
 			if key == Keys.VK_RETURN then action = ( m_srConfirm.kind == "travel" ) and SRA_ConfirmTravel or SRA_ConfirmMission;
 			elseif key == Keys.VK_ESCAPE then action = SRA_Back;
 			elseif key == Keys.VK_SPACE then action = SRA_ReadConfirmDetail;
-			elseif key == Keys.VK_UP or key == Keys.VK_DOWN then action = ( m_srConfirm.kind == "travel" ) and SRA_AskTravel or SRA_AskMission;		-- nothing to move to: repeat the question
+			elseif key == Keys.VK_UP or key == Keys.VK_DOWN or key == Keys.N then action = ( m_srConfirm.kind == "travel" ) and SRA_AskTravel or SRA_AskMission;		-- nothing to move to: repeat the question
 			end
 			if action ~= nil then
 				local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
@@ -1294,7 +1294,9 @@ function SRA_HandleInput( input:table )
 		end
 		return true;
 	end
-	if not m_srList.HandleInput( input ) then KeyNavList_SayUnhandledKey( input ); end
+	if not m_srList.HandleInput( input ) then
+		if not SRChooserNextKey( input, SRA_Head() ) then KeyNavList_SayUnhandledKey( input ); end
+	end
 	return true;		-- everything else is swallowed while the chooser is shown
 end
 

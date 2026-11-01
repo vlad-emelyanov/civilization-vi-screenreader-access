@@ -101,6 +101,10 @@ function HubPlaces.UnitActivity( unit:table, forList:boolean )
 	end
 	if forList and ( awake or activity == nil ) then
 		if unit:GetMaxMoves() > 0 and unit:GetMovesRemaining() <= 0 then return "no moves left"; end
+		-- "needs orders" = what the game itself counts as the end-turn blocker (IsReadyToSelect, verified: a Builder woken up is
+		-- ready and the panel says "Unit needs orders"; an awake Great General is not ready and Enter ends the turn)
+		local okReady:boolean, ready = pcall( unit.IsReadyToSelect, unit );
+		if okReady and ready == false then return "awake"; end
 		return "needs orders";
 	end
 	return nil;
@@ -398,15 +402,12 @@ function HubPlaces.IdleActivity( unit:table )
 	if row == nil then return nil; end
 	local isTrader:boolean = row.MakeTradeRoute == true;
 	local isCivilian:boolean = isTrader or HubCore.IsSettler( unit ) or BuildScan_Improvements( unit ) ~= nil;
-	local isGreatPerson:boolean = false;
-	if not isCivilian then
-		local gp = unit:GetGreatPerson();
-		isGreatPerson = gp ~= nil and ( gp:GetIndividual() or -1 ) >= 0;
-		isCivilian = isGreatPerson;
-	end
+	-- A great person is never "idle": it sleeps or waits on purpose (for the right city, tile or moment), unlike a Builder
+	-- or Trader that was forgotten.
+	local gp = unit:GetGreatPerson();
+	if not isCivilian and gp ~= nil and ( gp:GetIndividual() or -1 ) >= 0 then return nil; end
 	if not isCivilian then return nil; end
 	local activity:string = HubPlaces.UnitActivity( unit, true );
-	if isGreatPerson and HubPlaces.IsIdleActivity( activity, false ) and not HubPlaces.GreatPersonHasJob( unit ) then return nil; end
 	if isTrader and activity == "needs orders" then
 		local since:number = HubPlaces.m_traderWait[ unit:GetID() ];
 		if since == nil or since >= Game.GetCurrentGameTurn() then return nil; end		-- it arrived this turn

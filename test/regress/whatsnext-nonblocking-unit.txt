@@ -1,0 +1,16 @@
+# Play t150-153: N said "Unit needs orders: Timur ... Enter selects it" but Enter ended the turn. An awake Great General with moves is NOT a blocker (IsReadyToSelect false, verified); a Builder woken up is (panel: UNIT NEEDS ORDERS).
+# Fixture bug-whatsnext-timur: t152, only Timur (Great General) awake with moves; the Builders sleep.
+# covers: **/HubAnnounce.lua, **/HubPlaces.lua
+# no-share-load: wakes a Builder
+load bug-whatsnext-timur
+clear-advisors
+action KeyNavWhatsNext -Settle 1500
+expect ^Next turn, Timur has moves left
+expect-not (?i)needs orders|selects it
+action KeyNavWhatsNext -Settle 1500
+expect ^Next turn$
+expect-not (?i)needs orders|selects it|Timur
+lua InGameAccess UnitManager.RequestCommand( Players[0]:GetUnits():FindID(3801099), UnitCommandTypes.WAKE )
+action KeyNavWhatsNext -Settle 1500
+expect ^Unit needs orders: Builder, .*selected
+no-lua-errors

@@ -132,11 +132,22 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 	if type(message) == "string" then message = string.gsub(message, "[ \t\r\n\v\f]*%%", " percent"); end
 	if message == nil or message == "" then return; end
 	nointerrupt = SRTakeQueueBehind( nointerrupt );
+	SRSpeechCount = ( SRSpeechCount or 0 ) + 1;		-- how many lines this context has spoken (the hub's Enter watch checks that Enter was not met with silence)
 	if nointerrupt == true then
 		print(SCREENREADER_NO_INTERRUPT_LOG_PREFIX .. message);
 	else
 		print(SCREENREADER_LOG_PREFIX .. message);
 	end
+end
+
+-- N (what is next) and Control+N (notifications) inside a modal chooser list, which swallows every key and so keeps the hub's N
+-- from answering: say what is open and what Enter / Escape do. Call it for a KeyUp the list did not handle; true when it spoke.
+function SRChooserNextKey( input:table, whatIsOpen:string )
+	if input:GetMessageType() ~= KeyEvents.KeyUp or input:GetKey() ~= Keys.N or whatIsOpen == nil then return false; end
+	local text:string = whatIsOpen .. ". " .. SRKey( "Enter" ) .. " picks, " .. SRKey( "Escape" ) .. " cancels";
+	if input:IsControlDown() then text = "Notifications are closed while the list is open. " .. text; end
+	OutputMessageToScreenReader( text );
+	return true;
 end
 
 -- Stable partition: available entries (choosable ~= false) first, unavailable ones after them, each group in its old order.

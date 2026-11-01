@@ -52,3 +52,5 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - Owner complaint "a natural disaster popup holds the turn" is not reproduced: it opens during turn processing (pt-modern-t212 + End Turn), is spoken once and Enter closes it, the turn then continues; the turn naturally waits while it is open. If it still happens, get the exact keys and speech (does Enter reach it while a historic moment or another popup is up?).
 - Natural disaster popups have counts only (`GameRandomEvents.GetCurrentTurnEventAtPlot`), no list of pillaged buildings.
 - Harness: a contaminated `UserOptions.txt` (`TutorialLevel -1`) makes advisor scripts fail with no advisor popup; check with `python util/testopts.py status`.
+- First End Turn Enter swallowed silently after a unit action (T157, Sofonisba): the saved log showed no silence, cause unconfirmed. Every silent branch of the Enter watch now speaks "Enter held back ..." (`Hub.EnterHeldBackLine`); if it shows up in play, read the `Enter held back (<why>)` line in Lua.log.
+- N inside the governor and promotion lists: not checked (the trade route, trade origin and spy lists answer through `SRChooserNextKey`).

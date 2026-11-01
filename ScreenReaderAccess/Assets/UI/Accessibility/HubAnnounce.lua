@@ -76,6 +76,11 @@ function HubAnnounce.SpeakWhatsNext()
 	local spoken:string = HubCore.Capitalize( text );
 	local okDetail:boolean, detailed = pcall( HubAnnounce.BlockerDetail, spoken, text );
 	if okDetail and detailed ~= nil then spoken = detailed; end
+	-- "Next turn" is what Enter does; an awake unit that does not block (a Great General) is named once as plain information
+	if okWait and isWait and HubAnnounce.IsEndTurnText( text ) then
+		local okAwake:boolean, awake = pcall( HubAnnounce.AwakeUnitsNote );
+		if okAwake and awake ~= nil then spoken = spoken .. ", " .. awake; end
+	end
 	local okRaid:boolean, raid = pcall( function() return HubEnemies ~= nil and HubEnemies.RaidExpectedLine() or nil; end );
 	if okRaid and raid ~= nil then spoken = spoken .. ". " .. raid; end
 	OutputMessageToScreenReader( spoken );
@@ -95,6 +100,40 @@ end
 function HubAnnounce.LabelHidesReadyUnit()
 	local units:table = HubAnnounce.ReadyUnits();
 	return #units > 0;
+end
+
+-- Awake units with moves that the game does not count as blockers (IsReadyToSelect false). Names of units that are new
+-- since the last time this was asked in the same turn only: "Timur has moves left" is said once, not at every N.
+HubAnnounce.m_awakeNoted = {};
+HubAnnounce.m_awakeTurn = -1;
+function HubAnnounce.AwakeUnits()
+	local player:table = Players[ Game.GetLocalPlayer() ];
+	local list:table = {};
+	if player == nil then return list; end
+	for _, unit in player:GetUnits():Members() do
+		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "awake" then table.insert( list, unit ); end
+	end
+	return list;
+end
+
+-- Pure wording: one name -> "Timur has moves left", several -> "3 units have moves left"
+function HubAnnounce.AwakeText( names:table )
+	if #names == 0 then return nil; end
+	if #names == 1 then return names[1] .. " has moves left"; end
+	return #names .. " units have moves left";
+end
+
+function HubAnnounce.AwakeUnitsNote()
+	local turn:number = Game.GetCurrentGameTurn();
+	if HubAnnounce.m_awakeTurn ~= turn then HubAnnounce.m_awakeTurn = turn; HubAnnounce.m_awakeNoted = {}; end
+	local names:table = {};
+	for _, unit in ipairs( HubAnnounce.AwakeUnits() ) do
+		if not HubAnnounce.m_awakeNoted[ unit:GetID() ] then
+			HubAnnounce.m_awakeNoted[ unit:GetID() ] = true;
+			table.insert( names, Locale.Lookup( unit:GetName() ) );
+		end
+	end
+	return HubAnnounce.AwakeText( names );
 end
 
 -- Pure wording: "Unit needs orders" + "Archer, 2 tiles east of Rome" + "Enter selects it" -> "Unit needs orders: Archer, ...

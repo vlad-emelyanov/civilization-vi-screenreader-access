@@ -1553,7 +1553,8 @@ function SRA_HandleInput( pInputStruct:table )
 		return true;
 	end
 	if m_srConfirm == nil and m_srList.HandleInput( pInputStruct ) then return true; end
-	KeyNavList_SayUnhandledKey( pInputStruct );
+	local trader:string = ( m_selectedUnit ~= nil ) and Locale.Lookup( m_selectedUnit:GetName() ) or "a trade unit";
+	if not SRChooserNextKey( pInputStruct, "Choosing a trade route for " .. trader ) then KeyNavList_SayUnhandledKey( pInputStruct ); end
 	return msg == KeyEvents.KeyDown or msg == KeyEvents.KeyUp;
 end
 

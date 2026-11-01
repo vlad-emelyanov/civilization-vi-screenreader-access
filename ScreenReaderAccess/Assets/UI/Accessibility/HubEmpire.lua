@@ -228,7 +228,7 @@ end
 local function BusyState( activity:string )
 	if activity == nil then return nil; end
 	if string.find( activity, "moving", 1, true ) == 1 then return "moving"; end
-	if activity == "needs orders" or activity == "no moves left" then return nil; end
+	if activity == "needs orders" or activity == "no moves left" or activity == "awake" then return nil; end
 	return activity;
 end
 

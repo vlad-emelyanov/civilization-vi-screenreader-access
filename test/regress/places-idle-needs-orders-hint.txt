@@ -7,7 +7,7 @@ action KeyNavPlaces -Settle 2000
 key Tab -Settle 600
 expect ^Your units, 2 of \d+ categories
 key Down -Settle 500
-expect ^Rembrandt van Rijn, sleeping, .*13 of 18
+expect ^[^,]+, sleeping, 
 expect-not in Idle
 key Up -Settle 500
 expect ^Pike and Shot, needs orders

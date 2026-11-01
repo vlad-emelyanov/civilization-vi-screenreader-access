@@ -1,4 +1,4 @@
-# Places, Your units: the order is by type name, then unit id, whatever the reference plot (the map cursor or the selection); a sleeping Builder forms the group "Idle" at the start of the list.
+# Places, Your units: the order is by type name, then unit id, whatever the reference plot (the map cursor or the selection); a sleeping Builder forms the group "Idle" at the start of the list (a sleeping great person does not: it waits on purpose).
 # covers: **/HubPlaces.lua **/HubAnnounce.lua
 # no-share-load: puts a Builder to sleep
 load bug-builder-x-list-no-build
@@ -11,11 +11,8 @@ action KeyNavPlaces -Settle 1500
 key Tab -Settle 800
 key Tab -Settle 800
 expect ^Your units, \d+ of \d+ categories
-expect Hannibal Barca, sleeping.*in Idle, 3 items
+expect Builder, sleeping.*in Idle, 1 item
 key Down -Settle 800
 expect-not in Idle
-key Down -Settle 800
-key Down -Settle 800
-expect ^Builder, sleeping
 key Escape -Settle 1000
 no-lua-errors

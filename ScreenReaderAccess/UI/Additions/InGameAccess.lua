@@ -38,6 +38,7 @@ if not Hub.m_cityReportLoaded then print( "InGameAccess: the city report files d
 
 local m_actions				:table = {};		-- actionId -> handler
 local m_enterLabel			:string = "";		-- what the action panel said Enter would do
+local m_enterSpeech			:number = 0;		-- SRSpeechCount when the Enter watch was armed
 
 -- ===========================================================================
 --	ENTER (Next Action) must always say something
@@ -59,6 +60,7 @@ end
 function Hub.ArmEnterWatch()
 	local label:table = ContextPtr:LookUpControl( "/InGame/HUD/ActionPanel/EndTurnText" );
 	m_enterLabel = ( label ~= nil ) and label:GetText() or "";
+	m_enterSpeech = SRSpeechCount or 0;
 	HubCore.m_enterWatch = 0.8;
 end
 
@@ -77,14 +79,25 @@ end
 
 -- Enter was pressed, nothing announced a new selection, turn end or mode: the game re-selected the same unit
 -- (or none could be selected). Say what is going on.
+-- Enter said the end-turn label, the turn is still ours and nothing spoke since the key: never leave the player in silence
+-- (seen once, T157, right after a unit action: the first Enter did nothing, the second ended the turn).
+function Hub.EnterHeldBackLine( why:string )
+	print( "InGameAccess: Enter held back (" .. why .. "), label '" .. tostring( m_enterLabel ) .. "'" );
+	if ( SRSpeechCount or 0 ) ~= m_enterSpeech then return; end		-- something already answered
+	if HubCore.IsGamePopupOpen() then return; end		-- a popup / screen took the key and speaks for itself
+	HubCore.SayResult( "Enter held back, the game did not take it. Press " .. SRKey( "Enter" ) .. " again to end the turn" );
+end
+
 function Hub.EnterFallback()
 	if not Hub.IsUnitOrdersLabel( m_enterLabel ) then
 		-- the label lagged behind a unit that just arrived ("Next turn") and the game re-selected that unit silently
 		local player:table = Players[ Game.GetLocalPlayer() or -1 ];
 		local selected:table = UI.GetHeadSelectedUnit();
-		if player == nil or not player:IsTurnActive() or selected == nil or not HubAnnounce.IsEndTurnText( CleanTextForSpeech( m_enterLabel ) ) then return; end
+		if player == nil or not player:IsTurnActive() then return; end		-- the turn ended (or an AI turn): "Turn ended" speaks
+		if not HubAnnounce.IsEndTurnText( CleanTextForSpeech( m_enterLabel ) ) then return; end		-- another blocker: its screen speaks
+		if selected == nil then Hub.EnterHeldBackLine( "no unit selected" ); return; end
 		local okReady:boolean, ready = pcall( function() return selected:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( selected, true ) == "needs orders"; end );
-		if not ( okReady and ready ) then return; end
+		if not ( okReady and ready ) then Hub.EnterHeldBackLine( "selected unit does not block" ); return; end
 		m_enterLabel = Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" );
 	end
 	if HubAnnounce.ConfirmPending( UI.GetElapsedTime() ) then return; end		-- a chooser's confirm: its result line comes, not the unit line
