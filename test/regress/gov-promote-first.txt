@@ -1,0 +1,11 @@
+# With a title to spend, the first action of a governor that can promote is Promote, not Reassign (pt-nobarbs-t147: 1 title available).
+# covers: **/GovernorPanel_SRA.lua
+# no-share-load: opens the governors screen
+load pt-nobarbs-t147
+action ToggleGovernors -Settle 2500
+expect ^Governors\. 1 title available
+key Enter -Settle 1500
+expect ^Actions for .*: Promote, 1 of \d+
+key Escape -Settle 800
+key Escape -Settle 800
+no-lua-errors

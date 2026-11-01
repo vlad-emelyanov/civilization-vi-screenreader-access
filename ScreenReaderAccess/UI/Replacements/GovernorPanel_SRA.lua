@@ -809,6 +809,8 @@ local function SRA_ActionItems()
 	local function Add( key:string, text:string )
 		table.insert( items, { key = key, text = text, section = section } );
 	end
+	-- a title to spend comes first (the "title available" blocker opens here to promote), else the assignment
+	if gi.canPromote then Add( "promote", SRA_Clean( "LOC_GOVERNORS_SCREEN_PROMOTE" ) ); end
 	if gi.appointed then
 		if not gi.neutral and not IsReadOnly() then
 			Add( "assign", SRA_Clean( gi.city ~= nil and "LOC_GOVERNORS_SCREEN_BUTTON_REASSIGN_GOVERNOR" or "LOC_GOVERNORS_SCREEN_BUTTON_ASSIGN_GOVERNOR" ) );
@@ -816,9 +818,7 @@ local function SRA_ActionItems()
 	elseif gi.canAppoint then
 		Add( "appoint", SRA_Clean( "LOC_GOVERNORS_SCREEN_BUTTON_APPOINT_GOVERNOR" ) );
 	end
-	if gi.canPromote then
-		Add( "promote", SRA_Clean( "LOC_GOVERNORS_SCREEN_PROMOTE" ) );
-	else
+	if not gi.canPromote then
 		Add( "promotions", SRA_Clean( "LOC_GOVERNORS_SCREEN_VIEW_PROMOTIONS" ) );
 	end
 	Add( "abilities", "Abilities" );
