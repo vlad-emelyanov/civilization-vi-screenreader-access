@@ -1,5 +1,6 @@
 -- HelpText.lua: the accessibility help list (Control+H) is pure data: sections are filled, every entry says something,
 -- action entries show the current binding and fall back to their default.
+include("ScreenReader")
 include("HelpText")
 
 local sections = HelpText_Sections()
@@ -12,7 +13,7 @@ test("sections and entries are filled", function()
 		for i, entry in ipairs(section.entries) do
 			local where = section.title .. " #" .. i
 			assert(type(entry.text) == "string" and entry.text ~= "", where .. " has no text")
-			assert((entry.action ~= nil) ~= (entry.keys ~= nil), where .. " needs exactly one of action / keys")
+			assert((entry.action ~= nil) ~= (entry.keys ~= nil or entry.cursorKeys == true), where .. " needs exactly one of action / keys")
 			if entry.action ~= nil then assert(type(entry.default) == "string" and entry.default ~= "", where .. " (" .. entry.action .. ") needs a default key text") end
 		end
 	end
@@ -50,4 +51,11 @@ test("Build gives keyed lines for every entry, with a stub binding", function()
 		end
 	end
 	assert(found, "KeyNavWhatsNext resolved")
+end)
+
+test("cursor keys entry follows the cell-move bindings", function()
+	local entry = { cursorKeys = true, text = "x" }
+	eq(HelpText_KeyText(entry, nil), "Shift+Arrows")
+	eq(HelpText_KeyText(entry, function(n) return "Alt+" .. (n:gsub("KeyNavMoveCell", "")) end), "Alt+Arrows")
+	eq(HelpText_KeyText(entry, function(n) return n == "KeyNavMoveCellLeft" and "Ctrl+Left" or "Shift+" .. (n:gsub("KeyNavMoveCell", "")) end), "the cursor keys")
 end)

@@ -8,8 +8,10 @@
 --		{ action = "KeyNavWhatsNext", default = "N", text = "what Enter will do next" }
 --			an input action: the key shown is the CURRENT binding (Input.GetGestureDisplayString, so a rebinding on the
 --			game's Key Bindings page shows up); `default` is the text used when the action is unknown or unbound.
---		{ keys = "Shift+Arrows", text = "move the map cursor" }
+--		{ keys = "Enter", text = "choose" }
 --			a key inside our own lists and screens (not rebindable): static.
+--		{ cursorKeys = true, text = "..." }
+--			the map cursor keys: "Shift+Arrows" from the current bindings of the four cell-move actions, else "the cursor keys".
 --	Spoken as "<key>: <text>". Write text lowercase, short, one line.
 --
 --	HelpText_Sections()                      -> the sections above (a table you must not change)
@@ -95,7 +97,7 @@ local m_sections:table = {
 		{ keys = "Warnings",			text = "a settler or builder sent off alone near enemies or a barbarian camp is told so, with the key for an escort; a barbarian scout near your city sounds an alarm, a raid of two or more soldiers near a city is spoken once, again only when its members change or one comes within 2 tiles, else a short reminder every 3 turns; an unescorted builder in danger is spoken once and again when it changes (civilians inside your cities are never warned about, and ships are ignored for civilians on land); Enter with a settler or builder exposed to an enemy soldier within 3 tiles warns first and a second Enter within 10 seconds ends the turn anyway; automatic exploration says Caution with an enemy within 3 tiles; J lists under Threats every enemy soldier within 3 tiles of a city; N adds Raid expected after a scout escaped" },
 		{ action = "ExtraHotkeysPillageOrRepair",default = "Shift+P",	text = "pillage, coastal raid or repair" },
 		{ action = "DeleteUnit",				default = "Delete",		text = "delete the unit, asks first" },
-		{ keys = "Shift+Arrows",		text = "in a target mode (move, attack ...): move the target, the tile is described" },
+		{ cursorKeys = true,		text = "in a target mode (move, attack ...): move the target, the tile is described" },
 		{ keys = "X",					text = "in a target mode: target the nearest foreign unit" },
 		{ keys = "J",					text = "in a target mode: places list, Enter only moves the target there" },
 		{ keys = "Enter",				text = "in a target mode: confirm the move or attack" },
@@ -153,7 +155,7 @@ local m_sections:table = {
 	} },
 	{ title = "Placement mode", entries = {
 		{ keys = "Up and Down",			text = "next and previous tile for the district or wonder" },
-		{ keys = "Shift+Arrows",		text = "move the cursor freely, valid or not is spoken" },
+		{ cursorKeys = true,		text = "move the cursor freely, valid or not is spoken" },
 		{ keys = "I",					text = "details of the tile" },
 		{ keys = "Space",				text = "adjacency explanation, what is removed" },
 		{ keys = "Enter",				text = "twice: first asks, second places; on a purchasable tile the first Enter names the price, the second buys the tile and places at once" },
@@ -237,6 +239,16 @@ end
 
 -- The key as the player presses it: the current binding, else the default of the entry, else "unbound".
 function HelpText_KeyText( entry:table, lookup )
+	if entry.cursorKeys then
+		-- the four cell-move bindings: "Shift+Arrows" while they share a modifier
+		local texts:table = {};
+		for n, name in ipairs( { "KeyNavMoveCellLeft", "KeyNavMoveCellRight", "KeyNavMoveCellUp", "KeyNavMoveCellDown" } ) do
+			local ok:boolean, value = pcall( lookup or function() return nil; end, name );
+			if ok and type( value ) == "string" and value ~= "" then texts[n] = value; end
+		end
+		if #texts < 4 then texts = { "Shift+Left", "Shift+Right", "Shift+Up", "Shift+Down" }; end
+		return SRCursorKeysText( texts );
+	end
 	if entry.action == nil then return entry.keys or ""; end
 	local shown = nil;
 	if lookup ~= nil then

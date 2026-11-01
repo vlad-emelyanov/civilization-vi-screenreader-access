@@ -77,19 +77,19 @@ end)
 
 test("an announcement spoken just before the hold is queued again", function()
 	reset()
-	HubCore.Announce("Turn 5", true, "turn")
+	HubCore.Announce("Turn 5, year 3900 BC", true, "turn")
 	eq(#Spoken(), 1)
 	Clock.now = Clock.now + 0.5
 	HubCore.SetSpeechHold("a", true)
 	HubCore.Announce("Settler", true, "selection")
 	HubCore.SetSpeechHold("a", false)
 	tick(0.5)
-	eq(table.concat(Spoken(), "|"), "Turn 5|Turn 5|Settler")
+	eq(table.concat(Spoken(), "|"), "Turn 5, year 3900 BC|Turn 5, year 3900 BC|Settler")
 end)
 
 test("an older announcement is not repeated", function()
 	reset()
-	HubCore.Announce("Turn 5", true, "turn")
+	HubCore.Announce("Turn 6, year 3850 BC", true, "turn")
 	Clock.now = Clock.now + 5
 	HubCore.SetSpeechHold("a", true)
 	HubCore.SetSpeechHold("a", false)

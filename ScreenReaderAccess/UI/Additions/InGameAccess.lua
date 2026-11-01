@@ -374,6 +374,7 @@ function Initialize()
 	HubCore.Listen( LuaEvents.SRA_ConfirmPending, HubCore.Safe( "ConfirmPending", HubAnnounce.NoteConfirm ) );		-- spy / trade choosers: Enter confirmed, the result line follows
 	HubCore.Listen( LuaEvents.SRA_TradeResult, HubCore.Safe( "TradeResult", HubEvents.OnTradeResult ) );		-- trade choosers: outcome of the route / move
 	HubCore.Listen( LuaEvents.SRA_SpeechHold, HubCore.Safe( "SpeechHold", HubCore.SetSpeechHold ) );		-- popups that speak: event announcements wait
+	HubCore.Listen( LuaEvents.SRA_Announce, HubCore.Safe( "PopupAnnounce", function( text:string ) HubCore.Announce( text, true ); end ) );		-- Eureka / Inspiration boosts: spoken without a popup, into the history
 	HubCore.Listen( LuaEvents.SRA_CursorTo, HubCore.Safe( "CursorTo", function( x:number, y:number ) HubPlaces.OnCursorTo( x, y ); end ) );		-- City-States / espionage screens: Show on map
 	HubCore.AddEvent( "UnitRemovedFromMap",			function() HubCore.After( 0.3, HubTargets.ResetStaleMode ); end );
 	HubCore.AddEvent( "UnitAddedToMap",				function( playerID:number, unitID:number )

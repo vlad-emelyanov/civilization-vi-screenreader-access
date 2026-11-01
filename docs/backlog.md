@@ -41,7 +41,7 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - Trade routes have no "turns left" (no field in the route data); the Trade overview filter pulldown, the Reports gossip filters and World Rankings overflow tabs are unreachable.
 - Civilopedia reads stats before the description; city specialist "+N each" and builder yield changes are base values; secret-society governors are skipped (not owned).
 - The settle browser reads live owner/resource/feature of revealed fogged plots; deal items do not repeat the section name; the deal open focus names the first choosable item; Enter in the Deal section removes an item by design.
-- The Religion screen shows stale faith until the next turn (engine); an AI deal "Item no longer available" and an AI deal rejection give no reason (game text); the turn-start block is re-spoken after a popup cut it off (by design).
+- The Religion screen shows stale faith until the next turn (engine); an AI deal "Item no longer available" and an AI deal rejection give no reason (game text); a popup's speech can cut off the turn-start lines; only lines estimated to be still speaking (about 14 characters per second, queued behind each other) are spoken again after the popup, the turn line only within a second (HubCore.CutOffEntries).
 - Rebase range is not exposed by the engine; the unit-experience API `UnitExperience:CanPromote` does not exist.
 - Two upstream Runtime Errors in non-mod files (`CityPanel.lua:1149`, `StrategicView_MapPlacement.lua:321`); upstream `EraReviewPopup.OnGameDebugReturn` errors if hot-reloaded while open.
 - A production panel open during a hot reload goes dead (reopen works); the tuner on a hot-reloaded context can reach a stale duplicate state (restart first).

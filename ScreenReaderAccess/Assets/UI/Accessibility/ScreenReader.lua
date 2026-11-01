@@ -138,6 +138,28 @@ function SRKey( keyboard:string, button:string )
 	return "[KEY:" .. keyboard .. "]";
 end
 
+-- The keys that move the map cursor, for spoken hints: "Shift+Arrows" when the four cell-move bindings (left, right,
+-- up, down display strings, e.g. "Shift+Left") share one modifier, else "the cursor keys" (they are rebindable).
+function SRCursorKeysText( texts:table )
+	local prefix = nil;
+	local names:table = { "Left", "Right", "Up", "Down" };
+	for i = 1, 4 do
+		local text = texts ~= nil and texts[i] or nil;
+		if type( text ) ~= "string" then return "the cursor keys"; end
+		local p, name = string.match( text, "^(.-)([%a]+)$" );
+		if p == nil then return "the cursor keys"; end
+		if string.lower( name ) == "arrow" then
+			p, name = string.match( p, "^(.-)([%a]+)%s*$" );
+			if p == nil then return "the cursor keys"; end
+		end
+		if string.lower( name ) ~= string.lower( names[i] ) then return "the cursor keys"; end
+		p = string.gsub( p, "%s+$", "" );
+		if prefix ~= nil and prefix ~= p then return "the cursor keys"; end
+		prefix = p;
+	end
+	return prefix .. "Arrows";
+end
+
 -- Text spoken ONLY when the player last used the gamepad (the console app keeps `text` for the pad, removes the token for the keyboard).
 -- For hints that make no sense on the keyboard, e.g. SRPadHint( ", Y for details" ). `text` must not contain ']'.
 function SRPadHint( text:string )

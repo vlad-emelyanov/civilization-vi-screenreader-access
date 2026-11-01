@@ -22,15 +22,14 @@ function ShowBoost(queueEntry:table)
 		ShowCivicBoost(queueEntry.civicIndex, queueEntry.iCivicProgress, queueEntry.eSource);
 	end
 
-	-- Queue Popup through UI Manager
-	UIManager:QueuePopup( ContextPtr, PopupPriority.Low, { DelayShow = true });
-	m_isOnQueue = true;
-
-	-- ScreenReaderAccess mod change: speak the boost (Enter or Escape continues); the hub holds its own announcements meanwhile
-	LuaEvents.SRA_SpeechHold( "BoostUnlocked", true, "/InGame/WorldPopups/" .. ContextPtr:GetID(), true );		-- silent: turn-start lines spoken just before are not repeated; (the popup may still be hidden for a moment: DelayShow; OnShow takes the hold again)
-	OutputMessageToScreenReader(Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText() .. ". " .. SRKey( "Enter" ) .. " to continue", true);		-- nointerrupt
-
-	PlayAnimations();
+	-- ScreenReaderAccess mod change: the boost is spoken (non-interrupting, into the messages history) and the popup is not
+	-- shown at all, so it never waits for a key and the game's popup queue is not blocked by it. (The text controls were filled above.)
+	local text:string = Controls.HeaderLabel:GetText() .. ". " .. Controls.BoostCauseString:GetText() .. ". " .. Controls.BoostDescString:GetText();
+	if LuaEvents.SRA_Announce ~= nil then
+		LuaEvents.SRA_Announce( text );
+	else
+		OutputMessageToScreenReader( text, true );
+	end
 end
 
 -- ===========================================================================
