@@ -846,3 +846,11 @@ test("ForeignCityText: major civ, city-state, Free City, Free City that was ours
 	eq(HubPlaces.ForeignCityText("Cumae", "Free Cities", false, true, true), "Cumae, Free City, was yours")
 	eq(HubPlaces.ForeignCityText("Kyiv", "Kyiv", true, false, false), "Kyiv")
 end)
+
+test("explorer stop is judged only once the turn has settled and the order is not new", function()
+	eq(HubPlaces.ExplorerStopDue(1, true, nil), false)
+	eq(HubPlaces.ExplorerStopDue(3, false, nil), false)
+	eq(HubPlaces.ExplorerStopDue(3, true, 0.5), false)
+	eq(HubPlaces.ExplorerStopDue(3, true, 2), true)
+	eq(HubPlaces.ExplorerStopDue(3, true, nil), true)
+end)

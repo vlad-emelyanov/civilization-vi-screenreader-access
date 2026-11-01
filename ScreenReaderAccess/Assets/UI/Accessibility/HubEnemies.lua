@@ -621,7 +621,7 @@ function HubEnemies.ExplorerLines()
 			local d:number = Dist( plot:GetX(), plot:GetY(), unit:GetX(), unit:GetY() );
 			if d <= 2 and d < bestD then bestName, bestKey, bestD = "a barbarian camp", "camp:" .. plot:GetIndex(), d; end
 		end
-		if bestKey ~= nil then
+		if bestKey ~= nil and not HubPlaces.ExplorerReady( unit ) then	-- one the game offers for orders gets the stopped line instead
 			local said:string = unit:GetID() .. ":" .. bestKey;
 			if HubEnemies.ExplorerWarnDue( HubEnemies.m_explorerSaid, said, turn ) then
 				HubEnemies.m_explorerSaid[ said ] = turn;
