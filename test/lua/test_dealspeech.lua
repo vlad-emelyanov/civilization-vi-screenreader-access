@@ -15,6 +15,10 @@ test("resources, agreements, cities", function()
 	eq(DealSpeech_ItemText({ kind = "agreement", name = "Joint War", detail = "Egypt", duration = 0 }), "Joint War, Egypt")
 	eq(DealSpeech_ItemText({ kind = "city", name = "Rome" }), "City: Rome")
 	eq(DealSpeech_ItemText({ kind = "greatwork", name = "Hymn" }), "Great work: Hymn")
+	eq(DealSpeech_ItemText({ kind = "greatwork", name = "Annunciation", work = { typeName = "Religious", creator = "Andrei Rublev", tourism = 2 } }),
+		"Great work: Annunciation, religious painting by Andrei Rublev, 2 tourism")
+	eq(DealSpeech_ItemText({ kind = "greatwork", name = "Hamlet", work = { typeName = "Writing", creator = "William Shakespeare", tourism = 2 } }),
+		"Great work: Hamlet, writing by William Shakespeare, 2 tourism")
 	eq(DealSpeech_ItemText({ kind = "favor", amount = 3 }), "3 diplomatic favor")
 end)
 

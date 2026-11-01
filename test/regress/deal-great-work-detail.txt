@@ -1,0 +1,30 @@
+# A great work in the deal says its type, creator and tourism; Space adds creation date and yields (fixture bug-deal-great-work-no-detail).
+# covers: **/SRA_DealView.lua **/DealSpeech.lua
+# no-share-load: opens a deal and adds a great work
+# The fixture is saved while the AI plays turn 130: the turn ends by itself, with a historic moment and a civic popup.
+load bug-deal-great-work-no-detail
+wait Turn 131 -Timeout 90
+wait Rembrandt van Rijn -Timeout 30
+key Enter -Settle 3000
+key Enter -Settle 3000
+key Enter -Settle 3000
+action KeyNavDiplomacy -Settle 4000
+expect ^Diplomacy, met civilizations
+key Down -Settle 800
+expect ^Dido
+key Enter -Settle 4000
+expect ^Diplomacy with Dido
+key Down -Count 4 -Settle 500
+expect ^Make Deal
+key Enter -Settle 8000
+expect ^Deal with Dido
+key Tab -Settle 800
+key End -Settle 600
+expect ^Great work: .*, writing by .*, 2 tourism, in Great works
+key Space -Settle 1000
+expect Created by .* in .*plus 2 tourism per turn
+key Enter -Settle 2500
+expect ^Added: You give: Great work: .*, writing by .*, 2 tourism
+key Escape -Settle 1500
+key Escape -Settle 1500
+no-lua-errors

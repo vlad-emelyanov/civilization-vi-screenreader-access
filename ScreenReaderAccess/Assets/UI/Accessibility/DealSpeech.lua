@@ -23,6 +23,24 @@ function DealSpeech_CityName( name )
 	return name, false;
 end
 
+-- "Great work: Annunciation, religious painting by Andrei Rublev, 2 tourism" (item.work = { typeName, creator, tourism } from the game's data)
+local PAINTING_TYPES = { religious = true, landscape = true, portrait = true };
+local function DealSpeech_GreatWorkText( item )
+	local text = "Great work: " .. ( item.name or "unknown" );
+	local work = item.work;
+	if work == nil then return text; end
+	local kind = work.typeName ~= nil and string.lower( work.typeName ) or nil;
+	if kind ~= nil and PAINTING_TYPES[ kind ] then kind = kind .. " painting"; end
+	if kind ~= nil and kind ~= "" then
+		text = text .. ", " .. kind;
+		if work.creator ~= nil and work.creator ~= "" then text = text .. " by " .. work.creator; end
+	elseif work.creator ~= nil and work.creator ~= "" then
+		text = text .. ", by " .. work.creator;
+	end
+	if work.tourism ~= nil and work.tourism > 0 then text = text .. ", " .. work.tourism .. " tourism"; end
+	return text;
+end
+
 -- "50 gold", "5 gold per turn for 30 turns", "Silk, 1, 30 turns", "Open Borders, 30 turns", "City: Rome"
 function DealSpeech_ItemText( item )
 	local kind = item.kind;
@@ -45,7 +63,7 @@ function DealSpeech_ItemText( item )
 		local base, returning = DealSpeech_CityName( item.name );
 		return "City: " .. base .. ( returning and ", returned to its former owner" or "" );
 	elseif kind == "greatwork" then
-		return "Great work: " .. ( item.name or "unknown" );
+		return DealSpeech_GreatWorkText( item );
 	elseif kind == "captive" then
 		return item.name or "Captive";
 	end

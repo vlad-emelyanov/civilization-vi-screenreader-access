@@ -75,6 +75,43 @@ end
 local function SRA_IsAvailableDisabled( entry:table )
 	return not entry.IsValid and entry.ValidationResult ~= DealValidationResult.MISSING_DEPENDENCY;
 end
+
+-- Great work facts from the game's data (Game.GetGreatWorkDataFromIndex: the instance index is the deal item's value type /
+-- the available entry's ForType): { typeName, creator, tourism }.
+local function SRA_GreatWorkFacts( index:number )
+	local facts:table = {};
+	pcall( function()
+		local inst:table = Game.GetGreatWorkDataFromIndex( index );
+		local static:table = GameInfo.GreatWorks[ inst.GreatWorkType ];
+		local typeName:string;
+		if static.EraType ~= nil then
+			typeName = Locale.Lookup( "LOC_" .. static.GreatWorkObjectType .. "_" .. static.EraType );
+		else
+			typeName = Locale.Lookup( "LOC_" .. static.GreatWorkObjectType );
+		end
+		facts.typeName = CleanTextForSpeech( typeName );
+		if inst.CreatorName ~= nil then facts.creator = CleanTextForSpeech( Locale.Lookup( inst.CreatorName ) ); end
+		facts.tourism = static.Tourism;
+	end );
+	pcall( function()
+		local inst:table = Game.GetGreatWorkDataFromIndex( index );
+		local static:table = GameInfo.GreatWorks[ inst.GreatWorkType ];
+		local parts:table = {};
+		if facts.creator ~= nil and facts.creator ~= "" then table.insert( parts, "Created by " .. facts.creator ); end
+		local date:string = Calendar.MakeDateStr( inst.TurnCreated, GameConfiguration.GetCalendarType(), GameConfiguration.GetGameSpeedType(), false );
+		if date ~= nil and date ~= "" then parts[ #parts ] = ( parts[ #parts ] or "Created" ) .. " in " .. CleanTextForSpeech( date ); end
+		local yields:table = {};
+		for row in GameInfo.GreatWork_YieldChanges() do
+			if row.GreatWorkType == static.GreatWorkType and row.YieldChange ~= 0 then
+				table.insert( yields, "plus " .. row.YieldChange .. " " .. string.lower( CleanTextForSpeech( Locale.Lookup( GameInfo.Yields[ row.YieldType ].Name ) ) ) );
+			end
+		end
+		table.insert( yields, "plus " .. ( static.Tourism or 0 ) .. " tourism" );
+		table.insert( parts, table.concat( yields, ", " ) .. " per turn" );
+		facts.tooltip = table.concat( parts, ". " );
+	end );
+	return facts;
+end
 -- End ScreenReaderAccess change
 
 ms_OtherPlayerID =	-1;
@@ -2107,6 +2144,7 @@ function PopulateAvailableGreatWorks(player : table, iconList : table)
 				local srDisabled:boolean = SRA_IsAvailableDisabled( entry );
 				SRA_AddAvail( player, { key = "gw:" .. type, kind = "greatwork", name = Locale.Lookup( entry.ForTypeName ),
 					enabled = not srDisabled, reason = srDisabled and SRA_InvalidReason( entry ) or nil, tooltip = greatWorkTooltip,
+					work = SRA_GreatWorkFacts( entry.ForType ),
 					callback = function() OnClickAvailableGreatWork(player, type, entry.ForTypeDescriptionID); end } );
 				-- End ScreenReaderAccess change
 
@@ -3428,6 +3466,7 @@ local function SRA_ItemRecord( pDeal:table, pDealItem:table )
 	elseif itemType == DealItemTypes.GREATWORK then
 		rec.kind = "greatwork";
 		rec.name = SRA_LookupText( pDealItem:GetValueTypeNameID() );
+		rec.work = SRA_GreatWorkFacts( pDealItem:GetValueType() );
 	elseif itemType == DealItemTypes.CAPTIVE then
 		rec.kind = "captive";
 		rec.name = SRA_LookupText( pDealItem:GetValueTypeNameID() );
@@ -3501,6 +3540,7 @@ local function SRA_DealItemDetail( rec:table, mine:boolean )
 		end
 		table.insert( parts, SRKey( "Enter" ) .. " or " .. SRKey( "Delete", "LT" ) .. " removes it" );
 	end
+	if rec.work ~= nil and rec.work.tooltip ~= nil and rec.work.tooltip ~= "" then table.insert( parts, 2, rec.work.tooltip ); end
 	if rec.unacceptable then table.insert( parts, "The other side has marked this unacceptable" ); end
 	return table.concat( parts, ". " );
 end
@@ -3603,7 +3643,11 @@ local function SRA_AvailableDetail( rec:table )
 	local parts:table = { DealSpeech_AvailableText( rec ) };
 	local tip = rec.tooltip;
 	if type( tip ) == "function" then tip = tip(); end
-	if tip ~= nil and tip ~= "" then table.insert( parts, SRA_Clean( tip ) ); end
+	if rec.work ~= nil and rec.work.tooltip ~= nil then
+		table.insert( parts, rec.work.tooltip );
+	elseif tip ~= nil and tip ~= "" then
+		table.insert( parts, SRA_Clean( tip ) );
+	end
 	if rec.hint ~= nil then table.insert( parts, rec.hint ); end
 	return table.concat( parts, ". " );
 end
