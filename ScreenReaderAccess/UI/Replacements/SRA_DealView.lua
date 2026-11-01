@@ -3411,6 +3411,7 @@ SRListen( LuaEvents.DiploScene_SceneOpened, function() m_srSceneOpen = true; end
 SRListen( LuaEvents.DiploScene_SceneClosed, function() m_srSceneOpen = false; end );
 local m_srNeedAnnounce:boolean = false;		-- the lists changed under the focus and nothing named the focused item: Enter announces it first
 local m_srActionSig:string = "";				-- the action buttons as last spoken
+local m_srHold:table = { holdUntil = nil, said = false };		-- the AI opened this deal: no Enter action for 2 s after the opening speech (KeyNavList_HoldCheck)
 local m_srIntroPending = nil;					-- the opening line of an incoming deal that was spoken while the deal was still empty: said with the first content
 local m_srStatement = nil;					-- what the leader said when the deal was opened (LuaEvents.SRA_DealStatement from DiplomacyActionView)
 
@@ -3902,6 +3903,7 @@ local function SRA_Announce()
 	-- the AI's proposal arrives a moment after the screen: the first content ("Deal changed. You give ...") then names the proposer
 	m_srIntroPending = ( theirs and summary == "Deal is empty." ) and parts[1] or nil;
 	SRA_Say( table.concat( parts, " " ), true );
+	if theirs then KeyNavList_HoldStart( m_srHold, UI.GetElapsedTime(), 2 ); end
 end
 
 -- Called by OnShow: the announcement comes from the update loop once the screen has settled.
@@ -3914,6 +3916,8 @@ function SRA_ArmOpen()
 	m_srAcceptTime = nil;
 	m_srActionTime = nil;
 	m_srNeedAnnounce = false;
+	m_srHold.holdUntil = nil;
+	if ms_InitiatedByPlayerID == ms_OtherPlayerID then KeyNavList_HoldStart( m_srHold, UI.GetElapsedTime(), 2.4 ); end		-- the AI's own offer: held until 2 s after its announcement (SRA_Announce restarts it)
 	m_srActionSig = "";
 	m_srSection = ( ms_InitiatedByPlayerID == ms_OtherPlayerID ) and 4 or 1;
 	m_srAmountKey = nil;
@@ -4043,7 +4047,10 @@ local function SRA_Flush()
 		else
 			table.insert( parts, "Deal changed. " .. summary );
 		end
-		if summary ~= "Deal is empty." then m_srIntroPending = nil; end
+		if summary ~= "Deal is empty." then
+			if m_srIntroPending ~= nil then KeyNavList_HoldStart( m_srHold, UI.GetElapsedTime(), 2 ); end		-- the AI's offer is heard only now
+			m_srIntroPending = nil;
+		end
 		m_srSpokenSig = summary;
 	end
 	local actionSig:string = SRA_ActionNames();
@@ -4126,6 +4133,27 @@ local function SRA_HandleKey( input:table, key:number, isUp:boolean )
 	if SRA_OptionsOpen() then
 		m_srOptList.HandleInput( input );
 		return;
+	end
+	if key == Keys.VK_RETURN then
+		-- an offer the AI opened: Enter (down, up or the tail of an earlier press) waits until the offer has been heard
+		local held = KeyNavList_HoldCheck( m_srHold, UI.GetElapsedTime(), not isUp );
+		if held ~= nil then
+			if held == "say" then
+				local items:table = SRA_BuildSection( m_srSection );
+				local focusKey = m_srLists[ m_srSection ].GetFocusKey();
+				local name:string = nil;
+				for _, item in ipairs( items ) do
+					if item.key == focusKey then name = item.text; break; end
+				end
+				if name == nil and items[1] ~= nil then
+					-- no focus yet: Enter would find none, so the first item becomes the focus (silently) and is the one named
+					m_srLists[ m_srSection ].Open( SRA_SECTIONS[ m_srSection ], items[1].key, true );
+					name = items[1].text;
+				end
+				SRA_Say( SRKey( "Enter" ) .. " again to choose" .. ( name ~= nil and ( " " .. name ) or "" ), true );
+			end
+			return;
+		end
 	end
 	if key == Keys.VK_RETURN and m_srNeedAnnounce then
 		if isUp then SRA_AnnounceFocusInsteadOfActing(); end

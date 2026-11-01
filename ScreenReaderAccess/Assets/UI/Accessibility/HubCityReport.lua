@@ -444,6 +444,25 @@ function HubCityReport.OnProductionPanelClose()
 	HubCityReport.OpenReport( title, "production" );
 end
 
+-- Keep chosen on a captured city (RazeCity.lua): a falling loyalty is said once, queued. The figures may need a moment after the
+-- keep, so it is read again every half second for 4 seconds; nothing is said when the city is not falling or cannot be read.
+function HubCityReport.CheckKeptCity( cityID:number, tries:number )
+	local ok:boolean, read, text = pcall( function()
+		if CityReport_Gather == nil or CityReport_LoyaltyRiskText == nil then return false, nil; end
+		local city:table = Players[ Game.GetLocalPlayer() ]:GetCities():FindID( cityID );
+		if city == nil then return false, nil; end
+		local data:table = CityReport_Gather( city );
+		if data == nil then return false, nil; end
+		return true, CityReport_LoyaltyRiskText( data.loyalty );		-- read: stop after this first successful read, whatever it shows
+	end );
+	if ok and read then
+		if text ~= nil then OutputMessageToScreenReader( text, true ); end
+	elseif tries > 1 then
+		HubCore.After( 0.5, function() HubCityReport.CheckKeptCity( cityID, tries - 1 ); end );
+	end
+end
+
+HubCore.Listen( LuaEvents.SRA_CityKept, function( cityID:number ) HubCore.After( 0.5, function() HubCityReport.CheckKeptCity( cityID, 8 ); end ); end );
 HubCore.Listen( LuaEvents.ProductionPanel_Open, HubCityReport.OnProductionPanelOpen );
 HubCore.Listen( LuaEvents.SRA_ProductionEscape, HubCityReport.OnProductionEscape );
 HubCore.Listen( LuaEvents.ProductionPanel_Close, HubCityReport.OnProductionPanelClose );

@@ -10,6 +10,8 @@ key W -Settle 1500
 expect ^Attack: Konya, Ottomans city.*walls.*Enter attacks
 key Enter -Settle 6000 -Quiet 2500
 expect captured the enemy City of Konya
+# written blind: the arrival of the CONSIDER_RAZE_CITY notification says what waits, with the Control+N hint (HubRegions.OnNotificationAdded)
+expect Keep or raze Konya: Control\+N
 clear-advisors
 action KeyNavNotifications -Settle 1500
 key Home -Settle 600
@@ -25,6 +27,8 @@ expect Razing this city will give this opponent \d+ Grievances
 key Up -Settle 600
 key Enter -Settle 2500 -Quiet 1200
 expect ^Kept Konya
+# written blind: the falling loyalty follows Keep, queued (HubCityReport.CheckKeptCity, city report wording)
+expect ^Loyalty \d+ of 100, minus [\d.]+ per turn(, lost in \d+ turns?)?$
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==71 and u:GetY()==28 then UI.SelectUnit(u) end end
 action KeyNavCursorToSelection -Settle 800
 action KeyNavSelectAtCursor -Settle 1000

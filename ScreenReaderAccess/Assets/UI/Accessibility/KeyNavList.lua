@@ -94,6 +94,7 @@ function KeyNavList_Create( config:table )
 	local m_focusKey = nil;
 	local m_lastSection:string = nil;
 	local m_openedAt:number = -100;
+	local m_hold:table = { holdUntil = nil, said = false };		-- HoldEnter: a screen the AI opened takes no Enter for a while
 	local m_lostGuard:boolean = false;		-- focusLostSafe: the focus was moved after a loss; the next Enter only reads it
 	local m_wheelSpoken = nil;				-- key of the item the PREVIOUS key (a wheel key) spoke; any other speech clears it
 	local m_wheelRefused:boolean = false;	-- "No wheel in this list" was said; again only after another key
@@ -192,6 +193,12 @@ function KeyNavList_Create( config:table )
 	end
 
 	-- A deliberate key (Tab to another tab) ends the Enter guard: the Enter that follows is meant.
+	-- The AI opened this screen on its own: Enter (down or up, also the tail of an earlier press) does nothing for `seconds`
+	-- and says once, queued, that it needs to be pressed again (nobody has heard the focused answer yet).
+	function list.HoldEnter( seconds:number )
+		if UI ~= nil and UI.GetElapsedTime ~= nil then KeyNavList_HoldStart( m_hold, UI.GetElapsedTime(), seconds ); end
+	end
+
 	function list.DisarmGuard()
 		m_openedAt = -1000;
 	end
@@ -438,7 +445,16 @@ function KeyNavList_Create( config:table )
 		elseif key == Keys.VK_END then		if isDown then action = function() Move( 0, "end" ); end end
 		elseif key == Gamepad.PageKey( false ) then	if isDown then action = function() GroupJump( -1 ); end end
 		elseif key == Gamepad.PageKey( true ) then	if isDown then action = function() GroupJump( 1 ); end end
-		elseif key == Keys.VK_RETURN then	if not isDown then action = Activate; end
+		elseif key == Keys.VK_RETURN then
+			local held = ( UI ~= nil and UI.GetElapsedTime ~= nil ) and KeyNavList_HoldCheck( m_hold, UI.GetElapsedTime(), isDown ) or nil;
+			if held == "say" then
+				action = function()
+					local items:table = Build();
+					local index:number = FindIndex( items );
+					local name:string = ( index ~= nil ) and items[ index ].text or nil;
+					OutputMessageToScreenReader( SRKey( "Enter" ) .. " again to choose" .. ( name ~= nil and ( " " .. name ) or "" ), true );
+				end
+			elseif held == nil and not isDown then action = Activate; end
 		elseif key == Keys.VK_SPACE then	if not isDown then action = ReadDetail; end
 		elseif key == Keys.VK_ESCAPE and config.onClose ~= nil then
 			if not isDown then action = config.onClose; end
@@ -462,6 +478,29 @@ function KeyNavList_Create( config:table )
 	end
 
 	return list;
+end
+
+-- Enter hold (pure, tests: test_keynavhold.lua). state = { holdUntil, said }.
+function KeyNavList_HoldStart( state:table, now:number, seconds:number )
+	state.holdUntil = now + seconds;
+	state.said = false;
+	state.swallowUpAt = nil;
+end
+
+-- nil = Enter may act; "say" = swallow it and say the line (first Enter inside the window); "block" = swallow it silently.
+-- The "say" ends the hold at once (the Enter it invites acts); the KeyUp of the pressed Enter is still swallowed.
+function KeyNavList_HoldCheck( state:table, now:number, isDown:boolean )
+	if state.swallowUpAt ~= nil then
+		local fresh:boolean = ( now - state.swallowUpAt < 1.0 );
+		if not isDown or not fresh then state.swallowUpAt = nil; end
+		if fresh and not isDown then return "block"; end
+		if fresh and isDown then state.swallowUpAt = now; return "block"; end		-- key repeat of the same press
+	end
+	if state.holdUntil == nil or now >= state.holdUntil then return nil; end
+	state.holdUntil = nil;
+	state.said = true;
+	if isDown then state.swallowUpAt = now; end
+	return "say";
 end
 
 -- "a, b, c and 2 more" from an array of strings.

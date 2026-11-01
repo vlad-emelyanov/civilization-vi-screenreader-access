@@ -315,3 +315,12 @@ test("borders: turns, detail with the next tile, fully grown, no culture", funct
 	d = city(); d.borders = nil
 	eq(find(CityReport_BuildItems(d), "borders"), nil)
 end)
+
+test("loyalty risk after a capture: only a falling city, the city report wording", function()
+	eq(CityReport_LoyaltyRiskText({ current = 50, max = 100, perTurn = -10.8, turnsToLoss = 5 }), "Loyalty 50 of 100, minus 10.8 per turn, lost in 5 turns")
+	eq(CityReport_LoyaltyRiskText({ current = 50, max = 100, perTurn = -10, turnsToLoss = 1 }), "Loyalty 50 of 100, minus 10 per turn, lost in 1 turn")
+	eq(CityReport_LoyaltyRiskText({ current = 50, max = 100, perTurn = -2 }), "Loyalty 50 of 100, minus 2 per turn")
+	eq(CityReport_LoyaltyRiskText({ current = 50, max = 100, perTurn = 0 }), nil)
+	eq(CityReport_LoyaltyRiskText({ current = 50, max = 100, perTurn = 3 }), nil)
+	eq(CityReport_LoyaltyRiskText(nil), nil)
+end)

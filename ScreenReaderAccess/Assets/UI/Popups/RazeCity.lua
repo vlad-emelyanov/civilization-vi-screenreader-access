@@ -191,7 +191,9 @@ local function SRA_OnActivate( item:table )
 	if item.id == "Button3" then
 		text = "Kept " .. city;
 		OutputMessageToScreenReader( text );
+		local keptID = ( g_pSelectedCity ~= nil ) and g_pSelectedCity:GetID() or nil;
 		OnButton3();
+		if keptID ~= nil then LuaEvents.SRA_CityKept( keptID ); end		-- the hub says a falling loyalty (HubCityReport.CheckKeptCity)
 	elseif item.id == "Button4" then
 		text = "Razing " .. city;
 		OutputMessageToScreenReader( text );

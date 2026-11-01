@@ -223,6 +223,15 @@ end
 -- ---------------------------------------------------------------------------
 -- 4. Loyalty (Rise and Fall, Gathering Storm)
 -- ---------------------------------------------------------------------------
+-- After a capture: the loyalty line of the city report, only for a falling city ("Loyalty 50 of 100, minus 10.8 per turn, lost in 5 turns").
+-- l is the d.loyalty table of CityReport_Gather. nil = nothing to warn about (not falling, or not readable yet).
+function CityReport_LoyaltyRiskText( l:table )
+	if l == nil or l.current == nil or l.max == nil or l.perTurn == nil or Round1( l.perTurn ) >= 0 then return nil; end
+	local text:string = "Loyalty " .. Num( l.current ) .. " of " .. Num( l.max ) .. ", " .. Signed( l.perTurn ) .. " per turn";
+	if l.turnsToLoss ~= nil and l.turnsToLoss >= 1 then text = text .. ", lost in " .. Turns( l.turnsToLoss ); end
+	return text;
+end
+
 local function LoyaltyItem( d:table )
 	local l:table = d.loyalty;
 	if l == nil then return nil; end
