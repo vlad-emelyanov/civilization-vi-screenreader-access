@@ -1273,13 +1273,21 @@ function SRA_OnUpdate( deltaTime:number )
 	if not ok then print( "EspionageChooser announce error: " .. tostring( err ) ); end
 end
 
--- A key the chooser does not use: Tab / F-keys have their line (KeyNavList); Shift+U (promotion; the default binding) says why nothing opens
--- (UnitPanel says the same when the action still reaches it)
+-- A key the chooser does not use: Tab / F-keys have their line (KeyNavList)
 local function SRA_SayUnhandled( input:table )
-	if input:GetMessageType() == KeyEvents.KeyUp and input:IsShiftDown() and not input:IsControlDown() and not input:IsAltDown() and input:GetKey() == Keys.U then
+	KeyNavList_SayUnhandledKey( input );
+end
+
+-- The promotion key (the user's binding: the input action) while the list takes the keys: why nothing opens. Only when the spy can be promoted;
+-- otherwise UnitPanel's blocked-hotkey path says "Cannot promote ...".
+function SRA_OnInputAction( actionId:number )
+	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() or ContextPtr:IsHidden() then return; end
+	if actionId ~= Input.GetActionId( "ExtraHotkeysPromote" ) or SRA_PopupAbove() then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	local ok:boolean, can, results = pcall( function() return UnitManager.CanStartCommand( unit, UnitCommandTypes.PROMOTE, true, true ); end );
+	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then
 		OutputMessageToScreenReader( PromotionText_ListOpen( m_currentChooserMode == EspionageChooserModes.DESTINATION_CHOOSER, SRKey( "Escape" ) ) );
-	else
-		KeyNavList_SayUnhandledKey( input );
 	end
 end
 
@@ -1339,6 +1347,7 @@ function Initialize()
 	SRListen( Events.UnitSelectionChanged, OnUnitSelectionChanged );		-- ScreenReaderAccess
 	SRListen( Events.UnitActivityChanged, OnUnitActivityChanged );		-- ScreenReaderAccess
 	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );		-- ScreenReaderAccess
+	SRListen( Events.InputActionTriggered, SRA_OnInputAction );		-- ScreenReaderAccess
 
 	-- Animation controller
 	m_AnimSupport = CreateScreenAnimation(Controls.SlideAnim);

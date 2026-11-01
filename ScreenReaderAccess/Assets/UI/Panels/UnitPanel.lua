@@ -2975,17 +2975,15 @@ function OnInputActionTriggered( actionId )
 		return;
 	end
 	-- If an entry with this actionId exists, call the function associated with it.
-	-- ScreenReaderAccess mod change: the promotion key (Shift+U) is never silent. While a spy's mission / destination list is open (it takes the
-	-- keys) it says why nothing opens; for a unit that picks from a random list (spy, apostle ...) the game only shows a visual list, so the
+	-- ScreenReaderAccess mod change: the promotion key (Shift+U) is never silent. While a spy's mission / destination list is open EspionageChooser
+	-- says why nothing opens (one place, it follows the user's binding); here the available promotion is left alone then. Not available: the
+	-- blocked-hotkey path below says why. A unit that picks from a random list (spy, apostle ...) only gets a visual list from the game, so the
 	-- key says the choices and where to choose (the Tab menu lists them).
 	local srPromote:boolean = ( actionId == Input.GetActionId( "ExtraHotkeysPromote" ) );
 	local srPromoteUnit:table = srPromote and UI.GetHeadSelectedUnit() or nil;
-	if srPromoteUnit ~= nil and srPromoteUnit:GetOwner() == Game.GetLocalPlayer() then
+	if srPromoteUnit ~= nil and srPromoteUnit:GetOwner() == Game.GetLocalPlayer() and m_kHotkeyActions[actionId] ~= nil then
 		local srMode:number = UI.GetInterfaceMode();
-		if srMode == InterfaceModeTypes.SPY_CHOOSE_MISSION or srMode == InterfaceModeTypes.SPY_TRAVEL_TO_CITY then
-			OutputMessageToScreenReader( PromotionText_ListOpen( srMode == InterfaceModeTypes.SPY_TRAVEL_TO_CITY, SRKey( "Escape" ) ) );
-			return;
-		end
+		if srMode == InterfaceModeTypes.SPY_CHOOSE_MISSION or srMode == InterfaceModeTypes.SPY_TRAVEL_TO_CITY then return; end
 	end
 	if m_kHotkeyActions[actionId] ~= nil then		
         UI.PlaySound("Play_UI_Click");

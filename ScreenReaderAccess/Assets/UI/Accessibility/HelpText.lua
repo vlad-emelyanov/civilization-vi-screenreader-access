@@ -90,7 +90,7 @@ local m_sections:table = {
 		{ action = "AutoExplore",				default = "E",			text = "automate exploration" },
 		{ action = "ExtraHotkeysUnitWake",		default = "Shift+W",	text = "wake up" },
 		{ action = "ExtraHotkeysUnitCancel",	default = "Shift+C",	text = "cancel the unit's orders" },
-		{ action = "ExtraHotkeysPromote",		default = "Shift+U",	text = "promotion list" },
+		{ action = "ExtraHotkeysPromote",		default = "Shift+U",	text = "promotion list; a spy or apostle that picks from a random list hears its choices, and with a spy mission list open it says to close the list first" },
 		{ action = "ExtraHotkeysFormCorps",		default = "Shift+F",	text = "form a corps" },
 		{ action = "ExtraHotkeysFormArmy",		default = "Control+Shift+F", text = "form an army" },
 		{ action = "ExtraHotkeysUpgrade",		default = "U",			text = "upgrade the unit, or activate a great person (a Great Prophet founds its religion); says what happened, or why it cannot. Selecting a unit that can upgrade says \"Upgrade to <unit> available, <gold> gold, U\" (or why it is blocked), once per unit per turn" },
