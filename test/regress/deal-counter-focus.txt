@@ -18,11 +18,8 @@ key Tab -Settle 800
 expect ^Your items, \d+ items?
 key Enter -Settle 2000
 expect ^Added: You give
-# the AI answer keeps the player in Your items (no Focus line); the next Enter announces the focused item first
-expect (?i)Actions: Give Gift, What would you give me\?, Never mind
-key Enter -Settle 2000
-expect ^Diplomatic favor, \d+ available, 1 of \d+
-expect Enter again to choose it
+# since 62cb3fe the AI answer after adding an item keeps the focus in Your items and speaks it in the same line, so no second Enter is needed
+expect (?i)Actions: Give Gift, What would you give me\?, Never mind\. Focus: Diplomatic favor, \d+ available, 1 of \d+
 key Tab -Settle 800
 key Tab -Settle 800
 expect ^Give Gift, 1 of 3
