@@ -1,4 +1,4 @@
-# Written blind 2026-10-26 (not yet recorded; run with civregress --record first). Places list: the last category "Civilians to capture"
+# Written blind 2026-10-26 (not yet recorded; run with civregress --record first). Places list: the category "Civilians to capture" (just before Unexplored and Pins)
 # lists a visible barbarian Builder (scenario barbarian-builder); M offers military land units only (the Builder, Scout ... are left out).
 # covers: **/HubPlaces.lua **/PlotDescription.lua **/HelpText.lua
 # no-share-load: scenario spawns a barbarian unit
@@ -6,7 +6,8 @@ load early-t60
 clear-advisors
 scenario barbarian-builder
 action KeyNavPlaces -Settle 1500
-key Control+Tab -Settle 1200
+# Control+Tab wraps to the last category: Pins is empty here and left out, so Unexplored is last and Civilians the one before it
+key Control+Tab -Settle 1200 -Count 2
 expect ^Civilians to capture, \d+ of \d+ categories, 1 item\. Barbarian Builder, .+, 1 of 1
 key Space -Settle 1000
 expect (?i)builder

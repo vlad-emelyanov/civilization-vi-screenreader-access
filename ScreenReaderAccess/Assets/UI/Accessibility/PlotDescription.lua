@@ -431,10 +431,18 @@ function PlotDescription_CityDefense( city:table )
 		district:GetDamage( DefenseTypes.DISTRICT_GARRISON ), district:GetMaxDamage( DefenseTypes.DISTRICT_GARRISON ) );
 end
 
+-- "pin: Iron here" when one of the map pins we see stands on the plot (MapPins is loaded by the hub only; nil without it)
+local function _PinPhrase(plot:table)
+	if MapPins == nil then return nil; end
+	local ok:boolean, text = pcall(function() return MapPins.PlotPhrase(MapPins.NamesAt(plot:GetX(), plot:GetY())); end);
+	return ok and text or nil;
+end
+
 -- ===========================================================================
 --	Short description
 -- ===========================================================================
 -- options.excludeUnitId: leave this (own) unit out of the unit list (the selected unit's own plot).
+-- options.pins: add "pin: <name>" when a map pin stands on the plot (the cursor read asks for it).
 -- options.resourceTech: add what the resource needs ("Iron, needs Bronze Working"); GetDetailed adds the full form itself.
 -- options.leadResource: a strategic or luxury resource is spoken first ("Iron (strategic), needs Bronze Working"), before the rest.
 -- options.position: where the plot is ("3 tiles north-east"), spoken right after that resource, before the description.
@@ -449,7 +457,10 @@ function PlotDescription_GetShort( plot:table, options:table )
 	if plot == nil then return "Edge of the map"; end
 	options = options or {};
 	local visibility:string = PlotDescription_GetVisibility(plot);
-	if visibility == "unexplored" then return "Unexplored"; end
+	if visibility == "unexplored" then
+		local pin:string = options.pins and _PinPhrase(plot) or nil;
+		return pin ~= nil and ("Unexplored, " .. pin) or "Unexplored";
+	end
 
 	local parts:table = {};
 
@@ -530,6 +541,10 @@ function PlotDescription_GetShort( plot:table, options:table )
 	local yields:table = _YieldsText(plot);
 	if #yields > 0 then table.insert(parts, table.concat(yields, " ")); end
 
+	if options.pins then
+		local pin:string = _PinPhrase(plot);
+		if pin ~= nil then table.insert(parts, pin); end
+	end
 	if visibility == "fogged" then table.insert(parts, "fogged"); end
 	return table.concat(parts, ", ");
 end

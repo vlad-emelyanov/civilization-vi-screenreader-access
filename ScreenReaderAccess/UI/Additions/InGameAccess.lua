@@ -269,6 +269,7 @@ include( "HubPad" );		-- controller ring (RB / LB)
 include( "HubLenses" );
 include( "HubScreens" );
 include( "HubMultiplayer" );		-- in-game chat, turn timer, players dropping out
+include( "HubPins" );		-- map pins as bookmarks (Control+P)
 
 -- ===========================================================================
 function Initialize()
@@ -318,6 +319,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavGreatWorks",		HubRegions.ToggleGreatWorks );
 	Hub.RegisterAction( "KeyNavHelp",				HubHelp.Toggle );
 	Hub.RegisterAction( "KeyNavChat",				HubMultiplayer.ToggleChat );
+	Hub.RegisterAction( "KeyNavMapPin",				HubPins.Key );
 	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): LensText speaks once the game has switched
 	LensText_Setup( HubCore.After, function( text:string, nointerrupt:boolean ) OutputMessageToScreenReader( text, nointerrupt ); end );
 	for action, _ in pairs( LensText_Actions ) do
