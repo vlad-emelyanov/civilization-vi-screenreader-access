@@ -1,0 +1,7 @@
+turn: 94
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: Greece t94: Athens re-joined as free city, Campus Ephesus, peace with Kongo, met Norway
+mod commit: 439dc35
+created: 2026-11-01
+size: 1042 KB

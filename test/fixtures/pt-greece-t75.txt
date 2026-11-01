@@ -1,0 +1,7 @@
+turn: 75
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: Greece t75: Athens besieged (21/200) by Kongo and Anshan, Kongo declared war; Oracle building
+mod commit: 439dc35
+created: 2026-11-01
+size: 1010 KB

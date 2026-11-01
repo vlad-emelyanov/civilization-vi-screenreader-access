@@ -1,0 +1,7 @@
+turn: 82
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: Greece t82: lost Athens and Rhodes to Kongo/Anshan, peace made; Knossos capital, Ephesus Campus
+mod commit: 439dc35
+created: 2026-11-01
+size: 1012 KB
