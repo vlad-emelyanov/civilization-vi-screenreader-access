@@ -86,3 +86,70 @@ function MPText_PlayerNotice( name:string, kind:string )
 	if kind == "reconnected" then return name .. " reconnected"; end
 	return name .. " disconnected";
 end
+
+-- ---------------------------------------------------------------------------
+-- Staging room / host notices
+-- ---------------------------------------------------------------------------
+-- A joiner downloads the game's mods: `remaining` of `required` still to get ("2 of 3 left").
+function MPText_ModProgress( remaining:number, required:number )
+	return remaining .. " of " .. required .. " left";
+end
+
+function MPText_ModDownload( name:string, remaining:number, required:number )
+	return name .. " is downloading mods, " .. MPText_ModProgress( remaining, required );
+end
+
+function MPText_ModsReady( name:string )
+	return name .. " has the mods";
+end
+
+-- The row / S text of a player who is still downloading.
+function MPText_ModRowStatus( remaining:number, required:number )
+	return "downloading mods, " .. MPText_ModProgress( remaining, required );
+end
+
+-- True when the download step changed in a way worth a line: first sight, or a different mods-remaining count.
+function MPText_ModStepChanged( lastRemaining, remaining:number )
+	return lastRemaining == nil or lastRemaining ~= remaining;
+end
+
+-- "Anna is now the host" / "You are now the host".
+function MPText_HostNotice( name:string, isLocal:boolean )
+	if isLocal then return "You are now the host"; end
+	return name .. " is now the host";
+end
+
+-- A loaded save in the staging room: `seats` human seats, `empty` of them still without a player.
+function MPText_LoadedGame( seats:number, empty:number )
+	local text:string = "Loaded game, " .. seats .. ( seats == 1 and " human seat, " or " human seats, " );
+	if empty == 0 then return text .. "all taken"; end
+	return text .. empty .. " still empty";
+end
+
+-- The empty human seats by name (S key): "Waiting for the players: Trajan, Cleopatra". nil without any.
+function MPText_MissingHumans( names:table )
+	if names == nil or #names == 0 then return nil; end
+	return "Waiting for the players: " .. table.concat( names, ", " );
+end
+
+function MPText_StillWaiting()
+	return "Still waiting for the others";
+end
+
+-- Tracks a joiner's mod download. `state` = { remaining = {}, readyLast = {} } kept by the caller (per player id). Call for every
+-- ModStatusUpdated( pid, modState (1 = downloading), remaining, required, ready ). Returns "download" (a new whole step: speak
+-- MPText_ModDownload), "ready" (the player has the mods now: speak MPText_ModsReady, once) or nil.
+function MPText_ModTrack( state:table, pid:number, modState:number, remaining:number, required:number, ready:boolean )
+	if modState == 1 then
+		local last = state.remaining[ pid ];
+		state.remaining[ pid ] = { remaining = remaining, required = required };
+		state.readyLast[ pid ] = false;
+		if MPText_ModStepChanged( last ~= nil and last.remaining or nil, remaining ) then return "download"; end
+		return nil;
+	end
+	local waiting:boolean = state.remaining[ pid ] ~= nil or state.readyLast[ pid ] == false;
+	state.remaining[ pid ] = nil;
+	state.readyLast[ pid ] = ready;
+	if ready and waiting then return "ready"; end
+	return nil;
+end

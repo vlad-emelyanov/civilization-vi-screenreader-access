@@ -14,6 +14,7 @@ include( "TeamSupport" );
 include( "KeyboardNavigation" );	-- ScreenReaderAccess mod
 include( "KeyNavEditBox" );
 include( "ScreenReader" );
+include( "MultiplayerText" );
 include( "KeyNavSetup" );
 
 
@@ -685,6 +686,7 @@ function OnModStatusUpdated(playerID: number, modState : number, bytesDownloaded
 	else
 		g_PlayerModStatus[playerID] = nil;
 	end
+	pcall(KeyNavStaging_OnModStatus, playerID, modState, modsRemaining, modsRequired);	-- ScreenReaderAccess mod (an error of ours must not stop the row update)
 	UpdatePlayerEntry(playerID);
 
 	--[[ Prototype Mod Status Progress Bars
@@ -3337,6 +3339,7 @@ local KEYNAV_CHAT_HISTORY_MAX:number = 50;
 local m_lastBlocker:string = "";			-- last launch blocker that was spoken
 local m_lastCountdown:number = -1;			-- last countdown value that was looked at
 local m_announceDelay:number = 0;			-- seconds before the arrival announcement
+local m_mods:table = { remaining = {}, readyLast = {} };		-- MPText_ModTrack state: mods still to download per player, last GetModReady
 local m_unreadyPids:table = {};				-- players who just became not ready, announced together
 local m_unreadyDelay:number = 0;
 local m_friendsCheck:number = 0.5;
@@ -3474,6 +3477,9 @@ local function RowText( pid:number )
 	end
 	if active and slot ~= SlotStatus.SS_COMPUTER and not entry.StatusLabel:IsHidden() then
 		local status:string = Clean(entry.StatusLabel:GetText());
+		if m_mods.remaining[pid] ~= nil and not cfg:GetModReady() then
+			status = MPText_ModRowStatus(m_mods.remaining[pid].remaining, m_mods.remaining[pid].required);
+		end
 		if status ~= "" then table.insert(parts, status); end
 	end
 	if pid == Network.GetLocalPlayerID() then table.insert(parts, "you"); end
@@ -4060,20 +4066,53 @@ local function CycleGroup()
 	m_nav.Focus(target, false, KEYNAV_GROUP_NAMES[m_group]..".");
 end
 
+-- Human seats of a loaded save: seats = taken + empty required ones; names = the empty ones (the name saved in the seat, else its leader).
+-- UNVERIFIED in game: that a loaded save marks its empty human seats with IsHumanRequired (the original only reads it for new games).
+local function HumanSeats()
+	local seats:number, names:table = 0, {};
+	for pid, entry in pairs(g_PlayerEntries) do
+		if not entry.Root:IsHidden() then
+			local cfg:table = PlayerConfigurations[pid];
+			local status:number = cfg:GetSlotStatus();
+			if status == SlotStatus.SS_TAKEN then
+				seats = seats + 1;
+			elseif status == SlotStatus.SS_OPEN and cfg:IsHumanRequired() then
+				seats = seats + 1;
+				local name:string = Clean(Locale.Lookup(cfg:GetPlayerName() or ""));
+				if name == "" then name = Clean(Locale.Lookup(cfg:GetLeaderName() or "")); end
+				if name == "" then name = "seat "..tostring(pid + 1); end
+				table.insert(names, name);
+			end
+		end
+	end
+	return seats, names;
+end
+
 -- What is blocking the launch / how long until it: spoken by S.
 local function StatusText()
 	local label:string = Clean(Controls.StartLabel:GetText());
 	if m_countdownType ~= CountdownTypes.None then
 		return label..", "..tostring(math.floor(GetCountdownTimeRemaining())).." seconds";
 	end
+	local extra:string = "";
+	if GameConfiguration.IsSavedGame() then		-- in a new game an open required seat is the bad-map-size case, not a missing player
+		local ok, _, names = pcall(HumanSeats);
+		local missing = ok and MPText_MissingHumans(names) or nil;
+		if missing ~= nil then extra = ". "..missing; end
+	end
+	for pid, info in pairs(m_mods.remaining) do
+		if RowVisible(pid) and PlayerConfigurations[pid] ~= nil and not PlayerConfigurations[pid]:GetModReady() then
+			extra = extra..". "..RowName(pid).." is "..MPText_ModRowStatus(info.remaining, info.required);
+		end
+	end
 	if not PlayerConfigurations[Network.GetLocalPlayerID()]:GetReady() then
-		return "You are not ready. "..PlayerCountsText();
+		return "You are not ready. "..PlayerCountsText()..extra;
 	end
 	local text:string = label;
 	local ok, tip = pcall(function() return Controls.ReadyCheck:GetToolTipString(); end);
 	tip = ok and tip and Clean(tip) or "";
 	if tip ~= "" then text = text..". "..tip; end
-	return text;
+	return text..extra;
 end
 
 -- ---------------------------------------------------------------------------
@@ -4192,6 +4231,10 @@ function KeyNavStaging_Update( deltaTime:number )
 				Say(Clean(Controls.TitleLabel:GetText()), true);
 				if name ~= nil and name ~= "" then Say(Clean(Locale.Lookup(name)), true); end
 				Say(PlayerCountsText(), true);
+				if GameConfiguration.IsSavedGame() then
+					local seats:number, names:table = HumanSeats();
+					Say(MPText_LoadedGame(seats, #names), true);
+				end
 				if first ~= nil then
 					Say(first.getText(), true);
 					m_nav.SetFocus(first.key, first.mouseTarget or first.control, 3);
@@ -4214,6 +4257,7 @@ function KeyNavStaging_OnShow()
 	m_lastBlocker = "";
 	m_lastCountdown = -1;
 	m_unreadyPids = {};
+	m_mods = { remaining = {}, readyLast = {} };
 	m_kickPid = nil;
 	m_nav.SetFocus(nil);
 	m_announceDelay = 1.0;
@@ -4272,13 +4316,23 @@ function KeyNavStaging_OnPlayerDisconnected( pid:number, kicked:boolean )
 	Say(PlayerLabel(pid)..(kicked and " was kicked" or " left"), true);
 end
 
+-- A joiner's mod download (modState 1 = MOD_STATE_DOWNLOADING): one line per whole step (mods remaining changes), and one when the
+-- player turns mod ready. Not interrupting. UNVERIFIED: that modsRemaining counts down by whole mods and GetModReady flips afterwards.
+function KeyNavStaging_OnModStatus( pid:number, modState:number, remaining:number, required:number )
+	local cfg:table = PlayerConfigurations[pid];
+	if cfg == nil then return; end
+	local kind = MPText_ModTrack(m_mods, pid, modState, remaining, required, cfg:GetModReady());
+	if kind == nil or ContextPtr:IsHidden() or pid == Network.GetLocalPlayerID() then return; end
+	if kind == "download" then
+		Say(MPText_ModDownload(PlayerLabel(pid), remaining, required), true);
+	else
+		Say(MPText_ModsReady(PlayerLabel(pid)), true);
+	end
+end
+
 function KeyNavStaging_OnHostMigrated( newHostID:number )
 	if ContextPtr:IsHidden() then return; end
-	if newHostID == Network.GetLocalPlayerID() then
-		Say("You are now the host", true);
-	else
-		Say(PlayerLabel(newHostID).." is now the host", true);
-	end
+	Say(MPText_HostNotice(PlayerLabel(newHostID), newHostID == Network.GetLocalPlayerID()), true);
 end
 
 function KeyNavStaging_OnReadyChanged( pid:number, ready:boolean )

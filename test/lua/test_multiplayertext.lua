@@ -84,3 +84,37 @@ test("chat title and player notices", function()
 	eq(MPText_PlayerNotice("Bob", "kicked"), "Bob was kicked")
 	eq(MPText_PlayerNotice("Bob", "ai"), "Bob is now played by the computer")
 end)
+
+test("staging room: mod download, host, loaded game, missing humans", function()
+	eq(MPText_ModDownload("Anna", 2, 3), "Anna is downloading mods, 2 of 3 left")
+	eq(MPText_ModsReady("Anna"), "Anna has the mods")
+	eq(MPText_ModRowStatus(1, 3), "downloading mods, 1 of 3 left")
+	eq(MPText_ModStepChanged(nil, 3), true)
+	eq(MPText_ModStepChanged(3, 3), false)
+	eq(MPText_ModStepChanged(3, 2), true)
+	eq(MPText_HostNotice("Anna", false), "Anna is now the host")
+	eq(MPText_HostNotice("Anna", true), "You are now the host")
+	eq(MPText_LoadedGame(3, 1), "Loaded game, 3 human seats, 1 still empty")
+	eq(MPText_LoadedGame(1, 0), "Loaded game, 1 human seat, all taken")
+	eq(MPText_MissingHumans({"Trajan", "Cleopatra"}), "Waiting for the players: Trajan, Cleopatra")
+	eq(MPText_MissingHumans({}), nil)
+	eq(MPText_StillWaiting(), "Still waiting for the others")
+end)
+
+test("mod tracking: progress steps, ready once, ready arriving late", function()
+	local st = { remaining = {}, readyLast = {} }
+	eq(MPText_ModTrack(st, 2, 1, 3, 3, false), "download")
+	eq(MPText_ModTrack(st, 2, 1, 3, 3, false), nil)		-- same step (bytes progress)
+	eq(MPText_ModTrack(st, 2, 1, 2, 3, false), "download")
+	eq(st.remaining[2].remaining, 2)
+	eq(MPText_ModTrack(st, 2, 0, 0, 3, true), "ready")		-- finish callback with ready
+	eq(st.remaining[2], nil)
+	eq(MPText_ModTrack(st, 2, 0, 0, 3, true), nil)			-- no repeat
+	-- ready never arrives with the finish callback: nothing then, "has the mods" when it does
+	eq(MPText_ModTrack(st, 3, 1, 1, 1, false), "download")
+	eq(MPText_ModTrack(st, 3, 0, 0, 1, false), nil)
+	eq(MPText_ModTrack(st, 3, 0, 0, 1, true), "ready")
+	eq(MPText_ModTrack(st, 3, 0, 0, 1, true), nil)
+	-- a player never seen downloading who is ready: silent
+	eq(MPText_ModTrack(st, 4, 0, 0, 0, true), nil)
+end)
