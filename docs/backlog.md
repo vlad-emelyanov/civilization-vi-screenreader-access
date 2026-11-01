@@ -21,6 +21,8 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 
 ## Unverified in game (code and unit tests only)
 
+- **Intel report / city borders (2026-10-31, verified except):** `DiplomacyIntel` Agreements from running deals (`DealManager.GetPlayerDeals` + `pDeal:Items()`: no fixture has a running deal, the call returns nil), a denunciation / grievances line, Borders at maximum borders (turns <1 or >=500); ProjectBuilt / RockBand popups (no event reproduced); relationship modifiers with the game's own "Unknown Reason" text are read as is.
+
 - **Gathering Storm / Rise and Fall popups (new, offline):** `DisloyalCityChooser_SRA.lua` (needs a rebelled free city that asks to join: no fixture; script `disloyal-city-chooser` is manual; check that Control+N and the Enter blocker "Keep or Free City" open it and that our copy loads), `ProjectBuiltPopup.lua` (Manhattan/Moon Landing project), `RockBandMoviePopup_SRA.lua` + `RockBandPopup_SRA.lua` (a concert), Control+Y emergency entries (`emergency-top-panel` on `bug-crisis-popup-silent`; the "not joined" and target-is-you wordings).
 
 - **Units:** archaeologist, naturalist and rock band activation tiles (no fixture; spawn after Natural History with revealed antiquity sites); blocked-upgrade hint for an unresearched target tech; Deploy/Patrol to a real carrier or airstrip; "Launching" before a real nuke; war-confirm cancel during a nuke strike; corps -> army, fleet/armada names, fleets in real play; coastal raid, sacrifice, hero commands; which `GetActivityType` an auto-exploring unit has.

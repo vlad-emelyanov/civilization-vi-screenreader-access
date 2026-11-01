@@ -176,7 +176,7 @@ Not available in `GameCore_Tuner`: `UnitManager.Kill`, `Plot:IsRevealed`, `Netwo
 |---|---|
 | Tech / civic completed | `GameCore_Tuner`: `Players[0]:GetTechs():ChangeCurrentResearchProgress(1000)`, then end the turn (the real event) |
 | Boost (Eureka/Inspiration), natural wonder | normal play; natural wonder by moving next to one |
-| First contact / diplomacy | `GameCore_Tuner`: `Players[0]:GetDiplomacy():SetHasMet(id)` and `Players[id]:GetDiplomacy():SetHasMet(0)` (both sides); the declare-war dialog via Declare Surprise War in the overview |
+| First contact / diplomacy | `GameCore_Tuner`: `Players[0]:GetDiplomacy():SetHasMet(id)` and `Players[id]:GetDiplomacy():SetHasMet(0)` (both sides); `Players[a]:GetDiplomacy():DeclareWarOn(b, WarTypes.FORMAL_WAR, true)` declares war (GameCore_Tuner; `DeclareWar`/`SetAtWar` do not exist); `DealManager.GetPlayerDeals(a,b)` is nil with no running deal; `GreatPerson:GetPassiveNameText()` is the generic "Passive Effect", the content is `GetPassiveEffectText()`; the declare-war dialog via Declare Surprise War in the overview |
 | Historic moment | not triggerable for real; from the context's own state call `ShowNewTimelineMoment` / `ToggleHistoricMomentsScreen` |
 | Natural disaster | fixture `pt-modern-t212`: End Turn (Enter) -> a Moderate Flood popup (`WorldPopups/NaturalDisasterPopup`) opens during turn processing, is spoken ("Natural disaster: Moderate Flood, near Lugdunum ..."), and Enter closes it, after which the turn goes on (verified 2026-10-31); the turn waits for it by design. Do not fire its events by hand |
 | Advisor | first game on a fresh profile, turn-1 events |
