@@ -124,6 +124,14 @@ local RESULT_SILENT = {
 	UNITCOMMAND_DELETE = true,		-- the yes/no popup announces itself; Escape/No says "Delete cancelled" (UnitPanel.OnNoDelete)
 };
 
+-- Pure: the game's "Must occupy district or wonder with a free slot ..." names no place; X on the unit lists them.
+function HubMenus.ReasonWithHint( reason:string, key:string )
+	if reason ~= nil and string.find( reason, "free slot of the proper Great Work type", 1, true ) ~= nil then
+		return string.gsub( reason, "%.%s*$", "" ) .. ". " .. key .. " lists the places";
+	end
+	return reason;
+end
+
 function HubMenus.OnUnitActionsReceived( unitId:number, list:table )
 	m_unitActions = list or {};
 end
@@ -147,15 +155,16 @@ function HubMenus.FetchMenuItems( refresh:boolean )
 				text = text .. SRKbHint( ", key " .. action.hotkey );		-- the pad runs the entry with A: the key name is noise there
 			end
 		end
+		local reason:string = HubMenus.ReasonWithHint( action.reason, SRKey( "X" ) );
 		if action.disabled then
-			text = text .. ", unavailable" .. ( action.reason ~= "" and ( ": " .. action.reason ) or "" );
+			text = text .. ", unavailable" .. ( reason ~= "" and ( ": " .. reason ) or "" );
 		end
 		-- the n-th item with the same tag and name gets "#n" (two items with one key made the focus land on the first)
 		local baseKey:string = tostring( action.tag ) .. "|" .. action.name;
 		keyCount[ baseKey ] = ( keyCount[ baseKey ] or 0 ) + 1;
 		table.insert( items, {
 			key = ( keyCount[ baseKey ] > 1 ) and ( baseKey .. "#" .. keyCount[ baseKey ] ) or baseKey, text = text, detail = action.detail,
-			choosable = not action.disabled, reason = ( action.reason ~= "" ) and action.reason or "Not available",
+			choosable = not action.disabled, reason = ( reason ~= "" ) and reason or "Not available",
 			action = action } );
 	end
 	return HubMenus.AvailableFirst( items );

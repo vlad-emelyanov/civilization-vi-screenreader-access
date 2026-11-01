@@ -851,6 +851,15 @@ local function LiveForeignCities()
 	return list;
 end
 
+-- "9 tiles north-east of Rome" from the capital of the local player, nil without a capital or at the capital.
+function HubPlaces.CapitalDistanceText( plot:table )
+	local ok:boolean, capital = pcall( function() return LocalPlayer():GetCities():GetCapitalCity(); end );
+	if not ok or capital == nil then return nil; end
+	local relative:string = PlotDescription_GetRelative( Map.GetPlot( capital:GetX(), capital:GetY() ), plot );
+	if relative == nil then return nil; end
+	return relative .. " of " .. Locale.Lookup( capital:GetName() );
+end
+
 -- Cities and city-states of others on revealed plots (live, see LiveForeignCities); fogged ones say "last seen".
 local function ForeignItems( ctx:table )
 	local items:table = {};
@@ -866,6 +875,11 @@ local function ForeignItems( ctx:table )
 		local text:string = HubPlaces.ForeignCityText( name, PlotDescription_GetCivName( c.owner ), c.player:IsMajor(), isFree, wasYours );
 		if IsFogged( c.index ) then text = text .. ", last seen"; end
 		text = text .. ", " .. Where( c.plot, ctx );
+		-- no unit selected: the distance is from the capital ("in Seoul (Korea)" alone says no distance)
+		if ctx.unit == nil then
+			local capText:string = HubPlaces.CapitalDistanceText( c.plot );
+			if capText ~= nil and string.find( text, capText, 1, true ) == nil then text = text .. ", " .. capText; end
+		end
 		table.insert( items, MakeItem( "f:" .. c.owner .. ":" .. c.city:GetID(), "foreign", name, text, c.plot, ctx ) );
 	end
 	return SortItems( items );
@@ -1782,11 +1796,64 @@ local function OrderUnit( unitID:number, place:table, item:table )
 	return name .. ( enemy and " moving to attack " or ( nearby and " moving next to " or " moving to " ) ) .. place.name .. turns;
 end
 
--- Enter: select the unit (the first one of an attack party) and give the move order(s).
+-- Pure: the send list after an order. The sent units leave it (also the attack party they belong to: it is no longer two free
+-- units), the others keep their order. Returns the remaining items and the key to focus (the item that now stands where the
+-- sent one stood, else the last), nil when nothing is left.
+function HubPlaces.SendRemaining( items:table, sent:table )
+	local ids:table = {};
+	local sentIndex:number = nil;
+	for i, item in ipairs( items ) do
+		if item.key == sent.key then sentIndex = i; end
+	end
+	for _, member in ipairs( sent.members or { sent } ) do ids[ member.unitId ] = true; end
+	local kept:table = {};
+	local focusKey:string = nil;
+	for i, item in ipairs( items ) do
+		local gone:boolean = item.key == sent.key or ( item.unitId ~= nil and ids[ item.unitId ] == true );
+		if not gone and item.members ~= nil then
+			for _, member in ipairs( item.members ) do if ids[ member.unitId ] then gone = true; end end
+		end
+		if not gone then
+			table.insert( kept, item );
+			if focusKey == nil and sentIndex ~= nil and i > sentIndex then focusKey = item.key; end
+		end
+	end
+	if focusKey == nil and #kept > 0 then focusKey = kept[ #kept ].key; end
+	return kept, focusKey;
+end
+
+-- True when the order for this unit would start a war: the game then asks for confirmation through the selected unit, so that
+-- send keeps the old way (select, close the list).
+local function SendNeedsSelection( item:table, place:table )
+	local mover:table = LocalPlayer():GetUnits():FindID( ( item.members ~= nil ) and item.members[1].unitId or item.unitId );
+	if mover == nil then return false; end
+	local plot:table = Map.GetPlot( item.nearX or place.x, item.nearY or place.y );
+	return plot ~= nil and HubTargets.WarTargets( mover, plot ) ~= nil;
+end
+
+-- Enter: give the move order(s) without selecting (the cursor and the target stay); the list stays open for the next unit. An order that starts
+-- a war selects the unit (the game's war question works on the selection) and closes the list.
 local function SendActivate( item:table )
 	local place:table = m_send;
 	if item.notice then
 		OutputMessageToScreenReader( item.text );
+		return;
+	end
+	if place ~= nil and not SendNeedsSelection( item, place ) then
+		local sentences:table = {};
+		for _, member in ipairs( item.members or { item } ) do
+			table.insert( sentences, OrderUnit( member.unitId, place, member ) );
+		end
+		local result:string = table.concat( sentences, ". " );
+		local kept:table, focusKey = HubPlaces.SendRemaining( place.items, item );
+		place.items = kept;
+		if #kept == 0 then
+			CloseSend();
+			HubCore.SayResult( result .. ". No more units to send" );
+		else
+			HubCore.m_lastResultTime = UI.GetElapsedTime();
+			m_sendList.Focus( focusKey, result );
+		end
 		return;
 	end
 	local firstId:number = ( item.members ~= nil ) and item.members[1].unitId or item.unitId;

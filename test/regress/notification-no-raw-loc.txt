@@ -1,0 +1,12 @@
+# Written blind (2026-11-01). The Choose Escape Route notification has no summary text in the game: Space must not read the raw LOC_ tag.
+# Fixture bug-escape-route-summary-loc (turn 112).
+# covers: **/NotificationPanel.lua **/HubRegions.lua
+# no-share-load: opens the notifications list
+load bug-escape-route-summary-loc
+clear-advisors
+key Control+N -Settle 1200
+key Down -Settle 600
+expect (?i)escape route
+key Space -Settle 800
+expect-not LOC_
+no-lua-errors

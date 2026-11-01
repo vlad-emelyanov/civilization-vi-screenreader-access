@@ -194,6 +194,7 @@ end
 -- A move ordered with Enter in the move-to mode: arrived, still on the way, or stopped short.
 function HubEvents.OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:number )
 	if playerID ~= Game.GetLocalPlayer() then return; end
+	HubCore.m_lastUnitMoveTime = UI.GetElapsedTime();		-- "All done" and the end-turn check wait for the action panel to catch up
 	local record:table = HubCore.m_movers[ unitID ];
 	if record == nil then return; end
 	local unit:table = Players[ playerID ]:GetUnits():FindID( unitID );

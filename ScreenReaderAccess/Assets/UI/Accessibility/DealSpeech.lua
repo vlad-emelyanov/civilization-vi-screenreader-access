@@ -76,7 +76,7 @@ end
 -- mode: "make" (you open the deal), "demand" (you demand), "theirdeal" (the AI proposes), "theirdemand", "theirgift"
 function DealSpeech_Intro( leader, civ, mode )
 	local who = leader .. " of " .. civ;
-	if mode == "theirdeal" then return who .. " proposes a deal."; end
+	if mode == "theirdeal" then return who .. " offers a deal:"; end
 	if mode == "theirdemand" then return who .. " demands:"; end
 	if mode == "theirgift" then return who .. " offers a gift."; end
 	if mode == "demand" then return "Demand from " .. who .. "."; end

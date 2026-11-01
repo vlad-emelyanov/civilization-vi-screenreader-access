@@ -2661,8 +2661,10 @@ local function SRA_EmergencyInfo( kProposal:table )
 		if emergency == nil then return "", ""; end
 		local data:table = ProcessEmergency_WorldCongressPopup( emergency );
 		local main:table, all:table = {}, {};
+		local tid = emergency.TargetID or target;
+		local tname:string = ( tid ~= nil and tid >= 0 and PlayerConfigurations[ tid ] ~= nil ) and SRA_Clean( GetVisiblePlayerName( tid ) ) or "";
 		for _, line in ipairs( data.crisisDetails or {} ) do
-			local text:string = SRA_Clean( line.string );
+			local text:string = WCText_NameTarget( SRA_Clean( line.string ), tname );
 			if text ~= "" then
 				table.insert( all, text );
 				if line.align ~= "center" then table.insert( main, text ); end		-- centered lines are headers
@@ -2670,9 +2672,10 @@ local function SRA_EmergencyInfo( kProposal:table )
 		end
 		if #main == 0 then main = all; end
 		for _, line in ipairs( data.rewardsDetails or {} ) do
-			local text:string = SRA_Clean( line.string );
+			local text:string = WCText_NameTarget( SRA_Clean( line.string ), tname );
 			if text ~= "" then table.insert( all, text ); end
 		end
+		if tname ~= "" and #all > 0 then table.insert( all, 1, "Target: " .. tname ); end
 		local shortParts:table = {};
 		for i = 1, math.min( #main, 2 ) do table.insert( shortParts, WCText_Strip( main[ i ] ) ); end
 		local descr:string = SRA_Clean( emergency.ShortDescriptionText );

@@ -11,6 +11,24 @@ function WCText_Strip( text )
 	return text;
 end
 
+-- The game's emergency score lines say "the Target's territory", "Killing Target units": the word is a placeholder
+-- the popup shows with an icon. Replaces it with the civ's name ("Dido's territory"); "Target Rewards" stays.
+function WCText_NameTarget( text, name )
+	if text == nil then return ""; end
+	text = tostring( text );
+	if name == nil or name == "" then return text; end
+	local function Sub( s:string )
+		return ( string.gsub( s, "%f[%w]Target%f[%W]", function() return name; end ) );
+	end
+	-- protect the rewards title
+	local pos:number = string.find( text, "Target Rewards", 1, true );
+	if pos == nil then
+		text = string.gsub( text, "[Tt]he Target%f[%W]", name );
+		return Sub( text );
+	end
+	return Sub( string.sub( text, 1, pos - 1 ) ) .. string.sub( text, pos );
+end
+
 function WCText_Letter( option )
 	if option == 2 then return "B"; end
 	return "A";

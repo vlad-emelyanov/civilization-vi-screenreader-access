@@ -17,6 +17,7 @@ HubCore.m_lastOrderTime = -100;		-- UI.GetElapsedTime() of the last order given 
 HubCore.m_lastResultTime = -100;		-- UI.GetElapsedTime() of the last announced result of a player's action
 HubCore.m_repeatTurnLine = nil;		-- { turn, since, quiet } once the turn-start congress results popup closed: say the turn-start line again (HubAnnounce.RepeatTurnStartLine) after 0.5 s without popup
 HubCore.m_turnBegin = { time = -1000, turn = -1 };		-- UI.GetElapsedTime() and game turn when the local player's turn became active
+HubCore.m_lastUnitMoveTime = -100;		-- UI.GetElapsedTime() of the last UnitMoveComplete of a unit of the local player
 HubCore.m_movers = {};		-- unit id -> { dest = plot index, issued = time }: units on a move order given in this session
 HubCore.m_lastKeyTime = -100;		-- UI.GetElapsedTime() of the last key press seen by the input handler
 HubCore.m_unitNames = {};		-- "player:unit" -> spoken name, remembered while the unit is alive (it is gone when its death is reported)

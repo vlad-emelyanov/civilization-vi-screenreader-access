@@ -163,3 +163,9 @@ test("menu with only Delete Unit left on a unit without moves says why", functio
 	eq(HubMenus.NoMovesNote(0, { { choosable = true, action = { typeName = "UNITOPERATION_FORTIFY" } }, del }), "")
 	eq(HubMenus.NoMovesNote(2, { del }), "")
 end)
+
+test("ReasonWithHint: the great work slot reason says where the places are", function()
+	eq(HubMenus.ReasonWithHint("Must occupy district or wonder with a free slot of the proper Great Work type.", "X"),
+		"Must occupy district or wonder with a free slot of the proper Great Work type. X lists the places")
+	eq(HubMenus.ReasonWithHint("Not enough gold", "X"), "Not enough gold")
+end)

@@ -67,7 +67,7 @@ globals = {
 	"CityReport_BuildItems", "CityReport_Gather", "CityManage_Gather", "CityManage_YieldType", "CityManage_Totals",
 	"CityManage_TileState", "CityManage_TileText", "CityManage_TileItems", "CityManage_DistrictText", "CityManage_DistrictItems",
 	"CityManage_FocusItems", "TXT_NO_PRODUCTION", "SIZE_PRODUCTION_ICON",
-	"WCText_CostList", "WCText_Letter", "WCText_Missing", "WCText_Plural", "WCText_ProposalLine", "WCText_ReviewProposal", "WCText_ReviewResolution", "WCText_ResolutionLine", "WCText_Strip", "WCText_VoteBlock", "WCText_VotesPhrase",
+	"WCText_CostList", "WCText_Letter", "WCText_Missing", "WCText_NameTarget", "WCText_Plural", "WCText_ProposalLine", "WCText_ReviewProposal", "WCText_ReviewResolution", "WCText_ResolutionLine", "WCText_Strip", "WCText_VoteBlock", "WCText_VotesPhrase",
 	"TopPanelData_Summary", "EmergencyText_Item", "STANDING_CATEGORIES", "StandingText_Ordinal", "StandingText_Numbers", "StandingText_ListItem", "StandingText_Rank", "StandingText_Line", "NotificationSubject_Line", "NOTIFICATION_SUBJECT_SUMMARY_TYPES", "NOTIFICATION_SUBJECT_SUMMARY_TITLES", "NOTIFICATION_SUBJECT_MAX_WORDS", "DIPLOMACY_TEXT_REASONS", "DIPLOMACY_TEXT_PARTY_NOTIFICATIONS", "DiplomacyText_Opening", "DiplomacyText_NotificationLine", "DiplomacyText_SuzerainNote", "RankingsText_Ordinal", "RankingsText_Count", "RankingsText_And", "RankingsText_Join", "RankingsText_Clean",
 	"RankingsText_Percent", "RankingsText_Label", "RankingsText_ScoreLine", "RankingsText_PositionOf", "RankingsText_OverviewLine",
 	"RankingsText_OverviewDetail", "RankingsText_Science", "RankingsText_Culture", "RankingsText_Domination",

@@ -3370,6 +3370,7 @@ SRListen( LuaEvents.DiploScene_SceneOpened, function() m_srSceneOpen = true; end
 SRListen( LuaEvents.DiploScene_SceneClosed, function() m_srSceneOpen = false; end );
 local m_srNeedAnnounce:boolean = false;		-- the lists changed under the focus and nothing named the focused item: Enter announces it first
 local m_srActionSig:string = "";				-- the action buttons as last spoken
+local m_srIntroPending = nil;					-- the opening line of an incoming deal that was spoken while the deal was still empty: said with the first content
 local m_srStatement = nil;					-- what the leader said when the deal was opened (LuaEvents.SRA_DealStatement from DiplomacyActionView)
 
 local function SRA_Say( text:string, nointerrupt:boolean )
@@ -3851,6 +3852,8 @@ local function SRA_Announce()
 	m_srSpokenLeader = m_srLeaderText;
 	m_srSpokenSig = summary;
 	m_srActionSig = SRA_ActionNames();
+	-- the AI's proposal arrives a moment after the screen: the first content ("Deal changed. You give ...") then names the proposer
+	m_srIntroPending = ( theirs and summary == "Deal is empty." ) and parts[1] or nil;
 	SRA_Say( table.concat( parts, " " ), true );
 end
 
@@ -3988,7 +3991,12 @@ local function SRA_Flush()
 	end
 	local summary:string = SRA_Summary();
 	if summary ~= m_srSpokenSig then
-		table.insert( parts, "Deal changed. " .. summary );
+		if m_srIntroPending ~= nil and summary ~= "Deal is empty." then
+			table.insert( parts, m_srIntroPending .. " " .. summary );
+		else
+			table.insert( parts, "Deal changed. " .. summary );
+		end
+		if summary ~= "Deal is empty." then m_srIntroPending = nil; end
 		m_srSpokenSig = summary;
 	end
 	local actionSig:string = SRA_ActionNames();
@@ -4016,6 +4024,7 @@ function SRA_OnHide()
 	m_srShown = false;
 	m_srAnnounced = false;
 	m_srStatement = nil;
+	m_srIntroPending = nil;
 	m_srAmountKey = nil;
 	m_srOpenWait = -1;
 	m_srFlushWait = -1;

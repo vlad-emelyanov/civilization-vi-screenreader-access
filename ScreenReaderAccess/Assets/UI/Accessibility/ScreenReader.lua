@@ -59,9 +59,9 @@ local function _StripIconMarkup(message: string)
 	end
 	table.insert(out, string.sub(message, pos));
 	message = table.concat(out);
-	message = string.gsub(message, "%s+", " ");
-	message = string.gsub(message, "^%s+", "");
-	message = string.gsub(message, "%s+$", "");
+	message = string.gsub(message, "[ \t\r\n]+", " ");
+	message = string.gsub(message, "^[ \t\r\n]+", "");
+	message = string.gsub(message, "[ \t\r\n]+$", "");
 	return message;
 end
 
@@ -70,7 +70,7 @@ end
 local function _CollapseStops(text: string)
 	text = string.gsub(text, "%.%.%.", "");
 	local collapsed:number = 1;
-	while collapsed > 0 do text, collapsed = string.gsub(text, "%.%s*[%.,]", "."); end
+	while collapsed > 0 do text, collapsed = string.gsub(text, "%.[ \t\r\n]*[%.,]", "."); end
 	text = string.gsub(text, "([!?])%.", "%1");		-- "INSPIRATION!." -> "INSPIRATION!" (an exclamation already ends the sentence)
 	return (string.gsub(text, "", "..."));
 end
@@ -120,16 +120,16 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 		message = string.gsub(message, "%[TAB%]", " ");
 		message = string.gsub(message, "%[ENDLINK%]", "");
 		message = string.gsub(message, "%[LINK[^%]]*%]", "");
-		message = string.gsub(message, ",%s*,", ",");
-		message = string.gsub(message, "%s+", " ");
+		message = string.gsub(message, ",[ \t\r\n]*,", ",");
+		message = string.gsub(message, "[ \t\r\n]+", " ");
 		message = _CollapseStops(message);
-		message = string.gsub(message, "^[%s,]+", "");
-		message = string.gsub(message, "[%s,]+$", "");
+		message = string.gsub(message, "^[ \t\r\n,]+", "");
+		message = string.gsub(message, "[ \t\r\n,]+$", "");
 	else
 		message = _StripIconMarkup(message);
 	end
 	-- The game's print() treats "%" as a printf escape: "50% of" came out as "50<number>f". Say it in words instead.
-	if type(message) == "string" then message = string.gsub(message, "%s*%%", " percent"); end
+	if type(message) == "string" then message = string.gsub(message, "[ \t\r\n]*%%", " percent"); end
 	if message == nil or message == "" then return; end
 	nointerrupt = SRTakeQueueBehind( nointerrupt );
 	if nointerrupt == true then
@@ -202,13 +202,20 @@ function CleanTextForSpeech(text: string)
 	text = _StripIconMarkup(text);
 	text = string.gsub(text, "%[[^%]]*%]", "");
 	text = _CollapseStops(text);
-	text = string.gsub(text, "%s+", " ");
-	text = string.gsub(text, "%s*[%s]*", "");
-	text = string.gsub(text, "^[%s]+", "");
-	text = string.gsub(text, "[%s]+$", "");
+	text = string.gsub(text, "[ \t\r\n]+", " ");
+	text = string.gsub(text, "[ \t\r\n]*[ \t\r\n]*", "");
+	text = string.gsub(text, "^[ \t\r\n]+", "");
+	text = string.gsub(text, "[ \t\r\n]+$", "");
 	text = string.gsub(text, "([%.!?:;,])", "%1 ");
 	text = string.gsub(text, "", ". ");
 	text = _CollapseStops(text);
+	-- brackets: "( Writing)" loses its inner space, an empty "()" (a stripped icon between the brackets) goes
+	text = string.gsub(text, "%([ \t\r\n]*%)", "");
+	text = string.gsub(text, "%([ \t\r\n]+", "(");
+	text = string.gsub(text, "[ \t\r\n]+%)", ")");
+	text = string.gsub(text, "[ \t\r\n][ \t\r\n]+", " ");
+	text = string.gsub(text, "^[ \t\r\n]+", "");
+	text = string.gsub(text, "[ \t\r\n]+$", "");
 	return text;
 end
 

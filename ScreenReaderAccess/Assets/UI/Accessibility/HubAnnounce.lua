@@ -891,6 +891,7 @@ end
 -- ===========================================================================
 local READY_POLL:number = 0.25;
 local READY_STABLE:number = 0.5;
+local READY_AFTER_MOVE:number = 1.5;	-- seconds after one of our units finished a move during which "All done" waits (the panel label lags)
 local PLACE_RESULT_WAIT:number = 2.5;	-- seconds after a placement commit during which "All done" waits for the placement result
 local m_ready:table = { poll = 0, stable = 0, armed = true };
 
@@ -938,6 +939,10 @@ function HubAnnounce.UpdateReadyWatch( deltaTime:number )
 	if UI.GetElapsedTime() - HubCore.m_placeCommitTime < PLACE_RESULT_WAIT then m_ready.stable = 0; return; end
 	-- any order of ours just given (Farm, Fortify ...): its result ("Farm built") comes first
 	if UI.GetElapsedTime() - HubCore.m_lastOrderTime < PLACE_RESULT_WAIT then m_ready.stable = 0; return; end
+	-- a unit of ours just finished a move: the action panel lags behind its arrival ("Next turn" while it needs orders again)
+	if UI.GetElapsedTime() - HubCore.m_lastUnitMoveTime < READY_AFTER_MOVE then m_ready.stable = 0; return; end
+	local okHidden:boolean, hidden = pcall( HubAnnounce.LabelHidesReadyUnit );
+	if okHidden and hidden then m_ready.stable = 0; return; end
 	m_ready.stable = m_ready.stable + elapsed;
 	if not m_ready.armed or m_ready.stable < READY_STABLE then return; end
 	if HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return; end

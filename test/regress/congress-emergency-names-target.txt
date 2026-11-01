@@ -1,0 +1,15 @@
+# Written blind (2026-11-01). Special session on a military emergency: the proposal and its Space text name the target civ, never "the Target".
+# Fixture pt-nobarbs-t128: war with Ottomans, special session requested (notification "World Congress is about to Meet").
+# covers: **/WorldCongressPopup_SRA.lua **/WorldCongressText.lua
+# no-share-load: opens the congress
+load pt-nobarbs-t128
+clear-advisors
+key Enter -Settle 1500
+expect (?i)emergency
+key Enter -Settle 2500
+expect-not the Target|Target's
+key Down -Settle 800
+key Space -Settle 800
+expect-not the Target|Target's
+expect Target: \w
+no-lua-errors
