@@ -644,7 +644,7 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 				local isDisabled:boolean = selection.IsDisabled ~= nil and selection.IsDisabled;
 				table.insert( m_srSelections, {
 					key = "selection:" .. tostring(selection.Key),
-					text = CleanTextForSpeech( Locale.Lookup(selection.Text) ),
+					text = CleanTextForSpeech( Locale.Lookup(selection.Text) ) .. DiplomacyText_ChoiceSuffix( selection.Key, CleanTextForSpeech( Locale.Lookup(selection.Text) ) ),
 					choosable = not isDisabled,
 					reason = ( isDisabled and selection.FailureReasons ~= nil ) and CleanTextForSpeech( Locale.Lookup(selection.FailureReasons[1]) ) or "Not available",
 					isExit = ( selection.Key == "CHOICE_EXIT" ),

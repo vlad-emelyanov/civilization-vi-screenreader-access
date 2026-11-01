@@ -32,6 +32,10 @@ test("known but unmapped type is humanized; civ gets an article when plural", fu
 end)
 
 test("notification line", function()
+	eq(DiplomacyText_ChoiceSuffix("CHOICE_POSITIVE", "Your embassy is a welcome addition."), ", accepts")
+	eq(DiplomacyText_ChoiceSuffix("CHOICE_NEGATIVE", "Our capital is not accepting."), ", declines")
+	eq(DiplomacyText_ChoiceSuffix("CHOICE_POSITIVE", "Accept"), "")
+	eq(DiplomacyText_ChoiceSuffix("CHOICE_EXIT", "Goodbye"), "")
 	eq(DiplomacyText_NotificationLine("NOTIFICATION_DECLARE_WAR", "Declaration of War", "Montezuma has declared war on Suleiman."), "Declaration of War: Montezuma has declared war on Suleiman.")
 	eq(DiplomacyText_NotificationLine("NOTIFICATION_DECLARE_WAR", "Declaration of War", ""), "Declaration of War")
 	eq(DiplomacyText_NotificationLine("NOTIFICATION_MAKE_PEACE_CITY_STATE", "Negotiated Peace", "Zanzibar has made peace with Hong Kong."), "Negotiated Peace: Zanzibar has made peace with Hong Kong.")

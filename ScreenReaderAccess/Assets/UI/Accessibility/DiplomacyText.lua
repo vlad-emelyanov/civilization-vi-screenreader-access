@@ -83,6 +83,17 @@ function DiplomacyText_NotificationLine( typeName:string, message:string, summar
 	return message;
 end
 
+-- The answers the game words as flavour ("Your embassy is a welcome addition.") do not say what they do: ", accepts" / ", declines" from
+-- the option's key (CHOICE_POSITIVE / CHOICE_NEGATIVE), unless the text already says it.
+function DiplomacyText_ChoiceSuffix( key:string, text:string )
+	local verb:string = nil;
+	if key == "CHOICE_POSITIVE" then verb = "accepts"; elseif key == "CHOICE_NEGATIVE" then verb = "declines"; end
+	if verb == nil then return ""; end
+	local lower:string = string.lower( text or "" );
+	if string.find( lower, "^accept" ) or string.find( lower, "^decline" ) or string.find( lower, "^refuse" ) or lower == "yes" or lower == "no" then return ""; end
+	return ", " .. verb;
+end
+
 -- ", you become suzerain" when the envoys (given + pending) reach what the suzerain needs and you are not suzerain yet
 function DiplomacyText_SuzerainNote( isSuzerain:boolean, tokens:number, pending:number, needed:number )
 	if isSuzerain or pending <= 0 or needed == nil or needed <= 0 then return ""; end
