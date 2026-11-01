@@ -292,7 +292,9 @@ end
 
 -- "New era: The world has entered the Renaissance Era. You are in a Dark Age. <effects>. Enter to continue, Space for details"
 function SRA_Announce()
-	local text:string = "New era: The world has entered the " .. SRA_EraName() .. ". You are in a " .. m_srAgeName .. ".";
+	local text:string = "New era: The world has entered the " .. SRA_EraName() .. ".";
+	-- the effects sentence already says "You are in a Normal Age during this game era": the age is named once
+	if string.find( string.lower( m_srEffects ), string.lower( m_srAgeName ), 1, true ) == nil then text = text .. " You are in a " .. m_srAgeName .. "."; end
 	if m_srEffects ~= "" then text = text .. " " .. string.gsub(m_srEffects, "[%.%s]+$", "") .. "."; end
 	OutputMessageToScreenReader(text .. " " .. SRKey( "Enter" ) .. " to continue, " .. SRKey( "Space" ) .. " for details.");
 end

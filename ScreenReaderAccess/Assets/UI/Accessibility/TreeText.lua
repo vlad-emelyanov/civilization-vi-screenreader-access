@@ -155,10 +155,26 @@ end
 
 -- Result of Enter / Shift+Enter, read back from the queue. prefix "Target" or "Added to queue".
 -- "Target: Iron Working, path: Bronze Working, Iron Working, 13 turns"
-function TreeText_Queue( prefix:string, target:string, path:table, turns:number )
+function TreeText_Queue( prefix:string, target:string, path:table, turns:number, replaced )
 	local text:string = prefix .. ": " .. target;
 	if path ~= nil and #path > 1 then text = text .. ", path: " .. table.concat( path, ", " ); end
-	if turns ~= nil and turns > 0 then text = text .. ", " .. TreeText_Turns( turns ); end
+	if turns ~= nil and turns > 0 then
+		-- the sum of the per-item estimates of the whole path
+		text = text .. ", " .. TreeText_Turns( turns ) .. ( ( prefix == "Target" and path ~= nil and #path > 1 ) and " to reach it" or "" );
+	end
+	if replaced ~= nil and replaced ~= "" then
+		if path ~= nil and path[1] == target then text = text .. ". Replaces " .. replaced;
+		else text = text .. ". Now researching " .. ( path ~= nil and path[1] or "?" ) .. " instead of " .. replaced; end
+	end
+	return text;
+end
+
+-- First Enter on a node whose path would replace the research in progress, when that is almost done:
+-- "Currency finishes in 1 turn. Enter again drops it for Sailing, on the way to Shipbuilding"
+-- first = the first item of the new queue (the new current research), target = the node asked for.
+function TreeText_ReplaceAsk( current:string, turns:number, first:string, target:string )
+	local text:string = current .. " finishes in " .. TreeText_Turns( math.max( turns, 1 ) ) .. ". Enter again drops it for " .. first;
+	if first ~= target then text = text .. ", on the way to " .. target; end
 	return text;
 end
 

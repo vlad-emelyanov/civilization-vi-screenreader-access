@@ -52,6 +52,7 @@ function TreeNav_Create( a:table )
 	local m_search = nil;		-- { text, wait }
 	local m_resGroups = nil;	-- ResourceTech_Scan result, read once per opening of the screen (the map does not change meanwhile)
 	local m_resList = nil;		-- { groups, index } while the R list is open
+	local m_confirm = nil;		-- key whose Enter was answered with "Enter again drops <current research>"
 
 	local function Say( text:string )
 		OutputMessageToScreenReader( text, false );
@@ -134,6 +135,7 @@ function TreeNav_Create( a:table )
 		m_search = nil;
 		m_resList = nil;
 		m_resGroups = nil;
+		m_confirm = nil;
 		if #groups == 0 then
 			Say( a.name .. ", nothing available" );
 			return;
@@ -243,6 +245,28 @@ function TreeNav_Create( a:table )
 		local before = nil;		-- the research in progress before the request: Enter on a far target may replace it
 		local okb:boolean, cur = pcall( a.current );
 		if okb then before = cur; end
+		-- an Enter that drops research that is almost done asks first
+		if not append and before ~= nil and before ~= key and a.prereqs ~= nil and m_confirm ~= key then
+			local okc:boolean, ask = pcall( function()
+				local bi = a.item( before );
+				if bi == nil or bi.turns == nil or bi.turns <= 0 or bi.turns > 3 then return nil; end
+				local path = TreeText_Path( key, a.prereqs, function( k )
+					local i = a.item( k );
+					return i ~= nil and i.status == "researched";
+				end );
+				if #path == 0 then return nil; end
+				for _, k in ipairs( path ) do
+					if k == before then return nil; end
+				end
+				return TreeText_ReplaceAsk( bi.name, bi.turns, a.item( path[1] ).name, a.item( key ).name );
+			end );
+			if okc and ask ~= nil then
+				m_confirm = key;
+				Say( ask );
+				return;
+			end
+		end
+		m_confirm = nil;
 		local ok:boolean, done, reason = xpcall( function() return a.request( key, append ); end, KeyNavErrorHandler );
 		if not ok then
 			print( "TreeNav request error: " .. tostring( done ) );
@@ -277,7 +301,7 @@ function TreeNav_Create( a:table )
 			end
 		end
 		local replaced = nil;
-		if beforeName ~= nil and q.keys[1] ~= nil and q.keys[1] ~= p.before and q.keys[1] ~= p.key then replaced = beforeName; end
+		if beforeName ~= nil and q.keys[1] ~= nil and q.keys[1] ~= p.before and not p.append then replaced = beforeName; end
 		-- exclusive: the target ends the queue; appended: it is somewhere in it
 		if found and ( p.append or q.keys[ #q.keys ] == p.key ) then
 			if p.far ~= nil and p.append then
@@ -286,7 +310,7 @@ function TreeNav_Create( a:table )
 				-- "Next" is read back: whatever the game now has first in the queue
 				Say( TreeText_FarTarget( name, a.itemWord, queueRead and #q.keys or p.far.count, queueRead and q.turns or p.far.turns, q.names[1], q.each ~= nil and q.each[1] or nil, replaced ) );
 			else
-				Say( TreeText_Queue( p.append and "Added to queue" or "Target", name, q.names, q.turns ) );
+				Say( TreeText_Queue( p.append and "Added to queue" or "Target", name, q.names, q.turns, replaced ) );
 			end
 		else
 			Say( "Could not set " .. name .. " as the target" );
@@ -447,6 +471,7 @@ function TreeNav_Create( a:table )
 			if not isDown then action = Close; end
 		end
 
+		if key ~= Keys.VK_RETURN and action ~= nil then m_confirm = nil; end
 		if action ~= nil then Guarded( action, "key" ); end
 		return true;
 	end

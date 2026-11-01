@@ -36,9 +36,9 @@ test("destructive builder actions rank after the main actions", function()
 end)
 
 test("tribal village reason", function()
-	eq(SRTribalVillageReason("Too close to Tribal Village", "2 tiles north-west"), "Too close to Tribal Village, 2 tiles north-west", "x")
+	eq(SRTribalVillageReason("Too close to Tribal Village", "2 tiles north-west"), "Too close to Tribal Village, 2 tiles north-west: walk onto it, or move away, then explore", "x")
 	eq(SRTribalVillageReason("Danger", "1 tile east"), "Danger", "other")
-	eq(SRTribalVillageReason("Too close to Tribal Village", nil), "Too close to Tribal Village", "nil")
+	eq(SRTribalVillageReason("Too close to Tribal Village", nil), "Too close to Tribal Village: walk onto it, or move away, then explore", "nil")
 end)
 
 test("a general's Retire ranks last, after Delete", function()

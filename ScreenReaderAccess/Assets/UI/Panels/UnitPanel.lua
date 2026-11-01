@@ -4371,12 +4371,13 @@ local function SRIsRangedAttackName( typeName:string )
 end
 
 -- "Danger" alone does not say what: name the nearest visible enemy / barbarian unit within 3 tiles ("Danger, Barbarian Galley 1 tile east").
--- "Too close to Tribal Village" does not say where: append the nearest revealed village within 4 tiles
--- ("Too close to Tribal Village, 2 tiles north-west"). Pure wording: reason + relative (nil/"" = unchanged).
+-- "Too close to Tribal Village" does not say where: append the nearest revealed village within 5 tiles
+-- ("Too close to Tribal Village, 2 tiles north-west: walk onto it, or move away, then explore"). Pure wording: reason + relative (nil/"" = unchanged).
 function SRTribalVillageReason( reason:string, relative:string )
 	if reason == nil or string.find( string.lower( reason ), "tribal village", 1, true ) == nil then return reason; end
-	if relative == nil or relative == "" then return reason; end
-	return reason .. ", " .. relative;
+	local way:string = ": walk onto it, or move away, then explore";
+	if relative == nil or relative == "" then return reason .. way; end
+	return reason .. ", " .. relative .. way;
 end
 
 local function SRAddTribalVillage( unit:table, reason:string )
@@ -4389,12 +4390,12 @@ local function SRAddTribalVillage( unit:table, reason:string )
 		local ux:number, uy:number = unit:GetX(), unit:GetY();
 		local from = Map.GetPlot( ux, uy );
 		local best, bestDistance = nil, 99;
-		for dy = -4, 4 do
-			for dx = -4, 4 do
+		for dy = -5, 5 do
+			for dx = -5, 5 do
 				local plot = Map.GetPlot( ux + dx, uy + dy );
-				if plot ~= nil and vis:IsVisible( plot:GetX(), plot:GetY() ) and plot:GetImprovementType() == hut.Index then
+				if plot ~= nil and vis:IsRevealed( plot:GetX(), plot:GetY() ) and plot:GetImprovementType() == hut.Index then
 					local distance:number = Map.GetPlotDistance( ux, uy, plot:GetX(), plot:GetY() );
-					if distance <= 4 and distance < bestDistance then best, bestDistance = plot, distance; end
+					if distance <= 5 and distance < bestDistance then best, bestDistance = plot, distance; end
 				end
 			end
 		end
@@ -4506,6 +4507,16 @@ local function SRFormationHint( unit:table )
 				end
 			end
 			if #names > 0 then text = "stacked with " .. table.concat( names, " and " ) .. ": only one unit of this class can stay on a tile. Move one of them away"; end
+			if #names > 0 then
+				-- the way out that does not need a second tile: upgrading changes the class (Warrior -> Swordsman); only said when it is possible now
+				local okUp:boolean, canUp = pcall( UnitManager.CanStartCommand, unit, UnitCommandTypes.UPGRADE, false, true );
+				if okUp and canUp then
+					local upKey:string = "";
+					local upId = Input.GetActionId( "ExtraHotkeysUpgrade" );
+					if upId ~= nil then upKey = Input.GetGestureDisplayString( upId, 0 ) or ""; end
+					text = text .. ", or " .. ( upKey ~= "" and upKey or "the upgrade key" ) .. " to upgrade";
+				end
+			end
 			return;
 		end
 		if unit:GetMilitaryFormation() ~= MilitaryFormationTypes.STANDARD_FORMATION then return; end	-- corps and armies are one unit

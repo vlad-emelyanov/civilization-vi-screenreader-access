@@ -13,6 +13,11 @@
 --	TradeText_Origin( city )              city: { name, distance } -> "Florence, 5 tiles"
 -- ===========================================================================
 
+-- N while "Start trade route to X?" is asked: "Enter confirms the route to Rome, Escape cancels" (keys are passed in: SRKey tokens).
+function TradeText_WhatsNext( name:string, enterKey:string, escapeKey:string )
+	return enterKey .. " confirms the route to " .. name .. ", " .. escapeKey .. " goes back to the list";
+end
+
 local function Tiles( n:number )
 	return n .. ( n == 1 and " tile" or " tiles" );
 end

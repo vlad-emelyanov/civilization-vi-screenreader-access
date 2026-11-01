@@ -15,7 +15,7 @@
 --		tabEdge    = function(step) return bool end,      -- optional: true when the sections cannot go further in that direction (+1 / -1); the hub then moves the LB / RB ring on
 --		wheel      = true,                                -- optional: the pad's wheel (hold LT, point the left stick) works here; short lists of the main interface only
 --		enterGuard = 0.6,                                 -- optional: seconds after Open() during which Enter is ignored silently (a quick double Enter on Next Action must not pick the recommended item)
---		emptyText  = function() return "..." end,         -- optional: spoken (string or function) instead of "<title>, nothing available" / "Nothing available" when the list is empty
+--		emptyText  = function() return "..." end,         -- optional: spoken (string or function(opening): opening is true when the list was just opened, false on a key) instead of "<title>, nothing available" / "Nothing available" when the list is empty
 --	};
 --	items: { key = <stable identity>, text = <spoken>, section = <optional group name>, uncounted = <true: not counted in its group's count>, detail = <string or function,
 --	         spoken by Space>, choosable = <false: Enter says item.reason> }
@@ -144,9 +144,9 @@ function KeyNavList_Create( config:table )
 
 	-- Announces the title and the focused item (the first, or the one that keeps its key from before).
 	-- queueTitle: the title waits behind what is being spoken (a result line just before the reopen); default: it interrupts.
-	local function EmptyText( default:string )
+	local function EmptyText( default:string, opening:boolean )
 		local text = config.emptyText;
-		if type( text ) == "function" then text = text(); end
+		if type( text ) == "function" then text = text( opening == true ); end
 		return text or default;
 	end
 
@@ -159,7 +159,7 @@ function KeyNavList_Create( config:table )
 		if initialKey ~= nil then m_focusKey = initialKey; end
 		local index:number = FindIndex( items );
 		if #items == 0 then
-			OutputMessageToScreenReader( EmptyText( title .. ", nothing available" ), queueTitle == true );
+			OutputMessageToScreenReader( EmptyText( title .. ", nothing available", true ), queueTitle == true );
 			return;
 		end
 		if index == nil then index = 1; m_focusKey = items[1].key; end

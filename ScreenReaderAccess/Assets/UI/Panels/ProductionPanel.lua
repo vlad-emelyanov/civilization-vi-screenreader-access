@@ -2537,7 +2537,7 @@ local function SRA_StackReason( kItem:table, reasonText:string )
 			if row ~= nil then table.insert( others, { formation = row.FormationClass, name = CleanTextForSpeech( Locale.Lookup( row.Name ) ) } ); end
 		end
 	end
-	return ProductionText_StackBlocker( GameInfo.Units[ kItem.Hash ].FormationClass, CleanTextForSpeech( Locale.Lookup( m_pCity:GetName() ) ), others );
+	return ProductionText_StackBlocker( GameInfo.Units[ kItem.Hash ].FormationClass, CleanTextForSpeech( Locale.Lookup( m_pCity:GetName() ) ), others, true );
 end
 
 -- Red failure lines of a tooltip; skipFunds drops the "not enough gold/faith" lines (spoken separately).
@@ -3179,7 +3179,8 @@ local function SRA_OnClose()
 end
 
 -- Spoken for an empty list; on the faith tab it says why (nothing to buy / no religion).
-local function SRA_EmptyText()
+local function SRA_EmptyText( opening:boolean )
+	if opening == false and m_CurrentListMode == LISTMODE.PURCHASE_FAITH then return "Nothing to buy"; end		-- said in full on entering the tab
 	local city:table = UI.GetHeadSelectedCity();
 	local name:string = city ~= nil and Locale.Lookup( city:GetName() ) or "the city";
 	if m_CurrentListMode == LISTMODE.PURCHASE_FAITH then

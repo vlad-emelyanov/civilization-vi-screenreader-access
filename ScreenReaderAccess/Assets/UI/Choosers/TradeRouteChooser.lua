@@ -1505,6 +1505,11 @@ local function SRA_Confirm()
 	end
 end
 
+-- N: what Enter does here ("Enter confirms the route to Rome, Escape cancels").
+local function SRA_WhatsNext()
+	OutputMessageToScreenReader( TradeText_WhatsNext( m_srConfirm.name, SRKey( "Enter" ), SRKey( "Escape" ) ) );
+end
+
 local function SRA_Back()
 	local pending:table = m_srConfirm;
 	m_srConfirm = nil;
@@ -1537,6 +1542,7 @@ function SRA_HandleInput( pInputStruct:table )
 		if key == Keys.VK_RETURN then action = SRA_Confirm;
 		elseif key == Keys.VK_ESCAPE then action = SRA_Back;
 		elseif key == Keys.VK_SPACE then action = function() SRA_Ask( m_srConfirm.name ); end
+		elseif key == Keys.N then action = SRA_WhatsNext;		-- the hub's N (what Enter does) does not reach a modal chooser
 		end
 		if action ~= nil then
 			local ok:boolean, err = xpcall( action, KeyNavErrorHandler );

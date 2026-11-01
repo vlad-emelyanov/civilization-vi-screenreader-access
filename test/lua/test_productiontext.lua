@@ -90,6 +90,8 @@ test("stack blocker names the unit of the same class", function()
 	local others = { { formation = "FORMATION_CLASS_CIVILIAN", name = "Builder" }, { formation = "FORMATION_CLASS_LAND_COMBAT", name = "Archer" } }
 	eq(ProductionText_StackBlocker("FORMATION_CLASS_LAND_COMBAT", "Rome", others), "Archer stands in Rome")
 	eq(ProductionText_StackBlocker("FORMATION_CLASS_NAVAL", "Rome", others), nil)
+	eq(ProductionText_StackBlocker("FORMATION_CLASS_LAND_COMBAT", "Rome", others, true), "Archer stands in Rome: move it out or upgrade it first")
+	eq(ProductionText_StackBlocker("FORMATION_CLASS_CIVILIAN", "Rome", others, true), "Builder stands in Rome: move it out first")
 	eq(ProductionText_StackBlocker(nil, "Rome", others), nil)
 	eq(ProductionText_StackBlocker("FORMATION_CLASS_CIVILIAN", nil, others), "Builder stands in the city")
 end)

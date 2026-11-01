@@ -63,7 +63,7 @@ globals = {
 	"GreatPeopleText_PastItem", "GreatPeopleText_PatronageReason",
 	"PromotionText_Detail", "PromotionText_Done", "PromotionText_Item", "PromotionText_Opening",
 	"PromotionText_Reason", "PromotionText_State",
-	"TradeText_Detail", "TradeText_HazardText", "TradeText_PassText", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
+	"TradeText_WhatsNext", "TradeText_Detail", "TradeText_HazardText", "TradeText_PassText", "TradeText_Origin", "TradeText_Route", "TradeText_SortRoutes", "TradeText_YieldList",
 	"CityReport_BuildItems", "CityReport_Gather", "CityManage_Gather", "CityManage_YieldType", "CityManage_Totals",
 	"CityManage_TileState", "CityManage_TileText", "CityManage_TileItems", "CityManage_DistrictText", "CityManage_DistrictItems",
 	"CityManage_FocusItems", "TXT_NO_PRODUCTION", "SIZE_PRODUCTION_ICON",
