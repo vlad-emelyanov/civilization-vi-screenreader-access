@@ -26,6 +26,7 @@ local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" 
 local m_srPendingAnswer	:string = nil;	-- key of the answer chosen while a cinema scene was showing
 local m_srLeavingAt			:number = 0;		-- time Goodbye was chosen; m_srLeaving never lasts longer than 3 s (SRA_IsLeaving)
 local m_srLeaving			:boolean = false;	-- Goodbye was chosen: the screen closes when the session ends, and takes no answers meanwhile
+local m_srStatementSpoken	:boolean = false;	-- ApplyStatement said what the leader says; OnDiplomacyStatement adds a fallback line when nothing was said
 
 
 -- ===========================================================================
@@ -580,6 +581,34 @@ end
 
 -- ===========================================================================
 -- This applies the current statement to the CONVERSATION_MODE controls
+-- Space on an answer in a conversation: what the answer does (the game's own tooltip or action description), nil if it has nothing to say
+function SRA_ReplyDetail( selection:table, statementTypeName:string )
+	if selection.ToolTip ~= nil then return CleanTextForSpeech( Locale.Lookup( selection.ToolTip ) ); end
+	local def = ( statementTypeName ~= nil ) and GameInfo.DiplomaticActions[ "DIPLOACTION_" .. statementTypeName ] or nil;
+	local desc:string = ( def ~= nil and def.Description ~= nil ) and CleanTextForSpeech( Locale.Lookup( def.Description ) ) or nil;
+	if selection.Key == "CHOICE_POSITIVE" then return desc ~= nil and ( "Accept. " .. desc ) or "Answer yes"; end
+	if selection.Key == "CHOICE_NEGATIVE" then return "Decline. Nothing is exchanged"; end
+	if selection.Key == "CHOICE_EXIT" then return "End the conversation"; end
+	return nil;
+end
+
+-- The leader's words when ApplyStatement made none (no statement text, an error, a statement from our own side): who is waiting for the answer
+function SRA_AnnounceWaiting( statementTypeName:string )
+	if m_srList == nil or ms_OtherPlayerID == -1 or ms_OtherPlayerID == nil or ms_ActiveSessionID == nil then return; end
+	if statementTypeName == "MAKE_DEAL" or statementTypeName == "MAKE_DEMAND" or ms_currentViewMode == DEAL_MODE then return; end
+	local config = PlayerConfigurations[ ms_OtherPlayerID ];
+	if config == nil then return; end
+	local who:string = Locale.Lookup( config:GetLeaderName() ) .. " of " .. DiplomacyText_CivWithArticle( Locale.Lookup( config:GetCivilizationShortDescription() ) );
+	local speech:string = who .. " is waiting for your answer";
+	if #m_srSelections > 0 then
+		m_srList.Reset();
+		m_srList.Open( speech );
+	else
+		OutputMessageToScreenReader( speech .. " " .. SRKey( "Escape" ) .. " to close.", true );
+	end
+	m_srStatementSpoken = true;
+end
+
 function ApplyStatement(handler : table, statementTypeName : string, statementSubTypeName : string, toPlayer : number, kStatement : table)
 
 	local eFromPlayerMood = GetStatementMood( kStatement.FromPlayer, kStatement.FromPlayerMood);
@@ -619,7 +648,7 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 					choosable = not isDisabled,
 					reason = ( isDisabled and selection.FailureReasons ~= nil ) and CleanTextForSpeech( Locale.Lookup(selection.FailureReasons[1]) ) or "Not available",
 					isExit = ( selection.Key == "CHOICE_EXIT" ),
-					detail = isDisabled and ( ( selection.FailureReasons ~= nil and selection.FailureReasons[1] ~= nil ) and CleanTextForSpeech( Locale.Lookup(selection.FailureReasons[1]) ) or "Not available" ) or nil,
+					detail = isDisabled and ( ( selection.FailureReasons ~= nil and selection.FailureReasons[1] ~= nil ) and CleanTextForSpeech( Locale.Lookup(selection.FailureReasons[1]) ) or "Not available" ) or SRA_ReplyDetail( selection, statementTypeName ),
 					callback = function() handler.OnSelectionButtonClicked(selection.Key); end,
 				} );
 				-- End ScreenReaderAccess change
@@ -678,25 +707,36 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 	Controls.LeaderResponseName:SetText(Locale.ToUpper(Locale.Lookup("LOC_DIPLOMACY_DEAL_OTHER_PLAYER_SAYS", leaderDesc)));
 
 	-- Begin ScreenReaderAccess change: say what the leader says, then offer the answers
-	if m_srList ~= nil and kStatement.FromPlayer ~= Game.GetLocalPlayer() then
+	-- (a statement from our own side is only announced when it offers answers: the leader has not spoken yet)
+	if m_srList ~= nil and ( kStatement.FromPlayer ~= Game.GetLocalPlayer() or #m_srSelections > 0 ) then
+		local fromLocal:boolean = ( kStatement.FromPlayer == Game.GetLocalPlayer() );
 		local civName:string = Locale.Lookup( PlayerConfigurations[kStatement.FromPlayer]:GetCivilizationShortDescription() );
 		-- the opening says why the scene opened (statement type of an AI-initiated statement: kudo / warning / deal / denounce ...)
 		-- Initiator is a PLAYER ID (DiplomacyStatementSupport: PlayerManager.IsValid(initiator), IsHuman() -> "HUMAN" else "AI"), not a DiplomacyInitiatorTypes value
 		local aiInitiated:boolean = (kStatement.Initiator ~= nil and PlayerManager.IsValid( kStatement.Initiator ) and not PlayerConfigurations[ kStatement.Initiator ]:IsHuman());
-		print( "DiplomacyOpening: " .. tostring(statementTypeName) .. "/" .. tostring(statementSubTypeName) .. "/" .. tostring(aiInitiated) .. " initiator=" .. tostring(kStatement.Initiator) );
-		local speech:string = DiplomacyText_Opening( Locale.Lookup(leaderDesc), civName, statementTypeName, statementSubTypeName, aiInitiated ) .. CleanTextForSpeech(leaderstr);
-		if reasonStr ~= nil and reasonStr ~= "" then speech = speech .. " " .. CleanTextForSpeech(reasonStr); end
+		print( "DiplomacyOpening: " .. tostring(statementTypeName) .. "/" .. tostring(statementSubTypeName) .. "/" .. tostring(aiInitiated) .. " initiator=" .. tostring(kStatement.Initiator) .. " from=" .. tostring(kStatement.FromPlayer) .. " text=" .. tostring(leaderstr ~= "") .. " answers=" .. #m_srSelections );
+		local said:string = CleanTextForSpeech(leaderstr);
+		if reasonStr ~= nil and reasonStr ~= "" then said = said .. " " .. CleanTextForSpeech(reasonStr); end
+		local speech:string;
+		if fromLocal or CleanTextForSpeech(leaderstr) == "" then
+			-- no words of the leader to read: who waits for the answer
+			local otherID:number = fromLocal and ms_OtherPlayerID or kStatement.FromPlayer;
+			local otherCfg = PlayerConfigurations[ otherID ];
+			speech = Locale.Lookup( otherCfg:GetLeaderName() ) .. " of " .. DiplomacyText_CivWithArticle( Locale.Lookup( otherCfg:GetCivilizationShortDescription() ) ) .. " is waiting for your answer";
+			if not fromLocal and said ~= "" then speech = speech .. ": " .. said; end
+		else
+			speech = DiplomacyText_Opening( Locale.Lookup(leaderDesc), civName, statementTypeName, statementSubTypeName, aiInitiated ) .. said;
+		end
 		m_srList.Reset();
 		if ms_currentViewMode == DEAL_MODE then
 			-- the deal screen (DiplomacyDealView.lua) announces itself a moment after it opens: hand it the statement
-			local statement:string = CleanTextForSpeech(leaderstr);
-			if reasonStr ~= nil and reasonStr ~= "" then statement = statement .. " " .. CleanTextForSpeech(reasonStr); end
-			LuaEvents.SRA_DealStatement( statement );
+			LuaEvents.SRA_DealStatement( said );
 		elseif #m_srSelections > 0 then
 			m_srList.Open( speech );
 		else
 			OutputMessageToScreenReader( speech .. " " .. SRKey( "Escape" ) .. " to close.", true );
 		end
+		m_srStatementSpoken = true;
 	end
 	-- End ScreenReaderAccess change
 end
@@ -2892,7 +2932,13 @@ function OnDiplomacyStatement(fromPlayer : number, toPlayer : number, kVariants 
 			end
 
 			if (handler.ApplyStatement ~= nil) then
-				handler.ApplyStatement(handler, statementTypeName, statementSubTypeName, toPlayer, kVariants);
+				-- Begin ScreenReaderAccess change: whatever happens in there, the player hears the leader (or who waits for the answer) before the answers
+				m_srStatementSpoken = false;
+				print( "DiplomacyStatement: " .. tostring(statementTypeName) .. "/" .. tostring(statementSubTypeName) .. " from=" .. tostring(fromPlayer) .. " to=" .. tostring(toPlayer) .. " session=" .. tostring(kVariants.SessionID) .. " mode=" .. tostring(ms_currentViewMode) );
+				local srOk:boolean, srErr = xpcall( function() handler.ApplyStatement(handler, statementTypeName, statementSubTypeName, toPlayer, kVariants); end, KeyNavErrorHandler );
+				if not srOk then print( "DiplomacyActionView ApplyStatement error: " .. tostring(srErr) ); end
+				if not m_srStatementSpoken then SRA_AnnounceWaiting( statementTypeName ); end
+				-- End ScreenReaderAccess change
 				m_isInHotload = false;	-- If this far (and was hotloading) nothing left to hotload.
 			end
 		end
@@ -3381,6 +3427,7 @@ function Initialize()
 		build = function() return m_srSelections; end,
 		isActive = SRA_ConversationActive,
 		onActivate = SRA_OnConversationActivate,
+		enterGuard = 0.6,		-- a quick Enter right after the scene opened (the end-turn press) must not answer the leader unheard
 	};
 	m_srOverviewList = KeyNavList_Create{
 		wheel = true,		-- the pad wheel: a short menu with fixed directions

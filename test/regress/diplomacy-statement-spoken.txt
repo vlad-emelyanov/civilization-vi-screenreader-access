@@ -1,0 +1,18 @@
+# A diplomacy screen the AI opens at turn end is announced with the leader's words first, then the options; Space on an answer says what it does.
+# covers: **/DiplomacyActionView.lua **/DiplomacyText.lua **/KeyNavList.lua
+# no-share-load: first contact and an open diplomacy session
+load bug-greece-diplo-open-silent
+clear-advisors
+lua GameCore_Tuner Players[0]:GetDiplomacy():SetHasMet(2); Players[2]:GetDiplomacy():SetHasMet(0)
+key Enter -Settle 3500 -Quiet 1500
+expect Peter of Russia sends a delegation: .* 3 options
+expect ^Your delegation is most welcome\. 1 of 3
+key Space -Settle 800
+expect ^Accept\. Send a delegation
+key Down -Settle 600
+expect Our capital is not open to visitors
+key Down -Settle 600
+expect Goodbye, 3 of 3
+key Enter -Settle 3000
+expect Diplomacy closed
+no-lua-errors
