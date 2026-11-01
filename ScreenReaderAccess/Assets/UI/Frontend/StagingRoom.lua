@@ -686,7 +686,7 @@ function OnModStatusUpdated(playerID: number, modState : number, bytesDownloaded
 	else
 		g_PlayerModStatus[playerID] = nil;
 	end
-	KeyNavStaging_OnModStatus(playerID, modState, modsRemaining, modsRequired);	-- ScreenReaderAccess mod
+	pcall(KeyNavStaging_OnModStatus, playerID, modState, modsRemaining, modsRequired);	-- ScreenReaderAccess mod (an error of ours must not stop the row update)
 	UpdatePlayerEntry(playerID);
 
 	--[[ Prototype Mod Status Progress Bars
@@ -3339,8 +3339,7 @@ local KEYNAV_CHAT_HISTORY_MAX:number = 50;
 local m_lastBlocker:string = "";			-- last launch blocker that was spoken
 local m_lastCountdown:number = -1;			-- last countdown value that was looked at
 local m_announceDelay:number = 0;			-- seconds before the arrival announcement
-local m_modRemaining:table = {};			-- player -> mods still to download (only while downloading)
-local m_modReadyLast:table = {};			-- player -> GetModReady as last seen by OnModStatusUpdated
+local m_mods:table = { remaining = {}, readyLast = {} };		-- MPText_ModTrack state: mods still to download per player, last GetModReady
 local m_unreadyPids:table = {};				-- players who just became not ready, announced together
 local m_unreadyDelay:number = 0;
 local m_friendsCheck:number = 0.5;
@@ -3478,8 +3477,8 @@ local function RowText( pid:number )
 	end
 	if active and slot ~= SlotStatus.SS_COMPUTER and not entry.StatusLabel:IsHidden() then
 		local status:string = Clean(entry.StatusLabel:GetText());
-		if m_modRemaining[pid] ~= nil and not cfg:GetModReady() then
-			status = MPText_ModRowStatus(m_modRemaining[pid].remaining, m_modRemaining[pid].required);
+		if m_mods.remaining[pid] ~= nil and not cfg:GetModReady() then
+			status = MPText_ModRowStatus(m_mods.remaining[pid].remaining, m_mods.remaining[pid].required);
 		end
 		if status ~= "" then table.insert(parts, status); end
 	end
@@ -4096,11 +4095,13 @@ local function StatusText()
 		return label..", "..tostring(math.floor(GetCountdownTimeRemaining())).." seconds";
 	end
 	local extra:string = "";
-	local _:number, names:table = HumanSeats();
-	local missing = MPText_MissingHumans(names);
-	if missing ~= nil then extra = ". "..missing; end
-	for pid, info in pairs(m_modRemaining) do
-		if RowVisible(pid) and not PlayerConfigurations[pid]:GetModReady() then
+	if GameConfiguration.IsSavedGame() then		-- in a new game an open required seat is the bad-map-size case, not a missing player
+		local ok, _, names = pcall(HumanSeats);
+		local missing = ok and MPText_MissingHumans(names) or nil;
+		if missing ~= nil then extra = ". "..missing; end
+	end
+	for pid, info in pairs(m_mods.remaining) do
+		if RowVisible(pid) and PlayerConfigurations[pid] ~= nil and not PlayerConfigurations[pid]:GetModReady() then
 			extra = extra..". "..RowName(pid).." is "..MPText_ModRowStatus(info.remaining, info.required);
 		end
 	end
@@ -4256,8 +4257,7 @@ function KeyNavStaging_OnShow()
 	m_lastBlocker = "";
 	m_lastCountdown = -1;
 	m_unreadyPids = {};
-	m_modRemaining = {};
-	m_modReadyLast = {};
+	m_mods = { remaining = {}, readyLast = {} };
 	m_kickPid = nil;
 	m_nav.SetFocus(nil);
 	m_announceDelay = 1.0;
@@ -4321,22 +4321,12 @@ end
 function KeyNavStaging_OnModStatus( pid:number, modState:number, remaining:number, required:number )
 	local cfg:table = PlayerConfigurations[pid];
 	if cfg == nil then return; end
-	local ready:boolean = cfg:GetModReady();
-	if modState == 1 then
-		local last = m_modRemaining[pid];
-		m_modRemaining[pid] = { remaining = remaining, required = required };
-		m_modReadyLast[pid] = false;
-		if MPText_ModStepChanged(last ~= nil and last.remaining or nil, remaining) and not ContextPtr:IsHidden()
-			and pid ~= Network.GetLocalPlayerID() then
-			Say(MPText_ModDownload(PlayerLabel(pid), remaining, required), true);
-		end
+	local kind = MPText_ModTrack(m_mods, pid, modState, remaining, required, cfg:GetModReady());
+	if kind == nil or ContextPtr:IsHidden() or pid == Network.GetLocalPlayerID() then return; end
+	if kind == "download" then
+		Say(MPText_ModDownload(PlayerLabel(pid), remaining, required), true);
 	else
-		local waiting:boolean = m_modRemaining[pid] ~= nil or m_modReadyLast[pid] == false;
-		m_modRemaining[pid] = nil;
-		m_modReadyLast[pid] = ready;
-		if ready and waiting and not ContextPtr:IsHidden() and pid ~= Network.GetLocalPlayerID() then
-			Say(MPText_ModsReady(PlayerLabel(pid)), true);
-		end
+		Say(MPText_ModsReady(PlayerLabel(pid)), true);
 	end
 end
 

@@ -135,3 +135,21 @@ end
 function MPText_StillWaiting()
 	return "Still waiting for the others";
 end
+
+-- Tracks a joiner's mod download. `state` = { remaining = {}, readyLast = {} } kept by the caller (per player id). Call for every
+-- ModStatusUpdated( pid, modState (1 = downloading), remaining, required, ready ). Returns "download" (a new whole step: speak
+-- MPText_ModDownload), "ready" (the player has the mods now: speak MPText_ModsReady, once) or nil.
+function MPText_ModTrack( state:table, pid:number, modState:number, remaining:number, required:number, ready:boolean )
+	if modState == 1 then
+		local last = state.remaining[ pid ];
+		state.remaining[ pid ] = { remaining = remaining, required = required };
+		state.readyLast[ pid ] = false;
+		if MPText_ModStepChanged( last ~= nil and last.remaining or nil, remaining ) then return "download"; end
+		return nil;
+	end
+	local waiting:boolean = state.remaining[ pid ] ~= nil or state.readyLast[ pid ] == false;
+	state.remaining[ pid ] = nil;
+	state.readyLast[ pid ] = ready;
+	if ready and waiting then return "ready"; end
+	return nil;
+end

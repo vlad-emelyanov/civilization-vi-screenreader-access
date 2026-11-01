@@ -22,6 +22,7 @@ local m_chat:table = {};			-- oldest first: { id, text }
 local m_chatId:number = 1;
 local m_timer:table = { remaining = nil, stamp = 0, warned = {} };		-- the last TurnTimerUpdated reading
 local m_list:table;
+local m_waitingTurn:number = -1;		-- the turn "Still waiting for the others" was last said
 
 local function IsNetwork()
 	return GameConfiguration ~= nil and GameConfiguration.IsNetworkMultiplayer();
@@ -195,6 +196,7 @@ end
 function HubMultiplayer.StillWaitingForOthers( droppedID:number )
 	local localID:number = Game.GetLocalPlayer();
 	local me:table = Players[ localID ];
+	-- in simultaneous MP our turn stays active after readying (the action panel says "Waiting for players"): ready = inactive or waiting
 	if me == nil or ( me:IsTurnActive() and not HubAnnounce.IsWaiting() ) then return false; end
 	for _, other in ipairs( PlayerManager.GetAliveMajors() ) do
 		local id:number = other:GetID();
@@ -223,7 +225,8 @@ function HubMultiplayer.OnPlayerDisconnected( playerID:number )
 				HubCore.Announce( MPText_PlayerNotice( PlayerName( playerID ), "ai" ), true, "chat" );
 			end
 			-- our turn is done and another human still has to finish theirs
-			if HubMultiplayer.StillWaitingForOthers( playerID ) then
+			if HubMultiplayer.StillWaitingForOthers( playerID ) and m_waitingTurn ~= Game.GetCurrentGameTurn() then
+				m_waitingTurn = Game.GetCurrentGameTurn();		-- once per turn, however many players drop out in a row
 				HubCore.Announce( MPText_StillWaiting(), true, "chat" );
 			end
 		end );
