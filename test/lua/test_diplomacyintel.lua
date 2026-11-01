@@ -33,6 +33,12 @@ test("relationship: state and total first, reasons by magnitude, grievances last
 	contains(items[6].detail, "Changing by -1 per turn")
 end)
 
+test("relationship: the same reason twice is one line with the sum", function()
+	local items = DiplomacyIntel.BuildItems({ relationship = { state = "Neutral",
+		modifiers = { { score = 3, text = "Unknown Reason" }, { score = 2, text = "Open borders" }, { score = 3, text = "Unknown Reason" } } } })
+	listeq(Texts(items), { "Relationship: Neutral, total plus 8", "Plus 6: Unknown Reason", "Plus 2: Open borders" })
+end)
+
 test("relationship: grievances the other way, none when zero, no total without a score list", function()
 	local items = DiplomacyIntel.BuildItems({ relationship = { state = "Neutral", modifiers = {}, grievances = { direction = "you", total = 15 } } })
 	listeq(Texts(items), { "Relationship: Neutral", "Grievances: you hold 15 against them" })

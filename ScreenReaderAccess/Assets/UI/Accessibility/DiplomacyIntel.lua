@@ -58,9 +58,18 @@ local function RelationshipItems( rel:table )
 	local items:table = {};
 	local mods:table = {};
 	local total:number = 0;
+	local byText:table = {};
 	for i, mod in ipairs( rel.modifiers or {} ) do
-		table.insert( mods, { score = mod.score, text = mod.text, order = i } );
 		total = total + mod.score;
+		-- the same reason twice (two "Unknown Reason" entries of +3): one line with the sum
+		local merged:table = byText[ mod.text ];
+		if merged ~= nil then
+			merged.score = merged.score + mod.score;
+		else
+			merged = { score = mod.score, text = mod.text, order = i };
+			byText[ mod.text ] = merged;
+			table.insert( mods, merged );
+		end
 	end
 	local head:string = "Relationship: " .. rel.state;
 	if rel.modifiers ~= nil and #mods > 0 then head = head .. ", total " .. DiplomacyIntel.Signed( total ); end
