@@ -1,0 +1,7 @@
+turn: 40
+civ: CIVILIZATION_MALI / LEADER_MANSA_MUSA
+profile: -
+purpose: Mali chain turn 40
+mod commit: a457f06
+created: 2026-11-01
+size: 1001 KB

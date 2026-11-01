@@ -1,0 +1,7 @@
+turn: 31
+civ: CIVILIZATION_MALI / LEADER_MANSA_MUSA
+profile: -
+purpose: Mali chain turn 31 (settler en route)
+mod commit: a457f06
+created: 2026-11-01
+size: 953 KB

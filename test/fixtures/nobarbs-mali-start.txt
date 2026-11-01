@@ -1,0 +1,7 @@
+turn: 1
+civ: CIVILIZATION_MALI / LEADER_MANSA_MUSA
+profile: nobarbs-mali
+purpose: fresh 'nobarbs-mali' game at its start (made by civctl newgame)
+mod commit: a457f06
+created: 2026-11-01
+size: 559 KB
