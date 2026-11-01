@@ -192,6 +192,7 @@ local m_sections:table = {
 		{ keys = "Delete",				text = "deal screen, your items: remove the focused item from the deal (controller: LT)" },
 		{ keys = "Left and Right",		text = "world congress: choose option A or B; equals or Shift+Up adds a vote (controller: X), minus removes (controller: LT)" },
 		{ keys = "Up, Down, Home, End and Space",	text = "load screen: nothing is read on its own; Up and Down move through the civilization, era, leader and unique ability paragraphs (controller: D-pad), Home and End first and last, Space (controller: Y) reads the paragraph again" },
+		{ keys = "Space in the leader list",	text = "create game, choose leader: reads the civilization with its unique ability, unit or building and leader ability of the focused leader" },
 		{ keys = "T, N and H",			text = "world congress: T chooses the target of a resolution, N goes forward (controller: RT), H reads the help (controller: View)" },
 	} },
 	{ title = "Controller", entries = {
