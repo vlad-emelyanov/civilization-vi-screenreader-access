@@ -3646,13 +3646,13 @@ local function SRA_OnAvailableActivate( item:table )
 	if m_srSection == 2 or m_srSection == 3 then
 		local items:table = ( m_srSection == 2 ) and SRA_AvailableItems( LOCAL_PLAYER ) or SRA_AvailableItems( OTHER_PLAYER );
 		for i, candidate in ipairs( items ) do
-			if candidate.key == item.key then m_srAvailKeep = { section = m_srSection, key = item.key, index = i }; break; end
+			if candidate.key == item.key then m_srAvailKeep = { section = m_srSection, key = item.key, index = i, time = UI.GetElapsedTime() }; break; end
 		end
 	end
 	local before:table = SRA_DealTexts();
 	m_srBeforeOption = before;
 	item.rec.callback();
-	if SRA_OptionsOpen() then SRA_OpenOptions(); return; end
+	if SRA_OptionsOpen() then m_srAvailKeep = nil; SRA_OpenOptions(); return; end
 	SRA_SpeakChange( before, "Nothing added, it is already in the deal or not possible" );
 end
 
@@ -3900,7 +3900,7 @@ function SRA_RefocusAfterRefresh()
 	-- an item was just added from Your / Their items: the focus stays on it, or moves to the next one when it left the list
 	local keep:table = m_srAvailKeep;
 	m_srAvailKeep = nil;
-	if keep ~= nil and keep.section == m_srSection then
+	if keep ~= nil and keep.section == m_srSection and UI.GetElapsedTime() - ( keep.time or 0 ) < 4 then
 		local items:table = SRA_BuildSection( keep.section );
 		local keys:table = {};
 		for i, candidate in ipairs( items ) do keys[i] = candidate.key; end

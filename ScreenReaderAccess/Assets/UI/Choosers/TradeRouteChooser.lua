@@ -1343,7 +1343,7 @@ local function SRA_PathSurroundings( entry:table, originCity, destCity )
 	end
 	for plotIndex, distance in pairs( near ) do
 		local plot:table = Map.GetPlotByIndex( plotIndex );
-		if plot ~= nil and vis:IsRevealed( plotIndex ) then
+		if plot ~= nil and vis:IsRevealed( plotIndex ) and vis:IsVisible( plotIndex ) then
 			local improvement:number = plot:GetImprovementType();
 			if improvement ~= nil and improvement >= 0 then
 				local row:table = GameInfo.Improvements[ improvement ];
