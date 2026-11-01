@@ -653,7 +653,7 @@ end
 --	every screen outside the hub is covered by that (their close is just "no popup open any more"; no event needed).
 -- ===========================================================================
 local GUARD_WINDOW:number = 1.5;
-HubCore.m_guard = { open = false, closedAt = -100, closedByEnter = false, enterInModeAt = -100, escWarnedAt = -100, enterWarnedAt = -100, readyAt = -100, escDownSeen = false, escSwallow = false, enterHeld = false, enterBlock = false, enterDownAt = -100 };
+HubCore.m_guard = { open = false, closedAt = -100, closedByEnter = false, enterInModeAt = -100, escWarnedAt = -100, enterWarnedAt = -100, readyAt = -100, escDownSeen = false, escSwallow = false, escSwallowAt = -100, enterHeld = false, enterBlock = false, enterDownAt = -100 };
 
 -- Call whenever the "something is open" state may have changed. A close remembers whether Enter in a hub list caused it.
 function HubCore.GuardNote( g:table, now:number, isOpen:boolean )
@@ -703,8 +703,9 @@ function HubCore.EscapeKey( isUp:boolean )
 	local nothingOpen:boolean = not HubCore.IsGamePopupOpen() and UI.GetInterfaceMode() == InterfaceModeTypes.SELECTION;
 	if not isUp then
 		g.escDownSeen = true;
+		if g.escSwallow and now - g.escSwallowAt > 1.0 then g.escSwallow = false; end		-- its KeyUp never came: do not swallow the next press
 		if g.escSwallow then return true; end
-		if nothingOpen and HubCore.GuardEscapeBlocks( g, now ) then g.escSwallow = true; return true; end
+		if nothingOpen and HubCore.GuardEscapeBlocks( g, now ) then g.escSwallow, g.escSwallowAt = true, now; return true; end
 		return false;
 	end
 	local seen:boolean = g.escDownSeen;

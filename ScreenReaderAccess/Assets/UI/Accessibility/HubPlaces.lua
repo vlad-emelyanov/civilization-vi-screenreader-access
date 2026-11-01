@@ -298,15 +298,16 @@ local function CityItems( ctx:table )
 end
 
 -- ---------------------------------------------------------------------------
---	IDLE CIVILIANS: Builders, Settlers, Traders and great people that were put to sleep, fortified or told to skip the turn and
+--	IDLE CIVILIANS: Builders, Settlers, Traders and great people that were put to sleep or fortified and
 --	then forgotten. They form the group "Idle" at the start of Your units (and are not listed again under their type). The
 --	turns they have been idle are known from fortify turns, else from the first turn start at which the hub saw the unit idle
 --	(lost on a load: no number then).
 -- ---------------------------------------------------------------------------
 HubPlaces.m_idleSince = {};		-- unit id -> game turn at which the hub first saw it idle
-local IDLE_ACTIVITIES		:table = { ["sleeping"] = true, ["turn skipped"] = true, ["fortified"] = true, ["on alert"] = true };
+local IDLE_ACTIVITIES		:table = { ["sleeping"] = true, ["fortified"] = true, ["on alert"] = true };
 local IDLE_HINT_EVERY		:number = 10;		-- turns between the turn-start hints
 HubPlaces.m_idleHintTurn = -100;
+HubPlaces.m_traderWait = {};		-- trader id -> game turn at which the hub first saw it without orders (idle only from the next turn on)
 
 -- Pure: does this activity word (HubPlaces.UnitActivity) make a civilian idle? A Trader that needs orders has no route either.
 function HubPlaces.IsIdleActivity( activity:string, isTrader:boolean )
@@ -354,6 +355,10 @@ function HubPlaces.IdleActivity( unit:table )
 	end
 	if not isCivilian then return nil; end
 	local activity:string = HubPlaces.UnitActivity( unit, true );
+	if isTrader and activity == "needs orders" then
+		local since:number = HubPlaces.m_traderWait[ unit:GetID() ];
+		if since == nil or since >= Game.GetCurrentGameTurn() then return nil; end		-- it arrived this turn
+	end
 	if HubPlaces.IsIdleActivity( activity, isTrader ) then return activity; end
 	return nil;
 end
@@ -363,7 +368,14 @@ function HubPlaces.TrackIdle()
 	local player:table = LocalPlayer();
 	if player == nil then return; end
 	local turn:number = Game.GetCurrentGameTurn();
-	local seen:table = {};
+	local seen:table, waiting:table = {}, {};
+	for _, unit in player:GetUnits():Members() do
+		local row:table = GameInfo.Units[ unit:GetUnitType() ];
+		if row ~= nil and row.MakeTradeRoute == true and HubPlaces.UnitActivity( unit, true ) == "needs orders" then
+			waiting[ unit:GetID() ] = HubPlaces.m_traderWait[ unit:GetID() ] or turn;
+		end
+	end
+	HubPlaces.m_traderWait = waiting;
 	for _, unit in player:GetUnits():Members() do
 		local ok:boolean, activity = pcall( HubPlaces.IdleActivity, unit );
 		if ok and activity ~= nil then
@@ -378,6 +390,7 @@ function HubPlaces.OnTurnStart()
 	local turn:number = Game.GetCurrentGameTurn();
 	HubPlaces.TrackIdle();
 	if turn - HubPlaces.m_idleHintTurn < IDLE_HINT_EVERY then return; end
+	HubPlaces.m_idleHintTurn = turn;		-- the check (a scan per builder) runs once per 10 turns, found something or not
 	local names:table = {};
 	for _, unit in LocalPlayer():GetUnits():Members() do
 		if HubPlaces.m_idleSince[ unit:GetID() ] ~= nil and BuildScan_Improvements( unit ) ~= nil
@@ -386,7 +399,6 @@ function HubPlaces.OnTurnStart()
 		end
 	end
 	if #names == 0 then return; end
-	HubPlaces.m_idleHintTurn = turn;
 	HubCore.Announce( HubPlaces.IdleHintText( names, HubCore.KeyHint( "KeyNavPlaces", "J", "LB" ) ), true, "turn" );
 end
 

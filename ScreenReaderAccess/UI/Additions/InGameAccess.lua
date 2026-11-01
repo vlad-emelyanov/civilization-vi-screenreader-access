@@ -126,7 +126,7 @@ function Hub.HandleInput( input:table )
 	end
 	if HubCore.m_mode ~= nil then
 		if input:GetKey() == Keys.VK_RETURN then HubCore.m_guard.enterInModeAt = UI.GetElapsedTime(); end		-- a list closing by Enter: the next Enter must not end the turn
-		if input:GetKey() == Keys.VK_ESCAPE and msg == KeyEvents.KeyDown then HubCore.m_guard.escDownSeen = true; end
+		if input:GetKey() == Keys.VK_ESCAPE then HubCore.m_guard.escDownSeen = ( msg == KeyEvents.KeyDown ); end		-- the KeyUp ends the press, however the list reacted
 		local consumed:boolean = HubCore.m_mode.list.HandleInput( input );
 		HubCore.GuardPoll();
 		return consumed;
