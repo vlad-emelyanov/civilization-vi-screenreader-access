@@ -1322,6 +1322,8 @@ function SRA_HandleInput( input:table )
 			if action ~= nil then
 				local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
 				if not ok then print( "EspionageChooser error: " .. tostring( err ) ); end
+			elseif SRA_IsPromoteKey( input ) and SRA_SayPromoteBlocked() then
+				-- said why the promotion list does not open
 			else
 				SRA_SayUnhandled( input );		-- Tab, F7 ...: never silent
 			end
