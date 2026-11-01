@@ -1716,17 +1716,10 @@ function HubPlaces.OpenSend( place:table )
 	HubCore.OpenMode( "send", m_sendList, place.title or ( "Send a unit to " .. place.name ) );
 end
 
--- Shift+M (KeyNavSendHere): the send list for the map cursor's plot, any tile. Named by the city, the visible foreign
--- unit (a capturable civilian of an enemy opens the capture list: military units only) or the terrain; an unexplored tile
--- is allowed (Move To works into the fog).
-function HubPlaces.SendHere()
-	if not HubTargets.CanOpenMode() then return; end
-	local x:number, y:number = HubCursor.GetCursor();
-	local plot:table = Map.GetPlot( x, y );
-	if plot == nil then
-		OutputMessageToScreenReader( "Edge of the map" );
-		return;
-	end
+-- The spoken name of a plot as a send target: the city, the visible foreign unit (capture = a capturable civilian of an enemy), else the terrain
+-- ("grassland tile", "plains with forest tile"); "unexplored tile" when unseen.
+function HubPlaces.PlotPlaceName( plot:table )
+	local x:number, y:number = plot:GetX(), plot:GetY();
 	local name:string = "unexplored tile";
 	local capture:boolean = false;
 	if PlotDescription_GetVisibility( plot ) ~= "unexplored" then
@@ -1764,6 +1757,21 @@ function HubPlaces.SendHere()
 			name = table.concat( parts, " " ) .. " tile";
 		end
 	end
+	return name, capture;
+end
+
+-- Shift+M (KeyNavSendHere): the send list for the map cursor's plot, any tile. Named by the city, the visible foreign
+-- unit (a capturable civilian of an enemy opens the capture list: military units only) or the terrain; an unexplored tile
+-- is allowed (Move To works into the fog).
+function HubPlaces.SendHere()
+	if not HubTargets.CanOpenMode() then return; end
+	local x:number, y:number = HubCursor.GetCursor();
+	local plot:table = Map.GetPlot( x, y );
+	if plot == nil then
+		OutputMessageToScreenReader( "Edge of the map" );
+		return;
+	end
+	local name:string, capture:boolean = HubPlaces.PlotPlaceName( plot );
 	HubPlaces.OpenSend( { name = name, x = x, y = y, key = "cursor:" .. plot:GetIndex(), capture = capture, escort = false,
 		unexplored = ( PlotDescription_GetVisibility( plot ) == "unexplored" ),
 		title = "Send a unit to " .. name } );

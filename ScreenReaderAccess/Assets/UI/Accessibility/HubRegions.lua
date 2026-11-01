@@ -196,7 +196,11 @@ local function SendUnitToNotification()
 			if item.note.x < 0 or item.note.y < 0 then
 				OutputMessageToScreenReader( "This notification has no place on the map" );
 			else
-				HubPlaces.OpenSend( { name = item.text, x = item.note.x, y = item.note.y, back = "notifications" } );
+				-- named by the place (the city, the unit or the terrain there), not by the notification's title
+				local plot:table = Map.GetPlot( item.note.x, item.note.y );
+				local placeName:string = item.text;
+				if plot ~= nil then placeName = HubPlaces.PlotPlaceName( plot ); end
+				HubPlaces.OpenSend( { name = placeName, x = item.note.x, y = item.note.y, back = "notifications" } );
 			end
 			return;
 		end

@@ -1,0 +1,14 @@
+# M on a notification names the place (the tile or city), not the notification title (fixture bug-send-list-cannot-reach, "Tribal Village Discovered").
+# covers: **/HubRegions.lua **/HubPlaces.lua
+# no-share-load: opens lists
+load bug-send-list-cannot-reach
+action KeyNavNotifications -Settle 2000
+expect ^Notifications, \d+ options
+key Down -Count 2 -Settle 500
+expect ^Tribal Village Discovered
+key M -Settle 1500
+expect ^Send a unit to .* tile, \d+ options
+expect-not Tribal Village Discovered, \d+ options
+key Escape -Settle 800
+key Escape -Settle 800
+no-lua-errors
