@@ -1,11 +1,12 @@
 # Written blind (2026-10-29, not yet verified in game; run with --record first). Controller mode in a hub list: the D-pad up / down (the console app sends Home / End) move ONE item
 # like the stick, the keyboard's Home / End (after F23) still jump to the first / last. The Screens list of the ring is the list (Tech tree, Civics tree, Government, ... Civilopedia).
-# From the bare map LB opens Places (the last list), a second LB (Places is on its first category) goes on to Screens.
+# From the bare map LB opens Empire (the last list), a second LB Places, a third LB (Places is on its first category) goes on to Screens.
 # covers: **/KeyNavList.lua **/Gamepad.lua **/HubScreens.lua **/HubGamepad.lua **/HubPad.lua
 # shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
 key F22 -Settle 800
+key F14 -Settle 1500
 key F14 -Settle 1500
 key F14 -Settle 1500
 expect (?i)^Screens

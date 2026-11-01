@@ -17,6 +17,7 @@ HubPad.RING = {
 	{ name = "Diplomacy",		mode = "civ",			module = "HubMenus",	open = function() HubMenus.OpenCivMenu(); end },
 	{ name = "Screens",			mode = "screens",		module = "HubScreens",	open = function() HubScreens.Open(); end },
 	{ name = "Places",			mode = "places",		module = "HubPlaces",	open = function() HubPlaces.Open( nil ); end },
+	{ name = "Empire",			mode = "empire",		module = "HubEmpire",	open = function() HubEmpire.Open(); end },
 };
 
 -- Pure: the index of the ring entry to open. From a ring member: the next (step +1) or previous (-1), wrapping. From
@@ -64,6 +65,7 @@ local function ModuleExists( name:string )
 	if name == "HubMenus" then return HubMenus ~= nil; end
 	if name == "HubScreens" then return HubScreens ~= nil; end
 	if name == "HubPlaces" then return HubPlaces ~= nil; end
+	if name == "HubEmpire" then return HubEmpire ~= nil; end
 	return false;
 end
 

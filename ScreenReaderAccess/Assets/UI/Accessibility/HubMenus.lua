@@ -344,6 +344,8 @@ local function StandingValues( playerId:number )
 	return vals;
 end
 
+HubMenus.StandingValues = StandingValues;		-- the empire overview (HubEmpire) reads the same ribbon numbers
+
 -- Known civs (you first, then the met majors), for the V list and the Control+R standing line
 local function BuildStandingEntries()
 	local entries:table = {};

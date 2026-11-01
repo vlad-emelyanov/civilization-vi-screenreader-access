@@ -1455,6 +1455,12 @@ function HubPlaces.Open( restore:table )
 	end
 	m_data = { cats = cats, ctx = MakeContext(), gone = goneText };
 	m_cat = 1;
+	if restore ~= nil and restore.catName ~= nil then
+		-- by name (the empire overview opens Your units): the index depends on which categories exist
+		for i, cat in ipairs( cats ) do
+			if cat.name == restore.catName then restore = { cat = i, key = restore.key }; break; end
+		end
+	end
 	if restore ~= nil and cats[ restore.cat ] ~= nil then
 		m_cat = restore.cat;
 		m_data.focusKey = restore.key;

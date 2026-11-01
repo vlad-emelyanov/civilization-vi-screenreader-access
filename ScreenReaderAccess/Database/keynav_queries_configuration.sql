@@ -79,3 +79,5 @@ INSERT INTO "InputActions" VALUES ('KeyNavChat','Chat','Multiplayer games: open 
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavChat',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_T');
 INSERT INTO "InputActions" VALUES ('KeyNavMapPin','Map pin','Put a named map pin on the map cursor tile (a bookmark), or rename or delete the pin that is already there','GLOBAL','World','PC');
 INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavMapPin',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_P');
+INSERT INTO "InputActions" VALUES ('KeyNavEmpire','Empire overview','Open a keyboard list that takes stock of the empire: what needs attention, cities, units, victory progress, standing','GLOBAL','World','PC');
+INSERT INTO "InputActionDefaultGestures" VALUES ('KeyNavEmpire',0,'KBMouse','LOC_OPTIONS_KEY_CONTROL+LOC_OPTIONS_KEY_SHIFT+LOC_OPTIONS_KEY_I');

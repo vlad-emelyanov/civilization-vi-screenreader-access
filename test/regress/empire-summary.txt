@@ -1,0 +1,33 @@
+# Blind-written, never run in game (pt-nobarbs-t129, Rome at war with the Ottomans): Control+Shift+I opens the empire overview. Opening line counts attention, cities and units; Page Down walks the five groups (Needs attention, Cities, Units, Victories, Standing); Space on a city reads its summary; Enter on a city opens its city report; Escape closes. Needs a build + restart first (new input action, new files). Record the real lines with: python util/civregress.py empire-summary --record
+# covers: **/HubEmpire.lua **/EmpireText.lua **/HubPad.lua **/HubPlaces.lua **/HubMenus.lua **/HubCityReport.lua **/CityReportGather.lua **/CityReportData.lua UI/Additions/InGameAccess.lua Database/keynav_queries_configuration.sql
+load pt-nobarbs-t129
+clear-advisors
+action KeyNavEmpire -Settle 3000
+expect ^Empire, (\d+ needs? attention|nothing urgent), \d+ cit(y|ies)
+expect ^Needs attention, \d+: .*, 1 of \d+
+key Down -Settle 800
+expect \d+ of \d+$
+key PageDown -Settle 800
+expect ^Cities, \d+: .*population \d+.*, \d+ of \d+$
+key Space -Settle 800
+expect Yields: food
+key PageDown -Settle 800
+expect ^Units, \d+: 
+key PageDown -Settle 800
+expect ^Victories, \d+: (Science|Culture|Domination|Religion|Diplomatic|Score)
+key Down -Settle 800
+expect ^(Science|Culture|Domination|Religion|Diplomatic|Score): 
+key Space -Settle 800
+expect ^(Ranking: 1\.|No ranking)
+key PageDown -Settle 800
+expect ^Standing, \d+: (At war with|At peace with|You have not met)
+key PageUp -Settle 800
+expect ^Victories, \d+: 
+key PageUp -Settle 800
+key PageUp -Settle 800
+expect ^Cities, \d+: 
+key Enter -Settle 3000
+expect report, \d+ options
+key Escape -Settle 1000
+expect ^Closed
+no-lua-errors
