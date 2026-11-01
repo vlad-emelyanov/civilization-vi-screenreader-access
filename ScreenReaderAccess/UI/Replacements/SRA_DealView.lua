@@ -3552,9 +3552,21 @@ end
 
 -- Left / Right in the deal section: the amount of a gold, resource or favor item, through the game's own
 -- value edit (the edit box text and OnValueEditButton, what the popup's OK button does).
+local m_srAmountKey = nil;		-- identity (rec.key) of the item whose amount was changed last: the deal refresh forgets the list focus, Left / Right go on with it
+
 local function SRA_ChangeAmount( delta:number )
 	local item:table = SRA_FocusedItem( 1 );
+	if item == nil and m_srAmountKey ~= nil then
+		for _, candidate in ipairs( SRA_DealItems() ) do
+			if candidate.rec ~= nil and candidate.rec.key == m_srAmountKey then
+				item = candidate;
+				m_srLists[1].Open( SRA_SECTIONS[1], candidate.key, true );		-- silent: only puts the focus back
+				break;
+			end
+		end
+	end
 	if item == nil or item.rec == nil then SRA_Say( "Select an item first" ); return; end
+	m_srAmountKey = item.rec.key;
 	local rec:table = item.rec;
 	if SRA_IsDemandToUs() then SRA_Say( "You can't change a demand made to you" ); return; end
 	if not rec.editable then SRA_Say( "This item has no amount to change" ); return; end

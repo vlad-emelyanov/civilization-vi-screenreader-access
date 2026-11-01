@@ -1,0 +1,24 @@
+# Left / Right on a gold-per-turn item in the Deal section: the second press still changes the amount (the deal refresh forgot the focus: "Select an item first").
+# covers: **/SRA_DealView.lua
+# no-share-load: opens a deal
+load bug-deal-accept-contradiction
+clear-advisors
+action KeyNavDiplomacy -Settle 2500
+key Down -Settle 600
+key Enter -Settle 2500
+key Down -Count 4 -Settle 400
+expect ^Make Deal
+key Enter -Settle 3500
+key Tab -Count 2 -Settle 800
+key Down -Count 2 -Settle 500
+expect ^Gold per turn
+key Enter -Settle 3000
+expect ^Added: They give: 10 gold per turn
+key Tab -Count 2 -Settle 800
+key Left -Settle 1500
+expect ^9 gold per turn
+key Left -Settle 1500
+expect ^8 gold per turn
+expect-not Select an item first
+key Escape -Settle 1500
+no-lua-errors
