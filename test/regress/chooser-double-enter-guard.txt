@@ -1,14 +1,14 @@
-# A quick second Enter right after a chooser opens (Research, Civics, Pantheon) does not pick the first entry. UNVERIFIED (blind-written): run once with `python util/civregress.py chooser-double-enter-guard --record`.
+# A quick second Enter right after the Research or Civics chooser opens does not pick the first entry.
 # covers: **/ResearchChooser.lua **/CivicsChooser.lua **/PantheonChooser.lua **/KeyNavList.lua
 # no-share-load: opens choosers
 load pt-greece-t30
 clear-advisors
-lua InGame LuaEvents.ResearchChooser_RaiseChooser()
+lua InGame LuaEvents.ActionPanel_OpenChooseResearch()
 wait Choose research -Timeout 8
 key Enter -Settle 100
 expect-not ^Researching
 key Escape -Settle 1000
-lua InGame LuaEvents.CivicsChooser_RaiseChooser()
+lua InGame LuaEvents.ActionPanel_OpenChooseCivic()
 wait Choose -Timeout 8
 key Enter -Settle 100
 expect-not ^(Researching|Civic chosen)
