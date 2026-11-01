@@ -209,6 +209,11 @@ function HubAnnounce.UnitText( unit:table )
 			end
 		end
 	end
+	-- a unit picked from the places list that has no orders: the best single hint, once per pass through the list
+	if HubPlaces ~= nil and HubPlaces.UnitActivity( unit, false ) == nil and HubPlaces.TakeCancelHint( unit ) then
+		local hint:string = HubPlaces.NeedsOrdersHint( unit );
+		if hint ~= nil then return table.concat( parts, ", " ) .. ". " .. hint; end
+	end
 	return table.concat( parts, ", " );
 end
 

@@ -918,3 +918,9 @@ test("SendRemaining: an attack party takes its members with it, a member takes t
 	kept = HubPlaces.SendRemaining({ party, a, b, c }, b)
 	eq(#kept, 2); eq(kept[1].key, "s:1")
 end)
+
+test("NeedsOrdersText: the best single hint with the current keys", function()
+	eq(HubPlaces.NeedsOrdersText("D", "Z", "Tab"), "D fortifies, Z sleeps, Tab for all actions")
+	eq(HubPlaces.NeedsOrdersText(nil, "Z", "Tab"), "Z sleeps, Tab for all actions")
+	eq(HubPlaces.NeedsOrdersText(nil, nil, "Tab"), "Tab for all actions")
+end)

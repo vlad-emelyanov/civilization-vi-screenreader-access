@@ -1,0 +1,20 @@
+# Your units: a great person with no job now (Rembrandt: the art tiles hold other civilians) is not in the Idle group; Enter on a unit that needs
+# orders says its best single hint once (fixture bug-great-person-no-reachable-tile).
+# covers: **/HubPlaces.lua **/HubAnnounce.lua
+# no-share-load: selects units
+load bug-great-person-no-reachable-tile
+action KeyNavPlaces -Settle 2000
+key Tab -Settle 600
+expect ^Your units, 2 of \d+ categories
+key Down -Settle 500
+expect ^Rembrandt van Rijn, sleeping, .*13 of 18
+expect-not in Idle
+key Up -Settle 500
+expect ^Pike and Shot, needs orders
+key Enter -Settle 1500
+expect ^Pike and Shot, .* moves.*(fortifies|sleeps|Tab for all actions)
+action KeyNavPlaces -Settle 2000
+key Tab -Settle 600
+key Enter -Settle 1500
+expect-not (fortifies|sleeps|for all actions)
+no-lua-errors

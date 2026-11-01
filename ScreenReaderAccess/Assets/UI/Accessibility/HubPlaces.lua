@@ -232,6 +232,32 @@ function HubPlaces.OrderHint( unit:table )
 	return "Any order replaces it, " .. SRKey( "Tab" ) .. " for actions";
 end
 
+-- Pure: "D fortifies, Z sleeps, Tab for all actions" from the key texts (a nil key leaves its part out).
+function HubPlaces.NeedsOrdersText( fortifyKey:string, sleepKey:string, tabKey:string )
+	local parts:table = {};
+	if fortifyKey ~= nil then table.insert( parts, fortifyKey .. " fortifies" ); end
+	if sleepKey ~= nil then table.insert( parts, sleepKey .. " sleeps" ); end
+	table.insert( parts, tabKey .. " for all actions" );
+	return table.concat( parts, ", " );
+end
+
+HubPlaces.m_orderHintTurn = -1;		-- the game turn in which the needs-orders hint was said (once per turn: picking the units one after the other)
+
+-- The best single hint for a unit picked from the places list that needs orders ("D fortifies, Z sleeps, Tab for all actions", with the
+-- current bindings), said once per turn; nil for a unit with nothing to decide, or after the first time.
+function HubPlaces.NeedsOrdersHint( unit:table )
+	if HubPlaces.m_orderHintTurn == Game.GetCurrentGameTurn() or unit == nil or unit:GetMovesRemaining() <= 0 then return nil; end
+	-- Fortify and Sleep are unit operations (verified with CanStartOperation on a Cuirassier: Fortify true, Sleep false)
+	local function Can( operationType:string )
+		local row:table = GameInfo.UnitOperations[ operationType ];
+		if row == nil then return false; end
+		local ok:boolean, can = pcall( UnitManager.CanStartOperation, unit, row.Hash, nil, nil, true );
+		return ok and can == true;
+	end
+	HubPlaces.m_orderHintTurn = Game.GetCurrentGameTurn();
+	return HubPlaces.NeedsOrdersText( Can( "UNITOPERATION_FORTIFY" ) and HubCore.KeyHint( "Fortify", "D" ) or nil, Can( "UNITOPERATION_SLEEP" ) and HubCore.KeyHint( "Sleep", "Z" ) or nil, SRKey( "Tab" ) );
+end
+
 -- ===========================================================================
 --	THE CATEGORIES
 -- ===========================================================================
@@ -343,18 +369,44 @@ function HubPlaces.UnitItemLess( a:table, b:table )
 	return a.unitId < b.unitId;
 end
 
+-- Does the game have a job for this great person now? False when its action needs a tile and no qualifying tile exists or can be
+-- reached (no free slot, the tiles lie in foreign land ...): such a person waits for something to change, it is not forgotten idle.
+-- True for one that works anywhere or when HubSettle cannot tell.
+function HubPlaces.GreatPersonHasJob( unit:table )
+	if HubSettle == nil or HubSettle.ActivationPlots == nil then return true; end
+	local a:table = HubSettle.ActivationPlots( unit );
+	if a == nil then return true; end
+	local ux:number, uy:number = unit:GetX(), unit:GetY();
+	local checked:number = 0;
+	for _, index in ipairs( a.plots ) do
+		local plot:table = Map.GetPlotByIndex( index );
+		if plot ~= nil then
+			if plot:GetX() == ux and plot:GetY() == uy then return true; end
+			if checked < 30 then
+				checked = checked + 1;
+				local path:table = UnitManager.GetMoveToPathEx( unit, index );
+				if path ~= nil and path.plots ~= nil and #path.plots >= 2 then return true; end
+			end
+		end
+	end
+	return false;
+end
+
 -- The activity word when this unit of ours is an idle civilian, else nil.
 function HubPlaces.IdleActivity( unit:table )
 	local row:table = GameInfo.Units[ unit:GetUnitType() ];
 	if row == nil then return nil; end
 	local isTrader:boolean = row.MakeTradeRoute == true;
 	local isCivilian:boolean = isTrader or HubCore.IsSettler( unit ) or BuildScan_Improvements( unit ) ~= nil;
+	local isGreatPerson:boolean = false;
 	if not isCivilian then
 		local gp = unit:GetGreatPerson();
-		isCivilian = gp ~= nil and ( gp:GetIndividual() or -1 ) >= 0;
+		isGreatPerson = gp ~= nil and ( gp:GetIndividual() or -1 ) >= 0;
+		isCivilian = isGreatPerson;
 	end
 	if not isCivilian then return nil; end
 	local activity:string = HubPlaces.UnitActivity( unit, true );
+	if isGreatPerson and HubPlaces.IsIdleActivity( activity, false ) and not HubPlaces.GreatPersonHasJob( unit ) then return nil; end
 	if isTrader and activity == "needs orders" then
 		local since:number = HubPlaces.m_traderWait[ unit:GetID() ];
 		if since == nil or since >= Game.GetCurrentGameTurn() then return nil; end		-- it arrived this turn
