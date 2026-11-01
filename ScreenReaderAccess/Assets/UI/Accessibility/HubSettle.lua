@@ -843,8 +843,8 @@ end
 -- Why the builder's tile browser would be empty ("No tile to improve near Knossos", also "has no moves left"), nil when it has tiles.
 -- Uses the scan cache (no rescan), so it is cheap enough for the actions menu.
 function HubSettle.NothingToImproveReason( unit:table )
-	if unit:GetMovesRemaining() <= 0 then return Locale.Lookup( unit:GetName() ) .. " has no moves left"; end
 	local ok:boolean, reason = pcall( function()
+		if unit:GetMovesRemaining() <= 0 then return Locale.Lookup( unit:GetName() ) .. " has no moves left"; end
 		local cities:table = BuildScan_Cities( unit );
 		if #cities == 0 then return "No city to improve tiles for"; end
 		for _, entry in ipairs( cities ) do
