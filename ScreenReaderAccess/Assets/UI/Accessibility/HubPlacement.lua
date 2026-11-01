@@ -98,7 +98,9 @@ local function PlacementDetail( c:table )
 		text = text .. ". No adjacency bonus";
 	end
 	if #c.removes > 0 then
-		text = text .. ". " .. string.upper( string.sub( c.lossText or "", 1, 1 ) ) .. string.sub( c.lossText or "", 2 );
+		local loss:string = c.lossText;
+		if loss == nil or loss == "" then loss = "removes " .. table.concat( c.removes, " and " ); end
+		text = text .. ". " .. string.upper( string.sub( loss, 1, 1 ) ) .. string.sub( loss, 2 );
 		if c.tileYields ~= nil and c.tileYields ~= "" then text = text .. ". The tile gives " .. c.tileYields .. " now"; end
 	end
 	for _, note in ipairs( c.notes ) do text = text .. ". " .. note; end

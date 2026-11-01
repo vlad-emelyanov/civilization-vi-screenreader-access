@@ -80,7 +80,7 @@ test("Loss: a worked Farm on Wheat costs more than any plain tile; the wording n
 	local farm = { improvement = "Farm", resource = "Wheat", rclass = "bonus", worked = true, food = 4 }
 	eq(PlacementScan_Loss(farm, 5), 6)
 	eq(PlacementScan_Loss(farm, 1), 10)		-- a city that barely grows: the food counts again
-	eq(PlacementScan_LossText(farm), "removes Farm on Wheat, worked")
+	eq(PlacementScan_LossText(farm), "removes Farm on Wheat, a citizen works it")
 	eq(PlacementScan_LossText({ improvement = "Lumber Mill", feature = "Woods" }), "removes Lumber Mill on Woods")
 	eq(PlacementScan_LossText({ improvement = "Mine" }), "removes Mine")
 	eq(PlacementScan_LossText({ feature = "Woods", resource = "Deer" }), "removes Woods and Deer")
@@ -115,4 +115,47 @@ test("Sort: wonders prefer the smaller loss among owned tiles", function()
 	PlacementScan_Sort(scan)
 	eq(scan.list[1].plotIndex, 2)
 	eq(scan.list[3].plotIndex, 1)
+end)
+
+-- The real scan: a worked Farm on Wheat and a plain tile with the same adjacency (0). Best is the plain one, the Farm says what it removes.
+test("Scan: wiring - loss, wording and Best through PlacementScan_Scan", function()
+	world:set(3, 3, { owner = 0, improvement = 0, resource = "Wheat", food = 4 })
+	world:set(4, 3, { owner = 0 })
+	GameInfo.Improvements[0] = { Name = "Farm" }
+	GameInfo.Districts = { [9] = { Index = 9, Name = "Neighbourhood", DistrictType = "DISTRICT_NEIGHBORHOOD", OnePerCity = true, Housing = 0 } }
+	GameInfo.AppealHousingChanges = function() return function() return nil end end
+	GameInfo.Yields[0] = { Name = "Food" }
+	GameInfo.Yields[1] = { Name = "Production" }
+	Strings.LOC_DISTRICT_ZONE_WILL_REMOVE_FEATURE = "Will remove the {1_Feature} on this tile."
+	Strings.LOC_DISTRICT_ZONE_WILL_HARVEST_RESOURCE = "Will remove the {1_Resource} on this tile."
+	Strings.LOC_DISTRICT_ZONE_WILL_REMOVE_IMPROVEMENT = "Will remove the {1_Improvement} on this tile."
+	for _, xy in ipairs{ {3, 3}, {4, 3} } do
+		local plot = Map.GetPlot(xy[1], xy[2])
+		local worked = xy[1] == 3
+		function plot:GetWorkerCount() return worked and 1 or 0 end
+		function plot:GetAdjacencyYield() return 0 end
+		function plot:GetAdjacencyBonusTooltip() return "" end
+		function plot:GetAppeal() return 0 end
+	end
+	local farmIndex, plainIndex = Map.GetPlot(3, 3):GetIndex(), Map.GetPlot(4, 3):GetIndex()
+	CityManager = {
+		GetOperationTargets = function() return { plots = { farmIndex, plainIndex } } end,
+		GetCommandTargets = function() return {} end,
+		CanStartOperation = function(_, _, params)
+			if params.x == 3 then return true, { ok = { "Will remove the Wheat on this tile.", "Will remove the Farm on this tile." } } end
+			return true, { ok = {} }
+		end,
+	}
+	UI = UI or {}
+	UI.GetInterfaceModeParameter = function() return nil end
+	local city = { GetX = function() return 5 end, GetY = function() return 5 end, GetID = function() return 1 end, GetOwner = function() return 0 end,
+		GetName = function() return "Lugdunum" end, GetGrowth = function() return { GetFoodSurplus = function() return 1 end } end }
+	local scan = PlacementScan_Scan(city, "district", 9)
+	eq(#scan.list, 2)
+	eq(scan.best.plotIndex, plainIndex)
+	local farm = scan.byIndex[farmIndex]
+	eq(farm.lossText, "removes Farm on Wheat, a citizen works it")
+	eq(farm.loss, 2 + 2 + 2 + 4)		-- improvement, bonus resource, worked, tile food again (surplus 1)
+	eq(farm.tileYields, "4 food, 1 production")
+	eq(scan.byIndex[plainIndex].lossText, "")
 end)

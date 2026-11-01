@@ -37,7 +37,7 @@
 --	citizen works the tile, plus the tile's food again when the city grows by 2 food or less (it can ill afford to lose it).
 --	So a worked Farm on Wheat costs 6 (8 or more in a starving city) and is only "Best" when its adjacency leads every other
 --	tile by more than that; a resource tile never wins a tie against a tile that loses nothing.
---	candidate.loss = number, candidate.lossText = "removes Farm on Wheat, worked" ("" when nothing goes), candidate.tileYields
+--	candidate.loss = number, candidate.lossText = "removes Farm on Wheat, a citizen works it" ("" when nothing goes), candidate.tileYields
 --	= "4 food, 1 production" (what the tile gave, only with a removal).
 -- ===========================================================================
 
@@ -113,7 +113,7 @@ function PlacementScan_Loss( info:table, foodSurplus:number )
 	return loss;
 end
 
--- "removes Farm on Wheat, worked": an improvement is named with what it stands on (the resource, else the feature).
+-- "removes Farm on Wheat, a citizen works it": an improvement is named with what it stands on (the resource, else the feature).
 function PlacementScan_LossText( info:table )
 	local base:table = {};
 	if info.feature ~= nil then table.insert( base, info.feature ); end
@@ -127,7 +127,7 @@ function PlacementScan_LossText( info:table )
 	else
 		return "";
 	end
-	if info.worked then text = text .. ", worked"; end
+	if info.worked then text = text .. ", a citizen works it"; end
 	return text;
 end
 
@@ -295,6 +295,15 @@ local function _MakeCandidate( scan:table, plot:table, owned:boolean )
 		local ok:boolean, cost = pcall( function() return city:GetGold():GetPlotPurchaseCost( plot:GetIndex() ); end );
 		candidate.tileCost = ( ok and cost ~= nil ) and cost or 0;
 		candidate.shortBy = math.max( 0, candidate.tileCost - ( scan.gold or 0 ) );		-- > 0: the purchase cannot be paid now
+	end
+	candidate.loss, candidate.lossText, candidate.tileYields = 0, "", "";
+	if #candidate.removes > 0 then
+		local info:table = _LossInfo( plot, candidate.removes );
+		candidate.loss = PlacementScan_Loss( info, scan.foodSurplus );
+		candidate.lossText = PlacementScan_LossText( info );
+		if candidate.lossText == "" then candidate.lossText = "removes " .. table.concat( candidate.removes, " and " ); end
+		if candidate.loss == 0 then candidate.loss = #candidate.removes; end
+		candidate.tileYields = _TileYields( plot );
 	end
 	return candidate;
 end
