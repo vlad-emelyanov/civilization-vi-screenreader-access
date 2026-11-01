@@ -187,5 +187,14 @@ test("city report resources entry", function()
 	contains(text, "Improved: Wheat (Farm)")
 	contains(text, "Not improved: ")
 	contains(text, "Iron, needs Bronze Working")
-	contains(text, "Wheat, a builder can make a farm now")
+	contains(text, "Wheat, another tile, a builder can make a farm now")
+	local turtles = CityReport_BuildItems({ resources = { improved = { { name = "Turtles", count = 1, improvement = "Fishing Boats", where = { "2 tiles east" } } },
+		needs = {}, possible = { { name = "Fish", count = 1, improvement = "Fishing Boats", where = {} }, { name = "Turtles", count = 1, improvement = "Fishing Boats", where = { "1 tile north" } } } } })
+	for _, item in ipairs(turtles) do
+		if item.key == "resources" then
+			contains(item.text, "Turtles, another tile, a builder can make fishing boats now")
+			contains(item.text, "Fish, a builder can make fishing boats now")
+			contains(item.detail, "Turtles: improved 2 tiles east; not improved 1 tile north")
+		end
+	end
 end)

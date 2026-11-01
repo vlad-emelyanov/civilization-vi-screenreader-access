@@ -549,24 +549,45 @@ end
 
 -- Resources on the city's tiles (G1): d.resources = { improved = { {name, count, improvement} }, needs = { {name, count, need, improvement} },
 -- possible = { {name, count, improvement} } } (ResourceTech_CityResources), nil or all empty: no item.
+-- "a farm", "an oil well", "fishing boats" (a plural improvement name takes no article)
+local function WithArticle( name:string )
+	local lower:string = string.lower( name );
+	if string.find( lower, "s$" ) ~= nil then return lower; end
+	return ( string.find( lower, "^[aeiou]" ) ~= nil and "an " or "a " ) .. lower;
+end
+
 local function ResourcesItem( d:table )
 	local r:table = d.resources;
 	if r == nil then return nil; end
 	local improved:table, notImproved:table = {}, {};
+	local improvedNames:table = {};
+	for _, e in ipairs( r.improved or {} ) do improvedNames[ e.name ] = e; end
+	-- one resource with a tile in each list: the second says it is another tile, the detail says where
+	local function Another( e:table ) return improvedNames[ e.name ] ~= nil and ", another tile" or ""; end
 	for _, e in ipairs( r.improved or {} ) do
 		table.insert( improved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. " (" .. e.improvement .. ")" );
 	end
 	for _, e in ipairs( r.needs or {} ) do
-		table.insert( notImproved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. ", needs " .. e.need );
+		table.insert( notImproved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. Another( e ) .. ", needs " .. e.need );
 	end
 	for _, e in ipairs( r.possible or {} ) do
-		table.insert( notImproved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. ", a builder can make a " .. string.lower( e.improvement ) .. " now" );
+		table.insert( notImproved, ( e.count > 1 and ( e.count .. " " ) or "" ) .. e.name .. Another( e ) .. ", a builder can make " .. WithArticle( e.improvement ) .. " now" );
 	end
 	if #improved == 0 and #notImproved == 0 then return nil; end
 	local text:string = "Resources. Improved: " .. ( #improved > 0 and Join( improved ) or "none" );
 	if #notImproved > 0 then text = text .. ". Not improved: " .. Join( notImproved, "; " ); end
-	return { key = "resources", text = text,
-		detail = "Resource tiles inside the city's borders. A tile that needs a tech or civic can be improved once you have researched it" };
+	local detail:string = "Resource tiles inside the city's borders. A tile that needs a tech or civic can be improved once you have researched it";
+	local where:table = {};
+	for _, list in ipairs( { r.needs or {}, r.possible or {} } ) do
+		for _, e in ipairs( list ) do
+			local twin:table = improvedNames[ e.name ];
+			if twin ~= nil and e.where ~= nil and #e.where > 0 then
+				table.insert( where, e.name .. ": improved " .. Join( twin.where or {} ) .. "; not improved " .. Join( e.where ) );
+			end
+		end
+	end
+	if #where > 0 then detail = Join( where, ". " ) .. ". " .. detail; end
+	return { key = "resources", text = text, detail = detail };
 end
 
 local function TradingPostsItem( d:table )

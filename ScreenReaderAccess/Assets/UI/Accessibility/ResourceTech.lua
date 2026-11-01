@@ -437,26 +437,33 @@ function ResourceTech_CityResources( city:table )
 	local result:table = { improved = {}, needs = {}, possible = {} };
 	if city == nil or Map.GetCityPlots == nil then return result; end
 	local lists:table = { improved = {}, needs = {}, possible = {} };
-	local function Add( bucket:string, key:string, entry:table )
+	local cityPlot:table = Map.GetPlot( city:GetX(), city:GetY() );
+	local function Add( bucket:string, key:string, entry:table, plot:table )
 		local e:table = lists[ bucket ][ key ];
 		if e == nil then
 			e = entry;
 			e.count = 0;
+			e.where = {};
 			lists[ bucket ][ key ] = e;
 			table.insert( result[ bucket ], e );
 		end
 		e.count = e.count + 1;
+		-- where the tile lies (the detail of the city report names it when one resource has tiles in both lists)
+		if PlotDescription_GetRelative ~= nil and cityPlot ~= nil then
+			local relative = PlotDescription_GetRelative( cityPlot, plot );
+			if relative ~= nil then table.insert( e.where, relative ); end
+		end
 	end
 	for _, index in ipairs( Map.GetCityPlots():GetPurchasedPlots( city ) ) do
 		local plot:table = Map.GetPlotByIndex( index );
 		local info:table = ResourceTech_Info( plot );
 		if info ~= nil then
 			if info.status == "improved" then
-				Add( "improved", info.resource, { name = info.resource, improvement = info.improvedWith } );
+				Add( "improved", info.resource, { name = info.resource, improvement = info.improvedWith }, plot );
 			elseif info.status == "needs" then
-				Add( "needs", info.resource .. ":" .. info.need.name, { name = info.resource, need = info.need.name, improvement = info.improvement } );
+				Add( "needs", info.resource .. ":" .. info.need.name, { name = info.resource, need = info.need.name, improvement = info.improvement }, plot );
 			elseif info.status == "possible" then
-				Add( "possible", info.resource, { name = info.resource, improvement = info.improvement } );
+				Add( "possible", info.resource, { name = info.resource, improvement = info.improvement }, plot );
 			end
 		end
 	end
