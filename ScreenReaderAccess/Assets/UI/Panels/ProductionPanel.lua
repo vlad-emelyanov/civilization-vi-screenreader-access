@@ -2583,6 +2583,7 @@ local function SRA_RepairDetail( kItem:table, kind:string )
 	return text;
 end
 
+
 local function SRA_Item( kItem:table, kind:string, section:string, owner:string )
 	local name:string = Locale.Lookup( kItem.Name );
 	if kItem.Repair then name = "Repair " .. name; end		-- a pillaged building or district: the item repairs it
@@ -2881,7 +2882,19 @@ end
 
 -- Repairs on top, then what can be built (bought), then the toggle for the rest (ProductionText_Arrange).
 local function SRA_GetItems()
-	return ProductionText_Arrange( SRA_BuildAllItems(), m_srShowUnavailable, SRA_IsPurchaseMode( m_CurrentListMode ) );
+	local items:table = ProductionText_Arrange( SRA_BuildAllItems(), m_srShowUnavailable, SRA_IsPurchaseMode( m_CurrentListMode ) );
+	-- The game recommends up to three items. "recommended" (and the title's "Recommended: X") is the first one in the list, the others
+	-- say "also recommended": one meaning for the word.
+	local top:boolean = false;
+	for _, item in ipairs( items ) do
+		if item.recommended and item.choosable and item.text ~= nil then
+			if top then
+				item.text = string.gsub( item.text, ", recommended$", ", also recommended" );
+			end
+			top = true;
+		end
+	end
+	return items;
 end
 
 -- Outcome of the last Enter. The game applies requests a moment later, so the announcement is made from the
@@ -2906,7 +2919,8 @@ local function SRA_ResolvePending( fromEvent:boolean )
 		local balance:number = SRA_Balance( pending.yield );
 		if balance >= pending.before then return; end
 		m_srPending = nil;
-		OutputMessageToScreenReader( "Bought " .. pending.name .. ", " .. balance .. ( pending.yield == "YIELD_GOLD" and " gold" or " faith" ) .. " left" .. ( m_srActive and "" or ". Production closed" ) );
+		local unit:string = ( pending.yield == "YIELD_GOLD" and " gold" or " faith" );
+		OutputMessageToScreenReader( "Bought " .. pending.name .. " for " .. ( pending.before - balance ) .. unit .. ", " .. balance .. unit .. " left" .. ( m_srActive and "" or ". Production closed" ) );
 	end
 end
 
@@ -3017,6 +3031,8 @@ local function SRA_EnemyOnRepairTile( city:table, kItem:table, kind:string )
 	return result;
 end
 
+local m_srSpokenLine:table = nil;		-- { key, text } of the item the list spoke last (onFocus)
+
 local function SRA_OnActivate( item:table )
 	if item.toggle then
 		-- the list is rebuilt at the next key; the focus stays on the toggle (same key)
@@ -3035,6 +3051,12 @@ local function SRA_OnActivate( item:table )
 	m_srPending = nil;
 
 	if item.purchase then
+		-- never buy something else than the player last heard: if the line of this item changed since it was spoken (the balance changed), say the new line first
+		if m_srSpokenLine ~= nil and m_srSpokenLine.key == item.key and m_srSpokenLine.text ~= item.text then
+			m_srSpokenLine = { key = item.key, text = item.text };
+			OutputMessageToScreenReader( "Changed: " .. item.text .. ". Enter buys it" );
+			return;
+		end
 		local before:number = SRA_Balance( kItem.Yield );
 		if item.kind == "district" then PurchaseDistrict( city, kItem );
 		elseif item.kind == "building" then PurchaseBuilding( city, kItem );
@@ -3810,6 +3832,7 @@ function Initialize()
 		emptyText = SRA_EmptyText,
 		isActive = function() return m_srActive and not ContextPtr:IsHidden() and m_CurrentListMode ~= -1; end,
 		onActivate = SRA_OnActivate,
+		onFocus = function( item ) m_srSpokenLine = { key = item.key, text = item.text }; end,
 		onClose = SRA_OnClose,
 		sectionCounts = true,		-- "Warrior, in Units, 12 items" when Down enters a group; "Units, 12: Warrior, ..." when PageUp / PageDown enter a group (like the J list)
 		enterGuard = 0.6,		-- a quick second Enter after Next Action must not pick the recommended item

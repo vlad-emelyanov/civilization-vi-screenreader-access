@@ -479,6 +479,9 @@ function HubAnnounce.OnCitySelectionChanged( owner:number, cityID:number, i:numb
 	if city == nil then return; end
 	local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
 	if plot ~= nil then HubCursor.SetCursor( plot:GetX(), plot:GetY(), false ); end
+	-- the production panel re-selects its city while it is open: its list already said which city it is, a city line between two items is noise
+	local panel = ContextPtr:LookUpControl( "/InGame/PartialScreens/ProductionPanel" );
+	if panel ~= nil and not panel:IsHidden() then return; end
 	local parts:table = { Locale.Lookup( city:GetName() ), Locale.Lookup( "LOC_HUD_CITY_POPULATION" ) .. " " .. city:GetPopulation() };
 	local production:string = CityProductionText( city );
 	if production ~= nil then table.insert( parts, production ); end

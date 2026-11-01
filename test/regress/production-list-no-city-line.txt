@@ -1,0 +1,16 @@
+# Down in the production list does not speak a city line ("Aquileia, Population 5, No production ...") between two items; recommended means one thing (the best scored item).
+# covers: **/ProductionPanel.lua **/HubAnnounce.lua
+# no-share-load: opens the production panel
+load bug-prod-ctrltab-silent
+clear-advisors
+key Enter -Settle 2500 -Quiet 1200
+expect Recommended: Bath, 20 options
+expect Repair Bath, district, 1 turn, 15 of 20 production, recommended, 1 of 20
+key Down -Settle 900
+expect ^Water Mill.* 2 of 20
+expect-not Population \d
+key Down -Settle 900
+expect ^Ancient Walls.* 3 of 20
+expect-not (?<!also )recommended
+key Escape -Settle 1000
+no-lua-errors
