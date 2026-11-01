@@ -2841,6 +2841,7 @@ end
 --   Tab switches tabs, Escape goes back / closes the screen. Lists are rebuilt from the screen's data at key time.
 -- ===========================================================================
 local m_srList:table = nil;
+local m_srCatalogHintSaid:boolean = false;	-- the "type a letter" hint was spoken
 local m_srCatalogSlotIndex:number = nil;	-- GC_SlotIndex of the slot a policy is being chosen for (slot tables are rebuilt by RefreshAllData)
 
 local SRA_ROW_NAMES:table = {
@@ -2968,17 +2969,41 @@ local function SRA_SlotItems()
 	return items;
 end
 
+local SRA_SECTION_NAMES:table = {
+	SLOT_MILITARY = "LOC_GOVT_POLICY_TYPE_MILITARY", SLOT_ECONOMIC = "LOC_GOVT_POLICY_TYPE_ECONOMIC",
+	SLOT_DIPLOMATIC = "LOC_GOVT_POLICY_TYPE_DIPLOMATIC", SLOT_WILDCARD = "LOC_GOVT_POLICY_TYPE_WILDCARD",
+};
+
+-- The policies that fit the slot: grouped by policy type (military, economic, diplomatic, great person, wildcard; the groups are the list's
+-- sections, only when the slot takes more than one type), alphabetical by name inside a group. Letters jump by the policy name.
 local function SRA_CatalogItems()
 	local items:table = {};
 	local slot:table = SRA_FindSlot( m_srCatalogSlotIndex );
 	if slot == nil then return items; end
+	local entries:table = {};
+	local slotTypes:table = {};
+	local typeCount:number = 0;
 	for _, policyType in ipairs( m_kPolicyCatalogOrder ) do
 		if m_kUnlockedPolicies[ policyType ] and not IsPolicyTypeActive( policyType ) and IsPolicyTypeLegalInRow( slot.UI_RowIndex, policyType ) then
 			local policy:table = m_kPolicyCatalogData[ policyType ];
-			local text:string = policy.Name .. ": " .. CleanTextForSpeech( policy.Description );
-			if m_kNewPoliciesThisTurn ~= nil and m_kNewPoliciesThisTurn[ policyType ] then text = text .. ", new"; end
-			table.insert( items, { key = "policy:" .. policyType, kind = "policy", policyType = policyType, text = text, detail = text } );
+			table.insert( entries, { policyType = policyType, policy = policy, order = SLOT_ORDER_IN_CATALOG[ policy.SlotType ] or 99, lower = string.lower( policy.Name ) } );
+			if slotTypes[ policy.SlotType ] == nil then slotTypes[ policy.SlotType ] = true; typeCount = typeCount + 1; end
 		end
+	end
+	table.sort( entries, function( a, b )
+		if a.order ~= b.order then return a.order < b.order; end
+		if a.lower ~= b.lower then return a.lower < b.lower; end
+		return a.policyType < b.policyType;
+	end );
+	for _, entry in ipairs( entries ) do
+		local policy:table = entry.policy;
+		local text:string = policy.Name .. ": " .. CleanTextForSpeech( policy.Description );
+		if m_kNewPoliciesThisTurn ~= nil and m_kNewPoliciesThisTurn[ entry.policyType ] then text = text .. ", new"; end
+		local section = nil;
+		if typeCount > 1 then
+			section = ( SRA_SECTION_NAMES[ policy.SlotType ] ~= nil ) and Locale.Lookup( SRA_SECTION_NAMES[ policy.SlotType ] ) or "Great person";
+		end
+		table.insert( items, { key = "policy:" .. entry.policyType, kind = "policy", policyType = entry.policyType, text = text, jumpText = policy.Name, detail = text, section = section } );
 	end
 	return items;
 end
@@ -3110,6 +3135,12 @@ local function SRA_OnActivate( item:table )
 		end
 		m_srList.Reset();
 		m_srList.Open( SRA_Cap( item.label ) .. ", choose a policy" .. ( item.policy ~= nil and ( ", replaces " .. item.policy.Name ) or "" ) );
+		if not m_srCatalogHintSaid and count > 6 then
+			-- keyboard users, once per session: the list is long
+			m_srCatalogHintSaid = true;
+			local sections:boolean = SRA_CatalogItems()[1].section ~= nil;
+			OutputMessageToScreenReader( SRKbHint( "Type a letter to jump" .. ( sections and ", Page Up and Page Down change group" or "" ) ), true );
+		end
 	elseif item.kind == "policy" then
 		local slot:table = SRA_FindSlot( m_srCatalogSlotIndex );
 		if slot == nil then
@@ -3123,8 +3154,21 @@ local function SRA_OnActivate( item:table )
 		SRA_RefreshSlots();
 		m_srCatalogSlotIndex = nil;
 		local empty:number = SRA_CountEmptySlots();
-		local message:string = m_kPolicyCatalogData[ item.policyType ].Name .. " in " .. label .. ", " .. ( empty == 0 and "all slots filled, confirm policies" or ( empty .. " empty" ) );
-		m_srList.Focus( empty == 0 and "confirm" or ( "slot:" .. slotIndex ), message );
+		local message:string = m_kPolicyCatalogData[ item.policyType ].Name .. " in " .. label;
+		-- on to the next empty slot (after this one, wrapping), so that Enter opens its catalog at once; none left: Confirm
+		local nextKey:string = "confirm";
+		if empty > 0 then
+			local slotItems:table = SRA_SlotItems();
+			local here:number = 1;
+			for i, other in ipairs( slotItems ) do
+				if other.key == "slot:" .. slotIndex then here = i; break; end
+			end
+			for step = 1, #slotItems do
+				local other:table = slotItems[ ( ( here + step - 1 ) % #slotItems ) + 1 ];
+				if other.kind == "slot" and other.policy == nil then nextKey = other.key; break; end
+			end
+		end
+		m_srList.Focus( nextKey, message );
 	elseif item.kind == "confirm" then
 		OnConfirmPolicies();
 	elseif item.kind == "unlock" then
@@ -3270,6 +3314,7 @@ function Initialize()
 		onClose = SRA_OnClose,
 		extraKeys = { [Keys.VK_DELETE] = SRA_OnDelete, [Gamepad.Key("X")] = SRA_OnDelete, [Keys.VK_TAB] = SRA_OnTab },
 		ctrlKeys = { [Keys.VK_TAB] = SRA_OnTabPrev },
+		letterJump = true,
 	};
 
 	-- Static controls:
