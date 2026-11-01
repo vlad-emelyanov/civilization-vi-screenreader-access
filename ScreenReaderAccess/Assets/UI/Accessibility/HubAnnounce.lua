@@ -639,10 +639,24 @@ function HubAnnounce.AnnounceTurn()
 		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end
 	end		-- what the enemies near us did
 	HubAnnounce.SpeakLoyaltyWarnings();		-- own cities that will flip within a few turns
+	if HubPlaces ~= nil then
+		local okIdle:boolean, errIdle = pcall( HubPlaces.OnTurnStart );		-- sleeping builders, every 10 turns
+		if not okIdle then print( "HubPlaces idle error: " .. tostring( errIdle ) ); end
+	end
 	if HubEvents ~= nil then
 		local ok:boolean, err = pcall( HubEvents.SpeakProductionSwaps );		-- a newer unit replaced the one in production
 		if not ok then print( "HubEvents error: " .. tostring( err ) ); end
 	end
+end
+
+-- A popup is about to speak (the advisor): when the game turn has begun but the local turn line was not said yet (the popup
+-- opened while the AI players still move, before LocalPlayerTurnBegin), "Turn N" comes first and the popup queues behind it.
+function HubAnnounce.OnPopupSpeaks()
+	if not HubCore.m_ready or not HubCore.IsLocalPlayerActive() then return; end
+	local turn:number = Game.GetCurrentGameTurn();
+	if Game.GetLocalPlayer() .. ":" .. turn == HubCore.m_lastAnnouncedTurn then return; end
+	HubCore.Announce( "Turn " .. turn .. ", " .. Calendar.MakeYearStr( turn ), true, "turn" );
+	SRRequestQueueBehind();
 end
 
 -- The selection that happened while the game was loading, said again now that it is ready.
@@ -898,6 +912,11 @@ function HubAnnounce.StartReadyWatchDisarmed()
 	if HubAnnounce.IsReadyNow() then m_ready.armed = false; end
 end
 
+-- UnitOperationStarted / UnitOperationAdded / UnitCommandStarted: a unit of ours got an order.
+function HubAnnounce.NoteUnitOrder( ownerID:number )
+	if ownerID == Game.GetLocalPlayer() then HubCore.m_lastOrderTime = UI.GetElapsedTime(); end
+end
+
 -- Is the turn ready right now (also used when a queued "All done" is released)?
 function HubAnnounce.IsReadyNow()
 	local player:table = Players[ Game.GetLocalPlayer() or -1 ];
@@ -917,9 +936,12 @@ function HubAnnounce.UpdateReadyWatch( deltaTime:number )
 	end
 	-- a district / wonder just placed: its result ("Producing Holy Site") comes first (it is checked up to 1.5 s after the commit)
 	if UI.GetElapsedTime() - HubCore.m_placeCommitTime < PLACE_RESULT_WAIT then m_ready.stable = 0; return; end
+	-- any order of ours just given (Farm, Fortify ...): its result ("Farm built") comes first
+	if UI.GetElapsedTime() - HubCore.m_lastOrderTime < PLACE_RESULT_WAIT then m_ready.stable = 0; return; end
 	m_ready.stable = m_ready.stable + elapsed;
 	if not m_ready.armed or m_ready.stable < READY_STABLE then return; end
 	if HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return; end
 	m_ready.armed = false;
+	HubCore.m_guard.readyAt = UI.GetElapsedTime();
 	HubCore.Announce( "All done. " .. SRKey( "Enter" ) .. " ends the turn", true, "ready" );
 end

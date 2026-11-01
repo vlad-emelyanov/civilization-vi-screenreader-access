@@ -73,7 +73,8 @@ local m_sections:table = {
 		{ action = "LensLoyalty", default = "8", text = "Loyalty lens, the cursor then also reads the loyalty of your cities" },
 		{ action = "LensEmpire", default = "9", text = "Empire lens, the cursor then also reads the usual tile text, only the colours change" },
 		{ action = "LensPower", default = "0", text = "Power lens, the cursor then also reads the usual tile text, only the colours change" },
-		{ keys = "Escape",				text = "with nothing open: the in-game menu" },
+		{ keys = "Escape",				text = "with nothing open: the in-game menu. Pressed within 1.5 seconds of a list or screen closing, it only says \"Nothing open\" first; the next Escape opens the menu" },
+		{ keys = "Enter after a list",	text = "Enter right after a list closed by Enter (Places, notifications ...), when it would end the turn, only says \"Next turn. Enter again ends the turn\"; the next Enter ends it" },
 		{ keys = "Turn start",			text = "after the turn line: what visible enemies near your cities and units did, moved toward or away, new, wounded, out of sight" },
 	} },
 	{ title = "Units", entries = {
@@ -123,7 +124,7 @@ local m_sections:table = {
 		{ action = "KeyNavAreaOverview",	default = "Shift+J",	text = "area overview of the map cursor: a list with the area (terrain, coast, river, luxury and strategic resources within 3 tiles; your city's area when the cursor is in your territory), the continent (tiles known, how far it reaches, cities on it, unexplored edges) and one item per direction (terrain, borders, ocean, first city, how much is unexplored); only explored tiles count; Space repeats, Escape closes" },
 		{ action = "KeyNavSendHere",		default = "Shift+M",	text = "send a unit to the cursor tile (any tile, also unexplored): list of your units that can get there with the turns they need, fastest first; Enter sends the chosen one; Escape closes" },
 		{ keys = "Tab and Control+Tab",	text = "next and previous category (controller: RB and LB; past the last or first category they move on to the next or previous list of the ring)" },
-		{ keys = "Page Up and Page Down",	text = "in Your units: the previous and next unit type (Builder, Warrior ...), spoken with how many there are; controller: hold LB or RB and press up or down" },
+		{ keys = "Page Up and Page Down",	text = "in Your units: the previous and next group (Idle, then the unit types Builder, Warrior ...), spoken with how many there are; controller: hold LB or RB and press up or down. Idle holds the Builders, Settlers, Traders and great people that sleep, are fortified or skip the turn (a Trader without a route too), with the turns when known; Your units is ordered by type and unit, the same every time. Every ten turns a Builder with work to do that sleeps is announced at the turn start" },
 		{ keys = "Space",				text = "read the tile and where it is" },
 		{ keys = "Enter",				text = "cursor there, a unit of yours is selected" },
 		{ keys = "M",					text = "send one of your units there, fastest first (on a threat: soldiers only; on a barbarian camp the first entry sends an attack party, the two fastest military units; a unit that escorts a Builder or Settler never joins the party and is named as skipped, in the plain list it says \"escorting <civilian>\" because sending it drags the civilian along); for a civilian to capture only military land units are offered, moving onto it captures it. On a Settler or Builder in Your units it sends an escort instead: soldiers that can reach it, fastest first; Enter moves one onto its tile, then Shift+E forms the escort" },

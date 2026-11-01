@@ -124,7 +124,13 @@ function Hub.HandleInput( input:table )
 		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
 		if HubSettle ~= nil and HubSettle.OnOtherKey ~= nil then HubSettle.OnOtherKey( input:GetKey() ); end
 	end
-	if HubCore.m_mode ~= nil then return HubCore.m_mode.list.HandleInput( input ); end
+	if HubCore.m_mode ~= nil then
+		if input:GetKey() == Keys.VK_RETURN then HubCore.m_guard.enterInModeAt = UI.GetElapsedTime(); end		-- a list closing by Enter: the next Enter must not end the turn
+		if input:GetKey() == Keys.VK_ESCAPE and msg == KeyEvents.KeyDown then HubCore.m_guard.escDownSeen = true; end
+		local consumed:boolean = HubCore.m_mode.list.HandleInput( input );
+		HubCore.GuardPoll();
+		return consumed;
+	end
 	if input:IsShiftDown() or input:IsControlDown() or input:IsAltDown() then return false; end
 	local key:number = input:GetKey();
 	if HubTargets.GetTargetMode() ~= nil then
@@ -151,6 +157,8 @@ function Hub.HandleInput( input:table )
 		end
 		return false;
 	end
+	-- Escape with nothing open right after a list or screen closed: a warning first (the game menu opens on the next one)
+	if key == Keys.VK_ESCAPE and HubCore.EscapeKey( msg == KeyEvents.KeyUp ) then return true; end
 	-- Just after an attack the end-turn label can flash a governor blocker; Enter would open the Governors screen
 	if key == Keys.VK_RETURN and UI.GetElapsedTime() - HubTargets.attackTime < 5 and Hub.IsGovernorLabel() then
 		if msg == KeyEvents.KeyUp then HubCore.SayResult( "The attack is still resolving, press " .. SRKey( "Enter" ) .. " again in a moment" ); end
@@ -171,6 +179,8 @@ function Hub.HandleInput( input:table )
 		if msg == KeyEvents.KeyUp then HubCore.Safe( "ArmedBuild", HubSettle.RunArmedBuild )(); end
 		return true;
 	end
+	-- Enter that would end the turn right after a list closed by Enter: a warning first
+	if key == Keys.VK_RETURN and not HubCore.IsGamePopupOpen() and HubCore.EnterGuardKey( msg == KeyEvents.KeyUp ) then return true; end
 	-- Enter that would end the turn while a settler or builder stands exposed near a hostile soldier: the first Enter only warns
 	if key == Keys.VK_RETURN and HubEnemies ~= nil and ( HubEnemies.EndTurnKeyPending() or ( not HubCore.IsGamePopupOpen() and HubAnnounce.IsReadyNow() ) ) then
 		if HubEnemies.EndTurnKey( msg == KeyEvents.KeyUp, UI.GetElapsedTime() ) then return true; end
@@ -192,6 +202,8 @@ function Hub.OnUpdate( deltaTime:number )
 	HubMultiplayer.Update( deltaTime );
 	HubPlaces.Update( deltaTime );
 	HubCursor.UpdateMouse( deltaTime );
+	HubCore.m_guard.poll = ( HubCore.m_guard.poll or 0 ) - deltaTime;
+	if HubCore.m_guard.poll <= 0 then HubCore.m_guard.poll = 0.1; HubCore.Safe( "GuardPoll", HubCore.GuardPoll )(); end
 	HubCore.UpdateSpeech( deltaTime );
 	if HubCore.m_arrivalTimer >= 0 then
 		HubCore.m_arrivalTimer = HubCore.m_arrivalTimer - deltaTime;
@@ -349,6 +361,10 @@ function Initialize()
 	HubCore.AddEvent( "InterfaceModeChanged",		HubTargets.OnInterfaceModeChanged );
 	HubCore.AddEvent( "UnitOperationStarted",		HubEvents.OnUnitOperationStarted );
 	HubCore.AddEvent( "UnitOperationAdded",			HubEvents.OnUnitOperationAdded );
+	HubCore.Listen( LuaEvents.SRA_PopupSpeaks, HubCore.Safe( "PopupSpeaks", HubAnnounce.OnPopupSpeaks ) );
+	HubCore.AddEvent( "UnitOperationStarted",		HubAnnounce.NoteUnitOrder );
+	HubCore.AddEvent( "UnitOperationAdded",			HubAnnounce.NoteUnitOrder );
+	HubCore.AddEvent( "UnitCommandStarted",			HubAnnounce.NoteUnitOrder );
 	HubCore.AddEvent( "UnitOperationAdded",			HubPlaces.OnOperationAdded );		-- who is exploring (the places list says so)
 	HubCore.AddEvent( "UnitOperationStarted",		HubPlaces.OnOrderStarted );
 	HubCore.AddEvent( "UnitCommandStarted",			HubPlaces.OnOrderStarted );

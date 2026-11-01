@@ -13,6 +13,7 @@ HubCore.m_mode = nil;		-- the active keyboard mode { name, list, onClose }, see 
 HubCore.m_delayed = {};		-- { time = seconds left, fn = function }
 HubCore.m_enterWatch = -1;		-- >= 0: Enter (Next Action) was pressed; seconds until we check that something was said
 HubCore.m_placeCommitTime = -100;		-- UI.GetElapsedTime() of the last placement commit (its result must outlive the selection that follows)
+HubCore.m_lastOrderTime = -100;		-- UI.GetElapsedTime() of the last order given to a unit of the local player ("All done" waits for its result)
 HubCore.m_lastResultTime = -100;		-- UI.GetElapsedTime() of the last announced result of a player's action
 HubCore.m_repeatTurnLine = nil;		-- { turn, since, quiet } once the turn-start congress results popup closed: say the turn-start line again (HubAnnounce.RepeatTurnStartLine) after 0.5 s without popup
 HubCore.m_turnBegin = { time = -1000, turn = -1 };		-- UI.GetElapsedTime() and game turn when the local player's turn became active
@@ -643,6 +644,94 @@ function HubCore.CloseMode( speak:boolean, quiet:boolean )
 		if not ok then print( "InGameAccess mode close error: " .. tostring( err ) ); end
 	end
 	if speak then OutputMessageToScreenReader( "Closed" ); end
+end
+
+-- ===========================================================================
+--	DOUBLE-KEY GUARDS: Escape right after a list or screen closed would open the game menu, Enter right after a list
+--	closed by Enter would end the turn. Both keys are answered once with a warning; the next press goes through. Pure state
+--	machine on HubCore.m_guard (tests: test_hubguard.lua); the hub polls "is something open" (HubCore.GuardPoll) and
+--	every screen outside the hub is covered by that (their close is just "no popup open any more"; no event needed).
+-- ===========================================================================
+local GUARD_WINDOW:number = 1.5;
+HubCore.m_guard = { open = false, closedAt = -100, closedByEnter = false, enterInModeAt = -100, escWarnedAt = -100, enterWarnedAt = -100, readyAt = -100, escDownSeen = false, escSwallow = false, enterHeld = false, enterBlock = false, enterDownAt = -100 };
+
+-- Call whenever the "something is open" state may have changed. A close remembers whether Enter in a hub list caused it.
+function HubCore.GuardNote( g:table, now:number, isOpen:boolean )
+	if g.open and not isOpen then
+		g.closedAt = now;
+		g.closedByEnter = now - g.enterInModeAt < 0.6;
+	end
+	g.open = isOpen;
+end
+
+-- Escape with nothing open: true = swallow it and warn (once per close).
+function HubCore.GuardEscapeBlocks( g:table, now:number )
+	if now - g.closedAt >= GUARD_WINDOW or g.escWarnedAt >= g.closedAt then return false; end
+	g.escWarnedAt = now;
+	return true;
+end
+
+-- Enter that would end the turn: true = swallow it and warn (once per list close). "All done" spoken since means the
+-- player heard that Enter ends the turn.
+function HubCore.GuardEnterBlocks( g:table, now:number )
+	if not g.closedByEnter then return false; end
+	local at:number = g.closedAt;
+	if now - at >= GUARD_WINDOW or g.enterWarnedAt >= at or g.readyAt > at then return false; end
+	g.enterWarnedAt = now;
+	return true;
+end
+
+-- The advisor popup does not count: it opens and closes on its own (the test harness closes it with a tuner call and presses Escape right after).
+function HubCore.GuardIsOpenNow()
+	if HubCore.m_mode ~= nil or ( HubTargets ~= nil and HubTargets.GetTargetMode() ~= nil ) then return true; end
+	for _, id in ipairs( HubCore.OpenScreenIds() ) do
+		if id ~= "AdvisorPopup" then return true; end
+	end
+	return false;
+end
+
+function HubCore.GuardPoll()
+	HubCore.GuardNote( HubCore.m_guard, UI.GetElapsedTime(), HubCore.GuardIsOpenNow() );
+end
+
+-- The Escape key of the input handler when no hub list or target mode has it. True = consumed. KeyDown decides (key repeat
+-- keeps the decision), KeyUp speaks. A KeyUp whose KeyDown a closing popup took is swallowed too (it would open the menu).
+function HubCore.EscapeKey( isUp:boolean )
+	local g:table = HubCore.m_guard;
+	local now:number = UI.GetElapsedTime();
+	HubCore.GuardPoll();
+	local nothingOpen:boolean = not HubCore.IsGamePopupOpen() and UI.GetInterfaceMode() == InterfaceModeTypes.SELECTION;
+	if not isUp then
+		g.escDownSeen = true;
+		if g.escSwallow then return true; end
+		if nothingOpen and HubCore.GuardEscapeBlocks( g, now ) then g.escSwallow = true; return true; end
+		return false;
+	end
+	local seen:boolean = g.escDownSeen;
+	g.escDownSeen = false;
+	if g.escSwallow then
+		g.escSwallow = false;
+		OutputMessageToScreenReader( "Nothing open. " .. SRKey( "Escape" ) .. " again opens the game menu" );
+		return true;
+	end
+	return not seen and nothingOpen and now - g.closedAt < 0.3;
+end
+
+-- Enter that would end the turn (the caller checked that no popup is open). True = consumed with the warning.
+function HubCore.EnterGuardKey( isUp:boolean )
+	local g:table = HubCore.m_guard;
+	local now:number = UI.GetElapsedTime();
+	HubCore.GuardPoll();
+	if not isUp then
+		if g.enterHeld and now - g.enterDownAt < 1.0 then return g.enterBlock; end
+		g.enterHeld, g.enterDownAt = true, now;
+		g.enterBlock = HubAnnounce ~= nil and HubAnnounce.IsReadyNow() and HubCore.GuardEnterBlocks( g, now );
+		return g.enterBlock;
+	end
+	local blocked:boolean = g.enterBlock;
+	g.enterHeld, g.enterBlock = false, false;
+	if blocked then OutputMessageToScreenReader( "Next turn. " .. SRKey( "Enter" ) .. " again ends the turn" ); end
+	return blocked;
 end
 
 -- Lists that only read out information (Enter opens nothing in them). Moving the map cursor leaves them, and N says that Enter does

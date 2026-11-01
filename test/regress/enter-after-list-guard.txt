@@ -1,0 +1,16 @@
+# Written blind 2026-11-01 (not yet recorded; run civregress --record first). When nothing blocks the turn, Enter in Places on a city jumps the cursor; a second Enter within 1.5 s does not end the turn: it says "Next turn. Enter again ends the turn". A further Enter ends it. Verifier: if pt-greece-t82 still has a blocker after the skip (research, production), clear it by hand in the script before the wait.
+# covers: **/HubCore.lua **/HubPlaces.lua UI/Additions/InGameAccess.lua
+# no-share-load: ends the turn
+load pt-greece-t82
+clear-advisors
+lua InGameAccess local h=GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash; for _,u in Players[0]:GetUnits():Members() do UnitManager.RequestOperation(u,h) end
+wait All done. Enter ends the turn -Timeout 15
+action KeyNavPlaces -Settle 1200
+expect ^Places\.
+key Enter -Settle 200
+key Enter -Settle 800
+expect ^Next turn\. Enter again ends the turn
+expect-not ^Turn ended
+key Enter -Settle 3000
+expect ^Turn ended
+no-lua-errors

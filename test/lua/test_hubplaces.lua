@@ -165,7 +165,7 @@ test("units category lists every unit with its activity and position", function(
 	units[1].activity = 1
 end)
 
-test("units category is grouped by unit type, sorted by type name then distance", function()
+test("units category is grouped by unit type, sorted by type name then unit id", function()
 	local before = #units
 	addUnit(90, "Warrior", 6, 5)
 	addUnit(91, "Builder", 20, 5)
@@ -176,7 +176,9 @@ test("units category is grouped by unit type, sorted by type name then distance"
 	local sections = {}
 	for _, item in ipairs(list.items) do table.insert(sections, item.section) end
 	eq(table.concat(sections, ","), "Builder,Scout,Scout,Warrior")
-	eq(list.items[2].key, "u:92")		-- within a type: nearest first
+	eq(list.items[2].key, "u:1")		-- within a type: by unit id (u:92 is nearer to Rome but later), whatever the reference plot
+	for _, c in ipairs(HubPlaces.BuildCategories({ plot = Map.GetPlot(25, 15) })) do if c.name == "Your units" then list = c end end
+	eq(list.items[2].key, "u:1")
 	for _ = before + 1, #units do table.remove(units) end
 end)
 
@@ -853,4 +855,29 @@ test("explorer stop is judged only once the turn has settled and the order is no
 	eq(HubPlaces.ExplorerStopDue(3, true, 0.5), false)
 	eq(HubPlaces.ExplorerStopDue(3, true, 2), true)
 	eq(HubPlaces.ExplorerStopDue(3, true, nil), true)
+end)
+
+test("Idle group helpers", function()
+	eq(HubPlaces.IsIdleActivity("sleeping", false), true)
+	eq(HubPlaces.IsIdleActivity("fortified", false), true)
+	eq(HubPlaces.IsIdleActivity("turn skipped", false), true)
+	eq(HubPlaces.IsIdleActivity("needs orders", false), false)
+	eq(HubPlaces.IsIdleActivity("needs orders", true), true, "trader without a route")
+	eq(HubPlaces.IsIdleActivity("on a trade route", true), false)
+	eq(HubPlaces.IsIdleActivity(nil, true), false)
+	eq(HubPlaces.IdleTurnsText(1), nil)
+	eq(HubPlaces.IdleTurnsText(20), "idle for 20 turns")
+	eq(HubPlaces.IdleHintText({ "Builder", "Builder" }, "J"), "2 Builders idle, J lists them")
+	eq(HubPlaces.IdleHintText({ "Builder" }, "J"), "1 Builder idle, J lists them")
+end)
+
+test("unit order: Idle first, then type name, then unit id", function()
+	local items = {
+		{ section = "Warrior", unitId = 3 }, { section = "Builder", unitId = 9 }, { section = "Idle", idle = true, unitId = 7 },
+		{ section = "Builder", unitId = 2 }, { section = "Idle", idle = true, unitId = 4 },
+	}
+	table.sort(items, HubPlaces.UnitItemLess)
+	local got = {}
+	for _, i in ipairs(items) do got[#got + 1] = i.section .. i.unitId end
+	eq(table.concat(got, ","), "Idle4,Idle7,Builder2,Builder9,Warrior3")
 end)
