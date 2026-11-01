@@ -718,7 +718,7 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 		local said:string = CleanTextForSpeech(leaderstr);
 		if reasonStr ~= nil and reasonStr ~= "" then said = said .. " " .. CleanTextForSpeech(reasonStr); end
 		local speech:string;
-		if fromLocal or CleanTextForSpeech(leaderstr) == "" then
+		if fromLocal or said == "" then
 			-- no words of the leader to read: who waits for the answer
 			local otherID:number = fromLocal and ms_OtherPlayerID or kStatement.FromPlayer;
 			local otherCfg = PlayerConfigurations[ otherID ];
