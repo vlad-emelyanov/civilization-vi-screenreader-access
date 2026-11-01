@@ -20,13 +20,24 @@ Each of these has crashed or wedged the game, or wasted a play session:
 
 ## Lua sandbox and limits
 
-- No `debug` table (`xpcall` handlers must not call `debug.traceback`), no `%f` frontier patterns, no `_G` (use the direct global names; verified in game).
+- No `debug` table (`xpcall` handlers must not call `debug.traceback`), no `%f` frontier patterns, no `_G` (use the direct global names; verified in game). The game's `string.gsub` has no `%f` frontier either (a congress text with `%f[%a]` did not match); `%s` matches 0xA0 (non-breaking space) in this locale, so text cleaned with `%s` can keep or lose it unexpectedly.
 - `rawset` does not exist (calling it errors; the city report item broke on it). The game's own UI Lua never uses `rawset`/`rawget`/`rawequal`, so `.luacheckrc` lists them in `not_globals` and lint reports their use. Check `setmetatable`, `getmetatable`, `debug`, `os`, `io`, `load*` and `dofile` availability before using them.
 - `local x:table = value` is a RUNTIME type check in Civ's Lua: assigning a number gives "Type check failed: (expected 'table', but got 'number')". `Game.GetWorldCongress():GetResolutions(pid)` (and `GetReview(pid).Resolutions`) contain a numeric `Stage` key next to the resolution tables, so loop variables over them must not be annotated `:table` (the game's own loops test `type(v) == "table"`).
 - A typed local keeps its type for the whole scope: `local alarmed:table = nil;` followed by `alarmed = false` fails to LOAD the file ("set local of type table to boolean"; it killed the whole hub once). nil is always allowed. `util/typedlocals.py` (run by `lint.py`) flags later assignments of a literal (`true/false`, number, string, `{}`, `function`) of another type; expressions are not checked, so keep a typed local's value type stable or leave it untyped.
 - A chunk holds at most 200 local variables (functions included): `InGameAccess.lua` hit it (the file did not compile: "too many local variables"). The hub is split into `Accessibility/Hub*.lua` modules (one global table each, `function HubX.Name()` for anything shared); each file stays far below the limit (the hub itself has 2 top-level locals). `util/lint.py` warns when a file passes 185 top-level locals; luacheck itself does NOT report the limit; count with `grep -c '^local ' <file>`.
 - `Events.InputActionTriggered.Call( id )` exists but does nothing (verified). Fire an input action through a LuaEvent that the owning context answers (e.g. the lenses list uses `LuaEvents.SRA_ToggleLens`, handled by an `ImportFiles` copy of `MinimapPanel.lua`).
 - UI buttons are read with `Controls.X:IsHidden()`, `:IsDisabled()`, `:GetTextControl():GetText()`, `:GetToolTipString()`.
+
+## Calls that do not exist (stubs cannot tell)
+
+Verified in the game; a luatest stub accepts any method, so these passed the unit tests and failed (silently, inside `pcall`) in the game. Verify every NEW engine call once with `civctl lua` before relying on it.
+
+- `Units.GetUnitsInPlot(plot)` omits traders (a trade route unit on a tile is not in the list): scans for units on a tile do not see them.
+- `city:GetBuildQueue():CurrentlyBuilding()` does not exist: the current production is `GetCurrentProductionTypeHash()` (look the hash up in `GameInfo.Buildings/Districts/Units/Projects`).
+- `city:GetGrowth():GetHousingMultiplier()` does not exist: the growth factor from housing is `GetHousingGrowthModifier()`.
+- `UnitCommandTypes.FORTIFY` / `SLEEP` do not exist: Fortify and Sleep are unit operations (`GameInfo.UnitOperations["UNITOPERATION_FORTIFY"].Hash` with `UnitManager.CanStartOperation( unit, hash, nil, nil, true )`; a Cuirassier answered Fortify true, Sleep false).
+- `UnitManager.GetMoveToPathEx` returns `plots`, `turns`, `exitPortals`, `entrancePortals`, `obstacles`; no moves-left-on-arrival. A target tile in a later turn than the tile before it means the unit stands next to it with no moves left.
+- `Game.GetGreatWorkDataFromIndex(index)` has `GreatWorkType`, `CreatorName`, `TurnCreated`; a deal item's great work index is `pDealItem:GetValueType()`, an available entry's is `entry.ForType`. Index out of range crashes the game (looping it to 60 did).
 
 ## Input and keys
 

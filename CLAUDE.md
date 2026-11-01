@@ -68,6 +68,7 @@ python util/civregress.py <name> --record     # (with a game) run a regress scri
 python util/luatest.py [name...]      # Lua 5.1 unit tests via lupa (pip install lupa on first use), test/lua/test_*.lua with stubs in test/lua/stubs/; <1 s. Exit 1 = failure
 ```
 
+- luatest stubs accept calls the engine does not have (two wrong calls passed the tests and failed in the game: `queue:CurrentlyBuilding`, `GetHousingMultiplier`): any NEW engine call is verified once with `civctl lua`; `test/lua/stubs/engine.lua` `NoSuchEngineCalls` makes known-wrong calls raise in test stubs, `docs/engine-notes.md` lists them.
 - Both read Civ's `local x:number` annotations (stripped before checking). Engine and mod globals are declared in `.luacheckrc`: a new global defined in `Accessibility/` must be added to `globals` there.
 - New pure logic gets a `test/lua/test_*.lua` (`stub("engine")`, `stub("world")` for a fake map, `include("X")` loads `Accessibility/X.lua`, `Spoken()` returns what `OutputMessageToScreenReader` printed, `load_mod_block(path, n)` loads a mod-change block of a game-file copy).
 - Register event listeners with `SRListen` / `SRUnlistenAll()` (`Accessibility/SRListen.lua`, see `docs/keynav-guide.md`).

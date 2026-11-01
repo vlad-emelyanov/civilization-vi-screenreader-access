@@ -214,15 +214,15 @@ local function makeCity(id, name, x)
 	local c = { GetID = function() return id end, GetName = function() return name end, GetX = function() return x end, GetY = function() return 5 end, GetOwner = function() return 0 end }
 	if d then
 		c.GetPopulation = function() if FAIL_CITY then error("boom") end return d.population end
-		c.GetGrowth = function() return {
+		c.GetGrowth = function() return NoSuchEngineCalls( {
 			GetFoodSurplus = function() return d.foodSurplus end, GetTurnsUntilGrowth = function() return d.growth.turnsUntilGrowth end,
 			GetHousing = function() return d.growth.housing end, GetHousingGrowthModifier = function() return d.growth.housingMultiplier or 1 end,
 			GetTurnsUntilStarvation = function() if d.foodSurplus < 0 then return -d.growth.turnsUntilGrowth end return -1 end,
-			GetAmenities = function() return d.amenities.have end, GetAmenitiesNeeded = function() return d.amenities.needed end } end
+			GetAmenities = function() return d.amenities.have end, GetAmenitiesNeeded = function() return d.amenities.needed end }, "CityGrowth" ) end
 		GameInfo = GameInfo or {}; GameInfo.Buildings = GameInfo.Buildings or {}
 		GameInfo.Buildings[id] = { Name = d.production.name }
-		c.GetBuildQueue = function() return { GetCurrentProductionTypeHash = function() return id end,
-			GetTurnsLeft = function() return d.production.turns end } end
+		c.GetBuildQueue = function() return NoSuchEngineCalls( { GetCurrentProductionTypeHash = function() return id end,
+			GetTurnsLeft = function() return d.production.turns end }, "BuildQueue" ) end
 	end
 	return c
 end

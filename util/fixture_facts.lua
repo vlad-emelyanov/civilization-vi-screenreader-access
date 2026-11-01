@@ -71,7 +71,11 @@ sec("cities", function()
       end
     end)
     local prod = ""
-    pcall(function() local q = c:GetBuildQueue():CurrentlyBuilding(); if q and q ~= "" then prod = " building " .. short(q, "BUILDING_") end end)
+    pcall(function()
+      local q = c:GetBuildQueue():GetCurrentProductionTypeHash()
+      local r = q and q ~= 0 and (GameInfo.Buildings[q] or GameInfo.Districts[q] or GameInfo.Units[q] or GameInfo.Projects[q])
+      if r then prod = " building " .. short(r.Name and Locale.Lookup(r.Name) or "", "BUILDING_") end
+    end)
     rows[#rows + 1] = string.format("%s pop %d; districts [%s]; buildings [%s]%s", Locale.Lookup(c:GetName()), c:GetPopulation(), join(d, " "), join(b, " "), prod)
   end
   return #rows == 0 and "none" or ("\n  - " .. table.concat(rows, "\n  - "))

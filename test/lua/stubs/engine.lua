@@ -38,4 +38,18 @@ Clock = { now = 0 }
 UI = { GetElapsedTime = function() return Clock.now end }
 Game = { GetLocalPlayer = function() return 0 end, GetCurrentGameTurn = function() return 1 end }
 
+-- Calls that code once assumed and the engine does NOT have (verified with civctl lua). A hand-made stub accepts any method, so a test stub
+-- for such an object goes through NoSuchEngineCalls: calling one of them raises instead of answering. Add a name here when the game proves
+-- one wrong; every NEW engine call is verified once in the game with `civctl lua` (stubs cannot tell).
+NO_SUCH_ENGINE_CALLS = {
+	BuildQueue = { "CurrentlyBuilding" },			-- the production is GetCurrentProductionTypeHash
+	CityGrowth = { "GetHousingMultiplier" },		-- the housing growth factor is GetHousingGrowthModifier
+}
+function NoSuchEngineCalls( object, kind )
+	for _, name in ipairs( NO_SUCH_ENGINE_CALLS[ kind ] or {} ) do
+		object[ name ] = function() error( "the engine has no " .. kind .. ":" .. name .. "()" ) end
+	end
+	return object
+end
+
 return Strings
