@@ -1,0 +1,7 @@
+turn: 36
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: pt-greece-t36: Builder in Knossos (64,13), X and Tab>Browse tiles to improve say nothing
+mod commit: 6adde53
+created: 2026-10-31
+size: 872 KB

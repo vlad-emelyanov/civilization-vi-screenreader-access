@@ -1,0 +1,7 @@
+turn: 60
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: Greece turn 60: 4 cities (Athens Knossos Rhodes Ephesus), Holy Site in Athens, Oracle in progress, Magnus in Athens, open borders with Germany
+mod commit: 6adde53
+created: 2026-10-31
+size: 942 KB

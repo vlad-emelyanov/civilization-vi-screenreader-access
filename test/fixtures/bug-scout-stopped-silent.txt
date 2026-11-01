@@ -1,0 +1,7 @@
+turn: 45
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: pt-greece-t45: exploring Scout needed orders after Enter (Turn not ended: Unit needs orders) with no 'Scout stopped exploring' line; galley adjacent
+mod commit: 6adde53
+created: 2026-10-31
+size: 889 KB

@@ -1,0 +1,7 @@
+turn: 43
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: pt-greece-t43: research-completed popup closed, Turn 43 + Enemies + INSPIRATION + Scout line spoken a second time
+mod commit: 6adde53
+created: 2026-10-31
+size: 886 KB

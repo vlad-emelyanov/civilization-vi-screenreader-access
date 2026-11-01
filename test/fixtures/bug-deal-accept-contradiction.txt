@@ -1,0 +1,7 @@
+turn: 52
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: pt-greece-t52 Germany deal screen: they give Open Borders only, speech 'They accept the deal. I cannot accept, this is an unfair deal. Actions: What would it take?'; also Left/Right on gpt drops focus ('Select an item first')
+mod commit: 6adde53
+created: 2026-10-31
+size: 923 KB

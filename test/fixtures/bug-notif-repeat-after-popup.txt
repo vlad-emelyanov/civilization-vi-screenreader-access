@@ -1,0 +1,7 @@
+turn: 35
+civ: CIVILIZATION_GREECE / LEADER_PERICLES
+profile: -
+purpose: pt-greece-t35: '4 new notifications' spoken at turn start and again after advisor+research popups closed
+mod commit: 6adde53
+created: 2026-10-31
+size: 861 KB
