@@ -1,0 +1,33 @@
+# Capturing a real civ's city (Konya, Ottoman, pop 5) through the mod's attack keys; scenario city-capture-civ (tuner: war, Infantry next to the city, garrison and walls at 0 HP).
+# The Raze or Keep popup does not open by itself: Control+N, Enter on the notification. Raze and Keep describe the Grievances. Verified 2026-11-01 (Raze variant by hand: "Razing Konya", the city is gone).
+# covers: **/RazeCity.lua **/HubTargets.lua **/HubRegions.lua **/HubEmpire.lua
+# no-share-load: captures a city
+load pt-nobarbs-t166
+clear-advisors
+scenario city-capture-civ
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==71 and u:GetY()==29 then UI.SelectUnit(u) end end
+key W -Settle 1500
+expect ^Attack: Konya, Ottomans city.*walls.*Enter attacks
+key Enter -Settle 6000 -Quiet 2500
+expect captured the enemy City of Konya
+clear-advisors
+action KeyNavNotifications -Settle 1500
+key Home -Settle 600
+expect ^Raze or Keep City: Konya, 1 of
+key Enter -Settle 3000 -Quiet 1500
+expect ^Konya captured from Ottomans\. Population \d+, \d+ districts?\. Keep City, Raze City\. Space for details
+key Space -Settle 800
+expect Grievances
+key Down -Settle 800
+expect ^Raze City, 2 of 2
+key Space -Settle 800
+expect Razing this city will give this opponent \d+ Grievances
+key Up -Settle 600
+key Enter -Settle 2500 -Quiet 1200
+expect ^Kept Konya
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if u:GetX()==71 and u:GetY()==28 then UI.SelectUnit(u) end end
+action KeyNavCursorToSelection -Settle 800
+action KeyNavSelectAtCursor -Settle 1000
+action KeyNavSelectAtCursor -Settle 1000
+expect ^Konya, Population 3, No production, not growing, loyalty \d+ of 100, minus [\d.]+ per turn
+no-lua-errors
