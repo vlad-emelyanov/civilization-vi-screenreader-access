@@ -10,6 +10,7 @@ include("GameCapabilities");
 include("ScreenReader");	-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
 include("Gamepad");		-- ScreenReaderAccess
+include("SRListen");		-- ScreenReaderAccess
 
 -- ===========================================================================
 --	DEBUG
@@ -3090,6 +3091,7 @@ end
 local m_srLastOpenAt			:number = -100;		-- UI.GetElapsedTime() of the last page announcement
 local function SRA_OpenCurrentTab()
 	m_srLastOpenAt = UI.GetElapsedTime();
+	m_srRootCounted = false;
 	m_srCatalogSlotIndex = nil;
 	m_srList.Reset();
 	m_srList.Open( SRA_TabTitle() );
@@ -3278,21 +3280,23 @@ end
 
 -- ScreenReaderAccess: every frame while visible: forward a queued key to the dialog once it shows, and the page-announce fallback
 -- (the GovernmentChanged refresh never came); neither consumes input.
--- Is a popup open above this screen (a historic moment, an advisor, the confirm dialog ...)? The always-shown HUD contexts are skipped.
-local SRA_OVERLAY_SKIP:table = { TopPanel = true, DiplomacyRibbon = true, PartialScreenHooks = true, InGameAccess = true };
+-- Which popups count as "a popup above this screen": the historic moment (HistoricMoments_Opened / _Closed, it reparents itself to
+-- /InGame/Screens) and the confirm dialog (InGamePopup root, cached). Only one that OPENED after this screen announced itself counts:
+-- a popup already up on the first frame (tech / civic completed ...) is not an overlay that closes later.
+local m_srHistOpen				:boolean = false;	-- HistoricMoments_Opened came, _Closed not yet
+local m_srRootPrev				:boolean = false;	-- the confirm dialog root was visible on the previous frame
+local m_srRootCounted			:boolean = false;	-- it became visible after our last announcement
+local m_srRootControl			= nil;
 local m_srOverlayWas			:boolean = false;	-- a popup was open above the screen on the previous frame
 local m_srOverlaySince			:number = -1;		-- when it opened
 local m_srOverlayGoneAt			:number = -1;		-- UI.GetElapsedTime() when it closed; the screen speaks again shortly after
 local function SRA_OverlayOpen()
-	for _, name in ipairs( { "WorldPopups", "FakePopups", "PartialScreens" } ) do
-		local parent = ContextPtr:LookUpControl( "/InGame/" .. name );
-		if parent ~= nil then
-			for _, child in ipairs( parent:GetChildren() ) do
-				if not child:IsHidden() and not SRA_OVERLAY_SKIP[ child:GetID() ] then return true; end
-			end
-		end
-	end
-	return false;
+	if m_srRootControl == nil then m_srRootControl = ContextPtr:LookUpControl( "/InGame/WorldPopups/InGamePopup/PopupRoot" ); end
+	local rootNow:boolean = m_srRootControl ~= nil and not m_srRootControl:IsHidden();
+	if rootNow and not m_srRootPrev and m_srLastOpenAt >= 0 then m_srRootCounted = true; end
+	if not rootNow then m_srRootCounted = false; end
+	m_srRootPrev = rootNow;
+	return m_srHistOpen or ( rootNow and m_srRootCounted );
 end
 
 -- A popup over the screen closed and the screen is still open: its title and the focused item again (the popup's own closing speech is queued before it).
@@ -3314,6 +3318,8 @@ local function SRA_Tick()
 	if ContextPtr:IsHidden() then
 		m_srOverlayWas = false;
 		m_srOverlayGoneAt = -1;
+		m_srHistOpen = false;
+		m_srRootPrev = false;
 	else
 		local over:boolean = SRA_OverlayOpen();
 		if over then
@@ -3352,6 +3358,8 @@ end
 -- ===========================================================================
 function Initialize()
 	ContextPtr:SetUpdate( SRA_Tick );		-- ScreenReaderAccess
+	SRListen( LuaEvents.HistoricMoments_Opened, function() m_srHistOpen = true; end );		-- ScreenReaderAccess
+	SRListen( LuaEvents.HistoricMoments_Closed, function() m_srHistOpen = false; end );
 	
 	Controls.LabelMilitary:SetText(Locale.Lookup("{LOC_GOVT_POLICY_TYPE_MILITARY:upper}"));
 	Controls.LabelEconomic:SetText(Locale.Lookup("{LOC_GOVT_POLICY_TYPE_ECONOMIC:upper}"));

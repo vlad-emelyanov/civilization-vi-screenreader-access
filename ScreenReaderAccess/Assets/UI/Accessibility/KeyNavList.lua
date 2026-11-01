@@ -446,7 +446,7 @@ function KeyNavList_Create( config:table )
 		elseif key == Gamepad.PageKey( false ) then	if isDown then action = function() GroupJump( -1 ); end end
 		elseif key == Gamepad.PageKey( true ) then	if isDown then action = function() GroupJump( 1 ); end end
 		elseif key == Keys.VK_RETURN then
-			local held = ( UI ~= nil and UI.GetElapsedTime ~= nil ) and KeyNavList_HoldCheck( m_hold, UI.GetElapsedTime() ) or nil;
+			local held = ( UI ~= nil and UI.GetElapsedTime ~= nil ) and KeyNavList_HoldCheck( m_hold, UI.GetElapsedTime(), isDown ) or nil;
 			if held == "say" then
 				action = function()
 					local items:table = Build();
@@ -484,13 +484,23 @@ end
 function KeyNavList_HoldStart( state:table, now:number, seconds:number )
 	state.holdUntil = now + seconds;
 	state.said = false;
+	state.swallowUpAt = nil;
 end
 
 -- nil = Enter may act; "say" = swallow it and say the line (first Enter inside the window); "block" = swallow it silently.
-function KeyNavList_HoldCheck( state:table, now:number )
+-- The "say" ends the hold at once (the Enter it invites acts); the KeyUp of the pressed Enter is still swallowed.
+function KeyNavList_HoldCheck( state:table, now:number, isDown:boolean )
+	if state.swallowUpAt ~= nil then
+		local fresh:boolean = ( now - state.swallowUpAt < 1.0 );
+		if not isDown or not fresh then state.swallowUpAt = nil; end
+		if fresh and not isDown then return "block"; end
+		if fresh and isDown then state.swallowUpAt = now; return "block"; end		-- key repeat of the same press
+	end
 	if state.holdUntil == nil or now >= state.holdUntil then return nil; end
-	if not state.said then state.said = true; return "say"; end
-	return "block";
+	state.holdUntil = nil;
+	state.said = true;
+	if isDown then state.swallowUpAt = now; end
+	return "say";
 end
 
 -- "a, b, c and 2 more" from an array of strings.

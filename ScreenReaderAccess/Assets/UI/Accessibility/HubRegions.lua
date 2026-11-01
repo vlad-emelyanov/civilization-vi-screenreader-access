@@ -260,7 +260,7 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 			local city:table = Cities.GetCityInPlot( x, y );
 			return city ~= nil and Locale.Lookup( city:GetName() ) or nil;
 		end );
-		text = "Keep or raze " .. ( ( ok and cityName ~= nil and cityName ~= "" ) and cityName or "the captured city" ) .. ": " .. HubCore.KeyHint( "KeyNavNotifications", "Control+N", "RB" );
+		text = "Keep or raze " .. ( ( ok and cityName ~= nil and cityName ~= "" ) and cityName or "the captured city" ) .. ": " .. HubCore.KeyHint( "KeyNavNotifications", "Control+N", "RB" ) .. ", then " .. SRKey( "Enter" );
 	end
 	-- "New Barbarian Outpost" alone does not say where: from the nearest city of ours, like the camps in the places list (J)
 	if typeName == "NOTIFICATION_NEW_BARBARIAN_CAMP" then

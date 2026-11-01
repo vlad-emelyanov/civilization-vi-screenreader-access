@@ -4136,7 +4136,7 @@ local function SRA_HandleKey( input:table, key:number, isUp:boolean )
 	end
 	if key == Keys.VK_RETURN then
 		-- an offer the AI opened: Enter (down, up or the tail of an earlier press) waits until the offer has been heard
-		local held = KeyNavList_HoldCheck( m_srHold, UI.GetElapsedTime() );
+		local held = KeyNavList_HoldCheck( m_srHold, UI.GetElapsedTime(), not isUp );
 		if held ~= nil then
 			if held == "say" then
 				local items:table = SRA_BuildSection( m_srSection );
@@ -4145,7 +4145,11 @@ local function SRA_HandleKey( input:table, key:number, isUp:boolean )
 				for _, item in ipairs( items ) do
 					if item.key == focusKey then name = item.text; break; end
 				end
-				if name == nil and items[1] ~= nil then name = items[1].text; end
+				if name == nil and items[1] ~= nil then
+					-- no focus yet: Enter would find none, so the first item becomes the focus (silently) and is the one named
+					m_srLists[ m_srSection ].Open( SRA_SECTIONS[ m_srSection ], items[1].key, true );
+					name = items[1].text;
+				end
 				SRA_Say( SRKey( "Enter" ) .. " again to choose" .. ( name ~= nil and ( " " .. name ) or "" ), true );
 			end
 			return;

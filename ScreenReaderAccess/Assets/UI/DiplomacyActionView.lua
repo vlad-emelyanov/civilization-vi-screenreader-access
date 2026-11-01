@@ -26,6 +26,10 @@ local m_srOverviewSub	:string = nil;	-- open submenu of the overview ("discuss" 
 local m_srPendingAnswer	:string = nil;	-- key of the answer chosen while a cinema scene was showing
 local m_srLeavingAt			:number = 0;		-- time Goodbye was chosen; m_srLeaving never lasts longer than 3 s (SRA_IsLeaving)
 local m_srLeaving			:boolean = false;	-- Goodbye was chosen: the screen closes when the session ends, and takes no answers meanwhile
+local m_srHoldFirst		:boolean = false;	-- the AI opened this session and the player has not answered yet: its first statement holds Enter for 2 s
+local function SRA_HoldFirstStatement( list:table )
+	if m_srHoldFirst and list ~= nil then list.HoldEnter( 2 ); end
+end
 local m_srStatementSpoken	:boolean = false;	-- ApplyStatement said what the leader says; OnDiplomacyStatement adds a fallback line when nothing was said
 
 
@@ -603,6 +607,7 @@ function SRA_AnnounceWaiting( statementTypeName:string, applied:boolean )
 	if applied ~= false and #m_srSelections > 0 then
 		m_srList.Reset();
 		m_srList.Open( speech );
+		SRA_HoldFirstStatement( m_srList );
 	else
 		OutputMessageToScreenReader( speech .. " " .. SRKey( "Escape" ) .. " to close.", true );
 	end
@@ -742,7 +747,7 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 		elseif #m_srSelections > 0 then
 			m_srList.Open( speech );
 			-- the AI opened this scene on its own (maybe during the turn change): a stray Enter must not answer what nobody heard yet
-			if aiInitiated and not fromLocal then m_srList.HoldEnter( 2 ); end
+			if not fromLocal then SRA_HoldFirstStatement( m_srList ); end
 		else
 			OutputMessageToScreenReader( speech .. " " .. SRKey( "Escape" ) .. " to close.", true );
 		end
@@ -2589,6 +2594,7 @@ function OnDiplomacySessionClosed(sessionID)
 	if (not ms_bIsViewInitialized) then
 		m_srLeaving = false;		-- ScreenReaderAccess
 		ms_ActiveSessionID = nil;
+		m_srHoldFirst = false;
 		m_srSelections = {};		-- ScreenReaderAccess
 		return;
 	end
@@ -2596,6 +2602,7 @@ function OnDiplomacySessionClosed(sessionID)
 	if (ms_ActiveSessionID ~= nil) then
 		if ( ms_ActiveSessionID == sessionID and not m_isInHotload) then
 			ms_ActiveSessionID = nil;
+			m_srHoldFirst = false;
 			m_srSelections = {};		-- ScreenReaderAccess: the answers belong to the session
 			m_srPendingAnswer = nil;
 
@@ -2892,6 +2899,8 @@ function OnDiplomacyStatement(fromPlayer : number, toPlayer : number, kVariants 
 			if (ms_ActiveSessionID == nil) then
 
 				ms_ActiveSessionID = kVariants.SessionID;
+				-- ScreenReaderAccess: a session the AI opened holds Enter on its first statement (Initiator is a player id)
+				m_srHoldFirst = ( kVariants.Initiator ~= nil and PlayerManager.IsValid( kVariants.Initiator ) and not PlayerConfigurations[ kVariants.Initiator ]:IsHuman() );
 
 				if (toPlayer == localPlayer) then
 					ms_OtherPlayerID = fromPlayer;
@@ -3369,6 +3378,7 @@ function SRA_OnCinemaEnded()
 		if ms_ActiveSessionID ~= nil and #m_srSelections > 0 then
 			m_srList.Reset();
 			m_srList.Open( "Scene ended, your answer" );
+			SRA_HoldFirstStatement( m_srList );
 		end
 	end, KeyNavErrorHandler );
 	if not ok then print( "DiplomacyActionView cinema error: " .. tostring( err ) ); end
@@ -3391,6 +3401,7 @@ local function SRA_OverviewActive()
 end
 
 local function SRA_OnConversationActivate( item:table )
+	m_srHoldFirst = false;		-- the player answered: later statements of the session hold nothing
 	if ms_currentViewMode == CINEMA_MODE then
 		-- The scene has to end first (like Escape): remember the answer and apply it after the fade.
 		if m_srPendingAnswer ~= nil then
