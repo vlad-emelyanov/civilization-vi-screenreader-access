@@ -647,7 +647,7 @@ end
 function HubSettle.NoSlotText( personName:string, slot:string, buildings:table )
 	local text:string = "No tile to use " .. personName .. " on: no free " .. slot .. " slot in your districts and wonders";
 	if buildings ~= nil and #buildings > 0 then
-		text = text .. ". A " .. table.concat( buildings, ", " ) .. " gives one";
+		text = text .. ". Build one of these to get a slot: " .. table.concat( buildings, ", " );
 	end
 	return text;
 end

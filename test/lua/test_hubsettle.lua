@@ -140,6 +140,6 @@ end)
 
 test("NoSlotText: no free slot of the type and which building gives one", function()
 	eq(HubSettle.NoSlotText("Rembrandt van Rijn", "art", { "Art Museum", "Cathedral" }),
-		"No tile to use Rembrandt van Rijn on: no free art slot in your districts and wonders. A Art Museum, Cathedral gives one")
+		"No tile to use Rembrandt van Rijn on: no free art slot in your districts and wonders. Build one of these to get a slot: Art Museum, Cathedral")
 	eq(HubSettle.NoSlotText("X", "music", {}), "No tile to use X on: no free music slot in your districts and wonders")
 end)
