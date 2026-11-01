@@ -1,0 +1,12 @@
+# bug-scout-stopped-silent: an exploring Scout that the game offers for orders again (explore refused next to a Barbarian Galley) is announced as stopped, with the danger.
+# The explore flag the game's operation event sets during a real turn is injected through the hub's own handler (the fixture load cannot have it).
+# covers: **/HubPlaces.lua **/HubEnemies.lua
+# no-share-load: injects an explorer flag
+load bug-scout-stopped-silent
+clear-advisors
+lua InGameAccess HubPlaces.OnOperationAdded(0, 655360, 0, GameInfo.UnitOperations.UNITOPERATION_AUTOMATE_EXPLORE.Index)
+key OemPeriod -Settle 3500 -NoQuiet
+lua InGameAccess HubPlaces.CheckExplorers()
+key OemPeriod -Settle 1500
+expect ^Scout stopped exploring.*needs orders
+no-lua-errors
