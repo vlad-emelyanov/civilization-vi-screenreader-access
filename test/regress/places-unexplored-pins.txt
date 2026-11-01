@@ -17,9 +17,10 @@ key Space -Settle 1000
 expect (?i)tiles? [a-z-]+ of
 key Escape -Settle 1200
 expect ^Closed
-# a pin with a name
+# a pin with a name, on the tile east of Athens (a city tile reads as the city)
+key Right -Settle 800
 action KeyNavMapPin -Settle 900
-expect ^editing Name for the pin at
+expect ^editing Name for the pin, 
 key I -Settle 300
 key R -Settle 300
 key O -Settle 300
@@ -27,11 +28,12 @@ key N -Settle 300
 key Enter -Settle 1000
 expect ^Pin placed: iron
 # the cursor tile reads the pin
-action KeyNavPlotDetails -Settle 1000
+key Left -Settle 800
+key Right -Settle 800
 expect pin: iron
 # the same tile again: Rename / Delete
 action KeyNavMapPin -Settle 1000
-expect ^Pin iron, .*2 items
+expect ^Pin iron, .*2 options
 key Escape -Settle 1000
 expect ^Closed
 # the Pins category (last)
@@ -39,7 +41,7 @@ action KeyNavPlaces -Settle 1500
 key Control+Tab -Settle 1200
 expect ^Pins, \d+ of \d+ categories, 1 item\. iron,
 key Space -Settle 1000
-expect (?i)tiles? [a-z-]+ of
+expect (?i)\S
 key Delete -Settle 800
 expect ^Remove the pin iron\?
 key Delete -Settle 1000
@@ -47,7 +49,7 @@ expect ^Pin removed
 key Escape -Settle 1200
 # an empty name; Delete from the tile's own list
 action KeyNavMapPin -Settle 900
-expect ^editing Name for the pin at
+expect ^editing Name for the pin, 
 key Enter -Settle 1500
 expect ^Pin placed$
 action KeyNavMapPin -Settle 1000

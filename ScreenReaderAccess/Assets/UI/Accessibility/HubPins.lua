@@ -52,7 +52,7 @@ function HubPins.StartNew( x:number, y:number )
 		return name;
 	end
 	Edit( "", {
-		label = "Name for the pin at " .. TileName( plot ),
+		label = "Name for the pin, " .. TileName( plot ),
 		commit = Place,
 		doneText = function( text:string )
 			local name:string = Trim( text );
@@ -70,7 +70,7 @@ end
 
 local function StartRename( pin:table )
 	Edit( pin.name or "", {
-		label = "New name for the pin at " .. TileName( Map.GetPlot( pin.x, pin.y ) ),
+		label = "New name for the pin, " .. TileName( Map.GetPlot( pin.x, pin.y ) ),
 		commit = function( text:string ) pin.renamed = MapPins.Rename( pin.id, Trim( text ) ); end,
 		doneText = function( text:string )
 			if not pin.renamed then return "The pin could not be renamed"; end
