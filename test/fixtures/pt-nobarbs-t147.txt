@@ -1,0 +1,7 @@
+turn: 147
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-agent chain from t129: spy Lucrezia at Amasya, siege of Texcoco by Cuirassier, Aid Request competition, Empire used every 10 turns
+mod commit: 0d23d7c
+created: 2026-11-01
+size: 1574 KB

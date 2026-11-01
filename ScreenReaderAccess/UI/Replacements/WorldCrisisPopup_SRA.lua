@@ -246,9 +246,9 @@ function SRA_Clean( text:string )
 	return CleanTextForSpeech( tostring(text) );
 end
 
-function SRA_AddLines( lines:table, details:table, over:boolean )
+function SRA_AddLines( lines:table, details:table, over:boolean, targetName:string )
 	for _, line in ipairs(details or {}) do
-		local text:string = SRA_Clean(line.string);
+		local text:string = WCText_NameTarget( SRA_Clean(line.string), targetName );		-- "gifts of Gold to the Target" -> the civ
 		-- a finished competition: the game still shows "When time runs out, Members will be rewarded ...": say it in the past
 		if over and ( line.string == Locale.Lookup("LOC_EMERGENCY_REWARD_NON_HOSTILE_DESCRIPTION") or line.string == Locale.Lookup("LOC_EMERGENCY_MEMBER_REWARDS_HOSTILE_EXPLANATION") ) then text = "Rewards"; end
 		if text ~= "" then table.insert(lines, text); end
@@ -276,7 +276,8 @@ function SRA_BuildText( kData:table )
 	if kData.placeString ~= nil and kData.targetPlayer ~= Game.GetLocalPlayer() then add(kData.placeString); end
 
 	local lines:table = {};
-	SRA_AddLines(lines, kData.crisisDetails);
+	local targetName:string = ( kData.targetPlayer ~= nil and kData.targetPlayer >= 0 and PlayerConfigurations[ kData.targetPlayer ] ~= nil ) and SRA_Clean(GetVisiblePlayerName(kData.targetPlayer)) or "";
+	SRA_AddLines(lines, kData.crisisDetails, false, targetName);
 	local members:table = {};
 	local unmetScores:table = {};		-- members we have not met: the game shows each as "Unmet Player"
 	local localID:number = Game.GetLocalPlayer();
@@ -296,7 +297,7 @@ function SRA_BuildText( kData:table )
 	if #members > 0 then
 		table.insert(lines, (string.gsub(SRA_Clean(Controls.MemberLabel:GetText()), "%s*:%s*$", "")) .. ": " .. table.concat(members, "; "));
 	end
-	SRA_AddLines(lines, kData.rewardsDetails, kData.timeRemaining <= 0);
+	SRA_AddLines(lines, kData.rewardsDetails, kData.timeRemaining <= 0, targetName);
 
 	m_srLines = lines;
 	m_srIndex = 0;

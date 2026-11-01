@@ -1,0 +1,7 @@
+turn: 130
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Deal with Russia (t130): Great work items say only name, no type (art/writing/religious), creator or tourism; Space repeats the name
+mod commit: 0d23d7c
+created: 2026-11-01
+size: 1477 KB

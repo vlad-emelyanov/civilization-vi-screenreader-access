@@ -1,0 +1,14 @@
+# Control+Y: the last entry is the active Aid Request competition; its line says "for <civ>" (not "against": it is no emergency) and Space names the civ instead of the game's "the Target" placeholder.
+# Fixture pt-nobarbs-t147: Aid Request competition for Phoenicia, joined.
+# covers: **/EmergencyText.lua **/TopPanelData.lua **/WorldCongressText.lua
+# no-share-load: opens the top panel list
+load pt-nobarbs-t147
+clear-advisors
+action KeyNavTopPanel -Settle 2000
+key End -Settle 900
+expect Competition: Aid Request, for \w+, joined
+key Space -Settle 1500
+expect-not the Target|Target's
+expect gifts of Gold to \w+
+key Escape -Settle 800
+no-lua-errors

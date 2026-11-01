@@ -10,6 +10,8 @@
 --	  ctx: { localID, hostile, noTarget, name = localized name, targetName = civ name or "", clean = f( text ), playerName = f( id ) }
 -- ===========================================================================
 
+include( "WorldCongressText" );
+
 local function Count( list:table )
 	if list == nil then return 0; end
 	return #list;
@@ -33,6 +35,7 @@ end
 local function Strip( ctx:table, text )
 	if text == nil then return ""; end
 	local clean:string = ctx.clean( tostring( text ) );
+	clean = WCText_NameTarget( clean, ctx.nameFor );		-- the game's "the Target" placeholder -> the civ's name
 	clean = string.gsub( clean, "[ \t\r\n\v\f]*%.[ \t\r\n\v\f]*$", "" );
 	return clean;
 end
@@ -49,10 +52,11 @@ end
 
 function EmergencyText_Item( e:table, ctx:table )
 	local isTarget:boolean = e.TargetID == ctx.localID;
+	ctx.nameFor = ( not isTarget and not ctx.noTarget and e.TargetID ~= nil and e.TargetID >= 0 ) and ctx.targetName or nil;
 	local kind:string = ctx.hostile and "Emergency" or "Competition";
 	local text:string = kind .. ": " .. Strip( ctx, ctx.name );
 	if not ctx.noTarget and e.TargetID ~= nil and e.TargetID >= 0 then
-		text = text .. ", against " .. ( isTarget and "you" or ctx.targetName );
+		text = text .. ( ctx.hostile and ", against " or ", for " ) .. ( isTarget and "you" or ctx.targetName );
 	end
 	local ended:boolean = e.TurnsLeft ~= nil and e.TurnsLeft < 0;
 	if ended then
