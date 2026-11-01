@@ -1,0 +1,7 @@
+turn: 166
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: pt-nobarbs-t166 after recruiting Samori Toure and moving him 1 tile: N says 'Unit needs orders: Samori Toure. Enter selects it' but Enter says 'Military Engineer exposed ... Enter again ends the turn anyway' (Samori is not a blocker)
+mod commit: 9ccbe97
+created: 2026-11-01
+size: 1680 KB
