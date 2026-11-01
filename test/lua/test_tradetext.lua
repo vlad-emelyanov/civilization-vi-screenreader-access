@@ -42,3 +42,15 @@ end)
 test("origin city item", function()
 	eq(TradeText_Origin{ name = "Florence", distance = 5 }, "Florence, 5 tiles")
 end)
+
+test("route passes cities and hazards", function()
+	eq(TradeText_PassText({}), "")
+	eq(TradeText_PassText({ "Rome" }), "Passes through Rome")
+	eq(TradeText_PassText({ "Rome", "Antium", "Ostia" }), "Passes through Rome, Antium and Ostia")
+	eq(TradeText_HazardText({}), "")
+	eq(TradeText_HazardText({ { name = "Barbarian Camp", distance = 2 } }), "Passes 2 tiles from a Barbarian Camp")
+	eq(TradeText_HazardText({ { name = "Barbarian Camp", distance = 2 }, { name = "Barbarian Warrior", distance = 1 }, { name = "Barbarian Warrior", distance = 1 } }),
+		"Passes 1 tile from 2 Barbarian Warriors, 2 tiles from a Barbarian Camp")
+	eq(TradeText_Detail{ pathLength = 5, passCities = { "Rome" }, hazards = { { name = "Barbarian Camp", distance = 1 } } },
+		"Path 5 tiles. Passes through Rome. Passes 1 tile from a Barbarian Camp")
+end)
