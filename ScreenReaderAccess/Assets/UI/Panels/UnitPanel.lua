@@ -4997,7 +4997,15 @@ function SRSayBlockedHotkey( actionId:number )
 	if why ~= "" then
 		OutputMessageToScreenReader( "Cannot " .. string.lower( name ) .. ": " .. why );
 	else
-		OutputMessageToScreenReader( name .. " is not available for " .. Locale.Lookup( unit:GetName() ) );
+		-- Skip Turn again on a unit that skipped already: say that, not "not available"
+		local skippedAlready:boolean = false;
+		local okAct:boolean, activity = pcall( UnitManager.GetActivityType, unit );
+		if okAct and activity ~= nil and activity == ActivityTypes.ACTIVITY_HOLD and row.Hash == GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash then skippedAlready = true; end
+		if skippedAlready then
+			OutputMessageToScreenReader( Locale.Lookup( unit:GetName() ) .. " has already skipped this turn" );
+		else
+			OutputMessageToScreenReader( name .. " is not available for " .. Locale.Lookup( unit:GetName() ) );
+		end
 	end
 end
 

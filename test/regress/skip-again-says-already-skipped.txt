@@ -1,0 +1,12 @@
+# Skip Turn pressed on a unit that skipped already: "Scout has already skipped this turn", not "Skip Turn is not available for Scout".
+# covers: **/UnitPanel.lua
+# no-share-load: skips a unit
+load bug-scout-stopped-silent
+clear-advisors
+action SkipTurn -Settle 1500
+expect ^Turn skipped
+lua InGameAccess UI.SelectUnit(Players[0]:GetUnits():FindID(655360))
+action SkipTurn -Settle 1500
+expect ^Scout has already skipped this turn
+expect-not is not available
+no-lua-errors
