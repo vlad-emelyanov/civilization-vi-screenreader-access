@@ -330,8 +330,8 @@ end
 --	SPEECH HOLD: a popup that speaks (Eureka, tech completed, natural wonder) sends LuaEvents.SRA_SpeechHold( name, true )
 --	when it shows and ( name, false ) when it closes. While a hold is active, event announcements (HubCore.Announce) wait in
 --	a short queue and are spoken, in order and without interrupting, 0.4 s after the last hold ended. Results of the
---	player's own keys (SayResult) are never held. An event announcement spoken just before a hold began was cut off by
---	the popup's speech and is queued again.
+--	player's own keys (SayResult) are never held. When a hold begins while the last announcements are probably still being
+--	spoken, the popup's first line is queued behind them (SRRequestQueueBehind, ScreenReader.lua): nothing is cut off, nothing replayed.
 -- ===========================================================================
 local HOLD_SECONDS:number = 180;			-- fallback: a hold that was never released expires (holds with a context path are also released when it is hidden)
 local HOLD_WATCH_INTERVAL:number = 0.5;
@@ -421,12 +421,10 @@ function HubCore.SetSpeechHold( name:string, on:boolean, contextPath:string, sil
 		return;
 	end
 	if not silent and not HubCore.IsSpeechHeld() then
-		-- the popup's own speech cut off what was said a moment ago: say it again after the popup
+		-- what was said a moment ago is probably still being spoken: the popup's first line queues behind it instead of cutting it off
+		-- (nothing is replayed); lines still waiting in the hold queue stay queued
 		local now:number = UI.GetElapsedTime();
-		local old:table = speech.queue;
-		speech.queue = {};
-		for _, entry in ipairs( HubCore.CutOffEntries( speech.recent, now ) ) do QueueSpeech( speech.queue, entry.text, entry.kind ); end
-		for _, entry in ipairs( old ) do QueueSpeech( speech.queue, entry.text, entry.kind ); end
+		if #HubCore.CutOffEntries( speech.recent, now ) > 0 then SRRequestQueueBehind(); end
 	end
 	if not silent then speech.recent = {}; end
 	local now:number = UI.GetElapsedTime();

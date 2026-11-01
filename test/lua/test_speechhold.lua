@@ -75,16 +75,32 @@ test("a hold expires after 180 s", function()
 	eq(table.concat(Spoken(), "|"), "x")
 end)
 
-test("an announcement spoken just before the hold is queued again", function()
+test("an announcement still speaking when the hold begins is not replayed: the popup's first line queues behind it", function()
 	reset()
+	ExposedMembers = {}
 	HubCore.Announce("Turn 5, year 3900 BC", true, "turn")
 	eq(#Spoken(), 1)
 	Clock.now = Clock.now + 0.5
 	HubCore.SetSpeechHold("a", true)
+	OutputMessageToScreenReader("Tech completed: Writing")	-- the popup's own line, printed as an interrupting one
 	HubCore.Announce("Settler", true, "selection")
 	HubCore.SetSpeechHold("a", false)
 	tick(0.5)
-	eq(table.concat(Spoken(), "|"), "Turn 5, year 3900 BC|Turn 5, year 3900 BC|Settler")
+	eq(table.concat(Spoken(), "|"), "Turn 5, year 3900 BC|Tech completed: Writing|Settler")
+	eq(Printed[2]:match("^#SCREENREADER(%[NOINTERRUPT%]) "), "[NOINTERRUPT]")
+	OutputMessageToScreenReader("Next line")
+	eq(Printed[#Printed]:match("^#SCREENREADER(%[NOINTERRUPT%]) "), nil, "one-shot")
+end)
+
+test("the queue-behind flag expires after 2 seconds", function()
+	reset()
+	ExposedMembers = {}
+	HubCore.Announce("Turn 5, year 3900 BC", true, "turn")
+	Clock.now = Clock.now + 0.5
+	HubCore.SetSpeechHold("a", true)
+	Clock.now = Clock.now + 3
+	OutputMessageToScreenReader("Key answer")
+	eq(Printed[#Printed]:match("^#SCREENREADER(%[NOINTERRUPT%]) "), nil)
 end)
 
 test("an older announcement is not repeated", function()

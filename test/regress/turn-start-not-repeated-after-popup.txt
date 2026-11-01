@@ -1,0 +1,20 @@
+# A research popup that opens right at the turn start must not cut the turn-start block off and nothing is spoken a second time
+# when it closes: the popup's text is queued behind the block (Turn, Enemies ..., N new notifications), then silence after Enter.
+# covers: **/ScreenReader.lua **/HubCore.lua **/TechCivicCompletedPopup.lua
+# no-share-load: finishes a research with the tuner and ends the turn
+load bug-turn-repeat-after-research-popup
+clear-advisors
+lua GameCore_Tuner local t=Players[0]:GetTechs(); for r in GameInfo.Technologies() do if not t:HasTech(r.Index) and t:CanResearch(r.Index) then t:SetResearchingTech(r.Index); t:ChangeCurrentResearchProgress(t:GetResearchCost(r.Index)-t:GetResearchProgress(r.Index)-1); break end end
+lua InGameAccess local h=GameInfo.UnitOperations["UNITOPERATION_SKIP_TURN"].Hash; for _,u in Players[0]:GetUnits():Members() do UnitManager.RequestOperation(u,h) end
+key Enter -Settle 14000 -NoQuiet
+expect ^Turn 44
+expect (?i)research completed
+key Enter -Settle 4000 -NoQuiet
+expect-not ^Turn 44
+expect-not ^Enemies
+expect-not (?i)new notifications
+expect-not (?i)^Scout
+# deterministic part: a hold that begins while the block is still speaking makes the popup's first line queue behind it, one-shot
+lua InGameAccess local real=print; local got={}; print=function(s) got[#got+1]=s; end; HubCore.ClearSpeechHold(); HubCore.Announce("Enemies: a test line that is long enough to still be speaking", true); HubCore.SetSpeechHold("T", true); OutputMessageToScreenReader("Popup first line"); HubCore.SetSpeechHold("T", false); OutputMessageToScreenReader("Key answer"); print=real; return table.concat(got,"|")
+expect-lua ^#SCREENREADER\[NOINTERRUPT\] - Enemies.*\|#SCREENREADER\[NOINTERRUPT\] - Popup first line\|#SCREENREADER - Key answer$
+no-lua-errors

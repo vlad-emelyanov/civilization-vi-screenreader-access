@@ -85,6 +85,25 @@ local function _NormalizeGlyphs(text: string)
 	return text;
 end
 
+-- One-shot, shared by all UI contexts (ExposedMembers): the hub sets it when a popup that speaks opens while the turn-start
+-- block is still being spoken (HubCore.SetSpeechHold); the next line printed by ANY context (the popup's first line) then
+-- queues behind that block instead of cutting it off. Expires after 2 s so it never delays a later key response.
+local QUEUE_BEHIND_SECONDS = 2;
+
+function SRRequestQueueBehind()
+	if ExposedMembers == nil or UI == nil or UI.GetElapsedTime == nil then return; end
+	ExposedMembers.SRA_QueueBehindUntil = UI.GetElapsedTime() + QUEUE_BEHIND_SECONDS;
+end
+
+function SRTakeQueueBehind(nointerrupt)
+	if ExposedMembers == nil then return nointerrupt; end
+	local untilTime = ExposedMembers.SRA_QueueBehindUntil;
+	if untilTime == nil then return nointerrupt; end
+	ExposedMembers.SRA_QueueBehindUntil = nil;
+	if UI ~= nil and UI.GetElapsedTime ~= nil and UI.GetElapsedTime() <= untilTime then return true; end
+	return nointerrupt;
+end
+
 -- message: The message to be output to screenreaders
 -- nointerrupt: Defaults to false. If set, will not try to interrupt currently speaking prompts. Useful for things that aren't in response to user action
 function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
@@ -111,6 +130,7 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 	-- The game's print() treats "%" as a printf escape: "50% of" came out as "50<number>f". Say it in words instead.
 	if type(message) == "string" then message = string.gsub(message, "%s*%%", " percent"); end
 	if message == nil or message == "" then return; end
+	nointerrupt = SRTakeQueueBehind( nointerrupt );
 	if nointerrupt == true then
 		print(SCREENREADER_NO_INTERRUPT_LOG_PREFIX .. message);
 	else
