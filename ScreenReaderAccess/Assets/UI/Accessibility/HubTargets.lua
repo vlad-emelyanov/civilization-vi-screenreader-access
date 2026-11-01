@@ -1224,6 +1224,7 @@ do
 	Add( "TRANSFORM_UNIT", "command", "TRANSFORM_UNIT", "Transforming", false );
 	Add( "RESTORE_UNIT_MOVES", "command", "RESTORE_UNIT_MOVES", "Restoring moves", false );
 	Add( "NAVAL_GOLD_RAID", "command", "NAVAL_GOLD_RAID", "Naval raid", false );
+	Add( "PRIORITY_TARGET", "command", "PRIORITY_TARGET", "Priority target set", false );		-- WorldInput_Expansion1 PriorityTarget(): CanStartCommand(unit, type, params)
 end
 
 local function ConfirmDirectRequest( unit:table, plot:table, mode:number )
