@@ -846,6 +846,45 @@ m_actList = KeyNavList_Create{
 	onFocus		= function( item ) HubCursor.SetCursor( item.entry.x, item.entry.y, false, nil, true ); end,
 };
 
+-- Pure: "No reachable tile to activate Charles Darwin on: all 7 tiles: Aztec's territory, no open borders with Aztec" - the reasons
+-- (one text per qualifying tile, "" = unknown) grouped, with how many tiles each covers.
+function HubSettle.NoReachText( infinitive:string, reasons:table )
+	local order:table, counts:table = {}, {};
+	for _, reason in ipairs( reasons ) do
+		local text:string = ( reason ~= nil and reason ~= "" ) and reason or "no path leads there";
+		if counts[ text ] == nil then counts[ text ] = 0; table.insert( order, text ); end
+		counts[ text ] = counts[ text ] + 1;
+	end
+	local total:number = #reasons;
+	local parts:table = {};
+	for _, text in ipairs( order ) do
+		local n:number = counts[ text ];
+		local lead:string = ( #order == 1 ) and ( total == 1 and "the tile" or ( "all " .. total .. " tiles" ) ) or ( n == 1 and "1 tile" or ( n .. " tiles" ) );
+		table.insert( parts, lead .. ": " .. text );
+	end
+	return "No reachable tile to " .. infinitive .. " on" .. ( #parts > 0 and ( ", " .. table.concat( parts, "; " ) ) or "" );
+end
+
+-- Why the unit cannot get to this qualifying tile: another unit of its formation class stands there (also an escort formation),
+-- else the foreign territory / city (HubTargets.UnreachableReason), else "".
+local function WhyNoPath( unit:table, plot:table )
+	local text:string = "";
+	pcall( function()
+		local function ClassOf( u:table )
+			local row:table = GameInfo.Units[ u:GetUnitType() ];
+			return ( row ~= nil ) and row.FormationClass or nil;
+		end
+		local mine:string = ClassOf( unit );
+		for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+			if text == "" and other:GetID() ~= unit:GetID() and other:GetOwner() == unit:GetOwner() and mine ~= nil and ClassOf( other ) == mine then
+				text = Locale.Lookup( other:GetName() ) .. " stands there, only one " .. ( mine == "FORMATION_CLASS_CIVILIAN" and "civilian" or "unit of that kind" ) .. " fits on a tile";
+			end
+		end
+	end );
+	if text == "" then text = HubTargets.UnreachableReason( unit, plot ); end
+	return text;
+end
+
 -- X with such a unit: opens the browser (or says why there is nothing). Returns false for a unit without the ability.
 function HubSettle.OpenActBrowser( unit:table )
 	local a:table = HubSettle.ActivationPlots( unit );
@@ -853,7 +892,16 @@ function HubSettle.OpenActBrowser( unit:table )
 	local noMoves:string = ( unit:GetMovesRemaining() <= 0 ) and ( Locale.Lookup( unit:GetName() ) .. " has no moves left. " ) or "";
 	local items:table = BuildActItems( unit, a );
 	if #items == 0 then
-		OutputMessageToScreenReader( #a.plots == 0 and a.empty or "No reachable tile to " .. HubSettle.ActionInfinitive( a ) .. " on" );
+		if #a.plots == 0 then
+			OutputMessageToScreenReader( a.empty );
+		else
+			local reasons:table = {};
+			for i, index in ipairs( a.plots ) do
+				local plot:table = Map.GetPlotByIndex( index );
+				if plot ~= nil and #reasons < 12 then table.insert( reasons, WhyNoPath( unit, plot ) ); end
+			end
+			OutputMessageToScreenReader( HubSettle.NoReachText( HubSettle.ActionInfinitive( a ), reasons ) );
+		end
 		return true;
 	end
 	m_act = { items = items, unitId = unit:GetID(), act = a };

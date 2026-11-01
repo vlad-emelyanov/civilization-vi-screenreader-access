@@ -1,0 +1,12 @@
+# X with a great person whose qualifying tiles cannot be reached says why (fixture bug-great-person-no-reachable-tile):
+# Rembrandt: the Hermitage and Theater Square tiles hold Timur and Edgar Allan Poe (one civilian per tile); Darwin: tiles by a natural wonder in Aztec land.
+# covers: **/HubSettle.lua **/HubTargets.lua
+# no-share-load: selects units
+load bug-great-person-no-reachable-tile
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if Locale.Lookup(u:GetName()) == "Rembrandt van Rijn" then UI.SelectUnit(u) end end
+action KeyNavScanUnits -Settle 1500
+expect No reachable tile to activate Rembrandt van Rijn on.*Timur stands there, only one civilian fits on a tile.*Edgar Allan Poe stands there
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if Locale.Lookup(u:GetName()) == "Charles Darwin" then UI.SelectUnit(u) end end
+action KeyNavScanUnits -Settle 1500
+expect No reachable tile to activate Charles Darwin on.*Aztec's territory, no open borders with Aztec
+no-lua-errors

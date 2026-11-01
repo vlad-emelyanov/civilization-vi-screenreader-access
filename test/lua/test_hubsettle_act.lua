@@ -53,3 +53,11 @@ test("arrival of a unit sent to act arms Enter with the action", function()
 	assert(HubSettle.m_pending ~= nil and HubSettle.m_pending.act == euclid)
 	HubSettle.m_pending = nil
 end)
+
+test("NoReachText: names why no qualifying tile can be reached, grouped", function()
+	eq(HubSettle.NoReachText("activate Charles Darwin", { "Aztec's territory, no open borders with Aztec", "Aztec's territory, no open borders with Aztec" }),
+		"No reachable tile to activate Charles Darwin on, all 2 tiles: Aztec's territory, no open borders with Aztec")
+	eq(HubSettle.NoReachText("use Rembrandt", { "Timur stands there, only one civilian fits on a tile", "Poe stands there, only one civilian fits on a tile" }),
+		"No reachable tile to use Rembrandt on, 1 tile: Timur stands there, only one civilian fits on a tile; 1 tile: Poe stands there, only one civilian fits on a tile")
+	eq(HubSettle.NoReachText("activate X", { "" }), "No reachable tile to activate X on, the tile: no path leads there")
+end)
