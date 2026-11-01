@@ -303,7 +303,7 @@ local function OpenBuildBrowser( unit:table )
 			if i ~= m_build.index and #BuildScan_Scan( unit, entry.city, true ).list > 0 then other = true; break; end
 		end
 		if not other then
-			OutputMessageToScreenReader( "Nothing to improve near your cities" );
+			OutputMessageToScreenReader( "No tile to improve near " .. ( city ~= nil and city.name or "your cities" ) );
 			return;
 		end
 		HubCore.CloseMode( false, false );
@@ -840,16 +840,36 @@ function HubSettle.BuilderHint( unit:table )
 	return SRKey( "X", "X" ) .. " lists tiles to improve";
 end
 
+-- Why the builder's tile browser would be empty ("No tile to improve near Knossos", also "has no moves left"), nil when it has tiles.
+-- Uses the scan cache (no rescan), so it is cheap enough for the actions menu.
+function HubSettle.NothingToImproveReason( unit:table )
+	if unit:GetMovesRemaining() <= 0 then return Locale.Lookup( unit:GetName() ) .. " has no moves left"; end
+	local ok:boolean, reason = pcall( function()
+		local cities:table = BuildScan_Cities( unit );
+		if #cities == 0 then return "No city to improve tiles for"; end
+		for _, entry in ipairs( cities ) do
+			if #BuildScan_Scan( unit, entry.city, false ).list > 0 then return nil; end
+		end
+		local default:table = BuildScan_DefaultCity( unit );
+		return "No tile to improve near " .. ( default ~= nil and Locale.Lookup( default:GetName() ) or cities[1].name );
+	end );
+	if ok then return reason; end
+	return nil;
+end
+
 -- The browser X opens for this unit, as { text, open } for the unit actions menu (the controller has no X on the map), or nil
 -- when X would not open one (the scan for foreign units). Same order and tests as ScanKey; open() is ScanKey itself.
 function HubSettle.BrowserFor( unit:table )
 	if unit == nil then return nil; end
 	local text:string = nil;
+	local reason:string = nil;
 	if HubCore.IsSettler( unit ) then text = "Browse settle spots";
-	elseif BuildScan_Improvements( unit ) ~= nil then text = "Browse tiles to improve";
+	elseif BuildScan_Improvements( unit ) ~= nil then
+		text = "Browse tiles to improve";
+		reason = HubSettle.NothingToImproveReason( unit );
 	elseif HubSettle.ActivationPlots( unit ) ~= nil then text = "Browse tiles to act on"; end
 	if text == nil then return nil; end
-	return { text = text, open = function() HubSettle.ScanKey(); end };
+	return { text = text, reason = reason, open = function() HubSettle.ScanKey(); end };
 end
 
 -- X: with a settler selected the spot browser, with a builder the tile browser, otherwise the scan for foreign units.
@@ -862,7 +882,11 @@ function HubSettle.ScanKey()
 		return;
 	end
 	if BuildScan_Improvements( unit ) ~= nil and HubTargets.GetTargetMode() == nil then
-		OpenBuildBrowser( unit );
+		local ok:boolean, err = xpcall( function() OpenBuildBrowser( unit ); end, KeyNavErrorHandler );
+		if not ok then
+			print( "HubSettle build browser error: " .. tostring( err ) );
+			OutputMessageToScreenReader( "Could not list the tiles to improve" );		-- never silent
+		end
 		return;
 	end
 	if HubTargets.GetTargetMode() == nil and HubSettle.OpenActBrowser( unit ) then return; end

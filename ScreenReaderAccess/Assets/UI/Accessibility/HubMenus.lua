@@ -295,7 +295,14 @@ function HubMenus.ToggleUnitMenu()
 	local browser:table = ( HubSettle ~= nil ) and HubSettle.BrowserFor( unit ) or nil;
 	if browser ~= nil then
 		-- the mod's own browser (X on the map): first entry, so the controller reaches it too
-		table.insert( m_menuItems, 1, { key = "browse|" .. browser.text, text = browser.text, detail = "Opens the same browser as the " .. SRKey( "X key", "X button" ), browse = browser } );
+		local entry:table = { key = "browse|" .. browser.text, text = browser.text, detail = "Opens the same browser as the " .. SRKey( "X key", "X button" ), browse = browser };
+		if browser.reason ~= nil then
+			-- nothing to browse: the entry says why and Enter repeats it (never a silent empty browser)
+			entry.text = browser.text .. ", unavailable: " .. browser.reason;
+			entry.choosable = false;
+			entry.reason = browser.reason;
+		end
+		table.insert( m_menuItems, 1, entry );
 	end
 	if #m_menuItems == 0 then
 		OutputMessageToScreenReader( PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ) .. " has no actions" );

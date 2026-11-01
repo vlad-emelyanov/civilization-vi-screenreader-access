@@ -1,0 +1,17 @@
+# A builder with no tile to improve: X says so with the city, the Tab entry is unavailable with that reason, Enter repeats it. Never silent.
+# The empty scan is faked (BuildScan_Scan returns nothing) on the Knossos fixture, where the real scan lists 5 tiles.
+# covers: **/HubSettle.lua **/HubMenus.lua **/BuildScan.lua
+# no-share-load: replaces BuildScan_Scan in the hub
+load bug-builder-x-silent-knossos
+clear-advisors
+key X -Settle 1500
+expect ^Tiles to improve near Knossos, 5 tiles
+key Escape -Settle 800
+lua InGameAccess BuildScan_Scan = function() return {list={}, later={}} end
+key X -Settle 1500
+expect ^No tile to improve near Knossos
+key Tab -Settle 1500
+expect Browse tiles to improve, unavailable: No tile to improve near Knossos
+key Enter -Settle 1500
+expect ^No tile to improve near Knossos
+no-lua-errors
