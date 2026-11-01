@@ -222,3 +222,4 @@ Autoplay (state `InGame`, never `GameCore_Tuner`):
 AutoplayManager.SetTurns(n); AutoplayManager.SetReturnAsPlayer(0); AutoplayManager.SetObserveAsPlayer(0); AutoplayManager.SetActive(true)
 ```
 The AI plays our civ (UI visible, tuner works); `AutoplayManager.IsActive()` goes false after n turns and control returns with no popup open. ~6.5 s/turn around turn 71, ~21 s/turn around turn 115; poll at most every 30 s. The local player is -1 during autoplay.
+- `ExposedMembers` is one table shared by all UI contexts (verified 2026-10-31: a value set from the InGameAccess state was read in the TechCivicCompletedPopup state); it carries the one-shot `SRA_QueueBehindUntil` timestamp (ScreenReader.lua) that makes the next printed line NOINTERRUPT. `UI.GetElapsedTime()` is the clock.
