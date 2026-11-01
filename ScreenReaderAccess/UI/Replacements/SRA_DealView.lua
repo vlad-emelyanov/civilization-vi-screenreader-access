@@ -3937,7 +3937,9 @@ local function SRA_Flush()
 	local action = m_srIncomingAction;
 	m_srIncomingAction = nil;
 	if action == DealProposalAction.ACCEPTED then
-		table.insert( parts, "They accept the deal." );
+		-- the engine's ACCEPTED is the AI's own evaluation; when the screen offers no Accept Deal (an ask for something for nothing:
+		-- the leader says "unfair deal") the player must hear only the leader's words, not a contradiction (bug-deal-accept-contradiction)
+		if not Controls.AcceptDeal:IsHidden() then table.insert( parts, "They accept the deal." ); end
 	elseif action == DealProposalAction.REJECTED or action == DealProposalAction.REJECTED_PERMANENT then
 		table.insert( parts, "They reject the deal." );
 	elseif action == DealProposalAction.EQUALIZE_FAILED then

@@ -1,0 +1,22 @@
+# Asking Germany for Open Borders and giving nothing: the leader says "unfair deal", no Accept Deal exists. "They accept the deal" must not be spoken before it.
+# covers: **/SRA_DealView.lua
+# no-share-load: opens a deal
+load bug-deal-accept-contradiction
+clear-advisors
+action KeyNavDiplomacy -Settle 2500
+key Down -Settle 600
+key Enter -Settle 2500
+expect ^Diplomacy with Frederick
+key Down -Count 4 -Settle 400
+expect ^Make Deal
+key Enter -Settle 3500
+expect ^Deal with
+key Tab -Count 2 -Settle 800
+key Down -Count 4 -Settle 500
+expect ^Open Borders
+key Enter -Settle 3500
+expect ^Added: They give: Open Borders
+expect (?i)unfair deal
+expect-not (?i)they accept
+key Escape -Settle 1500
+no-lua-errors
