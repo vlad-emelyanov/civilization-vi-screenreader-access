@@ -1,0 +1,10 @@
+# Blind-written (the verifier records it): the promotion key (Shift+U) is never silent while a spy's list is open; it says why nothing opens.
+# Fixture bug-spy-list-over-historic-moment (turn 210: idle spy Bambi, destination list open).
+# covers: **/EspionageChooser.lua **/PromotionText.lua **/UnitPanel.lua
+# no-share-load: cancels the chooser
+load bug-spy-list-over-historic-moment
+action ExtraHotkeysPromote -Settle 1200
+expect ^Close the destination list first, Escape closes it
+key Escape -Settle 1200
+expect ^Cancelled
+no-lua-errors

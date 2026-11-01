@@ -70,6 +70,29 @@ function DiplomacyText_Opening( leader:string, civ:string, statementType:string,
 	return who .. " says: ";
 end
 
+-- What the game decided on an action: the statement subtype of the reply (DiplomacyStatements_*.xml: AI_ACCEPT_DEAL / AI_REFUSE_DEAL = we
+-- asked and the AI answered, HUMAN_ACCEPT_DEAL / HUMAN_REFUSE_DEAL = the AI asked and we answered). The leader's quote alone does not say it.
+-- Returns "Friendship declared." / "Embassy sent." / "Delegation sent." / "Open borders agreed." / "Declined.", or "" for other statements
+-- or when the leader's words (said) already contain the line.
+DIPLOMACY_TEXT_RESULTS = {
+	DECLARE_FRIEND = { weAsked = "Friendship declared.", theyAsked = "Friendship declared." },
+	RESIDENT_EMBASSY = { weAsked = "Embassy sent.", theyAsked = "Embassy accepted." },
+	DIPLOMATIC_DELEGATION = { weAsked = "Delegation sent.", theyAsked = "Delegation accepted." },
+	OPEN_BORDERS = { weAsked = "Open borders agreed.", theyAsked = "Open borders agreed." },
+};
+function DiplomacyText_Result( statementType:string, subType:string, said:string )
+	local entry:table = DIPLOMACY_TEXT_RESULTS[ statementType ];
+	if entry == nil then return ""; end
+	local line:string = nil;
+	if subType == "AI_ACCEPT_DEAL" then line = entry.weAsked;
+	elseif subType == "HUMAN_ACCEPT_DEAL" then line = entry.theyAsked;
+	elseif subType == "AI_REFUSE_DEAL" or subType == "HUMAN_REFUSE_DEAL" then line = "Declined.";
+	end
+	if line == nil then return ""; end
+	if said ~= nil and string.find( string.lower( said ), string.lower( string.gsub( line, "%.$", "" ) ), 1, true ) then return ""; end
+	return line;
+end
+
 -- Notification types whose title ("Declaration of War") alone does not say who: the summary names the parties
 DIPLOMACY_TEXT_PARTY_NOTIFICATIONS = {
 	NOTIFICATION_DECLARE_WAR = true, NOTIFICATION_DECLARE_WAR_CITY_STATE = true, NOTIFICATION_MAKE_PEACE = true, NOTIFICATION_MAKE_PEACE_CITY_STATE = true,

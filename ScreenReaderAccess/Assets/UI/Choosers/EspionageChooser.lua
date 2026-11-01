@@ -12,6 +12,7 @@ include("ScreenReader");		-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
 include("SRListen");		-- ScreenReaderAccess
 include("EspionageText");	-- ScreenReaderAccess
+include("PromotionText");	-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -1272,6 +1273,16 @@ function SRA_OnUpdate( deltaTime:number )
 	if not ok then print( "EspionageChooser announce error: " .. tostring( err ) ); end
 end
 
+-- A key the chooser does not use: Tab / F-keys have their line (KeyNavList); Shift+U (promotion; the default binding) says why nothing opens
+-- (UnitPanel says the same when the action still reaches it)
+local function SRA_SayUnhandled( input:table )
+	if input:GetMessageType() == KeyEvents.KeyUp and input:IsShiftDown() and not input:IsControlDown() and not input:IsAltDown() and input:GetKey() == Keys.U then
+		OutputMessageToScreenReader( PromotionText_ListOpen( m_currentChooserMode == EspionageChooserModes.DESTINATION_CHOOSER, SRKey( "Escape" ) ) );
+	else
+		KeyNavList_SayUnhandledKey( input );
+	end
+end
+
 function SRA_HandleInput( input:table )
 	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() then return false; end
 	local msg:number = input:GetMessageType();
@@ -1289,12 +1300,15 @@ function SRA_HandleInput( input:table )
 				local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
 				if not ok then print( "EspionageChooser error: " .. tostring( err ) ); end
 			else
-				KeyNavList_SayUnhandledKey( input );		-- Tab, F7 ...: never silent
+				SRA_SayUnhandled( input );		-- Tab, F7 ...: never silent
 			end
 		end
 		return true;
 	end
-	if not m_srList.HandleInput( input ) then KeyNavList_SayUnhandledKey( input ); end
+	if not m_srList.HandleInput( input ) then
+		-- Shift+U (promotion; the default binding): the list takes the key, so say why nothing opens (UnitPanel says the same when the action still reaches it)
+		SRA_SayUnhandled( input );
+	end
 	return true;		-- everything else is swallowed while the chooser is shown
 end
 

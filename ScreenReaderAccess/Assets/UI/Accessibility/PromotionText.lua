@@ -64,3 +64,22 @@ end
 function PromotionText_Done( name:string )
 	return "Promoted: " .. name;
 end
+
+-- The promotion key on a unit that picks from a random list (spy, apostle ...): the game shows a visual list, so the key says the choices
+-- and where to choose. "Promote Spy: choose Cover Story, Disguise or Smooth Talker. Tab opens the list"
+function PromotionText_Choices( unitName:string, names:table, tabKey:string )
+	local list:string = "";
+	if #names == 1 then
+		list = names[1];
+	elseif #names > 1 then
+		local head:table = {};
+		for i = 1, #names - 1 do head[i] = names[i]; end
+		list = table.concat( head, ", " ) .. " or " .. names[#names];
+	end
+	return "Promote " .. unitName .. ": choose " .. list .. ". " .. tabKey .. " opens the list";
+end
+
+-- The promotion key while a spy's mission or destination list is open (it takes the keys): why nothing happens.
+function PromotionText_ListOpen( destination:boolean, escapeKey:string )
+	return "Close the " .. ( destination and "destination" or "mission" ) .. " list first, " .. escapeKey .. " closes it";
+end

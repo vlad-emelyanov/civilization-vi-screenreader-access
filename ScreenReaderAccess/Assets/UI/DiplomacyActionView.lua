@@ -718,6 +718,9 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 		local said:string = CleanTextForSpeech(leaderstr);
 		if reasonStr ~= nil and reasonStr ~= "" then said = said .. " " .. CleanTextForSpeech(reasonStr); end
 		local speech:string;
+		-- what the game decided (statement subtype of its reply), as one plain line after the leader's words
+		local result:string = fromLocal and "" or DiplomacyText_Result( statementTypeName, statementSubTypeName, said );
+		if result ~= "" then said = ( said ~= "" ) and ( said .. " " .. result ) or result; end
 		if fromLocal or said == "" then
 			-- no words of the leader to read: who waits for the answer
 			local otherID:number = fromLocal and ms_OtherPlayerID or kStatement.FromPlayer;
