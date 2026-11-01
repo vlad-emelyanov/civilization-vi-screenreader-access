@@ -281,6 +281,7 @@ function Initialize()
 		isActive = function() return not ContextPtr:IsHidden() and not Controls.PantheonChooserSlideAnim:IsReversing(); end,
 		onActivate = SRA_OnActivate,
 		onClose = SRA_OnClose,
+		enterGuard = 0.6,		-- a quick second Enter after opening must not pick the first belief
 	};
 	ContextPtr:SetInitHandler( OnInit );
 	ContextPtr:SetShutdown( OnShutdown );

@@ -1,0 +1,15 @@
+# A Eureka boost is spoken at once and needs no key: no popup opens, no "Enter to continue", the line is in the history. UNVERIFIED (blind-written): run once with `python util/civregress.py boost-no-popup --record`.
+# covers: **/BoostUnlockedPopup.lua **/HubCore.lua **/InGameAccess.lua
+# no-share-load: fires a boost event
+load pt-greece-t30
+clear-advisors
+lua InGame LuaEvents.NotificationPanel_ShowTechBoost(Game.GetLocalPlayer(), GameInfo.Technologies["TECH_BRONZE_WORKING"].Index, 0, BoostSources.BOOST_SOURCE_WONDER)
+wait Bronze -Timeout 8
+expect (?i)eureka|boost
+expect-not Enter to continue
+key Enter -Settle 800
+expect-not ^Closed
+key Control+M -Settle 1500
+expect (?i)bronze working
+key Escape -Settle 800
+no-lua-errors

@@ -292,6 +292,21 @@ function HubCore.KeyHint( actionName:string, default:string, button:string )
 	return SRKey( text, button );
 end
 
+-- "Shift+Arrows" (or "the cursor keys"), following the current bindings of the four cell-move actions, as a key hint.
+function HubCore.CursorKeysHint( button:string )
+	local texts:table = {};
+	for i, name in ipairs( { "KeyNavMoveCellLeft", "KeyNavMoveCellRight", "KeyNavMoveCellUp", "KeyNavMoveCellDown" } ) do
+		local ok:boolean, text = pcall( function()
+			local id = Input.GetActionId( name );
+			if id == nil then return nil; end
+			return Input.GetGestureDisplayString( id, 0 );
+		end );
+		if ok and text ~= nil and text ~= '' then texts[i] = text; end
+	end
+	if #texts < 4 then texts = { "Shift+Left", "Shift+Right", "Shift+Up", "Shift+Down" }; end
+	return SRKey( SRCursorKeysText( texts ), button );
+end
+
 -- Runs fn after the given seconds (from the update loop).
 function HubCore.After( seconds:number, fn )
 	table.insert( HubCore.m_delayed, { time = seconds, fn = fn } );
@@ -326,7 +341,24 @@ local HOLD_RELEASE_DELAY:number = 0.4;
 local REPEAT_FRESH_SECONDS:number = 20;		-- a congress results popup this soon after the turn began is the turn-start one
 local REPEAT_QUIET_SECONDS:number = 0.5;		-- no popup/hold for this long before the turn-start line is repeated
 local REPEAT_EXPIRE_SECONDS:number = 30;		-- a pending repeat that did not fire by then is dropped
-local HOLD_RECENT_WINDOW:number = 1.5;		-- announcements this recent are cut by a popup that begins now
+local SPEECH_CHARS_PER_SECOND:number = 14;		-- estimated speaking speed of the screen reader
+local TURN_LINE_REPLAY_SECONDS:number = 1;		-- the "Turn N" line is not replayed when it was spoken at least this long ago
+
+-- Which of the recently spoken entries ( { text, kind, time } in the order they were printed ) were probably still
+-- being spoken at 'now', when a popup's speech interrupted: the lines queue behind each other at about 14 characters
+-- per second. A line that had time to finish is not returned; the turn line only if it began less than a second ago.
+function HubCore.CutOffEntries( recent:table, now:number )
+	local result:table = {};
+	local ends:number = -1000;
+	for _, entry in ipairs( recent ) do
+		local start:number = math.max( entry.time, ends );
+		ends = start + string.len( entry.text ) / SPEECH_CHARS_PER_SECOND;
+		if ends > now and not ( entry.kind == "turn" and now - entry.time >= TURN_LINE_REPLAY_SECONDS ) then
+			table.insert( result, entry );
+		end
+	end
+	return result;
+end
 
 function HubCore.IsSpeechHeld()
 	local now:number = UI.GetElapsedTime();
@@ -393,9 +425,7 @@ function HubCore.SetSpeechHold( name:string, on:boolean, contextPath:string, sil
 		local now:number = UI.GetElapsedTime();
 		local old:table = speech.queue;
 		speech.queue = {};
-		for _, entry in ipairs( speech.recent ) do
-			if now - entry.time <= HOLD_RECENT_WINDOW then QueueSpeech( speech.queue, entry.text, entry.kind ); end
-		end
+		for _, entry in ipairs( HubCore.CutOffEntries( speech.recent, now ) ) do QueueSpeech( speech.queue, entry.text, entry.kind ); end
 		for _, entry in ipairs( old ) do QueueSpeech( speech.queue, entry.text, entry.kind ); end
 	end
 	if not silent then speech.recent = {}; end
