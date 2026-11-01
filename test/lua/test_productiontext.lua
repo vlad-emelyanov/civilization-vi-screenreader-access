@@ -128,3 +128,7 @@ test("queue removal speech and focus", function()
 	eq(ProductionText_QueueFocusAfterRemove(2, 2), 1)
 	eq(ProductionText_QueueFocusAfterRemove(0, 0), nil)
 end)
+
+test("pillaged prerequisite reason", function()
+	eq(ProductionText_PillagedPrereq("Library"), "Library is pillaged, repair it first")
+end)

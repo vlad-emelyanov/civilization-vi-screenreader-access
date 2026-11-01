@@ -2549,6 +2549,26 @@ local function SRA_Reasons( kItem:table, skipFunds:boolean, tooltip:string )
 		local text:string = CleanTextForSpeech( reason );
 		if not ( skipFunds and ( text == funds1 or text == funds2 ) ) then table.insert( reasons, SRA_StackReason( kItem, text ) or text ); end
 	end
+	-- a building whose required building stands pillaged here (Great Library needs a working Library): the game's red lines may not say so
+	local row:table = GameInfo.Buildings[ kItem.Hash ];
+	if row ~= nil and kItem.Disabled == true and m_pCity ~= nil then
+		local names:table = {};
+		local ok:boolean = pcall( function()
+			local cityBuildings:table = m_pCity:GetBuildings();
+			for prereq in GameInfo.BuildingPrereqs() do
+				if prereq.Building == row.BuildingType then
+					local prereqRow:table = GameInfo.Buildings[ prereq.PrereqBuilding ];
+					if prereqRow ~= nil and cityBuildings:HasBuilding( prereqRow.Index ) and cityBuildings:IsPillaged( prereqRow.Hash ) then
+						table.insert( names, CleanTextForSpeech( Locale.Lookup( prereqRow.Name ) ) );
+					end
+				end
+			end
+		end );
+		local said:string = table.concat( reasons, ", " );
+		for _, name in ipairs( ok and names or {} ) do
+			if not string.find( said, name .. " is pillaged", 1, true ) then table.insert( reasons, ProductionText_PillagedPrereq( name ) ); end
+		end
+	end
 	return table.concat( reasons, ", " );
 end
 

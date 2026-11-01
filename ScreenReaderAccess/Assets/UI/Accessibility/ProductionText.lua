@@ -173,3 +173,8 @@ function ProductionText_QueueFocusAfterRemove( position:number, left:number )
 	if position > left - 1 then return left - 1; end
 	return position;
 end
+
+-- Reason line for a building whose required building is pillaged: "Library is pillaged, repair it first".
+function ProductionText_PillagedPrereq( prereqName )
+	return prereqName .. " is pillaged, repair it first";
+end
