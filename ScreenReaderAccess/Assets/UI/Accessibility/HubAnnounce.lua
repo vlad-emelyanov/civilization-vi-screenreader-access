@@ -872,6 +872,7 @@ end
 -- ===========================================================================
 local READY_POLL:number = 0.25;
 local READY_STABLE:number = 0.5;
+local PLACE_RESULT_WAIT:number = 2.5;	-- seconds after a placement commit during which "All done" waits for the placement result
 local m_ready:table = { poll = 0, stable = 0, armed = true };
 
 function HubAnnounce.ResetReadyWatch()
@@ -909,6 +910,8 @@ function HubAnnounce.UpdateReadyWatch( deltaTime:number )
 		m_ready.armed = true;
 		return;
 	end
+	-- a district / wonder just placed: its result ("Producing Holy Site") comes first (it is checked up to 1.5 s after the commit)
+	if UI.GetElapsedTime() - HubCore.m_placeCommitTime < PLACE_RESULT_WAIT then m_ready.stable = 0; return; end
 	m_ready.stable = m_ready.stable + elapsed;
 	if not m_ready.armed or m_ready.stable < READY_STABLE then return; end
 	if HubCore.m_mode ~= nil or HubTargets.GetTargetMode() ~= nil or HubCore.IsGamePopupOpen() then return; end
