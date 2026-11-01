@@ -102,6 +102,11 @@ function EmpireText.CityProblems( f:table )
 			and f.loyaltyLevel < ( f.loyaltyTopLevel or 3 ) then
 		Add( 50, name .. " loyalty " .. Num( f.loyalty or 0 ) .. ", falling " .. Num( -f.loyaltyPerTurn ) .. " a turn" );
 	end
+	if not f.occupied and f.foodSurplus == 0 and f.turnsUntilGrowth <= 0 then
+		local why:string = "food surplus 0";
+		if f.housing ~= nil and f.housing - f.population <= 0 then why = why .. ", housing full"; end
+		Add( 45, name .. " is not growing: " .. why );
+	end
 	if not f.occupied and f.housing ~= nil then
 		local free:number = f.housing - f.population;
 		if free <= 0 and f.foodSurplus > 0 then

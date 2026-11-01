@@ -1,0 +1,10 @@
+# A city that stays at food surplus 0 is listed under Needs attention with the reason (pt-nobarbs-t147: Ostia).
+# covers: **/EmpireText.lua **/HubEmpire.lua
+# no-share-load: opens the empire overview
+load pt-nobarbs-t147
+action KeyNavEmpire -Settle 3000
+expect ^Empire, \d+ need
+key Down -Count 2 -Settle 500
+expect is not growing: food surplus 0
+key Escape -Settle 800
+no-lua-errors
