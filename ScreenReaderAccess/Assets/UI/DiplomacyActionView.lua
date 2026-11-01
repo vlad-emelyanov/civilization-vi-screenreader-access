@@ -708,7 +708,10 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 
 	-- Begin ScreenReaderAccess change: say what the leader says, then offer the answers
 	-- (a statement from our own side is only announced when it offers answers: the leader has not spoken yet)
-	if m_srList ~= nil and ( kStatement.FromPlayer ~= Game.GetLocalPlayer() or #m_srSelections > 0 ) then
+	-- what the game decided: the subtype only exists on a reply, so the result is valid whoever the statement is from
+	local srResult:string = DiplomacyText_Result( statementTypeName, statementSubTypeName, CleanTextForSpeech( leaderstr ) );
+	print( "DiplomacyReply: " .. tostring(statementTypeName) .. "/" .. tostring(statementSubTypeName) .. " from=" .. tostring(kStatement.FromPlayer) .. " local=" .. tostring(Game.GetLocalPlayer()) .. " initiator=" .. tostring(kStatement.Initiator) .. " result=" .. srResult );
+	if m_srList ~= nil and ( kStatement.FromPlayer ~= Game.GetLocalPlayer() or #m_srSelections > 0 or srResult ~= "" ) then
 		local fromLocal:boolean = ( kStatement.FromPlayer == Game.GetLocalPlayer() );
 		local civName:string = Locale.Lookup( PlayerConfigurations[kStatement.FromPlayer]:GetCivilizationShortDescription() );
 		-- the opening says why the scene opened (statement type of an AI-initiated statement: kudo / warning / deal / denounce ...)
@@ -718,7 +721,12 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 		local said:string = CleanTextForSpeech(leaderstr);
 		if reasonStr ~= nil and reasonStr ~= "" then said = said .. " " .. CleanTextForSpeech(reasonStr); end
 		local speech:string;
-		if fromLocal or said == "" then
+		-- what the game decided (statement subtype of its reply), as one plain line after the leader's words
+		local result:string = DiplomacyText_Result( statementTypeName, statementSubTypeName, said );
+		if result ~= "" then said = ( said ~= "" ) and ( said .. " " .. result ) or result; end
+		if fromLocal and result ~= "" then
+			speech = result;		-- the reply is on our side of the record: only the outcome is new
+		elseif fromLocal or said == "" then
 			-- no words of the leader to read: who waits for the answer
 			local otherID:number = fromLocal and ms_OtherPlayerID or kStatement.FromPlayer;
 			local otherCfg = PlayerConfigurations[ otherID ];

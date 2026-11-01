@@ -12,6 +12,7 @@ include("ScreenReader");		-- ScreenReaderAccess
 include("KeyNavList");		-- ScreenReaderAccess
 include("SRListen");		-- ScreenReaderAccess
 include("EspionageText");	-- ScreenReaderAccess
+include("PromotionText");	-- ScreenReaderAccess
 
 -- ===========================================================================
 --	CONSTANTS
@@ -1272,6 +1273,24 @@ function SRA_OnUpdate( deltaTime:number )
 	if not ok then print( "EspionageChooser announce error: " .. tostring( err ) ); end
 end
 
+-- A key the chooser does not use: Tab / F-keys have their line (KeyNavList)
+local function SRA_SayUnhandled( input:table )
+	KeyNavList_SayUnhandledKey( input );
+end
+
+-- The promotion key (the user's binding: the input action) while the list takes the keys: why nothing opens. Only when the spy can be promoted;
+-- otherwise UnitPanel's blocked-hotkey path says "Cannot promote ...".
+function SRA_OnInputAction( actionId:number )
+	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() or ContextPtr:IsHidden() then return; end
+	if actionId ~= Input.GetActionId( "ExtraHotkeysPromote" ) or SRA_PopupAbove() then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() then return; end
+	local ok:boolean, can, results = pcall( function() return UnitManager.CanStartCommand( unit, UnitCommandTypes.PROMOTE, true, true ); end );
+	if ok and can and results ~= nil and results[UnitCommandResults.PROMOTIONS] ~= nil and #results[UnitCommandResults.PROMOTIONS] ~= 0 then
+		OutputMessageToScreenReader( PromotionText_ListOpen( m_currentChooserMode == EspionageChooserModes.DESTINATION_CHOOSER, SRKey( "Escape" ) ) );
+	end
+end
+
 function SRA_HandleInput( input:table )
 	if m_AnimSupport == nil or not m_AnimSupport.IsVisible() then return false; end
 	local msg:number = input:GetMessageType();
@@ -1289,13 +1308,13 @@ function SRA_HandleInput( input:table )
 				local ok:boolean, err = xpcall( action, KeyNavErrorHandler );
 				if not ok then print( "EspionageChooser error: " .. tostring( err ) ); end
 			else
-				KeyNavList_SayUnhandledKey( input );		-- Tab, F7 ...: never silent
+				SRA_SayUnhandled( input );		-- Tab, F7 ...: never silent
 			end
 		end
 		return true;
 	end
 	if not m_srList.HandleInput( input ) then
-		if not SRChooserNextKey( input, SRA_Head() ) then KeyNavList_SayUnhandledKey( input ); end
+		if not SRChooserNextKey( input, SRA_Head() ) then SRA_SayUnhandled( input ); end
 	end
 	return true;		-- everything else is swallowed while the chooser is shown
 end
@@ -1327,6 +1346,7 @@ function Initialize()
 	SRListen( Events.UnitSelectionChanged, OnUnitSelectionChanged );		-- ScreenReaderAccess
 	SRListen( Events.UnitActivityChanged, OnUnitActivityChanged );		-- ScreenReaderAccess
 	SRListen( Events.LocalPlayerTurnEnd, OnLocalPlayerTurnEnd );		-- ScreenReaderAccess
+	SRListen( Events.InputActionTriggered, SRA_OnInputAction );		-- ScreenReaderAccess
 
 	-- Animation controller
 	m_AnimSupport = CreateScreenAnimation(Controls.SlideAnim);

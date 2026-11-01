@@ -12,6 +12,7 @@ include( "EspionageSupport" );
 include("GameCapabilities");
 include("ScreenReader");	-- ScreenReaderAccess mod: CleanTextForSpeech
 include("PlotDescription");	-- ScreenReaderAccess mod: PlotDescription_NearestHostile
+include("PromotionText");	-- ScreenReaderAccess mod: promotion key wording
 include("ReligionText");	-- ScreenReaderAccess mod: descriptions of the religious actions
 include("SRListen");	-- ScreenReaderAccess mod: listeners that a hot reload can remove again
 
@@ -2974,6 +2975,16 @@ function OnInputActionTriggered( actionId )
 		return;
 	end
 	-- If an entry with this actionId exists, call the function associated with it.
+	-- ScreenReaderAccess mod change: the promotion key (Shift+U) is never silent. While a spy's mission / destination list is open EspionageChooser
+	-- says why nothing opens (one place, it follows the user's binding); here the available promotion is left alone then. Not available: the
+	-- blocked-hotkey path below says why. A unit that picks from a random list (spy, apostle ...) only gets a visual list from the game, so the
+	-- key says the choices and where to choose (the Tab menu lists them).
+	local srPromote:boolean = ( actionId == Input.GetActionId( "ExtraHotkeysPromote" ) );
+	local srPromoteUnit:table = srPromote and UI.GetHeadSelectedUnit() or nil;
+	if srPromoteUnit ~= nil and srPromoteUnit:GetOwner() == Game.GetLocalPlayer() and m_kHotkeyActions[actionId] ~= nil then
+		local srMode:number = UI.GetInterfaceMode();
+		if srMode == InterfaceModeTypes.SPY_CHOOSE_MISSION or srMode == InterfaceModeTypes.SPY_TRAVEL_TO_CITY then return; end
+	end
 	if m_kHotkeyActions[actionId] ~= nil then		
         UI.PlaySound("Play_UI_Click");
         if m_kSoundCV1[actionId] ~= nil and m_kSoundCV1[actionId] ~= "" then
@@ -2991,6 +3002,16 @@ function OnInputActionTriggered( actionId )
 		end
 		m_kHotkeyActions[actionId](m_kHotkeyCV1[actionId], m_kHotkeyCV2[actionId]);
 		if srResult ~= nil then OutputMessageToScreenReader( srResult, true ); end
+		if srPromoteUnit ~= nil and m_srPromotions ~= nil and GameInfo.Units[ srPromoteUnit:GetUnitType() ].NumRandomChoices > 0 then
+			local srNames:table = {};
+			for _, ePromotion in ipairs( m_srPromotions ) do
+				local def = GameInfo.UnitPromotions[ ePromotion ];
+				if def ~= nil then table.insert( srNames, Locale.Lookup( def.Name ) ); end
+			end
+			if #srNames > 0 then
+				OutputMessageToScreenReader( PromotionText_Choices( Locale.Lookup( srPromoteUnit:GetName() ), srNames, SRKey( "Tab" ) ) );
+			end
+		end
 	elseif not SRTryFoundReligionHotkey( actionId ) then		-- ScreenReaderAccess mod change: U on a Great Prophet founds the religion
 		SRSayBlockedHotkey( actionId );		-- ScreenReaderAccess mod change: a disabled action has no hotkey entry, say why
 	end
