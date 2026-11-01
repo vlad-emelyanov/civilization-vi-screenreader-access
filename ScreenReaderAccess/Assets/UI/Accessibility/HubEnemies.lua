@@ -388,6 +388,12 @@ end
 -- nearest threat is closer than at the last warning, or it lost health. Returns the fresh items and their id signature.
 function HubEnemies.FreshExposed( items:table, warned:table )
 	local fresh:table, ids:table = {}, {};
+	-- a unit that is not exposed any more is forgotten: a new threat later warns again (also bounds the table, drops dead units)
+	local present:table = {};
+	for _, item in ipairs( items ) do present[ item.id ] = true; end
+	for id, _ in pairs( warned ) do
+		if not present[ id ] then warned[ id ] = nil; end
+	end
 	for _, item in ipairs( items ) do
 		local w:table = warned[ item.id ];
 		if w == nil or w.x ~= item.x or w.y ~= item.y or item.dist < w.dist or item.damage > w.damage then
@@ -1280,18 +1286,13 @@ function HubEnemies.WarnPreview()
 	local items:table = HubEnemies.ExposedCivilians( EXPOSED_RADIUS );
 	local fresh:table = HubEnemies.FreshExposed( items, HubEnemies.m_warned );
 	if #fresh == 0 then return nil; end
-	local _, who = HubEnemies.ExposedText( fresh );
+	local _, who = HubEnemies.ExposedText( fresh );		-- 2nd result: the names
 	return who .. " exposed";
 end
 HubEnemies.m_warned = {};		-- per unit id: what the last end-turn warning was about (not re-armed by N or other keys)
 HubEnemies.m_guard = { turn = -1, warnSig = nil, warnTime = 0, confirmSig = nil, down = false, downBlock = false, text = nil };
 
 function HubEnemies.EndTurnKeyPending() return HubEnemies.m_guard.down == true; end
-
--- Any other key between the warning and the second Enter cancels the pending confirmation.
-function HubEnemies.EndTurnGuardOtherKey()
-	HubEnemies.m_guard.warnSig = nil;
-end
 
 -- Enter while it would end the turn (the caller checked): true = consume the key (the first Enter with exposed civilians
 -- is only a warning). Decided on KeyDown (key repeat reuses it), spoken on KeyUp.
@@ -1303,7 +1304,10 @@ function HubEnemies.EndTurnKey( isUp:boolean, now:number )
 		g.down = false;
 		if g.downBlock then
 			g.downBlock = false;
-			if g.text ~= nil then OutputMessageToScreenReader( g.text ); end
+			if g.text ~= nil then
+				OutputMessageToScreenReader( g.text );
+				HubEnemies.MarkWarned( g.items or {}, HubEnemies.m_warned );		-- only now is it really spoken
+			end
 			return true;
 		end
 		return false;
@@ -1315,9 +1319,8 @@ function HubEnemies.EndTurnKey( isUp:boolean, now:number )
 	items = fresh;
 	local kind:string = HubEnemies.GuardDecision( g, Game.GetCurrentGameTurn(), sig, now );
 	if kind == "warn" then
-		HubEnemies.MarkWarned( items, HubEnemies.m_warned );		-- once per unit and situation: a parked unit does not cost an Enter every turn
-		g.text = HubEnemies.ExposedText( items );
-		if isUp then OutputMessageToScreenReader( g.text ); return true; end
+		g.text, g.items = HubEnemies.ExposedText( items ), items;
+		if isUp then OutputMessageToScreenReader( g.text ); HubEnemies.MarkWarned( items, HubEnemies.m_warned ); return true; end
 		g.downBlock = true;
 	end
 	return g.downBlock;

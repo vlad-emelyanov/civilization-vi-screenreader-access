@@ -190,7 +190,7 @@ function HubAnnounce.ReadyUnits()
 	if player == nil then return list, selectedReady; end
 	local selected:table = UI.GetHeadSelectedUnit();
 	for _, unit in player:GetUnits():Members() do
-		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "needs orders" then
+		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "needs orders" and not HubAnnounce.IsSupportGreatPerson( unit ) then
 			table.insert( list, unit );
 			if selected ~= nil and unit:GetID() == selected:GetID() then selectedReady = true; end
 		end
@@ -913,6 +913,7 @@ function HubAnnounce.OnLocalPlayerTurnUnready()
 end
 
 function HubAnnounce.OnLocalPlayerTurnEnd()
+	HubCore.m_turnEndSeq = ( HubCore.m_turnEndSeq or 0 ) + 1;		-- the sure sign that Enter ended the turn (Hub.EnterHeldBackLine)
 	if HubEnemies ~= nil then
 		local ok:boolean, err = pcall( HubEnemies.TakeSnapshot );
 		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end

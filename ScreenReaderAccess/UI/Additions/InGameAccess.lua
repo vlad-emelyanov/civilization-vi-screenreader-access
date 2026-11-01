@@ -92,7 +92,10 @@ function Hub.EnterHeldBackLine( why:string )
 	local turn:number = Game.GetCurrentGameTurn();
 	local speech:number = SRSpeechCount or 0;
 	local label:string = m_enterLabel;
+	local endSeq:number = HubCore.m_turnEndSeq or 0;
 	HubCore.After( 0.7, function()
+		-- LocalPlayerTurnEnd fired since the key: the game took the Enter, however slowly the turn changes
+		if ( HubCore.m_turnEndSeq or 0 ) ~= endSeq then return; end
 		local player:table = Players[ Game.GetLocalPlayer() or -1 ];
 		if player == nil or not player:IsTurnActive() or Game.GetCurrentGameTurn() ~= turn then return; end		-- the turn ended (slowly)
 		if ( SRSpeechCount or 0 ) ~= speech then return; end
@@ -152,7 +155,6 @@ function Hub.HandleInput( input:table )
 	if not HubCore.IsLocalPlayerActive() then return false; end
 	HubCore.m_lastKeyTime = UI.GetElapsedTime();
 	if msg == KeyEvents.KeyDown and input:GetKey() ~= Keys.VK_RETURN then
-		if HubEnemies ~= nil then HubEnemies.EndTurnGuardOtherKey(); end
 		if HubSettle ~= nil and HubSettle.OnOtherKey ~= nil then HubSettle.OnOtherKey( input:GetKey() ); end
 	end
 	if HubCore.m_mode ~= nil then
