@@ -1,0 +1,16 @@
+# After an order in the send list (M) the remaining units are re-checked with the same path test as the order (fixture bug-send-list-cannot-reach:
+# a stale entry said "2 turns" and Enter said "cannot reach"). Here: the sent unit leaves, the next entry is still sendable.
+# covers: **/HubPlaces.lua
+# no-share-load: sends a unit
+load bug-send-list-cannot-reach
+wait Rembrandt van Rijn -Timeout 30
+action KeyNavPlaces -Settle 2000
+expect ^Places. Threats
+key M -Settle 2000
+expect ^Send a unit to Ottomans Courser
+key Enter -Settle 2500
+expect Cuirassier moving to attack Ottomans Courser, 2 turns
+key Enter -Settle 2500
+expect-not cannot reach
+key Escape -Settle 1000
+no-lua-errors

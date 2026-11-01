@@ -1843,6 +1843,30 @@ function HubPlaces.SendRemaining( items:table, sent:table )
 	return kept, focusKey;
 end
 
+-- Pure: the remaining items re-checked against a fresh build of the list (after an order the world has changed: the sent unit may
+-- stand on or next to the place, a path may be gone). An item keeps its place in the order but takes the fresh turns and text; one that
+-- the fresh build no longer offers goes (a notice item stays). Returns the items and the key to focus (focusKey if it survived, else
+-- the first item after it that did, else the last).
+function HubPlaces.RevalidateSend( kept:table, fresh:table, focusKey:string )
+	local byKey:table = {};
+	for _, item in ipairs( fresh ) do byKey[ item.key ] = item; end
+	local result:table = {};
+	local focusIndex:number = nil;
+	local afterFocus:boolean = false;
+	local newFocus:string = nil;
+	for _, item in ipairs( kept ) do
+		if item.key == focusKey then afterFocus = true; end
+		local current:table = item.notice and item or byKey[ item.key ];
+		if current ~= nil then
+			table.insert( result, current );
+			if item.key == focusKey then newFocus = current.key; end
+			if afterFocus and newFocus == nil then newFocus = current.key; end
+		end
+	end
+	if newFocus == nil and #result > 0 then newFocus = result[ #result ].key; end
+	return result, newFocus;
+end
+
 -- Pure: items that are units (a notice item such as "no free unit for an attack party" is not one).
 function HubPlaces.CountUnits( items:table )
 	local n:number = 0;
@@ -1877,6 +1901,16 @@ local function SendActivate( item:table )
 		end
 		local result:string = table.concat( sentences, ". " );
 		local kept:table, focusKey = HubPlaces.SendRemaining( place.items, item );
+		if #kept > 0 then
+			-- the order moved a unit: offer only the units that can still get there (same path check as the order), with fresh turns
+			local sentIds:table = {};
+			for _, member in ipairs( item.members or { item } ) do sentIds[ member.unitId ] = true; end
+			local fresh:table = {};
+			for _, candidate in ipairs( HubPlaces.BuildSendItems( place ) ) do
+				if candidate.unitId == nil or not sentIds[ candidate.unitId ] then table.insert( fresh, candidate ); end
+			end
+			kept, focusKey = HubPlaces.RevalidateSend( kept, fresh, focusKey );
+		end
 		place.items = kept;
 		if HubPlaces.CountUnits( kept ) == 0 then
 			CloseSend();

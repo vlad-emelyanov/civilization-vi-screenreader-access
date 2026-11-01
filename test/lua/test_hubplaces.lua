@@ -892,6 +892,17 @@ test("SendRemaining: the sent unit leaves, the others keep their order, focus go
 	eq(#kept, 0); eq(focus, nil)
 end)
 
+test("RevalidateSend: units the fresh build no longer offers go, the rest take the fresh turns, focus moves on", function()
+	local kept = { { key = "s:1", turns = 2 }, { key = "s:2", turns = 3 }, { key = "s:3", turns = 4 } }
+	local fresh = { { key = "s:1", turns = 1 }, { key = "s:3", turns = 5 } }
+	local result, focus = HubPlaces.RevalidateSend(kept, fresh, "s:2")
+	eq(#result, 2); eq(result[1].turns, 1); eq(result[2].turns, 5); eq(focus, "s:3")
+	result, focus = HubPlaces.RevalidateSend(kept, fresh, "s:1")
+	eq(focus, "s:1")
+	result, focus = HubPlaces.RevalidateSend(kept, {}, "s:1")
+	eq(#result, 0); eq(focus, nil)
+end)
+
 test("SendRemaining: an attack party takes its members with it, a member takes the party", function()
 	local a, b, c = { key = "s:1", unitId = 1 }, { key = "s:2", unitId = 2 }, { key = "s:3", unitId = 3 }
 	local party = { key = "party", members = { a, b } }

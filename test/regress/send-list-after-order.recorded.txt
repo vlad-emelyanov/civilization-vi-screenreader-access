@@ -1,0 +1,35 @@
+# After an order in the send list (M) the remaining units are re-checked with the same path test as the order (fixture bug-send-list-cannot-reach:
+# a stale entry said "2 turns" and Enter said "cannot reach"). Here: the sent unit leaves, the next entry is still sendable.
+# covers: **/HubPlaces.lua
+# no-share-load: sends a unit
+load bug-send-list-cannot-reach
+wait Rembrandt van Rijn -Timeout 30
+action KeyNavPlaces -Settle 2000
+expect ^Places. Threats
+#   -> PASS; window had 9 SR> line(s):
+#      | Main menu
+#      | Single Player
+#      | Loading Roman Empire, Trajan. Up and Down read the civilization details, 7 paragraphs
+#      | CONTINUE GAME. Press Enter to start.
+#      | Turn 131, 1750 AD
+#      | Ottomans: 2 units near Ostia: Ottomans Courser 4 tiles south-east, Ottomans Janissary 5 tiles south-east. Ostia defense 67. Your nearest soldiers: Warrior 2 tiles north, Cavalry 3 tiles south-east
+#      | 2 Builders idle, J lists them
+#      | Rembrandt van Rijn, 4 of 4 moves. Plains (Hills), river, Theater Square, yours, 2 Culture
+#      | Places. Threats, 1 of 10 categories, 2 items. Ottomans Courser, raiding, 1 tile west of Amasya (Ottomans), 4 tiles south-east of Ostia, 9 tiles east of Rembrandt van Rijn, 1 of 2
+key M -Settle 2000
+expect ^Send a unit to Ottomans Courser
+#   -> PASS; window had 2 SR> line(s):
+#      | Send a unit to Ottomans Courser, 4 options
+#      | Cuirassier, 2 turns, fortified, 1 of 4
+key Enter -Settle 2500
+expect Cuirassier moving to attack Ottomans Courser, 2 turns
+#   -> PASS; window had 2 SR> line(s):
+#      | Cuirassier moving to attack Ottomans Courser, 2 turns
+#      | Warrior, 5 turns, fortified, 2 tiles south of Rome, 1 of 3
+key Enter -Settle 2500
+expect-not cannot reach
+#   -> PASS; window had 2 SR> line(s):
+#      | Warrior moving to attack Ottomans Courser, 5 turns
+#      | Crossbowman, 6 turns, fortified, 1 of 2
+key Escape -Settle 1000
+no-lua-errors
