@@ -75,3 +75,44 @@ test("Sort: tiles needing an unaffordable purchase go after every placeable tile
 	for _, it in ipairs(scan.list) do table.insert(ids, it.plotIndex) end
 	eq(table.concat(ids, ","), "3,2,4,1")
 end)
+
+test("Loss: a worked Farm on Wheat costs more than any plain tile; the wording names what it stands on", function()
+	local farm = { improvement = "Farm", resource = "Wheat", rclass = "bonus", worked = true, food = 4 }
+	eq(PlacementScan_Loss(farm, 5), 6)
+	eq(PlacementScan_Loss(farm, 1), 10)		-- a city that barely grows: the food counts again
+	eq(PlacementScan_LossText(farm), "removes Farm on Wheat, worked")
+	eq(PlacementScan_LossText({ improvement = "Lumber Mill", feature = "Woods" }), "removes Lumber Mill on Woods")
+	eq(PlacementScan_LossText({ improvement = "Mine" }), "removes Mine")
+	eq(PlacementScan_LossText({ feature = "Woods", resource = "Deer" }), "removes Woods and Deer")
+	eq(PlacementScan_LossText({}), "")
+	eq(PlacementScan_Loss({ worked = true, food = 2 }, 0), 0)		-- nothing removed: no loss
+	eq(PlacementScan_Loss({ resource = "Iron", rclass = "strategic" }, 5), 4)
+end)
+
+test("Sort: a Farm on Wheat loses to a plain tile unless its adjacency leads by more than the loss", function()
+	local function c(i, total, loss) return { plotIndex = i, owned = true, total = total, loss = loss, removes = loss > 0 and { "Farm" } or {}, distance = i } end
+	local scan = { kind = "district", list = { c(1, 2, 6), c(2, 2, 0), c(3, 9, 6) } }
+	PlacementScan_Sort(scan)
+	eq(scan.list[1].plotIndex, 3)		-- 9 - 6 beats 2
+	eq(scan.list[2].plotIndex, 2)
+	eq(scan.list[3].plotIndex, 1)
+	scan = { kind = "district", list = { c(1, 2, 6), c(2, 2, 0) } }
+	PlacementScan_Sort(scan)
+	eq(scan.list[1].plotIndex, 2)
+end)
+
+test("Sort: equal score and loss keeps owned, then nearer", function()
+	local function c(i, owned, dist) return { plotIndex = i, owned = owned, total = 1, loss = 0, removes = {}, distance = dist } end
+	local scan = { kind = "district", list = { c(1, false, 1), c(2, true, 3), c(3, true, 2) } }
+	PlacementScan_Sort(scan)
+	eq(scan.list[1].plotIndex, 3)
+	eq(scan.list[2].plotIndex, 2)
+end)
+
+test("Sort: wonders prefer the smaller loss among owned tiles", function()
+	local function c(i, loss) return { plotIndex = i, owned = true, total = 0, loss = loss, removes = loss > 0 and { "Farm" } or {}, distance = 1 } end
+	local scan = { kind = "wonder", list = { c(1, 6), c(2, 0), c(3, 2) } }
+	PlacementScan_Sort(scan)
+	eq(scan.list[1].plotIndex, 2)
+	eq(scan.list[3].plotIndex, 1)
+end)
