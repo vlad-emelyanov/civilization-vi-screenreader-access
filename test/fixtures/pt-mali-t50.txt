@@ -1,0 +1,7 @@
+turn: 54
+civ: CIVILIZATION_MALI / LEADER_MANSA_MUSA
+profile: -
+purpose: Mali chain turn 54, 3 cities (Niani, Tawdenni, Kumbi Saleh)
+mod commit: a457f06
+created: 2026-11-01
+size: 1081 KB

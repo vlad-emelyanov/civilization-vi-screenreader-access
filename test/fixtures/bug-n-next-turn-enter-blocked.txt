@@ -1,0 +1,7 @@
+turn: 30
+civ: CIVILIZATION_MALI / LEADER_MANSA_MUSA
+profile: -
+purpose: Turn 30: N said 'Next turn' but Enter said 'Turn not ended: Unit needs orders' and selected a Builder (2 tiles south of Niani, Marsh, which was on a multi-turn move toward a Stone quarry). Press N then Enter.
+mod commit: a457f06
+created: 2026-11-01
+size: 946 KB

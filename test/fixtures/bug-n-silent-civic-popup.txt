@@ -1,0 +1,7 @@
+turn: 16
+civ: CIVILIZATION_MALI / LEADER_MANSA_MUSA
+profile: -
+purpose: N (KeyNavWhatsNext) says nothing while the Civic Completed popup (Code of Laws) is open; Enter closes it
+mod commit: a457f06
+created: 2026-11-01
+size: 900 KB
