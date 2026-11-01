@@ -373,29 +373,6 @@ function HubPlaces.UnitItemLess( a:table, b:table )
 	return a.unitId < b.unitId;
 end
 
--- Does the game have a job for this great person now? False when its action needs a tile and no qualifying tile exists or can be
--- reached (no free slot, the tiles lie in foreign land ...): such a person waits for something to change, it is not forgotten idle.
--- True for one that works anywhere or when HubSettle cannot tell.
-function HubPlaces.GreatPersonHasJob( unit:table )
-	if HubSettle == nil or HubSettle.ActivationPlots == nil then return true; end
-	local a:table = HubSettle.ActivationPlots( unit );
-	if a == nil then return true; end
-	local ux:number, uy:number = unit:GetX(), unit:GetY();
-	local checked:number = 0;
-	for _, index in ipairs( a.plots ) do
-		local plot:table = Map.GetPlotByIndex( index );
-		if plot ~= nil then
-			if plot:GetX() == ux and plot:GetY() == uy then return true; end
-			if checked < 30 then
-				checked = checked + 1;
-				local path:table = UnitManager.GetMoveToPathEx( unit, index );
-				if path ~= nil and path.plots ~= nil and #path.plots >= 2 then return true; end
-			end
-		end
-	end
-	return false;
-end
-
 -- The activity word when this unit of ours is an idle civilian, else nil.
 function HubPlaces.IdleActivity( unit:table )
 	local row:table = GameInfo.Units[ unit:GetUnitType() ];
@@ -455,6 +432,12 @@ function HubPlaces.OnTurnStart()
 	HubCore.Announce( HubPlaces.IdleHintText( names, HubCore.KeyHint( "KeyNavPlaces", "J", "LB" ) ), true, "turn" );
 end
 
+-- Spoken word for a UnitActivity value: "awake" (moves left, not an end-turn blocker, e.g. a Great General) is said "has moves left".
+function HubPlaces.ActivityWord( activity:string )
+	if activity == "awake" then return "has moves left"; end
+	return activity;
+end
+
 local function UnitItems( ctx:table )
 	local items:table = {};
 	local turn:number = Game.GetCurrentGameTurn();
@@ -463,7 +446,7 @@ local function UnitItems( ctx:table )
 		local name:string = Locale.Lookup( unit:GetName() );
 		local text:string = name;
 		local activity:string = HubPlaces.UnitActivity( unit, true );
-		if activity ~= nil then text = text .. ", " .. activity; end
+		if activity ~= nil then text = text .. ", " .. HubPlaces.ActivityWord( activity ); end
 		local okIdle:boolean, idleActivity = pcall( HubPlaces.IdleActivity, unit );
 		local idle:boolean = okIdle and idleActivity ~= nil;
 		if idle then

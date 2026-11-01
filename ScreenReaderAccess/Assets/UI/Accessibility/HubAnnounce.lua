@@ -73,17 +73,19 @@ function HubAnnounce.SpeakWhatsNext()
 		local okReady:boolean, stale = pcall( HubAnnounce.LabelHidesReadyUnit );
 		if okReady and stale then text = CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" ) ); end
 	end
+	local awakeIds:table = nil;
 	local spoken:string = HubCore.Capitalize( text );
 	local okDetail:boolean, detailed = pcall( HubAnnounce.BlockerDetail, spoken, text );
 	if okDetail and detailed ~= nil then spoken = detailed; end
 	-- "Next turn" is what Enter does; an awake unit that does not block (a Great General) is named once as plain information
 	if okWait and isWait and HubAnnounce.IsEndTurnText( text ) then
-		local okAwake:boolean, awake = pcall( HubAnnounce.AwakeUnitsNote );
-		if okAwake and awake ~= nil then spoken = spoken .. ", " .. awake; end
+		local okAwake:boolean, awake, ids = pcall( HubAnnounce.AwakeUnitsNote );
+		if okAwake and awake ~= nil then spoken = spoken .. ", " .. awake; awakeIds = ids; end
 	end
 	local okRaid:boolean, raid = pcall( function() return HubEnemies ~= nil and HubEnemies.RaidExpectedLine() or nil; end );
 	if okRaid and raid ~= nil then spoken = spoken .. ". " .. raid; end
 	OutputMessageToScreenReader( spoken );
+	if awakeIds ~= nil then HubAnnounce.MarkAwakeNoted( awakeIds ); end
 end
 
 -- True for the panel's plain end-turn texts ("Next turn", "End turn"), i.e. no blocker is shown.
@@ -127,13 +129,19 @@ function HubAnnounce.AwakeUnitsNote()
 	local turn:number = Game.GetCurrentGameTurn();
 	if HubAnnounce.m_awakeTurn ~= turn then HubAnnounce.m_awakeTurn = turn; HubAnnounce.m_awakeNoted = {}; end
 	local names:table = {};
+	local ids:table = {};
 	for _, unit in ipairs( HubAnnounce.AwakeUnits() ) do
 		if not HubAnnounce.m_awakeNoted[ unit:GetID() ] then
-			HubAnnounce.m_awakeNoted[ unit:GetID() ] = true;
+			table.insert( ids, unit:GetID() );
 			table.insert( names, Locale.Lookup( unit:GetName() ) );
 		end
 	end
-	return HubAnnounce.AwakeText( names );
+	return HubAnnounce.AwakeText( names ), ids;
+end
+
+-- Called once the note was really spoken: only then are the units "noted".
+function HubAnnounce.MarkAwakeNoted( ids:table )
+	for _, id in ipairs( ids or {} ) do HubAnnounce.m_awakeNoted[ id ] = true; end
 end
 
 -- Pure wording: "Unit needs orders" + "Archer, 2 tiles east of Rome" + "Enter selects it" -> "Unit needs orders: Archer, ...
