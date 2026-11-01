@@ -1,0 +1,7 @@
+turn: 112
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: Choose Escape Route notification Space reads raw LOC_NOTIFICATION_SPY_CHOOSE_ESCAPE_ROUTE_SUMMARY
+mod commit: 1f2585d
+created: 2026-11-01
+size: 1419 KB

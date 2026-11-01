@@ -1,0 +1,7 @@
+turn: 128
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-through turn 128, war with Ottomans declared t126, special session requested
+mod commit: 1f2585d
+created: 2026-11-01
+size: 1460 KB

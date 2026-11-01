@@ -1,0 +1,7 @@
+turn: 129
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: play-through t129: war with Ottomans, Field Cannon attacking cavalry
+mod commit: 1f2585d
+created: 2026-11-01
+size: 1468 KB
