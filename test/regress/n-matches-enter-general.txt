@@ -1,0 +1,20 @@
+# Written blind (2026-11-01, the verifier records it). bug-n-samori-vs-enter (T166): Samori Toure (Great General) moved 1 tile and is IsReadyToSelect,
+# but the game does not count him as a blocker. N used to say "Unit needs orders: Samori Toure" while Enter warned about an exposed Military Engineer.
+# Now the action panel label wins once the 2 s window after a move is over: N says the panel's "Next turn" (+ the General as a plain note, and the
+# exposed-unit warning Enter will give), and Enter does what N announced.
+# covers: **/HubAnnounce.lua **/InGameAccess.lua **/HubEnemies.lua
+# no-share-load: ends the turn
+load bug-n-samori-vs-enter
+clear-advisors
+action KeyNavWhatsNext -Settle 1500
+expect-not (?i)needs orders
+expect ^Next turn
+expect Samori .* has moves left
+expect Enter warns first: Military Engineer exposed
+key Enter -Settle 1500
+expect Military Engineer exposed: .* Enter again ends the turn anyway
+action KeyNavWhatsNext -Settle 1500
+expect-not (?i)warns first
+key Enter -Settle 4000
+expect (?i)turn ended
+no-lua-errors

@@ -380,7 +380,27 @@ function HubEnemies.ExposedText( items:table )
 	local who:string = names[1];
 	if #names == 2 then who = names[1] .. " and " .. names[2];
 	elseif #names > 2 then who = table.concat( names, ", ", 1, #names - 1 ) .. " and " .. names[ #names ]; end
-	return who .. " exposed: " .. table.concat( enemies, ", " ) .. ". " .. SRKey( "Enter" ) .. " again ends the turn anyway";
+	return who .. " exposed: " .. table.concat( enemies, ", " ) .. ". " .. SRKey( "Enter" ) .. " again ends the turn anyway", who;
+end
+
+-- Pure: which exposed civilians are worth a (new) warning. items carry id, x, y, dist (to the nearest threat), damage; warned
+-- is { [id] = { x, y, dist, damage } } of what was last warned. A unit is fresh when never warned, or on another tile, or the
+-- nearest threat is closer than at the last warning, or it lost health. Returns the fresh items and their id signature.
+function HubEnemies.FreshExposed( items:table, warned:table )
+	local fresh:table, ids:table = {}, {};
+	for _, item in ipairs( items ) do
+		local w:table = warned[ item.id ];
+		if w == nil or w.x ~= item.x or w.y ~= item.y or item.dist < w.dist or item.damage > w.damage then
+			table.insert( fresh, item );
+			table.insert( ids, item.id );
+		end
+	end
+	table.sort( ids );
+	return fresh, table.concat( ids, ";" );
+end
+
+function HubEnemies.MarkWarned( items:table, warned:table )
+	for _, item in ipairs( items ) do warned[ item.id ] = { x = item.x, y = item.y, dist = item.dist, damage = item.damage }; end
 end
 
 -- hint: "Move it into Rome" or nil.
@@ -1242,7 +1262,8 @@ function HubEnemies.ExposedCivilians( radius:number )
 				end
 				if nearest ~= nil then
 					table.insert( items, { name = Locale.Lookup( unit:GetName() ), enemy = PlotDescription_GetUnitName( nearest.unit ),
-						relative = PlotDescription_GetRelative( plot, Map.GetPlot( nearest.x, nearest.y ) ) } );
+						relative = PlotDescription_GetRelative( plot, Map.GetPlot( nearest.x, nearest.y ) ),
+						id = unit:GetID(), x = unit:GetX(), y = unit:GetY(), dist = nearestDistance, damage = unit:GetDamage() } );
 					table.insert( ids, unit:GetID() );
 				end
 			end
@@ -1253,6 +1274,16 @@ function HubEnemies.ExposedCivilians( radius:number )
 end
 
 local EXPOSED_RADIUS:number = 3;
+
+-- N: "Military Engineer exposed" when Enter would warn right now, else nil. Does not mark anything as warned.
+function HubEnemies.WarnPreview()
+	local items:table = HubEnemies.ExposedCivilians( EXPOSED_RADIUS );
+	local fresh:table = HubEnemies.FreshExposed( items, HubEnemies.m_warned );
+	if #fresh == 0 then return nil; end
+	local _, who = HubEnemies.ExposedText( fresh );
+	return who .. " exposed";
+end
+HubEnemies.m_warned = {};		-- per unit id: what the last end-turn warning was about (not re-armed by N or other keys)
 HubEnemies.m_guard = { turn = -1, warnSig = nil, warnTime = 0, confirmSig = nil, down = false, downBlock = false, text = nil };
 
 function HubEnemies.EndTurnKeyPending() return HubEnemies.m_guard.down == true; end
@@ -1278,10 +1309,13 @@ function HubEnemies.EndTurnKey( isUp:boolean, now:number )
 		return false;
 	end
 	g.down, g.downBlock, g.text, g.downTime = not isUp, false, nil, now;
-	local ok:boolean, items, sig = pcall( HubEnemies.ExposedCivilians, EXPOSED_RADIUS );
+	local ok:boolean, items = pcall( HubEnemies.ExposedCivilians, EXPOSED_RADIUS );
 	if not ok then print( "HubEnemies guard error: " .. tostring( items ) ); g.down = false; return false; end
+	local fresh:table, sig:string = HubEnemies.FreshExposed( items, HubEnemies.m_warned );
+	items = fresh;
 	local kind:string = HubEnemies.GuardDecision( g, Game.GetCurrentGameTurn(), sig, now );
 	if kind == "warn" then
+		HubEnemies.MarkWarned( items, HubEnemies.m_warned );		-- once per unit and situation: a parked unit does not cost an Enter every turn
 		g.text = HubEnemies.ExposedText( items );
 		if isUp then OutputMessageToScreenReader( g.text ); return true; end
 		g.downBlock = true;

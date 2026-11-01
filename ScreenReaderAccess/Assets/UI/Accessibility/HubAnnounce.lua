@@ -82,6 +82,11 @@ function HubAnnounce.SpeakWhatsNext()
 		local okAwake:boolean, awake, ids = pcall( HubAnnounce.AwakeUnitsNote );
 		if okAwake and awake ~= nil then spoken = spoken .. ", " .. awake; awakeIds = ids; end
 	end
+	-- a waiting exposed-unit warning: say what Enter will do
+	if okWait and isWait and HubAnnounce.IsEndTurnText( text ) then
+		local okWarn:boolean, warn = pcall( function() return HubEnemies ~= nil and HubEnemies.WarnPreview() or nil; end );
+		if okWarn and warn ~= nil then spoken = spoken .. ". " .. SRKey( "Enter" ) .. " warns first: " .. warn; end
+	end
 	local okRaid:boolean, raid = pcall( function() return HubEnemies ~= nil and HubEnemies.RaidExpectedLine() or nil; end );
 	if okRaid and raid ~= nil then spoken = spoken .. ". " .. raid; end
 	OutputMessageToScreenReader( spoken );
@@ -99,9 +104,27 @@ function HubAnnounce.IsEndTurnText( text:string )
 end
 
 -- The panel shows no blocker, but one of our units still needs orders (the label updates a moment after the unit arrived).
+-- Only within STALE_LABEL_WINDOW seconds of one of our units finishing a move (HubCore.m_lastUnitMoveTime, set by UnitMoveComplete):
+-- that is the only time the label really lags. Later the panel label is the truth (the game's own blocker list), whatever
+-- IsReadyToSelect says: a Great General that moved is "ready to select" but never a blocker, and the label says "Next turn".
+local STALE_LABEL_WINDOW:number = 2;
 function HubAnnounce.LabelHidesReadyUnit()
-	local units:table = HubAnnounce.ReadyUnits();
-	return #units > 0;
+	if UI.GetElapsedTime() - ( HubCore.m_lastUnitMoveTime or -100 ) >= STALE_LABEL_WINDOW then return false; end
+	for _, unit in ipairs( HubAnnounce.ReadyUnits() ) do
+		if not HubAnnounce.IsSupportGreatPerson( unit ) then return true; end
+	end
+	return false;
+end
+
+-- Pure: unit type names that never block the turn (no attack, no orders needed): Great General and Great Admiral.
+function HubAnnounce.IsSupportTypeName( typeName:string )
+	if typeName == nil then return false; end
+	return string.find( typeName, "^UNIT_GREAT_GENERAL" ) ~= nil or string.find( typeName, "^UNIT_GREAT_ADMIRAL" ) ~= nil;
+end
+
+function HubAnnounce.IsSupportGreatPerson( unit:table )
+	local row:table = GameInfo.Units[ unit:GetUnitType() ];
+	return row ~= nil and HubAnnounce.IsSupportTypeName( row.UnitType );
 end
 
 -- Awake units with moves that the game does not count as blockers (IsReadyToSelect false). Names of units that are new
@@ -113,7 +136,11 @@ function HubAnnounce.AwakeUnits()
 	local list:table = {};
 	if player == nil then return list; end
 	for _, unit in player:GetUnits():Members() do
-		if unit:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( unit, true ) == "awake" then table.insert( list, unit ); end
+		if unit:GetMovesRemaining() > 0 then
+			local activity:string = HubPlaces.UnitActivity( unit, true );
+			-- a Great General that moved is IsReadyToSelect (activity "needs orders") but the game does not count it as a blocker
+			if activity == "awake" or ( activity == "needs orders" and HubAnnounce.IsSupportGreatPerson( unit ) ) then table.insert( list, unit ); end
+		end
 	end
 	return list;
 end

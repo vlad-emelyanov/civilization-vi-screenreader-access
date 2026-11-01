@@ -114,7 +114,7 @@ function Hub.EnterFallback()
 		if player == nil or not player:IsTurnActive() then return; end		-- the turn ended (or an AI turn): "Turn ended" speaks
 		if not HubAnnounce.IsEndTurnText( CleanTextForSpeech( m_enterLabel ) ) then return; end		-- another blocker: its screen speaks
 		if selected == nil then Hub.EnterHeldBackLine( "no unit selected" ); return; end
-		local okReady:boolean, ready = pcall( function() return selected:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( selected, true ) == "needs orders"; end );
+		local okReady:boolean, ready = pcall( function() return selected:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( selected, true ) == "needs orders" and not HubAnnounce.IsSupportGreatPerson( selected ); end );		-- a Great General never blocks (the label wins)
 		if not ( okReady and ready ) then Hub.EnterHeldBackLine( "selected unit does not block" ); return; end
 		m_enterLabel = Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" );
 	end
