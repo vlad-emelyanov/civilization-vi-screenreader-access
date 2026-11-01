@@ -199,8 +199,20 @@ local function makeUnit(id, name, combat, activity)
 		GetMilitaryFormation = function() return 0 end, activity = activity }
 end
 
+local FAIL_CITY = false
 local function makeCity(id, name, x)
-	return { GetID = function() return id end, GetName = function() return name end, GetX = function() return x end, GetY = function() return 5 end, GetOwner = function() return 0 end }
+	local d = CITY_DATA[name]
+	local c = { GetID = function() return id end, GetName = function() return name end, GetX = function() return x end, GetY = function() return 5 end, GetOwner = function() return 0 end }
+	if d then
+		c.GetPopulation = function() if FAIL_CITY then error("boom") end return d.population end
+		c.GetGrowth = function() return {
+			GetFoodSurplus = function() return d.foodSurplus end, GetTurnsUntilGrowth = function() return d.growth.turnsUntilGrowth end,
+			GetHousing = function() return d.growth.housing end, GetHousingMultiplier = function() return 1 end,
+			GetAmenities = function() return d.amenities.have end, GetAmenitiesNeeded = function() return d.amenities.needed end } end
+		c.GetBuildQueue = function() return { GetCurrentProductionTypeHash = function() return 1 end,
+			CurrentlyBuilding = function() return d.production.name end, GetTurnsLeft = function() return d.production.turns end } end
+	end
+	return c
 end
 
 local function setupHub(opts)
@@ -215,7 +227,8 @@ local function setupHub(opts)
 	Game.GetMaxGameTurns = function() return 500 end
 	Game.GetEras = function() return { GetNextEraCountdown = function() return 4 end } end
 	local me = {
-		GetCities = function() return { Members = function() local i = 0; return function() i = i + 1; if cities[i] == nil then return nil end; return i, cities[i] end end } end,
+		GetCities = function() return { Members = function() local i = 0; return function() i = i + 1; if cities[i] == nil then return nil end; return i, cities[i] end end,
+			FindID = function(_, id) return cities[id] end } end,
 		GetUnits = function() return { Members = function() local i = 0; return function() i = i + 1; if units[i] == nil then return nil end; return i, units[i] end end } end,
 		GetDiplomacy = function() return { HasMet = function(_, id) return id == 1 end, IsAtWarWith = function(_, id) return id == 1 end } end,
 		GetScore = function() return 480 end,
@@ -226,7 +239,9 @@ local function setupHub(opts)
 	PlayerConfigurations = { [0] = { IsHuman = function() return true end }, [1] = { IsHuman = function() return false end } }
 	PlotDescription_GetCivName = function(id) return id == 1 and "Egypt" or "Rome" end
 	GameInfo = { Victories = function() return function() return nil end end }
-	CityReport_Gather = function(c) if opts.failCities then return nil end return CITY_DATA[c:GetName()] end
+	FAIL_CITY = opts.failCities == true
+	CityManager = { GetDistrictAt = function() return nil end }
+	CityReport_Gather = function(c) return CITY_DATA[c:GetName()] end
 	CityReport_BuildItems = function(d) return { { key = "yields", text = "Yields of " .. d.name } } end
 	HubEnemies = { ScanCityDanger = function() return opts.danger or {} end }
 	HubMenus = { StandingValues = function(id) return { military = id == 0 and 120 or 340 } end }
@@ -288,9 +303,11 @@ test("Gather: a danger entry adds the first problem; a failing group is left out
 	eq(data.items[1].text, "Setia in danger, 2 units of Egypt near")
 	setupHub{ failCities = true }
 	data = HubEmpire.Gather()
-	eq(data.cities, 0)
+	eq(data.cities, 2)		-- a failed city keeps a minimal row, the count stays right
 	eq(data.items[1].text, "Nothing urgent")
 	eq(data.items[1].uncounted, true)
+	eq(data.items[2].text, "Rome, details unavailable")
+	setupHub()
 	-- a broken group does not take the others down
 	HubPlaces.UnitActivity = function() error("boom") end
 	ClearPrinted()
@@ -347,4 +364,37 @@ test("Toggle closes an open list; Escape closes", function()
 	HubEmpire.Open()
 	mode().list.HandleInput(key(Keys.VK_ESCAPE))
 	eq(mode(), nil)
+end)
+
+test("ordinals: 21st, 22nd, 23rd, 11th", function()
+	eq(EmpireText.Ordinal(3), "third")
+	eq(EmpireText.Ordinal(11), "11th")
+	eq(EmpireText.Ordinal(21), "21st")
+	eq(EmpireText.Ordinal(22), "22nd")
+	eq(EmpireText.Ordinal(23), "23rd")
+	eq(EmpireText.Ordinal(12), "12th")
+end)
+
+test("reopening while open keeps the data", function()
+	local mode = setupHub()
+	HubEmpire.Open()
+	HubEmpire.Open()
+	eq(mode() ~= nil, true)
+	ClearPrinted()
+	mode().list.HandleInput(Input{ key = Keys.VK_DOWN })
+	eq(#Spoken() > 0 and Spoken()[1] ~= "Nothing available", true)
+end)
+
+test("Space on a city reads the report lazily; a minimal row has no problems", function()
+	local mode = setupHub()
+	HubEmpire.Open()
+	local list = mode().list
+	for _ = 1, 5 do
+		if list.GetFocusKey() == "c:1" then break end
+		list.HandleInput(Input{ key = Keys.VK_DOWN })
+	end
+	ClearPrinted()
+	list.HandleInput(key(Keys.VK_SPACE))
+	eq(Spoken()[1], "Rome. Yields of Rome")
+	eq(#EmpireText.CityProblems({ name = "X", minimal = true }), 0)
 end)

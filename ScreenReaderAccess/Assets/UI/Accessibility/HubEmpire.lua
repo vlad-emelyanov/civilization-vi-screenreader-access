@@ -67,9 +67,8 @@ end
 -- ---------------------------------------------------------------------------
 --	Cities and what needs attention
 -- ---------------------------------------------------------------------------
-local ENEMY_NEAR_RANGE:number = 10;
-
--- No soldier in the city, no walls, and a civilization at war with us has a city we know within ENEMY_NEAR_RANGE tiles.
+-- No soldier in the city, no walls, and a soldier of a civilization at war with us is visible within HOSTILE_NEAR_RANGE tiles.
+local HOSTILE_NEAR_RANGE:number = 6;
 local function Undefended( city:table, facts:table, enemies:table )
 	if #enemies == 0 or ( facts.wallMax or 0 ) > 0 then return nil; end
 	local plot:table = Map.GetPlot( city:GetX(), city:GetY() );
@@ -78,11 +77,13 @@ local function Undefended( city:table, facts:table, enemies:table )
 		if unit:GetOwner() == city:GetOwner() and ( unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 or unit:GetBombardCombat() > 0 ) then return nil; end
 	end
 	local vis:table = PlayersVisibility[ Game.GetLocalPlayer() ];
+	if vis == nil then return nil; end
 	for _, enemy in ipairs( enemies ) do
-		for _, other in Players[ enemy.id ]:GetCities():Members() do
-			if Map.GetPlotDistance( city:GetX(), city:GetY(), other:GetX(), other:GetY() ) <= ENEMY_NEAR_RANGE
-					and vis ~= nil and vis:IsRevealed( Map.GetPlot( other:GetX(), other:GetY() ):GetIndex() ) then
-				return { enemy = enemy.name };
+		for _, unit in Players[ enemy.id ]:GetUnits():Members() do
+			if ( unit:GetCombat() > 0 or unit:GetRangedCombat() > 0 or unit:GetBombardCombat() > 0 )
+					and Map.GetPlotDistance( city:GetX(), city:GetY(), unit:GetX(), unit:GetY() ) <= HOSTILE_NEAR_RANGE then
+				local there:table = Map.GetPlot( unit:GetX(), unit:GetY() );
+				if there ~= nil and vis:IsVisible( there:GetIndex() ) then return { enemy = enemy.name }; end
 			end
 		end
 	end
@@ -101,23 +102,64 @@ local function DangerByCity()
 	return found;
 end
 
--- { facts, problems, report } for each city of ours (the city report's own data: CityReportGather)
+-- Cheap facts straight from the city objects (no GetCityData): a missing call leaves its field out, so no claim is made from it.
+local function Try( object, method:string )
+	if object == nil or object[ method ] == nil then return nil; end
+	local ok:boolean, result = pcall( function() return object[ method ]( object ); end );
+	if ok then return result; end
+	return nil;
+end
+
+local function CheapFacts( city:table )
+	local f:table = { name = Locale.Lookup( city:GetName() ), population = city:GetPopulation(), foodSurplus = 0, occupied = false,
+		turnsUntilGrowth = 0, housingMultiplier = 1, wallMax = 0, underSiege = false };
+	local growth:table = city:GetGrowth();
+	f.foodSurplus = Try( growth, "GetFoodSurplus" ) or 0;
+	f.turnsUntilGrowth = Try( growth, "GetTurnsUntilGrowth" ) or 0;
+	f.housing = Try( growth, "GetHousing" );
+	f.housingMultiplier = Try( growth, "GetHousingMultiplier" ) or 1;
+	f.occupied = Try( city, "IsOccupied" ) == true;
+	f.amenitiesHave = Try( growth, "GetAmenities" );
+	f.amenitiesNeeded = Try( growth, "GetAmenitiesNeeded" );
+	local queue:table = city:GetBuildQueue();
+	if Try( queue, "GetCurrentProductionTypeHash" ) ~= 0 then
+		f.production = Try( queue, "CurrentlyBuilding" );
+		if f.production ~= nil then f.production = Locale.Lookup( f.production ); end
+		local turns = Try( queue, "GetTurnsLeft" );
+		if turns ~= nil and turns > 0 then f.productionTurns = turns; end
+	end
+	if f.production == "" then f.production = nil; end
+	local identity = Try( city, "GetCulturalIdentity" );
+	if identity ~= nil then
+		f.loyalty, f.loyaltyPerTurn = Try( identity, "GetLoyalty" ), Try( identity, "GetLoyaltyPerTurn" );
+		f.loyaltyLevel, f.loyaltyTopLevel = Try( identity, "GetLoyaltyLevel" ), 3;
+		if IdentityConversionOutcome ~= nil and Try( identity, "GetConversionOutcome" ) == IdentityConversionOutcome.LOSING_LOYALTY then
+			local turns = Try( identity, "GetTurnsToConversion" );
+			if turns ~= nil and turns >= 1 then f.loyaltyTurnsToLoss = turns; end
+		end
+	end
+	local district = CityManager.GetDistrictAt( city:GetX(), city:GetY() );
+	if district ~= nil then f.wallMax = Try( district, "GetMaxDamage" ) or 0; end
+	return f;
+end
+
+-- { facts, problems, owner } for each city of ours. A city whose gather fails keeps a minimal row (its name) so the count stays right.
 local function GatherCities()
 	local out:table = {};
 	local player:table = LocalPlayer();
-	if player == nil or CityReport_Gather == nil then return out; end
+	if player == nil then return out; end
 	local danger:table = DangerByCity();
 	local enemies:table = WarEnemies();
 	for _, city in player:GetCities():Members() do
-		Guard( "city", function()
-			local d:table = CityReport_Gather( city );
-			if d == nil then return; end
-			local facts:table = EmpireText.FactsFromReport( d );
-			facts.id, facts.x, facts.y = city:GetID(), city:GetX(), city:GetY();
+		local facts = Guard( "city", function() return CheapFacts( city ); end );
+		if facts == nil then
+			facts = { name = Locale.Lookup( city:GetName() ), population = 0, minimal = true };
+		else
 			facts.danger = danger[ city:GetID() ];
-			facts.undefended = Undefended( city, facts, enemies );
-			table.insert( out, { facts = facts, problems = EmpireText.CityProblems( facts ), report = d } );
-		end );
+			facts.undefended = Guard( "undefended", function() return Undefended( city, facts, enemies ); end );
+		end
+		facts.id, facts.x, facts.y = city:GetID(), city:GetX(), city:GetY();
+		table.insert( out, { facts = facts, problems = EmpireText.CityProblems( facts ), owner = city:GetOwner() } );
 	end
 	table.sort( out, function( a, b ) return EmpireText.CityLess( a.facts, b.facts ); end );
 	return out;
@@ -129,11 +171,19 @@ function HubEmpire.OpenCity( facts:table )
 	HubCityReport.OpenReport( nil, nil, true );
 end
 
+-- Space: the full city report data is read only now, for this one city.
 local function CityDetail( entry:table )
 	return function()
 		local items:table = {};
-		local ok:boolean, result = pcall( CityReport_BuildItems, entry.report );
-		if ok then items = result; end
+		local city:table = Players[ entry.owner ]:GetCities():FindID( entry.facts.id );
+		if city ~= nil and CityReport_Gather ~= nil and CityReport_BuildItems ~= nil then
+			local ok:boolean, d = pcall( CityReport_Gather, city );
+			if ok and d ~= nil then
+				local ok2:boolean, result = pcall( CityReport_BuildItems, d );
+				if ok2 then items = result; end
+			end
+		end
+		if #items == 0 then return EmpireText.CityLine( entry.facts, #entry.problems ); end
 		return EmpireText.CitySummary( entry.facts.name, items );
 	end;
 end
@@ -374,11 +424,20 @@ local function CapitalNumbers( id:number )
 	return held;
 end
 
+-- Civilizations with an original capital in play: the alive majors that have one, plus the original owners of every original
+-- capital an alive major holds (a dead civ's capital still counts), so held never exceeds the total.
 local function CapitalTotal()
-	local total:number = 0;
+	local owners:table = {};
 	for _, id in ipairs( PlayerManager.GetAliveMajorIDs() ) do
-		if Players[ id ]:GetCities():GetCapitalCity() ~= nil then total = total + 1; end
+		local cities:table = Players[ id ]:GetCities();
+		if cities:GetCapitalCity() ~= nil then owners[ id ] = true; end
+		for _, city in cities:Members() do
+			local original:number = city:GetOriginalOwner();
+			if city:IsOriginalCapital() and Players[ original ] ~= nil and Players[ original ]:IsMajor() then owners[ original ] = true; end
+		end
 	end
+	local total:number = 0;
+	for _ in pairs( owners ) do total = total + 1; end
 	return total;
 end
 
@@ -582,7 +641,11 @@ function HubEmpire.Open()
 		OutputMessageToScreenReader( "The empire overview is not available" );
 		return;
 	end
-	HubCore.OpenMode( "empire", m_list, EmpireText.OpenLine( m_data.attention, m_data.cities, m_data.needOrders ), function() m_data = nil; end );
+	local mine:table = m_data;
+	-- OpenMode closes an open empire list first, which runs the old onClose: only the list that is closing may clear the cache
+	HubCore.OpenMode( "empire", m_list, EmpireText.OpenLine( mine.attention, mine.cities, mine.needOrders ), function()
+		if m_data == mine then m_data = nil; end
+	end );
 end
 
 function HubEmpire.Toggle()

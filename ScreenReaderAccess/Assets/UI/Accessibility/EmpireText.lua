@@ -33,7 +33,13 @@ end
 
 local ORDINALS:table = { "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth" };
 function EmpireText.Ordinal( n:number )
-	return ORDINALS[ n ] or ( n .. "th" );
+	if ORDINALS[ n ] ~= nil then return ORDINALS[ n ]; end
+	local suffix:string = "th";
+	if n % 100 < 11 or n % 100 > 13 then
+		local last:number = n % 10;
+		if last == 1 then suffix = "st"; elseif last == 2 then suffix = "nd"; elseif last == 3 then suffix = "rd"; end
+	end
+	return n .. suffix;
 end
 
 -- ---------------------------------------------------------------------------
@@ -65,6 +71,7 @@ end
 -- The problems of one city: { score, text } entries, the most urgent first (score is the order across cities too).
 function EmpireText.CityProblems( f:table )
 	local list:table = {};
+	if f.minimal then return list; end		-- only the name is known: no claims
 	local name:string = f.name;
 	local function Add( score:number, text:string ) table.insert( list, { score = score, text = text, city = name } ); end
 	if f.danger ~= nil then
@@ -132,6 +139,7 @@ end
 
 -- "Rome, population 8, growing in 4 turns, Harbor 5 turns, 3 problems"
 function EmpireText.CityLine( f:table, problemCount:number )
+	if f.minimal then return f.name .. ", details unavailable"; end
 	local text:string = f.name .. ", population " .. f.population .. ", " .. EmpireText.GrowthState( f ) .. ", ";
 	if f.production == nil then
 		text = text .. "no production";
