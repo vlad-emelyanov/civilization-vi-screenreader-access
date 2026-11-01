@@ -29,7 +29,7 @@ m_topList = KeyNavList_Create{
 			HubCore.CloseMode( false, false );
 			LuaEvents.ActionPanel_OpenChooseCivic();
 		else
-			OutputMessageToScreenReader( "Nothing to open here. " .. SRKey( "Space" ) .. " reads the details" );
+			OutputMessageToScreenReader( "Nothing to open here. " .. SRKey( "Space" ) .. " reads the details, " .. SRKey( "Escape" ) .. " closes the list" );
 		end
 	end,
 	onClose		= function() HubCore.CloseMode( true, false ); end,

@@ -38,6 +38,10 @@ function HubAnnounce.SpeakWhatsNext()
 		OutputMessageToScreenReader( "Choosing a tile: " .. targetLabel .. ". " .. SRKey( "Enter" ) .. " confirms, " .. SRKey( "Escape" ) .. " cancels" );
 		return;
 	end
+	if HubCore.IsReadOnlyModeOpen() then
+		OutputMessageToScreenReader( "A list is open, Enter opens nothing in it. " .. SRKey( "Escape" ) .. " closes it, then Enter does the next action" );
+		return;
+	end
 	HubSettle.RestoreJustCleared();
 	local intentKind:string, intentText:string = HubAnnounce.EnterIntent();
 	if intentText ~= nil then OutputMessageToScreenReader( intentText ); return; end
@@ -63,12 +67,34 @@ function HubAnnounce.SpeakWhatsNext()
 			return;
 		end
 	end
+	-- the panel label lags a moment behind a unit that just arrived: "Next turn" while a unit needs orders (Enter then gives
+	-- "Turn not ended: Unit needs orders"); say the blocker
+	if okWait and isWait and HubAnnounce.IsEndTurnText( text ) then
+		local okReady:boolean, stale = pcall( HubAnnounce.LabelHidesReadyUnit );
+		if okReady and stale then text = CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" ) ); end
+	end
 	local spoken:string = HubCore.Capitalize( text );
 	local okDetail:boolean, detailed = pcall( HubAnnounce.BlockerDetail, spoken, text );
 	if okDetail and detailed ~= nil then spoken = detailed; end
 	local okRaid:boolean, raid = pcall( function() return HubEnemies ~= nil and HubEnemies.RaidExpectedLine() or nil; end );
 	if okRaid and raid ~= nil then spoken = spoken .. ". " .. raid; end
 	OutputMessageToScreenReader( spoken );
+end
+
+-- True for the panel's plain end-turn texts ("Next turn", "End turn"), i.e. no blocker is shown.
+function HubAnnounce.IsEndTurnText( text:string )
+	if text == nil then return false; end
+	local lower:string = string.lower( text );
+	for _, key in ipairs( { "LOC_ACTION_PANEL_NEXT_TURN", "LOC_ACTION_PANEL_END_TURN" } ) do
+		if lower == string.lower( CleanTextForSpeech( Locale.Lookup( key ) ) ) then return true; end
+	end
+	return lower == "end turn";
+end
+
+-- The panel shows no blocker, but one of our units still needs orders (the label updates a moment after the unit arrived).
+function HubAnnounce.LabelHidesReadyUnit()
+	local units:table = HubAnnounce.ReadyUnits();
+	return #units > 0;
 end
 
 -- Pure wording: "Unit needs orders" + "Archer, 2 tiles east of Rome" + "Enter selects it" -> "Unit needs orders: Archer, ...

@@ -166,6 +166,7 @@ end
 function HubCursor.MoveCursor( dx:number, dy:number, steps:number )
 	if not HubCore.IsLocalPlayerActive() then return; end
 	HubTargets.LeaveRebaseList();		-- the rebase / deploy list gives way to the free cursor
+	HubCore.CloseReadOnlyMode();		-- a read-only list left open would answer the next Enter with "Nothing to open here"
 	local x:number, y:number = HubCursor.GetCursor();
 	steps = steps or 1;
 	local width:number, height:number = Map.GetGridSize();

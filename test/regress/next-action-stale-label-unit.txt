@@ -1,0 +1,16 @@
+# The action panel label lags behind a unit that just arrived and says "Next turn" while a unit needs orders: N names the blocker, Enter does not end the turn and speaks the unit.
+# The stale label is faked (a woken Warrior, the label text set to "Next turn"); the real lag needs a moving unit.
+# covers: **/HubAnnounce.lua **/InGameAccess.lua
+# no-share-load: wakes a unit and fakes the label
+load pt-greece-t60
+clear-advisors
+lua InGameAccess UnitManager.RequestCommand(Players[0]:GetUnits():FindID(131073), UnitCommandTypes.WAKE)
+key OemPeriod -Settle 2500 -NoQuiet
+lua InGameAccess ContextPtr:LookUpControl("/InGame/HUD/ActionPanel/EndTurnText"):SetText(Locale.Lookup("LOC_ACTION_PANEL_NEXT_TURN"))
+action KeyNavWhatsNext -Settle 1500
+expect ^Unit needs orders: Warrior
+expect-not (?i)next turn
+key Enter -Settle 3000
+expect ^Warrior, .*needs orders
+expect-not (?i)^Turn ended
+no-lua-errors

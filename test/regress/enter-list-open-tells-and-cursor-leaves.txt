@@ -1,0 +1,16 @@
+# A read-only list (top panel) left open: N says Enter opens nothing in it; Enter says how to leave; moving the map cursor closes the list so Enter does the next action again.
+# covers: **/HubAnnounce.lua **/HubCursor.lua **/HubCore.lua **/HubRegions.lua
+# no-share-load: opens a list
+load pt-greece-t60
+clear-advisors
+action KeyNavTopPanel -Settle 1500
+expect ^Top panel
+action KeyNavWhatsNext -Settle 1500
+expect ^A list is open
+key Enter -Settle 1500
+expect ^Nothing to open here.*Escape
+lua InGameAccess HubCursor.MoveCursor(1, 0)
+action KeyNavWhatsNext -Settle 1500
+expect-not A list is open
+expect (?i)turn
+no-lua-errors

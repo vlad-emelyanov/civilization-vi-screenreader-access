@@ -78,7 +78,15 @@ end
 -- Enter was pressed, nothing announced a new selection, turn end or mode: the game re-selected the same unit
 -- (or none could be selected). Say what is going on.
 function Hub.EnterFallback()
-	if not Hub.IsUnitOrdersLabel( m_enterLabel ) then return; end
+	if not Hub.IsUnitOrdersLabel( m_enterLabel ) then
+		-- the label lagged behind a unit that just arrived ("Next turn") and the game re-selected that unit silently
+		local player:table = Players[ Game.GetLocalPlayer() or -1 ];
+		local selected:table = UI.GetHeadSelectedUnit();
+		if player == nil or not player:IsTurnActive() or selected == nil or not HubAnnounce.IsEndTurnText( CleanTextForSpeech( m_enterLabel ) ) then return; end
+		local okReady:boolean, ready = pcall( function() return selected:GetMovesRemaining() > 0 and HubPlaces.UnitActivity( selected, true ) == "needs orders"; end );
+		if not ( okReady and ready ) then return; end
+		m_enterLabel = Locale.Lookup( "LOC_ACTION_PANEL_NEEDS_ORDERS" );
+	end
 	if HubAnnounce.ConfirmPending( UI.GetElapsedTime() ) then return; end		-- a chooser's confirm: its result line comes, not the unit line
 	if HubAnnounce.ChooserOwnsEnter( UI.GetInterfaceMode() ) then return; end		-- a chooser list or its confirm prompt took the Enter and speaks for it
 	local unit:table = UI.GetHeadSelectedUnit();
