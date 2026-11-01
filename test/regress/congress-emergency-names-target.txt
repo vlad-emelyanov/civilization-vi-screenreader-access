@@ -8,8 +8,7 @@ key Enter -Settle 1500
 expect (?i)emergency
 key Enter -Settle 2500
 expect-not the Target|Target's
-key Down -Settle 800
 key Space -Settle 800
 expect-not the Target|Target's
-expect Target: \w
+expect Target: Dido
 no-lua-errors

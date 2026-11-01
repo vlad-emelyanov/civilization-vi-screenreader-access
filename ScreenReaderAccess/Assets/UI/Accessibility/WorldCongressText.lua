@@ -20,12 +20,31 @@ function WCText_NameTarget( text, name )
 	-- "Target Rewards" is a title, not the civ: hidden behind a placeholder while the rest is replaced
 	local MARK:string = "TR";
 	text = string.gsub( text, "Target Rewards", MARK );
-	local function Sub( s:string )
-		return ( string.gsub( s, "%f[%w][Tt]argets?%f[%W]", function( word ) return ( string.sub( word, -1 ) == "s" ) and ( name .. "'s" ) or name; end ) );
+	-- The game's string.gsub does not know the frontier pattern %f: word boundaries are checked by hand.
+	local function IsWordChar( c:string )
+		return c ~= "" and string.find( c, "^%w" ) ~= nil;
 	end
-	text = string.gsub( text, "[Tt]he [Tt]arget%f[%W]", "" );		-- "the Target" -> the name, without the article
-	text = Sub( text );
-	text = string.gsub( text, "", name );
+	local out:table = {};
+	local pos:number = 1;
+	while true do
+		local s:number, e:number = string.find( text, "[Tt]arget", pos );
+		if s == nil then break; end
+		local before:string = ( s > 1 ) and string.sub( text, s - 1, s - 1 ) or "";
+		local after:string = string.sub( text, e + 1, e + 1 );
+		local plural:boolean = false;
+		if after == "s" and not IsWordChar( string.sub( text, e + 2, e + 2 ) ) then plural = true; e = e + 1; after = ""; end
+		if IsWordChar( before ) or IsWordChar( after ) then
+			table.insert( out, string.sub( text, pos, e ) );
+		else
+			local head:string = string.sub( text, pos, s - 1 );
+			head = string.gsub( head, "[Tt]he $", "" );		-- "the Target" -> the name, without the article
+			table.insert( out, head );
+			table.insert( out, plural and ( name .. "'s" ) or name );
+		end
+		pos = e + 1;
+	end
+	table.insert( out, string.sub( text, pos ) );
+	text = table.concat( out );
 	text = string.gsub( text, MARK, "Target Rewards" );
 	return text;
 end

@@ -1133,7 +1133,19 @@ local function SpeakFocus( prefix:string )
 	local focus = m_list.GetFocusKey();
 	for i, item in ipairs( items ) do
 		if item.key == focus then
-			OutputMessageToScreenReader( prefix .. item.text .. ", " .. i .. " of " .. #items );
+			local text:string = item.text;
+			if item.section ~= nil then
+				-- the group once (Idle, a unit type ...): the next item of it does not repeat it
+				local count:number = 0;
+				for _, other in ipairs( items ) do
+					if other.section == item.section then count = count + 1; end
+				end
+				local own:string = string.lower( string.sub( text, 1, #item.section + 2 ) );
+				if own ~= string.lower( item.section ) .. ", " then text = text .. ", in " .. item.section; end
+				text = text .. ", " .. HubCore.Plural( count, "item", "items" );
+				m_list.MarkSectionSpoken();
+			end
+			OutputMessageToScreenReader( prefix .. text .. ", " .. i .. " of " .. #items );
 			return;
 		end
 	end

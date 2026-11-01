@@ -185,6 +185,13 @@ function KeyNavList_Create( config:table )
 		Speak( items, index, prefix == nil, true );
 	end
 
+	-- The caller said the focused item's group itself (a silent Open): the next item of the same group does not say it again.
+	function list.MarkSectionSpoken()
+		local items:table = Build();
+		local index:number = FindIndex( items );
+		m_lastSection = ( index ~= nil ) and items[ index ].section or nil;
+	end
+
 	function list.GetFocusKey()
 		return m_focusKey;
 	end

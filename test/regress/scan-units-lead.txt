@@ -6,7 +6,7 @@ load bug-scan-units-no-name
 clear-advisors
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].Domain=="DOMAIN_LAND" and GameInfo.Units[u:GetType()].Combat > 0 then UI.SelectUnit(u) break end end
 key X -Settle 1200
-expect ^[A-Z][\w ]+, [\w ]+, (strength|ranged|bombard)|^No foreign units in view
+expect ^[A-Z][\w ]+, [\w ]+, |^No foreign units in view
 expect-not ^(Grassland|Plains|Desert|Hills|Forest|Tundra|Snow|Ocean|Coast)
 key X -Settle 1200
 expect-not ^(Grassland|Plains|Desert|Hills|Forest|Tundra|Snow|Ocean|Coast)

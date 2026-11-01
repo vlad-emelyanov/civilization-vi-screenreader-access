@@ -386,11 +386,13 @@ function HubCursor.ScanLeadText( infos:table )
 end
 
 -- The foreign units seen right now on the plot, as the lead of the stop (nil when there is none: the plot is described as before).
-local function ScanLeadFor( plot:table )
+local function ScanLeadFor( plot:table, scanned:table )
 	if plot == nil then return nil; end
 	local localPlayer:number = Game.GetLocalPlayer();
 	local infos:table = {};
-	for _, unit in ipairs( Units.GetUnitsInPlot( plot ) ) do
+	-- the units the scan found there (Units.GetUnitsInPlot omits e.g. traders on a route, which the scan still stops for)
+	local units:table = ( scanned ~= nil and #scanned > 0 ) and scanned or Units.GetUnitsInPlot( plot );
+	for _, unit in ipairs( units ) do
 		local owner:number = unit:GetOwner();
 		if owner ~= localPlayer and PlotDescription_IsUnitVisible( unit ) then
 			table.insert( infos, {
@@ -486,11 +488,12 @@ function HubCursor.ScanUnits( interrupt:boolean )
 					local plotIndex:number = Map.GetPlot( unit:GetX(), unit:GetY() ):GetIndex();
 					local entry:table = byPlot[ plotIndex ];
 					if entry == nil then
-						entry = { key = tostring( plotIndex ), index = plotIndex, x = unit:GetX(), y = unit:GetY(), distance = distance, hostile = false };
+						entry = { key = tostring( plotIndex ), index = plotIndex, x = unit:GetX(), y = unit:GetY(), distance = distance, hostile = false, units = {} };
 						byPlot[ plotIndex ] = entry;
 						table.insert( found, entry );
 					end
 					if hostile then entry.hostile = true; end
+					table.insert( entry.units, unit );
 				end
 			end
 		end
@@ -544,7 +547,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	end
 	-- each stop starts with the foreign unit(s) seen there: "Janissary, Ottomans, strength 60, 2 tiles north-west of Adana"
 	local stopPlot:table = Map.GetPlot( found[ next ].x, found[ next ].y );
-	local lead:string = ScanLeadFor( stopPlot );
+	local lead:string = ScanLeadFor( stopPlot, found[ next ].units );
 	HubCursor.SetCursor( found[ next ].x, found[ next ].y, false, interrupt, false, true );
 	local line:string = HubCursor.DescribePlot( stopPlot, true, lead );
 	if openingLabel ~= nil then line = openingLabel .. ". " .. line; end		-- never drop the opening's label: it leads the first target line
