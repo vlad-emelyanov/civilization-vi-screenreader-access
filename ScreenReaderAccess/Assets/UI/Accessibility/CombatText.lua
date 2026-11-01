@@ -27,9 +27,9 @@ end
 -- "plus 2 flanking": the game's modifier lines start with a signed number ("+2 Flanking", "-3 Across a river").
 function CombatText_ModifierLine( text:string )
 	if text == nil then return ""; end
-	text = string.gsub( text, "^%s+", "" );
-	text = string.gsub( text, "^%+%s*(%d)", "plus %1" );
-	text = string.gsub( text, "^[%-\226\128\147\226\128\148]%s*(%d)", "minus %1" );	-- hyphen, en dash, em dash
+	text = string.gsub( text, "^[ \t\r\n\v\f]+", "" );
+	text = string.gsub( text, "^%+[ \t\r\n\v\f]*(%d)", "plus %1" );
+	text = string.gsub( text, "^[%-\226\128\147\226\128\148][ \t\r\n\v\f]*(%d)", "minus %1" );	-- hyphen, en dash, em dash
 	return text;
 end
 

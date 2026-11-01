@@ -1779,6 +1779,9 @@ local function OrderUnit( unitID:number, place:table, item:table )
 	end
 	local war:table = HubTargets.WarTargets( mover, plot );
 	local enemy:boolean = HubTargets.EnemyVisibleAt( plot );
+	if war == nil and mover:GetMovesRemaining() <= 0 and not place.escort then
+		return name .. " has no movement left this turn, no order given";
+	end
 	local path:table = UnitManager.GetMoveToPathEx( mover, plot:GetIndex() );
 	local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
 	if war == nil and not reachable and not place.unexplored then
@@ -1822,9 +1825,19 @@ function HubPlaces.SendRemaining( items:table, sent:table )
 	return kept, focusKey;
 end
 
+-- Pure: items that are units (a notice item such as "no free unit for an attack party" is not one).
+function HubPlaces.CountUnits( items:table )
+	local n:number = 0;
+	for _, item in ipairs( items ) do
+		if not item.notice then n = n + 1; end
+	end
+	return n;
+end
+
 -- True when the order for this unit would start a war: the game then asks for confirmation through the selected unit, so that
 -- send keeps the old way (select, close the list).
 local function SendNeedsSelection( item:table, place:table )
+	if place.escort then return true; end		-- Shift+E forms the escort on the selected soldier (ConfirmFormation)
 	local mover:table = LocalPlayer():GetUnits():FindID( ( item.members ~= nil ) and item.members[1].unitId or item.unitId );
 	if mover == nil then return false; end
 	local plot:table = Map.GetPlot( item.nearX or place.x, item.nearY or place.y );
@@ -1847,7 +1860,7 @@ local function SendActivate( item:table )
 		local result:string = table.concat( sentences, ". " );
 		local kept:table, focusKey = HubPlaces.SendRemaining( place.items, item );
 		place.items = kept;
-		if #kept == 0 then
+		if HubPlaces.CountUnits( kept ) == 0 then
 			CloseSend();
 			HubCore.SayResult( result .. ". No more units to send" );
 		else

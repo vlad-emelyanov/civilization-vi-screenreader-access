@@ -49,8 +49,8 @@ function RankingsText_Clean( text:string )
 	text = string.gsub( text, "%[ICON_Bolt%]", "not yet: " );
 	text = CleanTextForSpeech( text );
 	for i = 1, 2 do
-		text = string.gsub( text, "%.%s*%.", "." );
-		text = string.gsub( text, "%s+([%.,:])", "%1" );
+		text = string.gsub( text, "%.[ \t\r\n\v\f]*%.", "." );
+		text = string.gsub( text, "[ \t\r\n\v\f]+([%.,:])", "%1" );
 	end
 	return text;
 end

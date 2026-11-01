@@ -532,7 +532,7 @@ function HubEvents.GoodyRewardText( row:table )
 	end
 	local text:string = ( row.Description ~= nil ) and Locale.Lookup( row.Description, amount or 1 ) or "";
 	text = text:gsub( "%[ICON_Gold%]", " gold" ):gsub( "%[ICON_Faith%]", " faith" ):gsub( "%[ICON_Envoy%]", "" ):gsub( "%[ICON_Governor%]", "" );
-	text = text:gsub( "%[[%w_]+%]", "" ):gsub( "^%s*%+", "" ):gsub( "%s+", " " ):gsub( "^ ", "" ):gsub( " $", "" );
+	text = text:gsub( "%[[%w_]+%]", "" ):gsub( "^[ \t\r\n\v\f]*%+", "" ):gsub( "[ \t\r\n\v\f]+", " " ):gsub( "^ ", "" ):gsub( " $", "" );
 	if text == "" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_BUILDER" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_TRADER" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_SETTLER"
 		or row.SubTypeGoodyHut == "GOODYHUT_ONE_RELIC" or row.SubTypeGoodyHut == "GOODYHUT_ADD_POP" then
 		text = GOODY_FALLBACK[ row.SubTypeGoodyHut ] or text;

@@ -12,9 +12,9 @@ function MPText_CleanChat( text:string )
 	text = string.gsub( text, "%[ICON_[^%]]*%]", "" );
 	text = string.gsub( text, "%[[Cc][Oo][Ll][Oo][Rr][^%]]*%]", "" );
 	text = string.gsub( text, "%[ENDCOLOR%]", "" );
-	text = string.gsub( text, "%s+", " " );
-	text = string.gsub( text, "^%s+", "" );
-	text = string.gsub( text, "%s+$", "" );
+	text = string.gsub( text, "[ \t\r\n\v\f]+", " " );
+	text = string.gsub( text, "^[ \t\r\n\v\f]+", "" );
+	text = string.gsub( text, "[ \t\r\n\v\f]+$", "" );
 	return text;
 end
 

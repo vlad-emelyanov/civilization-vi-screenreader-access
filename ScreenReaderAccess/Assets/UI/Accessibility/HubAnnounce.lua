@@ -735,7 +735,7 @@ end
 
 local function WaitingPrefix()
 	local prefix:string = string.lower( CleanTextForSpeech( Locale.Lookup( "LOC_ACTION_PANEL_WAITING_FOR_PLAYER_TURN", "" ) ) );
-	return ( string.gsub( prefix, "%s+$", "" ) ) .. " ";
+	return ( string.gsub( prefix, "[ \t\r\n\v\f]+$", "" ) ) .. " ";
 end
 
 -- The action panel says "Waiting for players" / "Waiting for NAME": this player has ended the turn and others are still playing (MP).

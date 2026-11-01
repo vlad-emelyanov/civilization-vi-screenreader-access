@@ -125,7 +125,7 @@ function GreatWorksText_Showcase( fields:table )
 	local text:string = ( fields.gallery and "Great work: " or "New great work: " ) .. fields.name;
 	for _, line in ipairs( fields.lines or {} ) do
 		if line ~= nil and line ~= "" then
-			local trimmed:string = string.gsub( line, "[%.%s]+$", "" );
+			local trimmed:string = string.gsub( line, "[%. \t\r\n\v\f]+$", "" );
 			text = text .. ". " .. trimmed;
 		end
 	end

@@ -115,7 +115,7 @@ local function _Conditions( city:table, kind:string, hash:number, plot:table )
 		elseif name ~= nil then
 			table.insert( removes, name );
 		else
-			text = string.gsub( CleanTextForSpeech( text ), "[%.%s]+$", "" );
+			text = string.gsub( CleanTextForSpeech( text ), "[%. \t\r\n\v\f]+$", "" );
 			if text ~= "" then table.insert( notes, _LowerFirst( text ) ); end
 		end
 	end
@@ -137,7 +137,7 @@ local function _Failures( city:table, kind:string, hash:number, plot:table )
 	local ok:boolean, _, results = pcall( function() return CityManager.CanStartOperation( city, CityOperationTypes.BUILD, params, true ); end );
 	if not ok or results == nil then return reasons; end
 	for _, text in ipairs( _Items( results, CityOperationResults.FAILURE_REASONS ) ) do
-		local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%.%s]+$", "" );
+		local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%. \t\r\n\v\f]+$", "" );
 		if clean ~= "" then table.insert( reasons, clean ); end
 	end
 	return reasons;
@@ -313,7 +313,7 @@ end
 
 -- The engine hands the reason over localized, not as the LOC tag, so compare the text too.
 local function _NoSuitableText( tag:string )
-	return string.gsub( CleanTextForSpeech( Locale.Lookup( tag ) ), "[%.%s]+$", "" );
+	return string.gsub( CleanTextForSpeech( Locale.Lookup( tag ) ), "[%. \t\r\n\v\f]+$", "" );
 end
 
 -- Why can the city not build the item at all (no owned tile fits)? Asks the build queue, once without and once allowing
@@ -328,7 +328,7 @@ function PlacementScan_Explain( scan:table )
 		if results == nil then return; end
 		if results[ CityOperationResults.NO_SUITABLE_LOCATION ] == true then info.noSuitable = true; end
 		for _, text in ipairs( _Items( results, CityOperationResults.FAILURE_REASONS ) ) do
-			local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%.%s]+$", "" );
+			local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%. \t\r\n\v\f]+$", "" );
 			if text == "LOC_DISTRICT_ZONE_NO_SUITABLE_LOCATION" or text == "LOC_BUILDING_CONSTRUCT_NO_SUITABLE_LOCATION"
 					or clean == _NoSuitableText( "LOC_DISTRICT_ZONE_NO_SUITABLE_LOCATION" ) or clean == _NoSuitableText( "LOC_BUILDING_CONSTRUCT_NO_SUITABLE_LOCATION" ) then
 				info.noSuitable = true;
@@ -374,7 +374,7 @@ function PlacementScan_Cannot( scan:table, plot:table )
 	if ok and results ~= nil then
 		local reasons:table = {};
 		for _, text in ipairs( _Items( results, CityOperationResults.FAILURE_REASONS ) ) do
-			local clean:string = string.gsub( CleanTextForSpeech( text ), "[%.%s]+$", "" );
+			local clean:string = string.gsub( CleanTextForSpeech( text ), "[%. \t\r\n\v\f]+$", "" );
 			if clean ~= "" then table.insert( reasons, clean ); end
 		end
 		if #reasons > 0 then return table.concat( reasons, ", " ); end

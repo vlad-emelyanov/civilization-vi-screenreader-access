@@ -126,3 +126,8 @@ test("NameTarget: the game's Target placeholder becomes the civ", function()
 	eq(WCText_NameTarget("You earned Target Rewards", "Dido"), "You earned Target Rewards")
 	eq(WCText_NameTarget("Being at War with the Target will reduce your score", ""), "Being at War with the Target will reduce your score")
 end)
+
+test("NameTarget: Target Rewards stays while the rest of the text is replaced", function()
+	eq(WCText_NameTarget("Keeping units in the Target's territory earns Target Rewards", "Dido"), "Keeping units in Dido's territory earns Target Rewards")
+	eq(WCText_NameTarget("Kill the target", "Dido"), "Kill Dido")
+end)

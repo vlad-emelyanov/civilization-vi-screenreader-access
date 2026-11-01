@@ -104,7 +104,7 @@ function HubMessages.BuildItems()
 		table.insert( items, {
 			key = "m:" .. message.id, text = message.text, section = "Turn " .. message.turn, note = message,
 			detail = function()
-				local text:string = string.gsub( message.text, "[%.%s]+$", "" ) .. ", turn " .. message.turn;
+				local text:string = string.gsub( message.text, "[%. \t\r\n\v\f]+$", "" ) .. ", turn " .. message.turn;
 				local plot:table = PlotOf( message.plotIndex );
 				if plot ~= nil then
 					local position:string = HubAnnounce.PositionText( plot );

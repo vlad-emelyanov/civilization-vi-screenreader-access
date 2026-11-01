@@ -25,8 +25,8 @@ function ReportText_Signed( value )
 		if value > 0 then return "plus " .. Num( value ); end
 		return "minus " .. Num( -value );
 	end
-	local text:string = string.gsub( tostring( value ), "^%s+", "" );
-	text = string.gsub( text, "%s+$", "" );
+	local text:string = string.gsub( tostring( value ), "^[ \t\r\n\v\f]+", "" );
+	text = string.gsub( text, "[ \t\r\n\v\f]+$", "" );
 	if text == "" then return nil; end
 	local sign:string = string.sub( text, 1, 1 );
 	if sign == "+" then return "plus " .. string.sub( text, 2 ); end

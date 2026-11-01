@@ -256,8 +256,8 @@ end
 -- Case-insensitive, plain text. Returns the entry or nil.
 function TreeText_Match( entries:table, query:string )
 	if query == nil then return nil; end
-	query = string.gsub( query, "^%s+", "" );
-	query = string.gsub( query, "%s+$", "" );
+	query = string.gsub( query, "^[ \t\r\n\v\f]+", "" );
+	query = string.gsub( query, "[ \t\r\n\v\f]+$", "" );
 	query = string.lower( query );
 	if query == "" then return nil; end
 	local contains:table = nil;

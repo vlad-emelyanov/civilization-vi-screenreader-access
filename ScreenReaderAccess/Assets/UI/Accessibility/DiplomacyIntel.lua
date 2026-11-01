@@ -40,7 +40,7 @@ end
 function DiplomacyIntel.Clean( text )
 	if text == nil then return ""; end
 	text = CleanTextForSpeech( tostring( text ) );
-	text = string.gsub( text, "[%.%s]+$", "" );
+	text = string.gsub( text, "[%. \t\r\n\v\f]+$", "" );
 	return text;
 end
 

@@ -16,9 +16,9 @@ end
 -- true for "return". A name without that tail is returned as it is.
 function DealSpeech_CityName( name )
 	name = name or "unknown";
-	local base = string.match( name, "^(.-),%s*cede%.?$" );
+	local base = string.match( name, "^(.-),[ \t\r\n\v\f]*cede%.?$" );
 	if base ~= nil then return base, false; end
-	base = string.match( name, "^(.-),%s*return%.?$" );
+	base = string.match( name, "^(.-),[ \t\r\n\v\f]*return%.?$" );
 	if base ~= nil then return base, true; end
 	return name, false;
 end

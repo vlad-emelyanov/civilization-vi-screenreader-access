@@ -33,7 +33,7 @@ end
 local function Strip( ctx:table, text )
 	if text == nil then return ""; end
 	local clean:string = ctx.clean( tostring( text ) );
-	clean = string.gsub( clean, "%s*%.%s*$", "" );
+	clean = string.gsub( clean, "[ \t\r\n\v\f]*%.[ \t\r\n\v\f]*$", "" );
 	return clean;
 end
 

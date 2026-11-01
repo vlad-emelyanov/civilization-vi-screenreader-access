@@ -127,7 +127,7 @@ local RESULT_SILENT = {
 -- Pure: the game's "Must occupy district or wonder with a free slot ..." names no place; X on the unit lists them.
 function HubMenus.ReasonWithHint( reason:string, key:string )
 	if reason ~= nil and string.find( reason, "free slot of the proper Great Work type", 1, true ) ~= nil then
-		return string.gsub( reason, "%.%s*$", "" ) .. ". " .. key .. " lists the places";
+		return string.gsub( reason, "%.[ \t\r\n\v\f]*$", "" ) .. ". " .. key .. " lists the places";
 	end
 	return reason;
 end
