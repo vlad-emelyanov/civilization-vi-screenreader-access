@@ -151,3 +151,8 @@ test("co-garrison text: a second military unit in a city blocks the ranged attac
 	eq(PlotDescription_CoGarrisonText(nil), nil)
 	eq(PlotDescription_CoGarrisonText({ "Catapult" }), "Catapult stands in this city too: the game gives no ranged attack from a city tile that holds two military units, move one of them out")
 end)
+
+test("BuildingsText: a district's buildings, pillaged ones marked", function()
+	eq(PlotDescription_BuildingsText("Campus", { "Library", "University" }, { false, true }), "Campus: Library, University (pillaged)")
+	eq(PlotDescription_BuildingsText("Campus", {}, {}), nil)
+end)

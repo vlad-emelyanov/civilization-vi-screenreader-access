@@ -50,7 +50,7 @@ globals = {
 	"DistrictAdvice_Line", "DistrictAdvice_BestSpot", "DistrictAdvice_Entry", "DistrictAdvice_Spots",
 	"PlacementScan_Blockers", "PlacementScan_Sort", "PlacementScan_Cannot", "PlacementScan_Explain", "PlacementScan_Scan",
 	"UnitDetails_Text", "UnitDetails_Gather", "UnitDetails_Order", "UnitDetails_ForPlot", "UnitDetails_ShortStrength", "UnitDetails_CityDefenseText", "PlotDescription_CityDefense",
-	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_GetDirectionWord",
+	"PlotDescription_GetCivName", "PlotDescription_GetDetailed", "PlotDescription_BuildingsText", "PlotDescription_DistrictBuildings", "PlotDescription_GetDirectionWord",
 	"PlotDescription_GetRelative", "PlotDescription_GetShort", "PlotDescription_GetUnitName", "PlotDescription_FormationName", "PlotDescription_IsEmbarked", "PlotDescription_UnitStateText",
 	"PlotDescription_GetVisibility", "PlotDescription_IsUnitVisible", "PlotDescription_DangerReason", "PlotDescription_DistrictReason", "PlotDescription_ReplaceDistrictRefusal", "PlotDescription_NearestHostile", "PlotDescription_CoGarrisonText", "PlotDescription_CoGarrisonNames", "ReligionText_ActionDescription", "ReligionText_ConvertResult", "ReligionText_SpreadResult", "ReligionText_SpreadsLeft", "ReligionText_Beliefs", "ReligionText_Capital", "ReligionText_CityLine", "ReligionText_Count", "ReligionText_Followers", "ReligionText_Founder", "ReligionText_Join", "ReligionText_ToChoose", "PrintKeyMap",
 	"PrintKeyboardNavigationElements", "SRListen", "SRUnlistenAll", "ReplaceDlcPopup", "SettleScan_CanFound", "SettleScan_CannotText",

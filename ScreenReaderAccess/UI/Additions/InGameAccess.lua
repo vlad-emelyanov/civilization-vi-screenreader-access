@@ -377,6 +377,8 @@ function Initialize()
 	HubCore.AddEvent( "CityAddedToMap",				HubEvents.OnCityAddedToMap );
 	HubCore.AddEvent( "CityProductionCompleted",	HubEvents.OnCityProductionCompleted );
 	HubCore.AddEvent( "ImprovementAddedToMap",		HubEvents.OnImprovementAddedToMap );
+	HubCore.AddEvent( "RouteAddedToMap",			HubEvents.OnRouteOnMap );
+	HubCore.AddEvent( "RouteChanged",				HubEvents.OnRouteOnMap );
 	HubCore.AddEvent( "UnitVisibilityChanged",		HubEvents.OnUnitVisibilityChanged );
 	HubCore.AddEvent( "ImprovementVisibilityChanged",	HubPlaces.OnImprovementVisibilityChanged );		-- villages and camps are remembered as they are seen
 	HubCore.AddEvent( "ImprovementAddedToMap",		HubPlaces.OnImprovementAddedToMap );

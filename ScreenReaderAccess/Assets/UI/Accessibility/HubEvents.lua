@@ -506,6 +506,37 @@ function HubEvents.OnImprovementAddedToMap( x:number, y:number, improvementType:
 	end );
 end
 
+-- Pure: "Railroad built, 1 charge left" / "Road built, the builder is used up" / "Railroad under construction" (the charge was not yet counted
+-- down a moment after the route appeared). chargesBefore / chargesNow: the unit's build charges at the event and shortly after; nil
+-- chargesNow = the unit is gone.
+function HubEvents.RouteResultText( routeName:string, chargesBefore:number, chargesNow:number )
+	if chargesNow == nil then return routeName .. " built, the builder is used up"; end
+	if chargesBefore ~= nil and chargesNow >= chargesBefore then return routeName .. " under construction"; end
+	return routeName .. " built, " .. HubCore.Plural( chargesNow, "charge", "charges" ) .. " left";
+end
+
+-- A Military Engineer (Build Route) made a road or railroad on its own plot: Events.RouteAddedToMap / RouteChanged( x, y ).
+function HubEvents.OnRouteOnMap( x:number, y:number )
+	if not HubCore.m_ready then return; end
+	local unit:table = UI.GetHeadSelectedUnit();
+	if unit == nil or unit:GetOwner() ~= Game.GetLocalPlayer() or unit:GetX() ~= x or unit:GetY() ~= y then return; end
+	local unitRow:table = GameInfo.Units[ unit:GetUnitType() ];
+	if unitRow == nil or ( unitRow.BuildCharges or 0 ) <= 0 then return; end		-- a Trader's road is no build order
+	local plot:table = Map.GetPlot( x, y );
+	local route:table = ( plot ~= nil ) and GameInfo.Routes[ plot:GetRouteType() ] or nil;
+	if route == nil then return; end
+	if HubEvents.m_routeTurn == Game.GetCurrentGameTurn() and HubEvents.m_routePlot == plot:GetIndex() and HubEvents.m_routeType == route.RouteType then return; end		-- RouteAddedToMap and RouteChanged both fire
+	HubEvents.m_routeTurn, HubEvents.m_routePlot, HubEvents.m_routeType = Game.GetCurrentGameTurn(), plot:GetIndex(), route.RouteType;
+	local name:string = Locale.Lookup( route.Name );
+	local unitID:number = unit:GetID();
+	local owner:number = unit:GetOwner();
+	local before:number = unit:GetBuildCharges();
+	HubCore.After( 0.4, function()	-- the charges are counted down a moment later
+		local builder:table = Players[ owner ]:GetUnits():FindID( unitID );
+		HubCore.SayResult( HubEvents.RouteResultText( name, before, builder ~= nil and builder:GetBuildCharges() or nil ) );
+	end );
+end
+
 -- Tribal village reward, spoken as "Tribal village: 40 gold". Events.GoodyHutReward( playerID, unitID, goodyHutTypeHash, subTypeHash ):
 -- the hashes are DB.MakeHash of GoodyHuts.GoodyHutType / GoodyHutSubTypes.SubTypeGoodyHut. The game's Description strings take the amount
 -- as parameter; some have no text at all (units, population, relic: spoken here) and the boosts have no Description because the

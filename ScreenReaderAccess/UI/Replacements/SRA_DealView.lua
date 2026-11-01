@@ -99,7 +99,10 @@ local function SRA_GreatWorkFacts( index:number )
 		local parts:table = {};
 		if facts.creator ~= nil and facts.creator ~= "" then table.insert( parts, "Created by " .. facts.creator ); end
 		local date:string = Calendar.MakeDateStr( inst.TurnCreated, GameConfiguration.GetCalendarType(), GameConfiguration.GetGameSpeedType(), false );
-		if date ~= nil and date ~= "" then parts[ #parts ] = ( parts[ #parts ] or "Created" ) .. " in " .. CleanTextForSpeech( date ); end
+		if date ~= nil and date ~= "" then
+			if #parts == 0 then parts[ 1 ] = "Created"; end
+			parts[ #parts ] = parts[ #parts ] .. " in " .. CleanTextForSpeech( date );
+		end
 		local yields:table = {};
 		for row in GameInfo.GreatWork_YieldChanges() do
 			if row.GreatWorkType == static.GreatWorkType and row.YieldChange ~= 0 then

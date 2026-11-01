@@ -550,6 +550,41 @@ function PlotDescription_GetShort( plot:table, options:table )
 	return table.concat(parts, ", ");
 end
 
+-- Pure: "Campus: Library, University (pillaged)" from the district name and its building names with their pillaged flags; nil without buildings.
+function PlotDescription_BuildingsText( districtName:string, names:table, pillaged:table )
+	if names == nil or #names == 0 then return nil; end
+	local list:table = {};
+	for i, name in ipairs( names ) do
+		table.insert( list, name .. ( ( pillaged ~= nil and pillaged[ i ] ) and " (pillaged)" or "" ) );
+	end
+	return districtName .. ": " .. table.concat( list, ", " );
+end
+
+-- The completed buildings of the district on this plot ("Campus: Library, University"), as the game's PlotToolTip lists them: the plot
+-- owner city's buildings at the location, for any revealed plot. Nil on a plot without a district (the city centre has its own report),
+-- or without buildings.
+function PlotDescription_DistrictBuildings( plot:table )
+	if plot == nil or plot:IsCity() then return nil; end
+	local districtType:number = plot:GetDistrictType();
+	if districtType == nil or districtType < 0 then return nil; end
+	local row:table = GameInfo.Districts[ districtType ];
+	if row == nil or row.InternalOnly then return nil; end
+	local city:table = Cities.GetPlotPurchaseCity( plot );
+	local buildings = ( city ~= nil ) and city:GetBuildings() or nil;
+	if buildings == nil then return nil; end
+	local names:table, pillaged:table = {}, {};
+	for _, buildingType in ipairs( buildings:GetBuildingsAtLocation( plot:GetIndex() ) or {} ) do
+		local building:table = GameInfo.Buildings[ buildingType ];
+		if building ~= nil then
+			local name = building.Name;
+			if buildings.GetBuildingNameOverride ~= nil then name = buildings:GetBuildingNameOverride( building.Index ) or name; end
+			table.insert( names, Locale.Lookup( name ) );
+			table.insert( pillaged, buildings:IsPillaged( buildingType ) == true );
+		end
+	end
+	return PlotDescription_BuildingsText( Locale.Lookup( row.Name ), names, pillaged );
+end
+
 -- ===========================================================================
 --	Detailed description (I key)
 -- ===========================================================================
@@ -609,6 +644,8 @@ function PlotDescription_GetDetailed( plot:table, options:table )
 	end
 
 	table.insert(parts, table.concat(facts, ", "));
+	local okBuildings:boolean, buildingsText = pcall(PlotDescription_DistrictBuildings, plot);
+	if okBuildings and buildingsText ~= nil then table.insert(parts, buildingsText); end
 	local resourceTech:string = _ResourceTechText(plot, true);
 	if resourceTech ~= nil then table.insert(parts, resourceTech); end
 	if PlotDescription_CanTreatWithClan(plot) then table.insert(parts, "T treats with the clan"); end

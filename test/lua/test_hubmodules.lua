@@ -51,3 +51,9 @@ test("every function field of the modules is a function (no stray nil exports)",
 		end
 	end
 end)
+
+test("RouteResultText: a route build says built with the charges left, or under construction", function()
+	eq(HubEvents.RouteResultText("Railroad", 2, 1), "Railroad built, 1 charge left")
+	eq(HubEvents.RouteResultText("Road", 1, nil), "Road built, the builder is used up")
+	eq(HubEvents.RouteResultText("Railroad", 2, 2), "Railroad under construction")
+end)

@@ -1,0 +1,13 @@
+# Unverified, blind-written (record with `civregress.py engineer-route-result --record`): a Military Engineer's Build Route says a result line after the action name, and I on a district tile lists its buildings.
+# Fixture pt-mod2-t228 (Rome, Modern): needs a Military Engineer (the tuner creates one), a plot without a railroad inside our borders.
+# covers: **/HubEvents.lua **/PlotDescription.lua UI/Additions/InGameAccess.lua
+load pt-mod2-t228
+clear-advisors
+lua GameCore_Tuner local c=Players[0]:GetCities():GetCapitalCity() local u=Players[0]:GetUnits():Create(GameInfo.Units["UNIT_MILITARY_ENGINEER"].Index, c:GetX(), c:GetY()+1) return u~=nil and "ok" or "none"
+expect-lua ^ok$
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MILITARY_ENGINEER" then UI.SelectUnit(u) break end end
+key Tab -Settle 1500
+expect (?i)Build Route
+# Enter on the Build Route entry (the list names it); its result follows after the action name
+key Enter -Settle 2500
+expect (?i)(Road|Railroad) (built, \d charges? left|built, the builder is used up|under construction)

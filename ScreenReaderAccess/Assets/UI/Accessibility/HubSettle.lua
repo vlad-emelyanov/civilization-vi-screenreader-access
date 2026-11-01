@@ -848,14 +848,14 @@ m_actList = KeyNavList_Create{
 
 -- Pure: "No reachable tile to activate Charles Darwin on: all 7 tiles: Aztec's territory, no open borders with Aztec" - the reasons
 -- (one text per qualifying tile, "" = unknown) grouped, with how many tiles each covers.
-function HubSettle.NoReachText( infinitive:string, reasons:table )
+function HubSettle.NoReachText( infinitive:string, reasons:table, total:number )
 	local order:table, counts:table = {}, {};
 	for _, reason in ipairs( reasons ) do
 		local text:string = ( reason ~= nil and reason ~= "" ) and reason or "no path leads there";
 		if counts[ text ] == nil then counts[ text ] = 0; table.insert( order, text ); end
 		counts[ text ] = counts[ text ] + 1;
 	end
-	local total:number = #reasons;
+	total = total or #reasons;		-- the reasons list is capped (12): the real count of qualifying tiles
 	local parts:table = {};
 	for _, text in ipairs( order ) do
 		local n:number = counts[ text ];
@@ -900,7 +900,7 @@ function HubSettle.OpenActBrowser( unit:table )
 				local plot:table = Map.GetPlotByIndex( index );
 				if plot ~= nil and #reasons < 12 then table.insert( reasons, WhyNoPath( unit, plot ) ); end
 			end
-			OutputMessageToScreenReader( HubSettle.NoReachText( HubSettle.ActionInfinitive( a ), reasons ) );
+			OutputMessageToScreenReader( HubSettle.NoReachText( HubSettle.ActionInfinitive( a ), reasons, #a.plots ) );
 		end
 		return true;
 	end
