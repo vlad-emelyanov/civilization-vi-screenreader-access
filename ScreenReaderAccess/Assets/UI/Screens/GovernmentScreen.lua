@@ -3087,7 +3087,9 @@ local function SRA_TabTitle()
 	return title;
 end
 
+local m_srLastOpenAt			:number = -100;		-- UI.GetElapsedTime() of the last page announcement
 local function SRA_OpenCurrentTab()
+	m_srLastOpenAt = UI.GetElapsedTime();
 	m_srCatalogSlotIndex = nil;
 	m_srList.Reset();
 	m_srList.Open( SRA_TabTitle() );
@@ -3276,7 +3278,57 @@ end
 
 -- ScreenReaderAccess: every frame while visible: forward a queued key to the dialog once it shows, and the page-announce fallback
 -- (the GovernmentChanged refresh never came); neither consumes input.
+-- Is a popup open above this screen (a historic moment, an advisor, the confirm dialog ...)? The always-shown HUD contexts are skipped.
+local SRA_OVERLAY_SKIP:table = { TopPanel = true, DiplomacyRibbon = true, PartialScreenHooks = true, InGameAccess = true };
+local m_srOverlayWas			:boolean = false;	-- a popup was open above the screen on the previous frame
+local m_srOverlaySince			:number = -1;		-- when it opened
+local m_srOverlayGoneAt			:number = -1;		-- UI.GetElapsedTime() when it closed; the screen speaks again shortly after
+local function SRA_OverlayOpen()
+	for _, name in ipairs( { "WorldPopups", "FakePopups", "PartialScreens" } ) do
+		local parent = ContextPtr:LookUpControl( "/InGame/" .. name );
+		if parent ~= nil then
+			for _, child in ipairs( parent:GetChildren() ) do
+				if not child:IsHidden() and not SRA_OVERLAY_SKIP[ child:GetID() ] then return true; end
+			end
+		end
+	end
+	return false;
+end
+
+-- A popup over the screen closed and the screen is still open: its title and the focused item again (the popup's own closing speech is queued before it).
+local function SRA_ReannounceAfterOverlay()
+	if m_srList == nil or ContextPtr:IsHidden() or m_srAnnounceAfterChange or m_srOpenPending then return; end
+	if m_srLastOpenAt >= m_srOverlaySince then return; end		-- the screen announced its page itself meanwhile (a confirmed change)
+	local title:string = nil;
+	if m_srCatalogSlotIndex ~= nil then
+		local slot:table = SRA_FindSlot( m_srCatalogSlotIndex );
+		if slot ~= nil then
+			title = SRA_Cap( SRA_SlotLabel( slot.UI_RowIndex, slot ) ) .. ", choose a policy";
+		end
+	end
+	if title == nil then title = SRA_TabTitle(); end
+	m_srList.Open( title, m_srList.GetFocusKey(), false, true, true );
+end
+
 local function SRA_Tick()
+	if ContextPtr:IsHidden() then
+		m_srOverlayWas = false;
+		m_srOverlayGoneAt = -1;
+	else
+		local over:boolean = SRA_OverlayOpen();
+		if over then
+			if not m_srOverlayWas then m_srOverlaySince = UI.GetElapsedTime(); end
+			m_srOverlayGoneAt = -1;
+		elseif m_srOverlayWas then
+			m_srOverlayGoneAt = UI.GetElapsedTime();
+		end
+		m_srOverlayWas = over;
+		if m_srOverlayGoneAt >= 0 and UI.GetElapsedTime() - m_srOverlayGoneAt >= 0.3 then
+			m_srOverlayGoneAt = -1;
+			local ok:boolean, err = xpcall( SRA_ReannounceAfterOverlay, KeyNavErrorHandler );
+			if not ok then print( "GovernmentScreen reannounce error: " .. tostring(err) ); end
+		end
+	end
 	if m_srPendingKey ~= nil then
 		if SRA_PopupRootVisible() then
 			local key = m_srPendingKey;

@@ -741,6 +741,8 @@ function ApplyStatement(handler : table, statementTypeName : string, statementSu
 			LuaEvents.SRA_DealStatement( said );
 		elseif #m_srSelections > 0 then
 			m_srList.Open( speech );
+			-- the AI opened this scene on its own (maybe during the turn change): a stray Enter must not answer what nobody heard yet
+			if aiInitiated and not fromLocal then m_srList.HoldEnter( 2 ); end
 		else
 			OutputMessageToScreenReader( speech .. " " .. SRKey( "Escape" ) .. " to close.", true );
 		end

@@ -251,6 +251,17 @@ function HubRegions.OnNotificationAdded( id:number, message:string, summary:stri
 	elseif typeName == "NOTIFICATION_CHOOSE_BELIEF" then
 		text = text .. ". " .. HubCore.KeyHint( "KeyNavNotifications", "Control+N", "RB" ) .. ", then " .. SRKey( "Enter" ) .. " to choose";
 	end
+	-- A captured city waits for Keep or Raze: the popup opens only from the notification, so the capture line is followed by the way there
+	if typeName == "NOTIFICATION_CONSIDER_RAZE_CITY" then
+		local ok:boolean, cityName = pcall( function()
+			local note:table = NotificationManager.Find( Game.GetLocalPlayer(), id );
+			if note == nil or not note:IsLocationValid() then return nil; end
+			local x:number, y:number = note:GetLocation();
+			local city:table = Cities.GetCityInPlot( x, y );
+			return city ~= nil and Locale.Lookup( city:GetName() ) or nil;
+		end );
+		text = "Keep or raze " .. ( ( ok and cityName ~= nil and cityName ~= "" ) and cityName or "the captured city" ) .. ": " .. HubCore.KeyHint( "KeyNavNotifications", "Control+N", "RB" );
+	end
 	-- "New Barbarian Outpost" alone does not say where: from the nearest city of ours, like the camps in the places list (J)
 	if typeName == "NOTIFICATION_NEW_BARBARIAN_CAMP" then
 		local ok:boolean, position = pcall( function()
