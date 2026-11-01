@@ -506,12 +506,12 @@ function HubEvents.OnImprovementAddedToMap( x:number, y:number, improvementType:
 	end );
 end
 
--- Pure: "Railroad built, 1 charge left" / "Road built, the builder is used up" / "Railroad under construction" (the charge was not yet counted
--- down a moment after the route appeared). chargesBefore / chargesNow: the unit's build charges at the event and shortly after; nil
+-- Pure: "Railroad built, 1 charge left" / "Road built, the builder is used up" / "Railroad built" (a Military Engineer's route costs no charge, verified: the
+-- charges stay). chargesBefore / chargesNow: the unit's build charges at the event and shortly after; nil
 -- chargesNow = the unit is gone.
 function HubEvents.RouteResultText( routeName:string, chargesBefore:number, chargesNow:number )
 	if chargesNow == nil then return routeName .. " built, the builder is used up"; end
-	if chargesBefore ~= nil and chargesNow >= chargesBefore then return routeName .. " under construction"; end
+	if chargesBefore ~= nil and chargesNow >= chargesBefore then return routeName .. " built"; end
 	return routeName .. " built, " .. HubCore.Plural( chargesNow, "charge", "charges" ) .. " left";
 end
 

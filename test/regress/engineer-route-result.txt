@@ -7,7 +7,9 @@ lua GameCore_Tuner local c=Players[0]:GetCities():GetCapitalCity() local u=Playe
 expect-lua ^ok$
 lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MILITARY_ENGINEER" then UI.SelectUnit(u) break end end
 key Tab -Settle 1500
+expect (?i)actions, [0-9] options
+key Down -Settle 600
 expect (?i)Build Route
 # Enter on the Build Route entry (the list names it); its result follows after the action name
 key Enter -Settle 2500
-expect (?i)(Road|Railroad) (built, \d charges? left|built, the builder is used up|under construction)
+expect (?i)(Road|Railroad) built
