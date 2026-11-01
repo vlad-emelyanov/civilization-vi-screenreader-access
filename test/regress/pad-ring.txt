@@ -1,7 +1,7 @@
 # Written blind (2026-10-27, not yet verified in game; run with --record first). Controller ring, fixture early-t60.
 # F22 = controller mode on, F15 = RB (next list of the ring), F14 = LB (previous). Order: Notifications, Messages, Top panel, Lenses,
-# Diplomacy, Screens, Places. Diplomacy may be skipped on this save when no civilization is met ("You have not met ...").
-# covers: **/HubPad.lua **/HubLenses.lua **/HubScreens.lua **/HubRegions.lua **/HubMenus.lua **/HubPlaces.lua
+# Diplomacy, Screens, Places, Empire (Control+Shift+I; the overview opens with its attention counts). Diplomacy may be skipped on this save when no civilization is met ("You have not met ...").
+# covers: **/HubEmpire.lua **/HubPad.lua **/HubLenses.lua **/HubScreens.lua **/HubRegions.lua **/HubMenus.lua **/HubPlaces.lua
 # shares its load (UI-only: the reset check restores cursor, selection and controller mode and flags open screens/panels, lens/target modes and hub modes)
 load early-t60
 clear-advisors
@@ -31,13 +31,15 @@ key F23 -Settle 500
 key Control+Tab -Settle 1000
 key F22 -Settle 500
 key F15 -Settle 1500
+expect (?i)^Empire,
+key F15 -Settle 1500
 expect (?i)notifications
 key F14 -Settle 1500
-expect (?i)^Places
+expect (?i)^Empire,
 key Escape -Settle 1000
 expect ^Closed
 key F14 -Settle 1500
-expect (?i)^Places
+expect (?i)^Empire,
 key Escape -Settle 1000
 key F23 -Settle 500
 no-lua-errors

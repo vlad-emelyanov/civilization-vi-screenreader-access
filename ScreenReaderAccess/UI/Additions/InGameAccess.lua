@@ -290,6 +290,7 @@ include( "HubLenses" );
 include( "HubScreens" );
 include( "HubMultiplayer" );		-- in-game chat, turn timer, players dropping out
 include( "HubPins" );		-- map pins as bookmarks (Control+P)
+include( "HubEmpire" );		-- empire overview list (Control+Shift+I)
 
 -- ===========================================================================
 function Initialize()
@@ -340,6 +341,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavHelp",				HubHelp.Toggle );
 	Hub.RegisterAction( "KeyNavChat",				HubMultiplayer.ToggleChat );
 	Hub.RegisterAction( "KeyNavMapPin",				HubPins.Key );
+	Hub.RegisterAction( "KeyNavEmpire",				HubEmpire.Toggle );
 	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): LensText speaks once the game has switched
 	LensText_Setup( HubCore.After, function( text:string, nointerrupt:boolean ) OutputMessageToScreenReader( text, nointerrupt ); end );
 	for action, _ in pairs( LensText_Actions ) do

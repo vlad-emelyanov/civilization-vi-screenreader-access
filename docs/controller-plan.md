@@ -64,10 +64,11 @@ The in-game UI is a ring of keyboard lists; RB opens the next, LB the previous; 
 5. Diplomacy (V list of met civilizations)
 6. Screens (new, `HubScreens.lua`): the launch bar and partial-screen hooks: Tech tree, Civics tree, Government, Religion, Great People, Great Works, Governors, City-States, Espionage, Trade routes, World rankings, Climate, Era progress, Reports, Civilopedia. A closes the list and opens the screen through the same function the game's button runs (`LuaEvents.SRA_OpenScreen(name)` handled by our `LaunchBar.lua` / `PartialScreenHooks.lua` overrides); the screen announces itself as it does today; B closes it. An item whose hook is hidden says "not available"
 7. Places (J list)
+8. Empire (Control+Shift+I list, `HubEmpire.lua`): groups by PageUp / PageDown, no Tab sections, so LB / RB step the ring
 
-RB from the bare map opens 1, LB opens 7; from a ring list they move; from another hub list (unit actions, settle browser, city report ...) RB opens 1 and LB 7. `HubPad.RingStep(currentModeName, +1|-1)` is a pure function (unit-tested).
+RB from the bare map opens 1, LB opens 8; from a ring list they move; from another hub list (unit actions, settle browser, city report ...) RB opens 1 and LB 8. `HubPad.RingStep(currentModeName, +1|-1)` is a pure function (unit-tested).
 
-A hub list with sections takes LB/RB first (`HubGamepad`, `HubPad.BumperAction( modeName, hasTabs, atEdge )`, pure): Places (J) is a ring list with sections, its categories are sub-stops of the ring: RB on the last category continues to the next ring list (Notifications), LB on the first category to the previous one (Screens); the help list is outside the ring, its sections just wrap. A list declares its edge with `tabEdge = function( step )` (the facade forwards `HasTabs` / `AtTabEdge`). Known asymmetry: LB from Notifications opens Places on its first category, not its last.
+A hub list with sections takes LB/RB first (`HubGamepad`, `HubPad.BumperAction( modeName, hasTabs, atEdge )`, pure): Places (J) is a ring list with sections, its categories are sub-stops of the ring: RB on the last category continues to the next ring list (Empire), LB on the first category to the previous one (Screens); the help list is outside the ring, its sections just wrap. A list declares its edge with `tabEdge = function( step )` (the facade forwards `HasTabs` / `AtTabEdge`). Known asymmetry: LB from Empire opens Places on its first category, not its last.
 
 ## The wheel (experiment, 2026-10-29)
 

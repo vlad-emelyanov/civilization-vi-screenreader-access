@@ -6,21 +6,23 @@ include("HubPad")
 test("ring order", function()
 	local names = {}
 	for _, e in ipairs(HubPad.RING) do table.insert(names, e.name) end
-	eq(table.concat(names, ","), "Notifications,Messages,Top panel,Lenses,Diplomacy,Screens,Places")
+	eq(table.concat(names, ","), "Notifications,Messages,Top panel,Lenses,Diplomacy,Screens,Places,Empire")
 end)
 
 test("RingStep from nil and from a non-member", function()
 	eq(HubPad.RingStep(nil, 1), 1)
-	eq(HubPad.RingStep(nil, -1), 7)
+	eq(HubPad.RingStep(nil, -1), 8)
 	eq(HubPad.RingStep("menu", 1), 1)
-	eq(HubPad.RingStep("city report", -1), 7)
+	eq(HubPad.RingStep("city report", -1), 8)
 end)
 
 test("RingStep from a member moves and wraps", function()
 	eq(HubPad.RingStep("notifications", 1), 2)
-	eq(HubPad.RingStep("notifications", -1), 7)
+	eq(HubPad.RingStep("notifications", -1), 8)
 	eq(HubPad.RingStep("messages", 1), 3)
-	eq(HubPad.RingStep("places", 1), 1)
+	eq(HubPad.RingStep("places", 1), 8)
+	eq(HubPad.RingStep("empire", 1), 1)
+	eq(HubPad.RingStep("empire", -1), 7)
 	eq(HubPad.RingStep("places", -1), 6)
 	eq(HubPad.RingStep("lenses", 1), 5)
 	eq(HubPad.RingStep("civ", -1), 4)
@@ -42,6 +44,7 @@ local function stubHub(missing)
 	HubMenus = { OpenCivMenu = open("civ") }
 	HubScreens = { Open = open("screens") }
 	HubPlaces = { Open = open("places") }
+	HubEmpire = { Open = open("empire") }
 	if missing then _G[missing] = nil end
 end
 
@@ -51,7 +54,7 @@ test("RingNext from the map opens the first, RingPrev the last", function()
 	eq(opened, "notifications")
 	stubHub()
 	HubPad.RingPrev()
-	eq(opened, "places")
+	eq(opened, "empire")
 end)
 
 test("RingNext from a ring list opens the next", function()
@@ -63,6 +66,9 @@ test("RingNext from a ring list opens the next", function()
 	HubPad.RingNext()
 	eq(opened, "top")
 	HubCore.m_mode = { name = "places" }
+	HubPad.RingNext()
+	eq(opened, "empire")
+	HubCore.m_mode = { name = "empire" }
 	HubPad.RingNext()
 	eq(opened, "notifications")
 	HubCore.m_mode = { name = "top" }
@@ -92,7 +98,7 @@ test("an entry that refuses to open (no civilization met) is skipped", function(
 	HubCore.m_mode = { name = "lenses" }
 	HubPad.RingNext()
 	eq(HubCore.m_mode.name, "screens")
-	refuse = { messages = true, screens = true, places = true, notifications = true, top = true, lenses = true, civ = true }
+	refuse = { messages = true, screens = true, places = true, empire = true, notifications = true, top = true, lenses = true, civ = true }
 	HubCore.m_mode = nil
 	HubPad.RingNext()		-- nothing opens at all: no endless loop
 	eq(HubCore.m_mode, nil)
@@ -100,6 +106,7 @@ end)
 
 test("IsRingMode", function()
 	eq(HubPad.IsRingMode("places"), true)
+	eq(HubPad.IsRingMode("empire"), true)
 	eq(HubPad.IsRingMode("notifications"), true)
 	eq(HubPad.IsRingMode("help"), false)
 	eq(HubPad.IsRingMode(nil), false)
