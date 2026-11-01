@@ -50,9 +50,19 @@ local function GatherAmenities( data:table )
 	};
 end
 
+-- GetCityData's TurnsUntilGrowth is -1 for "never grows" and for starving alike: a starving city says its real turns left.
+local function TurnsUntilGrowthOf( pCity:table, data:table )
+	local turns = data.TurnsUntilGrowth;
+	if turns ~= nil and turns < 0 and ( data.FoodSurplus or 0 ) < 0 then
+		local ok:boolean, starve = pcall( function() return pCity:GetGrowth():GetTurnsUntilStarvation(); end );
+		if ok and starve ~= nil and starve > 0 then return -starve; end
+	end
+	return turns;
+end
+
 local function GatherGrowth( pCity:table, data:table )
 	local growth:table = {
-		occupied = data.Occupied == true, turnsUntilGrowth = data.TurnsUntilGrowth, housingMultiplier = data.HousingMultiplier,
+		occupied = data.Occupied == true, turnsUntilGrowth = TurnsUntilGrowthOf( pCity, data ), housingMultiplier = data.HousingMultiplier,
 		housing = data.Housing, foodPerTurn = data.FoodPerTurn, foodNeeded = data.GrowthThreshold,
 		happinessGrowthModifier = data.HappinessGrowthModifier, otherGrowthModifier = data.OtherGrowthModifiers,
 		occupationMultiplier = data.OccupationMultiplier, housingAdvice = data.HousingAdvice,

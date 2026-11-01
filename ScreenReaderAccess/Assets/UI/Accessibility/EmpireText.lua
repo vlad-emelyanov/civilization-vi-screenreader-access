@@ -83,7 +83,7 @@ function EmpireText.CityProblems( f:table )
 	if f.loyaltyTurnsToLoss ~= nil and f.loyaltyTurnsToLoss >= 1 then
 		Add( 96 - math.min( f.loyaltyTurnsToLoss, 30 ), name .. " loyalty falling, lost in " .. Turns( f.loyaltyTurnsToLoss ) );
 	end
-	if not f.occupied and f.turnsUntilGrowth < 0 then
+	if not f.occupied and f.turnsUntilGrowth < 0 and f.foodSurplus < 0 then
 		local text:string = name .. " is starving, food minus " .. Num( -f.foodSurplus );
 		Add( 90, text .. ", loses a citizen in " .. Turns( -f.turnsUntilGrowth ) );
 	end
@@ -105,7 +105,11 @@ function EmpireText.CityProblems( f:table )
 	if not f.occupied and f.housing ~= nil then
 		local free:number = f.housing - f.population;
 		if free <= 0 and f.foodSurplus > 0 then
-			Add( 40, name .. ": housing full, growth stopped" );
+			if f.housingMultiplier <= 0 then
+				Add( 40, name .. ": housing full, growth stopped" );
+			else
+				Add( 39, name .. ": housing full, growth slowed " .. Num( ( 1 - f.housingMultiplier ) * 100 ) .. " percent" );
+			end
 		elseif free > 0 and free <= 1 and f.turnsUntilGrowth > 0 then
 			Add( 38, name .. ": housing full in " .. Turns( f.turnsUntilGrowth ) );
 		end
@@ -131,7 +135,7 @@ end
 
 function EmpireText.GrowthState( f:table )
 	if f.occupied then return "occupied"; end
-	if f.turnsUntilGrowth < 0 then return "starving"; end
+	if f.turnsUntilGrowth < 0 and f.foodSurplus < 0 then return "starving"; end
 	if f.housingMultiplier <= 0 and f.foodSurplus > 0 then return "growth stopped, housing"; end
 	if f.turnsUntilGrowth > 0 then return "growing in " .. Turns( f.turnsUntilGrowth ); end
 	return "not growing";

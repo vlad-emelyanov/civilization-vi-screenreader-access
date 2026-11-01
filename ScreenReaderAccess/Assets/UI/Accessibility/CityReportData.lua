@@ -150,7 +150,7 @@ local function GrowthItem( d:table )
 	local state:string;
 	if g.occupied then
 		state = "occupied, no growth";
-	elseif g.turnsUntilGrowth < 0 then
+	elseif g.turnsUntilGrowth < 0 and surplus < 0 then
 		text = text .. ", " .. Signed( surplus ) .. " food";
 		state = "starving, loses a citizen in " .. Turns( -g.turnsUntilGrowth );
 	elseif g.housingMultiplier <= 0 and surplus > 0 then

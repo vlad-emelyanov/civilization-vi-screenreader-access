@@ -207,10 +207,13 @@ local function makeCity(id, name, x)
 		c.GetPopulation = function() if FAIL_CITY then error("boom") end return d.population end
 		c.GetGrowth = function() return {
 			GetFoodSurplus = function() return d.foodSurplus end, GetTurnsUntilGrowth = function() return d.growth.turnsUntilGrowth end,
-			GetHousing = function() return d.growth.housing end, GetHousingMultiplier = function() return 1 end,
+			GetHousing = function() return d.growth.housing end, GetHousingGrowthModifier = function() return d.growth.housingMultiplier or 1 end,
+			GetTurnsUntilStarvation = function() if d.foodSurplus < 0 then return -d.growth.turnsUntilGrowth end return -1 end,
 			GetAmenities = function() return d.amenities.have end, GetAmenitiesNeeded = function() return d.amenities.needed end } end
-		c.GetBuildQueue = function() return { GetCurrentProductionTypeHash = function() return 1 end,
-			CurrentlyBuilding = function() return d.production.name end, GetTurnsLeft = function() return d.production.turns end } end
+		GameInfo = GameInfo or {}; GameInfo.Buildings = GameInfo.Buildings or {}
+		GameInfo.Buildings[id] = { Name = d.production.name }
+		c.GetBuildQueue = function() return { GetCurrentProductionTypeHash = function() return id end,
+			GetTurnsLeft = function() return d.production.turns end } end
 	end
 	return c
 end
@@ -238,7 +241,7 @@ local function setupHub(opts)
 	PlayerManager = { GetAliveMajorIDs = function() return { 0, 1 } end, GetAliveMinorIDs = function() return {} end }
 	PlayerConfigurations = { [0] = { IsHuman = function() return true end }, [1] = { IsHuman = function() return false end } }
 	PlotDescription_GetCivName = function(id) return id == 1 and "Egypt" or "Rome" end
-	GameInfo = { Victories = function() return function() return nil end end }
+	GameInfo = { Victories = function() return function() return nil end end, Buildings = GameInfo.Buildings, Districts = {}, Units = {}, Projects = {} }
 	FAIL_CITY = opts.failCities == true
 	CityManager = { GetDistrictAt = function() return nil end }
 	CityReport_Gather = function(c) return CITY_DATA[c:GetName()] end
@@ -397,4 +400,12 @@ test("Space on a city reads the report lazily; a minimal row has no problems", f
 	list.HandleInput(key(Keys.VK_SPACE))
 	eq(Spoken()[1], "Rome. Yields of Rome")
 	eq(#EmpireText.CityProblems({ name = "X", minimal = true }), 0)
+end)
+
+test("zero food with the engine's -1 is not starving; housing at 25 percent is slowed, not stopped", function()
+	local f = facts({ turnsUntilGrowth = -1, foodSurplus = 0 })
+	eq(#EmpireText.CityProblems(f), 0)
+	eq(EmpireText.GrowthState(f), "not growing")
+	f = facts({ housing = 8, turnsUntilGrowth = 20, housingMultiplier = 0.25 })
+	listeq(texts(EmpireText.CityProblems(f)), { "Rome: housing full, growth slowed 75 percent" })
 end)

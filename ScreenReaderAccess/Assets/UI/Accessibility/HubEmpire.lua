@@ -116,15 +116,21 @@ local function CheapFacts( city:table )
 	local growth:table = city:GetGrowth();
 	f.foodSurplus = Try( growth, "GetFoodSurplus" ) or 0;
 	f.turnsUntilGrowth = Try( growth, "GetTurnsUntilGrowth" ) or 0;
+	if f.foodSurplus < 0 then
+		-- the engine reports -1 for "never grows" and for starving alike: the turns until a citizen is lost come from GetTurnsUntilStarvation
+		local starve = Try( growth, "GetTurnsUntilStarvation" );
+		if starve ~= nil and starve > 0 then f.turnsUntilGrowth = -starve; end
+	end
 	f.housing = Try( growth, "GetHousing" );
-	f.housingMultiplier = Try( growth, "GetHousingMultiplier" ) or 1;
+	f.housingMultiplier = Try( growth, "GetHousingGrowthModifier" ) or 1;
 	f.occupied = Try( city, "IsOccupied" ) == true;
 	f.amenitiesHave = Try( growth, "GetAmenities" );
 	f.amenitiesNeeded = Try( growth, "GetAmenitiesNeeded" );
 	local queue:table = city:GetBuildQueue();
-	if Try( queue, "GetCurrentProductionTypeHash" ) ~= 0 then
-		f.production = Try( queue, "CurrentlyBuilding" );
-		if f.production ~= nil then f.production = Locale.Lookup( f.production ); end
+	local hash = Try( queue, "GetCurrentProductionTypeHash" );
+	if hash ~= nil and hash ~= 0 then
+		local row = GameInfo.Buildings[ hash ] or GameInfo.Districts[ hash ] or GameInfo.Units[ hash ] or GameInfo.Projects[ hash ];
+		if row ~= nil then f.production = Locale.Lookup( row.Name ); end
 		local turns = Try( queue, "GetTurnsLeft" );
 		if turns ~= nil and turns > 0 then f.productionTurns = turns; end
 	end
