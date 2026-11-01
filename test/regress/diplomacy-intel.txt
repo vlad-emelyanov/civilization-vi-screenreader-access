@@ -34,7 +34,7 @@ expect Dido, Phoenicia
 key End -Settle 800
 expect ^You,
 key I -Settle 2000
-expect ^World relations, \d+ options
+expect ^World relations, \d+ options?
 expect Wars, \d+:
 key Escape -Settle 1500
 expect ^Back
