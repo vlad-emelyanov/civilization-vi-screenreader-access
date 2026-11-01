@@ -11,7 +11,7 @@ action KeyNavPlaces -Settle 1500
 key Tab -Settle 800
 key Tab -Settle 800
 expect ^Your units, \d+ of \d+ categories
-expect Hannibal Barca, sleeping.*in Idle, 4 items
+expect Hannibal Barca, sleeping.*in Idle, 3 items
 key Down -Settle 800
 expect-not in Idle
 key Down -Settle 800

@@ -7,5 +7,5 @@ scenario enemy-at-capital
 clear-advisors
 expect ^Barbarian Warrior spotted, \d+ tiles? (north|south|east|west)
 action KeyNavScanUnits -Settle 1500
-expect \d+ tiles? (north|south|east|west)(-\w+)? of Rome, Barbarian Warrior
+expect Warrior, Barbarians, strength \d+, \d+ tiles? (north|south|east|west)
 no-lua-errors

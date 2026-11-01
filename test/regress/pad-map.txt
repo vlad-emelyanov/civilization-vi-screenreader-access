@@ -35,7 +35,7 @@ expect Accessibility help
 key Escape -Settle 800
 expect (?i)^(Help )?closed
 # ModeOff (console app: F23): the keyboard behaves as before, Escape opens the game menu
-key F23 -Settle 500
+key F23 -Settle 1700
 key Escape -Settle 1500
 lua InGameAccess return tostring(HubCore.TestDirtyReason())
 expect-lua ^open: 

@@ -6,7 +6,7 @@ clear-advisors
 lua GameCore_Tuner Players[0]:GetDiplomacy():SetHasMet(2); Players[2]:GetDiplomacy():SetHasMet(0)
 key Enter -Settle 3500 -Quiet 1500
 expect Peter of Russia sends a delegation: .* 3 options
-expect ^Your delegation is most welcome\. 1 of 3
+expect ^Your delegation is most welcome\. accepts, 1 of 3
 key Space -Settle 800
 expect ^Accept\. Send a delegation
 key Down -Settle 600
