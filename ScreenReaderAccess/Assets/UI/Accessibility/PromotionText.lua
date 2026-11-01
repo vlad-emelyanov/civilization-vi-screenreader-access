@@ -53,8 +53,10 @@ function PromotionText_Reason( p:table )
 end
 
 -- "Promote Swordsman: 2 available. Battlecry: ..., available, 1 of 5"
-function PromotionText_Opening( unitName:string, available:number, itemText:string, index:number, total:number )
+-- usesMoves: the unit still has moves, which a promotion uses up (said before Enter).
+function PromotionText_Opening( unitName:string, available:number, itemText:string, index:number, total:number, usesMoves:boolean )
 	local text:string = "Promote " .. unitName .. ": " .. available .. " available";
+	if usesMoves then text = text .. ", promoting uses the unit's moves"; end
 	if itemText ~= nil then text = text .. ". " .. itemText .. ", " .. index .. " of " .. total; end
 	return text;
 end

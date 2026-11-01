@@ -892,6 +892,13 @@ test("SendRemaining: the sent unit leaves, the others keep their order, focus go
 	eq(#kept, 0); eq(focus, nil)
 end)
 
+test("AttackArrivalText: warns when the unit ends its turn next to the enemy with no moves left", function()
+	eq(HubPlaces.AttackArrivalText("Ottomans Cavalry", {1,1,1,2}), ", arrives with no moves left next to Ottomans Cavalry")
+	eq(HubPlaces.AttackArrivalText("Ottomans Cavalry", {1,1,1,1}), "")
+	eq(HubPlaces.AttackArrivalText("Ottomans Cavalry", {1,2}), "")
+	eq(HubPlaces.AttackArrivalText(nil, {1,1,2}), "")
+end)
+
 test("RevalidateSend: units the fresh build no longer offers go, the rest take the fresh turns, focus moves on", function()
 	local kept = { { key = "s:1", turns = 2 }, { key = "s:2", turns = 3 }, { key = "s:3", turns = 4 } }
 	local fresh = { { key = "s:1", turns = 1 }, { key = "s:3", turns = 5 } }

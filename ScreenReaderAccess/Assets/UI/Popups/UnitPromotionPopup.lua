@@ -425,7 +425,7 @@ function SRA_Announce()
 	m_srList.Reset();
 	m_srList.Open( "", items[ first ] ~= nil and items[ first ].key or nil, true );
 	local unitName:string = SRA_Clean( GameInfo.Units[ unit:GetUnitType() ].Name );
-	OutputMessageToScreenReader( PromotionText_Opening( unitName, count, items[ first ] ~= nil and items[ first ].text or nil, first, #items ), true );
+	OutputMessageToScreenReader( PromotionText_Opening( unitName, count, items[ first ] ~= nil and items[ first ].text or nil, first, #items, unit:GetMovesRemaining() > 0 ), true );
 end
 
 function SRA_OnUnitPromoted( playerID:number, unitID:number )

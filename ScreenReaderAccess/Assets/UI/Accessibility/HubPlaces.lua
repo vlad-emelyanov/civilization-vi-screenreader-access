@@ -1783,6 +1783,16 @@ local function CloseSend()
 	end
 end
 
+-- Pure: ", arrives with no moves left next to Ottomans Cavalry" when an attack order walks the unit to the tile before the enemy and
+-- the last step (the attack) falls in a later turn than the one before it (turns = path.turns per plot): the unit stands in the
+-- field next to the enemy for a whole enemy turn. "" otherwise.
+function HubPlaces.AttackArrivalText( enemyName:string, turns:table )
+	local n:number = turns ~= nil and #turns or 0;
+	if n < 3 or enemyName == nil or enemyName == "" then return ""; end
+	if turns[ n ] > turns[ n - 1 ] then return ", arrives with no moves left next to " .. enemyName; end
+	return "";
+end
+
 -- Gives one unit the move order toward the place through the game's own path (the war check included); the sentence to say.
 local function OrderUnit( unitID:number, place:table, item:table )
 	local mover:table = LocalPlayer():GetUnits():FindID( unitID );
@@ -1813,6 +1823,15 @@ local function OrderUnit( unitID:number, place:table, item:table )
 	if place.escort and reachable then
 		local key:string = ( HubEnemies ~= nil and HubEnemies.KeyHint ~= nil ) and HubEnemies.KeyHint( "ExtraHotkeysEnterFormation", "Shift+E", "D-pad right, Create Escort Formation," ) or "Shift+E";
 		return HubPlaces.EscortOrderText( name, place.name, path.turns[ #path.turns ] or 1, key );
+	end
+	if enemy and reachable then
+		local enemyName:string = nil;
+		pcall( function()
+			for _, other in ipairs( Units.GetUnitsInPlot( plot ) ) do
+				if enemyName == nil and other:GetOwner() ~= mover:GetOwner() and PlotDescription_IsUnitVisible( other ) then enemyName = PlotDescription_GetUnitName( other ); end
+			end
+		end );
+		turns = turns .. HubPlaces.AttackArrivalText( enemyName, path.turns );
 	end
 	return name .. ( enemy and " moving to attack " or ( nearby and " moving next to " or " moving to " ) ) .. place.name .. turns;
 end

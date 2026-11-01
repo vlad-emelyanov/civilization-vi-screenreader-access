@@ -1,5 +1,6 @@
 # After an order in the send list (M) the remaining units are re-checked with the same path test as the order (fixture bug-send-list-cannot-reach:
 # a stale entry said "2 turns" and Enter said "cannot reach"). Here: the sent unit leaves, the next entry is still sendable.
+# A slow attacker says it ends its turn next to the enemy with no moves left.
 # covers: **/HubPlaces.lua
 # no-share-load: sends a unit
 load bug-send-list-cannot-reach
@@ -12,5 +13,6 @@ key Enter -Settle 2500
 expect Cuirassier moving to attack Ottomans Courser, 2 turns
 key Enter -Settle 2500
 expect-not cannot reach
+expect Warrior moving to attack Ottomans Courser, \d+ turns, arrives with no moves left next to Ottomans Courser
 key Escape -Settle 1000
 no-lua-errors
