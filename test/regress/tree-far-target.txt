@@ -21,6 +21,8 @@ key O -Settle 250
 key W -Settle 250
 key Enter -Settle 1200 -NoQuiet
 expect ^Found: .*Steam Power
+key Enter -Settle 1500 -NoQuiet
+expect finishes in \d+ turns?\. Enter again drops it for
 key Enter -Settle 3000 -NoQuiet
 expect ^Steam Power set as the target: \d+ techs? on the way(, about \d+ turns?)?\. Next: .+
 key J -Settle 800

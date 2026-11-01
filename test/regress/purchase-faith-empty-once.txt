@@ -1,4 +1,4 @@
-# UNVERIFIED (written offline). Purchase with faith with nothing to buy: the full sentence once on entering the tab, Down says only "Nothing to buy".
+# Purchase with faith with nothing to buy: the full sentence once on entering the tab, Down says only "Nothing to buy".
 # covers: **/ProductionPanel.lua, **/KeyNavList.lua
 # no-share-load: opens the production panel
 load pt-greece-t94

@@ -1,11 +1,11 @@
-# UNVERIFIED (written offline). Tech tree: Enter on a node whose path would drop research that is 3 turns or fewer from done asks first
+# Tech tree: Enter on a node whose path would drop research that is 3 turns or fewer from done asks first
 # ("Currency finishes in 1 turn. Enter again drops it for ..."), the second Enter sets the target; with more turns left the first Enter acts
 # and the line says what it replaced. Fixture pt-greece-t94 (Greece, Currency was the report's case; any unresearched tech pair works).
 # covers: **/TreeNav.lua **/TreeText.lua **/TechTree.lua
 # no-share-load: changes the research
 load pt-greece-t94
 clear-advisors
-lua GameCore_Tuner local t=Players[0]:GetTechs(); local a=GameInfo.Technologies["TECH_CURRENCY"]; if a and not t:HasTech(a.Index) and t:CanResearch(a.Index) then t:SetResearchingTech(a.Index); t:SetResearchProgress(a.Index, t:GetResearchCost(a.Index)-1) end return 1
+lua GameCore_Tuner local t=Players[0]:GetTechs(); local a=GameInfo.Technologies["TECH_THE_WHEEL"]; if a and not t:HasTech(a.Index) and t:CanResearch(a.Index) then t:SetResearchingTech(a.Index); t:SetResearchProgress(a.Index, t:GetResearchCost(a.Index)-1) end return 1
 action ToggleTechTree -Settle 2500
 expect ^Tech tree\.
 key F -Settle 800

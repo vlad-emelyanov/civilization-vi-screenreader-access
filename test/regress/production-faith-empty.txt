@@ -9,8 +9,8 @@ expect (?i)choose production
 key Control+Tab -Settle 1200
 expect ^Nothing to buy with faith in .+, no religion founded
 key Down -Settle 600
-expect ^Nothing to buy with faith in
-expect-not Nothing available
+expect ^Nothing to buy$
+expect-not Nothing to buy with faith
 key Escape -Settle 1200
 key Escape -Settle 1200
 no-lua-errors

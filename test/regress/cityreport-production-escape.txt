@@ -21,7 +21,9 @@ expect ^City report,
 expect Production: .*Tab opens production
 key Escape -Settle 1500
 expect (?i)closed
-# a third Escape with nothing open is the game menu as before
+# a third Escape right after the close is guarded, the fourth is the game menu
+key Escape -Settle 1500
+expect ^Nothing open\. Escape again opens the game menu
 key Escape -Settle 1500
 expect (?i)in game menu
 key Escape -Settle 1500

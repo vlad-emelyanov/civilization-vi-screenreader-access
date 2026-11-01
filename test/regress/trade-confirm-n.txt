@@ -1,4 +1,4 @@
-# UNVERIFIED (written offline). N while "Start trade route to X?" is asked says what Enter and Escape do (the hub's N did not reach the modal chooser).
+# N while "Start trade route to X?" is asked says what Enter and Escape do (the hub's N did not reach the modal chooser).
 # covers: **/TradeRouteChooser.lua **/TradeText.lua
 # no-share-load: scenario trader-in-capital
 load medieval-t100

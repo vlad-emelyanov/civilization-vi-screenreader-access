@@ -1,4 +1,4 @@
-# Written blind 2026-11-01 (not yet recorded; run civregress --record first). Escape with nothing open, within 1.5 s of a list closing, does not open the game menu: it says "Nothing open. Escape again opens the game menu"; the next Escape opens it; a lone Escape (after 2 s) opens it at once.
+# Escape with nothing open, within 1.5 s of a list closing, does not open the game menu: it says "Nothing open. Escape again opens the game menu"; the next Escape opens it; a lone Escape (after 2 s) opens it at once.
 # covers: **/HubCore.lua UI/Additions/InGameAccess.lua
 # no-share-load: opens the game menu
 load pt-greece-t82
@@ -12,7 +12,7 @@ expect ^Nothing open\. Escape again opens the game menu
 expect-not (?i)^In game menu
 key Escape -Settle 1500
 expect (?i)^In game menu
-key Escape -Settle 2500
+key Escape -Settle 2500 -NoQuiet
 expect ^Menu closed
 # a lone Escape, long after anything closed, opens the menu at once
 key Escape -Settle 1500
