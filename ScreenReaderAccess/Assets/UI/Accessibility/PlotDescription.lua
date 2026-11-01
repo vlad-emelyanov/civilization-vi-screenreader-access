@@ -226,11 +226,12 @@ function PlotDescription_GetCivName( playerId:number )
 end
 
 -- withStrength (the detailed read): a foreign unit also says its strength ("Egyptian Archer, strength 15"), as the game's unit tooltip shows it.
-local function _UnitsText( plot:table, excludeUnitId:number, withStrength:boolean )
+local function _UnitsText( plot:table, excludeUnitId:number, withStrength:boolean, skipForeign:boolean )
 	local parts:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
 	for _, unit in ipairs(Units.GetUnitsInPlot(plot)) do
-		if (excludeUnitId == nil or unit:GetID() ~= excludeUnitId or unit:GetOwner() ~= localPlayer) and PlotDescription_IsUnitVisible(unit) then
+		if (excludeUnitId == nil or unit:GetID() ~= excludeUnitId or unit:GetOwner() ~= localPlayer) and PlotDescription_IsUnitVisible(unit)
+				and not (skipForeign and unit:GetOwner() ~= localPlayer) then
 			local text:string = PlotDescription_GetUnitName(unit);
 			if PlotDescription_IsEmbarked(unit) then text = text .. ", embarked"; end
 			if withStrength and unit:GetOwner() ~= localPlayer then
@@ -497,7 +498,7 @@ function PlotDescription_GetShort( plot:table, options:table )
 
 	-- Units (only what is visible right now)
 	if visibility == "visible" then
-		for _, text in ipairs(_UnitsText(plot, options.excludeUnitId, options.detailed == true)) do table.insert(parts, text); end
+		for _, text in ipairs(_UnitsText(plot, options.excludeUnitId, options.detailed == true, options.noForeignUnits == true)) do table.insert(parts, text); end
 	end
 
 	if targetInfo ~= nil then

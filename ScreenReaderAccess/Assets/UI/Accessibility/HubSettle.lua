@@ -643,6 +643,32 @@ local function ArchaeologyEmptyText( owner:number )
 	return "No antiquity site this unit can excavate";
 end
 
+-- Pure: why a Great Artist / Writer / Musician has no tile: no free slot of its type. buildings: names of the buildings that give one.
+function HubSettle.NoSlotText( personName:string, slot:string, buildings:table )
+	local text:string = "No tile to use " .. personName .. " on: no free " .. slot .. " slot in your districts and wonders";
+	if buildings ~= nil and #buildings > 0 then
+		text = text .. ". A " .. table.concat( buildings, ", " ) .. " gives one";
+	end
+	return text;
+end
+
+local SLOT_OF_CLASS:table = { GREAT_PERSON_CLASS_ARTIST = { "GREATWORKSLOT_ART", "art" }, GREAT_PERSON_CLASS_WRITER = { "GREATWORKSLOT_WRITING", "writing" },
+	GREAT_PERSON_CLASS_MUSICIAN = { "GREATWORKSLOT_MUSIC", "music" } };
+
+-- The empty text of a great person who creates a great work, or nil for the other classes.
+local function NoSlotEmptyText( gpRow:table, personName:string )
+	local entry:table = SLOT_OF_CLASS[ gpRow.GreatPersonClassType or "" ];
+	if entry == nil then return nil; end
+	local names:table, seen:table = {}, {};
+	for row in GameInfo.Building_GreatWorks() do
+		if row.GreatWorkSlotType == entry[1] and GameInfo.Buildings[ row.BuildingType ] ~= nil and #names < 4 then
+			local name:string = Locale.Lookup( GameInfo.Buildings[ row.BuildingType ].Name );
+			if not seen[ name ] then seen[ name ] = true; table.insert( names, name ); end
+		end
+	end
+	return HubSettle.NoSlotText( personName, entry[2], names );
+end
+
 -- What the selected unit can act on: nil for a unit without such an ability (X keeps its old meaning), else
 -- { kind, verb, verb3, what, plots = { plot index ... }, empty = "why there is nothing" }.
 function HubSettle.ActivationPlots( unit:table )
@@ -679,6 +705,7 @@ function HubSettle.ActivationPlots( unit:table )
 				result.plots = CompletedDistrictPlots( owner, districtRow );
 				result.empty = "No completed " .. Locale.Lookup( districtRow.Name );
 			end
+			if #result.plots == 0 then result.empty = NoSlotEmptyText( gpRow, name ) or result.empty; end
 		end
 	end );
 	if not ok then print( "HubSettle.ActivationPlots error: " .. tostring( err ) ); return nil; end

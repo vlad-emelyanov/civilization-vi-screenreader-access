@@ -6,8 +6,27 @@
 -- "Trailing dots and spaces dropped", so pieces can be joined with ", " or ". ".
 function WCText_Strip( text )
 	if text == nil then return ""; end
-	text = string.gsub( tostring( text ), "^%s+", "" );
-	text = string.gsub( text, "[%s%.]+$", "" );
+	text = string.gsub( tostring( text ), "^[ \t\r\n\v\f]+", "" );
+	text = string.gsub( text, "[ \t\r\n\v\f%.]+$", "" );
+	return text;
+end
+
+-- The game's emergency score lines say "the Target's territory", "Killing Target units": the word is a placeholder
+-- the popup shows with an icon. Replaces it with the civ's name ("Dido's territory"); "Target Rewards" stays.
+function WCText_NameTarget( text, name )
+	if text == nil then return ""; end
+	text = tostring( text );
+	if name == nil or name == "" then return text; end
+	-- "Target Rewards" is a title, not the civ: hidden behind a placeholder while the rest is replaced
+	local MARK:string = "TR";
+	text = string.gsub( text, "Target Rewards", MARK );
+	local function Sub( s:string )
+		return ( string.gsub( s, "%f[%w][Tt]argets?%f[%W]", function( word ) return ( string.sub( word, -1 ) == "s" ) and ( name .. "'s" ) or name; end ) );
+	end
+	text = string.gsub( text, "[Tt]he [Tt]arget%f[%W]", "" );		-- "the Target" -> the name, without the article
+	text = Sub( text );
+	text = string.gsub( text, "", name );
+	text = string.gsub( text, MARK, "Target Rewards" );
 	return text;
 end
 

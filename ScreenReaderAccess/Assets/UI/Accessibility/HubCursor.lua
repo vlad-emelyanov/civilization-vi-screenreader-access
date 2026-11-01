@@ -89,13 +89,14 @@ end
 -- ===========================================================================
 -- jump: the cursor was sent here (a list, a scan, a notification), not stepped: the position from the nearest city follows the resource,
 -- the frame of reference a single Shift+Arrow step does not need.
-local function DescribeCursorPlot( plot:table, jump:boolean )
+local function DescribeCursorPlot( plot:table, jump:boolean, lead:string )
 	local selectionPlot:table, unit:table = HubCore.GetSelectionPlot();
 	local options:table = {};
 	local localPlayer:number = Game.GetLocalPlayer();
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
 	options.resourceTech = true;
 	options.pins = true;		-- "pin: <name>" when a map pin stands here (MapPins)
+	if lead ~= nil then options.noForeignUnits = true; end		-- the X scan names the units itself, first
 	local mode:number = HubTargets.GetTargetMode();
 	local placement:string = HubCore.PlacementPlotText( plot );
 	local info:string = nil;
@@ -135,6 +136,7 @@ local function DescribeCursorPlot( plot:table, jump:boolean )
 		if build ~= nil then text = text .. ", " .. build; end
 	end
 	text = LensText_Prefix( text, plot, HubCore.IsSettler( unit ) );		-- a map lens is on: its value first
+	if lead ~= nil and lead ~= "" then text = lead .. ", " .. text; end
 	return text;
 end
 
@@ -358,6 +360,50 @@ end
 -- next one. One stop per plot (the plot description lists the stack). Finds targets for the attack modes, and
 -- threats in general. Said like a cursor move, so target modes add their info.
 local m_scanKey:string = nil;
+
+-- Pure: the spoken lead of an X stop from the foreign units on the plot: "Janissary, Ottomans, strength 60" (hostile first,
+-- at most 3, then "and 2 more"). infos: { name, civ, strength (text or nil), hostile, embarked }.
+function HubCursor.ScanLeadText( infos:table )
+	if infos == nil or #infos == 0 then return nil; end
+	local sorted:table = {};
+	for i, info in ipairs( infos ) do table.insert( sorted, { info = info, i = i } ); end
+	table.sort( sorted, function( a, b )
+		if ( a.info.hostile == true ) ~= ( b.info.hostile == true ) then return a.info.hostile == true; end
+		return a.i < b.i;
+	end );
+	local parts:table = {};
+	for k = 1, math.min( 3, #sorted ) do
+		local info:table = sorted[k].info;
+		local text:string = info.name;
+		if info.civ ~= nil and info.civ ~= "" then text = text .. ", " .. info.civ; end
+		if info.strength ~= nil and info.strength ~= "" then text = text .. ", " .. info.strength; end
+		if info.embarked then text = text .. ", embarked"; end
+		table.insert( parts, text );
+	end
+	local text:string = table.concat( parts, "; " );
+	if #sorted > 3 then text = text .. " and " .. ( #sorted - 3 ) .. " more"; end
+	return text;
+end
+
+-- The foreign units seen right now on the plot, as the lead of the stop (nil when there is none: the plot is described as before).
+local function ScanLeadFor( plot:table )
+	if plot == nil then return nil; end
+	local localPlayer:number = Game.GetLocalPlayer();
+	local infos:table = {};
+	for _, unit in ipairs( Units.GetUnitsInPlot( plot ) ) do
+		local owner:number = unit:GetOwner();
+		if owner ~= localPlayer and PlotDescription_IsUnitVisible( unit ) then
+			table.insert( infos, {
+				name = PlotDescription_FormationName( unit, Locale.Lookup( unit:GetName() ) ),
+				civ = ( Players[ owner ] ~= nil and Players[ owner ]:IsBarbarian() ) and "Barbarians" or PlotDescription_GetCivName( owner ),
+				strength = UnitDetails_ShortStrength( unit:GetCombat(), unit:GetRangedCombat(), unit:GetBombardCombat() ),
+				hostile = HubCore.IsHostile( owner ),
+				embarked = PlotDescription_IsEmbarked( unit ) } );
+		end
+	end
+	return HubCursor.ScanLeadText( infos );
+end
+
 function HubCursor.ScanUnits( interrupt:boolean )
 	if not HubCore.IsLocalPlayerActive() then return; end
 	if interrupt == nil then interrupt = true; end
@@ -496,13 +542,13 @@ function HubCursor.ScanUnits( interrupt:boolean )
 		if #found == 1 and visited then OutputMessageToScreenReader( "Only target", true ); end
 		return;
 	end
-	if openingLabel ~= nil then
-		-- never drop the opening's label: it leads the first target line
-		HubCursor.SetCursor( found[ next ].x, found[ next ].y, false, interrupt, false, true );
-		OutputMessageToScreenReader( openingLabel .. ". " .. HubCursor.DescribePlot( Map.GetPlot( found[ next ].x, found[ next ].y ), true ) );
-	else
-		HubCursor.SetCursor( found[ next ].x, found[ next ].y, true, interrupt, false, true );
-	end
+	-- each stop starts with the foreign unit(s) seen there: "Janissary, Ottomans, strength 60, 2 tiles north-west of Adana"
+	local stopPlot:table = Map.GetPlot( found[ next ].x, found[ next ].y );
+	local lead:string = ScanLeadFor( stopPlot );
+	HubCursor.SetCursor( found[ next ].x, found[ next ].y, false, interrupt, false, true );
+	local line:string = HubCursor.DescribePlot( stopPlot, true, lead );
+	if openingLabel ~= nil then line = openingLabel .. ". " .. line; end		-- never drop the opening's label: it leads the first target line
+	OutputMessageToScreenReader( line, not interrupt and openingLabel == nil );
 	if next == #found and #found > 1 then
 		OutputMessageToScreenReader( "Last target, X wraps to the first", true );
 	end

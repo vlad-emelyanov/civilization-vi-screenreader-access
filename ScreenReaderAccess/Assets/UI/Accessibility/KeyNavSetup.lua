@@ -152,7 +152,7 @@ function KeyNavSetup_LeaderDetail( info:table )
 		local body:string = CleanTextForSpeech( Locale.Lookup( description or "" ) );
 		if body ~= "" then text = text .. ( text ~= "" and ": " or "" ) .. body; end
 		if text == "" then return nil; end
-		return ( string.gsub( kind .. ": " .. text, "[%.%s]+$", "" ) );
+		return ( string.gsub( kind .. ": " .. text, "[%. \t\r\n\v\f]+$", "" ) );
 	end
 	local lines:table = {};
 	local function Add( line:string ) if line ~= nil then table.insert( lines, line ); end end

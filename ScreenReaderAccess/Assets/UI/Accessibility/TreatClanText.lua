@@ -73,13 +73,13 @@ end
 -- The first sentence of an option's description (what the option does), shortened when long; "" when there is none.
 function TreatClanText_Effect( description:string )
 	local text:string = description or "";
-	text = string.gsub( text, "^%s+", "" );
+	text = string.gsub( text, "^[ \t\r\n\v\f]+", "" );
 	local cut:number = string.find( text, "[%.!] " );
 	if cut ~= nil then text = string.sub( text, 1, cut - 1 ); end
-	text = string.gsub( text, "[%.%s]+$", "" );
+	text = string.gsub( text, "[%. \t\r\n\v\f]+$", "" );
 	if #text > 160 then
 		text = string.sub( text, 1, 160 );
-		text = string.gsub( text, "%s+%S*$", "" );
+		text = string.gsub( text, "[ \t\r\n\v\f]+[^ \t\r\n\v\f]*$", "" );
 	end
 	return text;
 end

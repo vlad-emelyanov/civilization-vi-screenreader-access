@@ -1,0 +1,14 @@
+# Written blind (2026-11-01). X with a soldier selected walks foreign units in view; every stop starts with the unit ("Janissary, Ottomans, strength 60, 2 tiles ..."), never with bare terrain.
+# Fixture bug-scan-units-no-name (turn 117). Note: with a Builder or Settler selected X opens the tile / spot browser instead (by design), so a soldier is selected.
+# covers: **/HubCursor.lua **/PlotDescription.lua
+# no-share-load: selects a unit
+load bug-scan-units-no-name
+clear-advisors
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].Domain=="DOMAIN_LAND" and GameInfo.Units[u:GetType()].Combat > 0 then UI.SelectUnit(u) break end end
+key X -Settle 1200
+expect ^[A-Z][\w ]+, [\w ]+, (strength|ranged|bombard)|^No foreign units in view
+expect-not ^(Grassland|Plains|Desert|Hills|Forest|Tundra|Snow|Ocean|Coast)
+key X -Settle 1200
+expect-not ^(Grassland|Plains|Desert|Hills|Forest|Tundra|Snow|Ocean|Coast)
+key Escape -Settle 600
+no-lua-errors

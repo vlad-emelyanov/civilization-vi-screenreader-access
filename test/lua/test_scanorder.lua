@@ -67,3 +67,14 @@ test("melee scan: reachable this turn first (nearest), then by turns", function(
 	for _, e in ipairs(list) do table.insert(ids, e.id) end
 	eq(table.concat(ids, ","), "adj,two,near3,far12")
 end)
+
+test("scan stop leads with the unit: name, civilization, strength, hostile first", function()
+	eq(HubCursor.ScanLeadText({ { name = "Janissary", civ = "Ottomans", strength = "strength 60", hostile = true } }),
+		"Janissary, Ottomans, strength 60")
+	eq(HubCursor.ScanLeadText({
+		{ name = "Builder", civ = "Greece" },
+		{ name = "Archer", civ = "Barbarians", strength = "strength 15", hostile = true, embarked = true } }),
+		"Archer, Barbarians, strength 15, embarked; Builder, Greece")
+	eq(HubCursor.ScanLeadText({}), nil)
+	eq(HubCursor.ScanLeadText({ { name = "A" }, { name = "B" }, { name = "C" }, { name = "D" }, { name = "E" } }), "A; B; C and 2 more")
+end)

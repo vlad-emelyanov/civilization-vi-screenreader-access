@@ -12,8 +12,8 @@ function PediaText_Clean( text:string )
 	text = string.gsub( text, "%[ICON_BULLET%]", "" );
 	text = CleanTextForSpeech( text );
 	for i = 1, 2 do
-		text = string.gsub( text, "%.%s*%.", "." );
-		text = string.gsub( text, "%s+([%.,:])", "%1" );
+		text = string.gsub( text, "%.[ \t\r\n\v\f]*%.", "." );
+		text = string.gsub( text, "[ \t\r\n\v\f]+([%.,:])", "%1" );
 	end
 	return text;
 end
@@ -25,7 +25,7 @@ end
 
 -- A stat row: caption and value ("Combat strength 20"); the caption's trailing colon goes.
 function PediaText_StatLine( caption:string, value )
-	local cap:string = string.gsub( PediaText_Clean( caption ), "%s*:$", "" );
+	local cap:string = string.gsub( PediaText_Clean( caption ), "[ \t\r\n\v\f]*:$", "" );
 	local val:string = PediaText_Clean( tostring( value ) );
 	if cap == "" then return val; end
 	if val == "" then return cap; end

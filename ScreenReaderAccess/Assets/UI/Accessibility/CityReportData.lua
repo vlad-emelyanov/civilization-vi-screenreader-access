@@ -38,7 +38,7 @@ end
 
 local function Clean( text:string )
 	text = CleanTextForSpeech( text );
-	text = string.gsub( text, "%.%s*%.", "." );		-- "[NEWLINE][NEWLINE]" gives ". ."
+	text = string.gsub( text, "%.[ \t\r\n\v\f]*%.", "." );		-- "[NEWLINE][NEWLINE]" gives ". ."
 	return text;
 end
 
@@ -255,7 +255,7 @@ end
 -- The game's resource power source key is "[ICON_RESOURCE_COAL] Rome [ICON_PowerRight] Rome" (the city that supplies the
 -- resource, then the city it powers): say "Coal in Rome" / "Coal from Rome to Antium".
 local function ResourcePowerLabel( label:string )
-	local res, from, to = string.match( tostring( label or "" ), "^%[ICON_RESOURCE_([%w_]+)%]%s*(.-)%s*%[ICON_PowerRight%]%s*(.-)%s*$" );
+	local res, from, to = string.match( tostring( label or "" ), "^%[ICON_RESOURCE_([%w_]+)%][ \t\r\n\v\f]*(.-)[ \t\r\n\v\f]*%[ICON_PowerRight%][ \t\r\n\v\f]*(.-)[ \t\r\n\v\f]*$" );
 	if res == nil then return label; end
 	local name:string = string.upper( string.sub( res, 1, 1 ) ) .. string.lower( string.sub( res, 2 ) );
 	local ok:boolean, row = pcall( function() return GameInfo.Resources[ "RESOURCE_" .. res ]; end );
@@ -266,11 +266,11 @@ end
 
 local function CollapseRepeat( label:string )
 	label = ResourcePowerLabel( label );
-	label = string.gsub( tostring( label or "" ), "%s+", " " );
+	label = string.gsub( tostring( label or "" ), "[ \t\r\n\v\f]+", " " );
 	label = string.gsub( label, "^ ", "" );
 	label = string.gsub( label, " $", "" );
 	local words:table = {};
-	for w in string.gmatch( label, "%S+" ) do table.insert( words, w ); end
+	for w in string.gmatch( label, "[^ \t\r\n\v\f]+" ) do table.insert( words, w ); end
 	local n:number = #words;
 	if n >= 2 and n % 2 == 0 then
 		local half:number = n / 2;
@@ -321,7 +321,7 @@ local function PowerItem( d:table )
 	if p.advice ~= nil and p.advice ~= "" then table.insert( detail, Clean( p.advice ) ); end
 	if #detail == 0 then table.insert( detail, text ); end
 	-- the LOC descriptions and the advice end with a period: strip it before joining with ". "
-	for i, part in ipairs( detail ) do detail[i] = string.gsub( part, "[%.%s]+$", "" ); end
+	for i, part in ipairs( detail ) do detail[i] = string.gsub( part, "[%. \t\r\n\v\f]+$", "" ); end
 	return { key = "power", text = text, detail = Join( detail, ". " ) };
 end
 

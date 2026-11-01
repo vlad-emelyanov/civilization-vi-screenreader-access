@@ -30,7 +30,7 @@ end)
 
 test("intro by mode", function()
 	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "make"), "Deal with Gilgamesh of Sumeria.")
-	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "theirdeal"), "Gilgamesh of Sumeria proposes a deal.")
+	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "theirdeal"), "Gilgamesh of Sumeria offers a deal:")
 	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "theirdemand"), "Gilgamesh of Sumeria demands:")
 	eq(DealSpeech_Intro("Gilgamesh", "Sumeria", "demand"), "Demand from Gilgamesh of Sumeria.")
 end)

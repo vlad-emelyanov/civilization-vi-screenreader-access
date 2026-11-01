@@ -40,7 +40,7 @@ end
 function DiplomacyIntel.Clean( text )
 	if text == nil then return ""; end
 	text = CleanTextForSpeech( tostring( text ) );
-	text = string.gsub( text, "[%.%s]+$", "" );
+	text = string.gsub( text, "[%. \t\r\n\v\f]+$", "" );
 	return text;
 end
 
@@ -72,7 +72,7 @@ local function RelationshipItems( rel:table )
 		end
 	end
 	local head:string = "Relationship: " .. rel.state;
-	if rel.modifiers ~= nil and #mods > 0 then head = head .. ", total " .. DiplomacyIntel.Signed( total ); end
+	if rel.modifiers ~= nil and #mods > 0 then head = head .. ". Listed reasons add up to " .. DiplomacyIntel.Signed( total ); end
 	table.insert( items, { text = head, detail = rel.note } );
 	-- biggest magnitude first, the game's order among equals
 	table.sort( mods, function( a, b )
@@ -293,7 +293,7 @@ function DiplomacyIntel.WorldBuild( world:table )
 	if #items == 0 then
 		table.insert( items, { key = "world:wars:none", section = "Wars", text = "No wars between civilizations you have met" } );
 	end
-	Add( "alliances", "Alliances", "alliances" );
+	Add( "alliances", "Friends and alliances", "alliances" );
 	Add( "denunciations", "Denunciations", "denunciations" );
 	return items;
 end

@@ -165,7 +165,7 @@ local function _Blockers( city:table )
 			if not can and results ~= nil then
 				local reasons:table = {};
 				for _, text in ipairs( results[ CityOperationResults.FAILURE_REASONS ] or {} ) do
-					local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%.%s]+$", "" );
+					local clean:string = string.gsub( CleanTextForSpeech( Locale.Lookup( text ) ), "[%. \t\r\n\v\f]+$", "" );
 					if clean ~= "" and string.find( text, "NO_SUITABLE_LOCATION", 1, true ) == nil then table.insert( reasons, clean ); end
 				end
 				if #reasons > 0 then table.insert( list, { name = Locale.Lookup( row.Name ), reasons = reasons } ); end

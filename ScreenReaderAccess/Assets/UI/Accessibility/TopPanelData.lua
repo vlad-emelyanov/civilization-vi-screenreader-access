@@ -54,7 +54,7 @@ end
 
 local function Clean( text:string )
 	text = CleanTextForSpeech( text );
-	text = string.gsub( text, "%.%s*%.", "." );		-- "[NEWLINE][NEWLINE]" gives ". ."
+	text = string.gsub( text, "%.[ \t\r\n\v\f]*%.", "." );		-- "[NEWLINE][NEWLINE]" gives ". ."
 	return text;
 end
 

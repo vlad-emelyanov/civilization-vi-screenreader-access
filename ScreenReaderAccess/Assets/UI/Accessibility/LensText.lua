@@ -57,8 +57,8 @@ local function _Clean( text:string )
 	text = string.gsub( text, "%[ICON_[%w_]+%]", "" );
 	text = string.gsub( text, "%[NEWLINE%]", ", " );
 	text = string.gsub( text, "%[[%w_]+%]", "" );
-	text = string.gsub( text, "%s+", " " );
-	return ( string.gsub( text, "^%s*(.-)%s*$", "%1" ) );
+	text = string.gsub( text, "[ \t\r\n\v\f]+", " " );
+	return ( string.gsub( text, "^[ \t\r\n\v\f]*(.-)[ \t\r\n\v\f]*$", "%1" ) );
 end
 
 local function _Names( keys:table )

@@ -137,3 +137,9 @@ test("identical tile items get a position, then a number", function()
 	eq(items[4].text, "Farm, 1 tile east, Wheat, 1 turn, x, 1 of 2")
 	eq(items[5].text, "Farm, 1 tile east, Wheat, 1 turn, x, 2 of 2")
 end)
+
+test("NoSlotText: no free slot of the type and which building gives one", function()
+	eq(HubSettle.NoSlotText("Rembrandt van Rijn", "art", { "Art Museum", "Cathedral" }),
+		"No tile to use Rembrandt van Rijn on: no free art slot in your districts and wonders. A Art Museum, Cathedral gives one")
+	eq(HubSettle.NoSlotText("X", "music", {}), "No tile to use X on: no free music slot in your districts and wonders")
+end)

@@ -881,3 +881,22 @@ test("unit order: Idle first, then type name, then unit id", function()
 	for _, i in ipairs(items) do got[#got + 1] = i.section .. i.unitId end
 	eq(table.concat(got, ","), "Idle4,Idle7,Builder2,Builder9,Warrior3")
 end)
+
+test("SendRemaining: the sent unit leaves, the others keep their order, focus goes to the item that follows", function()
+	local items = { { key = "s:1", unitId = 1 }, { key = "s:2", unitId = 2 }, { key = "s:3", unitId = 3 } }
+	local kept, focus = HubPlaces.SendRemaining(items, items[2])
+	eq(#kept, 2); eq(kept[1].key, "s:1"); eq(kept[2].key, "s:3"); eq(focus, "s:3")
+	kept, focus = HubPlaces.SendRemaining(kept, kept[2])
+	eq(#kept, 1); eq(focus, "s:1")
+	kept, focus = HubPlaces.SendRemaining(kept, kept[1])
+	eq(#kept, 0); eq(focus, nil)
+end)
+
+test("SendRemaining: an attack party takes its members with it, a member takes the party", function()
+	local a, b, c = { key = "s:1", unitId = 1 }, { key = "s:2", unitId = 2 }, { key = "s:3", unitId = 3 }
+	local party = { key = "party", members = { a, b } }
+	local kept = HubPlaces.SendRemaining({ party, a, b, c }, party)
+	eq(#kept, 1); eq(kept[1].key, "s:3")
+	kept = HubPlaces.SendRemaining({ party, a, b, c }, b)
+	eq(#kept, 2); eq(kept[1].key, "s:1")
+end)

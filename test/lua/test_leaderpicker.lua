@@ -37,3 +37,15 @@ test("CleanTextForSpeech: no-break space, ellipsis and curly quotes become plain
 	eq(CleanTextForSpeech("water" .. string.char(226, 128, 166) .. " to the beasts"), "water... to the beasts")
 	eq(CleanTextForSpeech("it" .. string.char(226, 128, 153) .. "s " .. string.char(226, 128, 156) .. "fine" .. string.char(226, 128, 157)), "it's \"fine\"")
 end)
+
+test("CleanTextForSpeech: brackets lose inner spaces and empty pairs", function()
+	eq(CleanTextForSpeech("Great Work ( Writing) done"), "Great Work (Writing) done")
+	eq(CleanTextForSpeech("Piece () of art"), "Piece of art")
+	eq(CleanTextForSpeech("Piece ( )"), "Piece")
+end)
+
+test("CleanTextForSpeech: UTF-8 letters whose second byte is 160 (a-grave, as in Pieta) stay whole", function()
+	local pieta = "Piet" .. string.char(195, 160)
+	eq(CleanTextForSpeech(pieta .. " by Michelangelo"), pieta .. " by Michelangelo")
+	eq(CleanTextForSpeech(pieta), pieta)
+end)

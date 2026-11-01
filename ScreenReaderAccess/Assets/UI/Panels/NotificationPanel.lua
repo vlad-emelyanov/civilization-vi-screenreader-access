@@ -1902,6 +1902,13 @@ local function SRA_NotificationTexts( pNotification:table )
 		if message == pNotification:GetMessage() then message = "World Congress results"; end
 		if summary == pNotification:GetSummary() then summary = "The World Congress session is over. Review the results"; end
 	end
+	-- A tag the game has no text for (LOC_NOTIFICATION_SPY_CHOOSE_ESCAPE_ROUTE_SUMMARY) is never spoken: the title stands in for the
+	-- summary, and a title without text becomes the notification type in words ("Spy choose escape route").
+	if string.sub( summary, 1, 4 ) == "LOC_" then summary = ( string.sub( message, 1, 4 ) == "LOC_" ) and "" or message; end
+	if string.sub( message, 1, 4 ) == "LOC_" then
+		local words:string = string.lower( string.gsub( string.gsub( pNotification:GetTypeName() or "", "^NOTIFICATION_", "" ), "_", " " ) );
+		message = string.upper( string.sub( words, 1, 1 ) ) .. string.sub( words, 2 );
+	end
 	-- The title alone ("Unit Captured") does not name the unit and the hub speaks the title: speak the summary ("Your Settler was captured by
 	-- a Warrior from the Rome") instead.
 	if pNotification:GetTypeName() == "NOTIFICATION_UNIT_CAPTURED" and summary ~= "" then message = summary; end

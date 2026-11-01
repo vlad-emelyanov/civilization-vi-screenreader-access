@@ -16,7 +16,7 @@ HubPins.m_pin = nil;		-- the pin the open Rename / Delete list is about: { id, x
 local m_menu:table;
 
 local function Trim( text:string )
-	return ( ( text or "" ):gsub( "^%s+", "" ):gsub( "%s+$", "" ) );
+	return ( ( text or "" ):gsub( "^[ \t\r\n\v\f]+", "" ):gsub( "[ \t\r\n\v\f]+$", "" ) );
 end
 
 -- "2 tiles south of Rome", else the short plot text

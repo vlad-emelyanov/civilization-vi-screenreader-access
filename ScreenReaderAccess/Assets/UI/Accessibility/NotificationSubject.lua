@@ -15,7 +15,7 @@ end
 
 local function NS_WordCount( text:string )
 	local n:number = 0;
-	for _ in string.gmatch( text, "%S+" ) do n = n + 1; end
+	for _ in string.gmatch( text, "[^ \t\r\n\v\f]+" ) do n = n + 1; end
 	return n;
 end
 
@@ -35,7 +35,7 @@ function NotificationSubject_Line( typeName:string, message:string, summary:stri
 	-- the summary names the city / wonder / both sides: use it when short and different from the title
 	-- (a long summary contributes its first sentence: "Lugdunum needs more Amenities to keep it productive.")
 	if NS_Usable( summary ) and NS_WordCount( summary ) > NOTIFICATION_SUBJECT_MAX_WORDS then
-		local first:string = string.match( summary, "^(.-)[%.!?]%s" );
+		local first:string = string.match( summary, "^(.-)[%.!?][ \t\r\n\v\f]" );
 		if first ~= nil then summary = first; end
 	end
 	if NS_Usable( summary ) and NS_WordCount( summary ) <= NOTIFICATION_SUBJECT_MAX_WORDS and string.lower( summary ) ~= string.lower( message ) then

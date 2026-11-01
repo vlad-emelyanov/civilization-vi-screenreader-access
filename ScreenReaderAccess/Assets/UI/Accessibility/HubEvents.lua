@@ -194,6 +194,7 @@ end
 -- A move ordered with Enter in the move-to mode: arrived, still on the way, or stopped short.
 function HubEvents.OnUnitMoveComplete( playerID:number, unitID:number, x:number, y:number )
 	if playerID ~= Game.GetLocalPlayer() then return; end
+	HubCore.m_lastUnitMoveTime = UI.GetElapsedTime();		-- "All done" and the end-turn check wait for the action panel to catch up
 	local record:table = HubCore.m_movers[ unitID ];
 	if record == nil then return; end
 	local unit:table = Players[ playerID ]:GetUnits():FindID( unitID );
@@ -531,7 +532,7 @@ function HubEvents.GoodyRewardText( row:table )
 	end
 	local text:string = ( row.Description ~= nil ) and Locale.Lookup( row.Description, amount or 1 ) or "";
 	text = text:gsub( "%[ICON_Gold%]", " gold" ):gsub( "%[ICON_Faith%]", " faith" ):gsub( "%[ICON_Envoy%]", "" ):gsub( "%[ICON_Governor%]", "" );
-	text = text:gsub( "%[[%w_]+%]", "" ):gsub( "^%s*%+", "" ):gsub( "%s+", " " ):gsub( "^ ", "" ):gsub( " $", "" );
+	text = text:gsub( "%[[%w_]+%]", "" ):gsub( "^[ \t\r\n\v\f]*%+", "" ):gsub( "[ \t\r\n\v\f]+", " " ):gsub( "^ ", "" ):gsub( " $", "" );
 	if text == "" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_BUILDER" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_TRADER" or row.SubTypeGoodyHut == "GOODYHUT_GRANT_SETTLER"
 		or row.SubTypeGoodyHut == "GOODYHUT_ONE_RELIC" or row.SubTypeGoodyHut == "GOODYHUT_ADD_POP" then
 		text = GOODY_FALLBACK[ row.SubTypeGoodyHut ] or text;

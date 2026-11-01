@@ -25,7 +25,7 @@ test("relationship: state and total first, reasons by magnitude, grievances last
 		modifiers = { { score = -3, text = "Your military is weak" }, { score = 12, text = "Same religion" }, { score = 6, text = "Open borders" }, { score = -3, text = "Settled near them" } },
 		grievances = { direction = "them", total = 40, perTurn = -1, log = { { turn = 90, amount = 20, text = "You declared war" } } },
 	} })
-	listeq(Texts(items), { "Relationship: Friendly, total plus 12", "Plus 12: Same religion", "Plus 6: Open borders",
+	listeq(Texts(items), { "Relationship: Friendly. Listed reasons add up to plus 12", "Plus 12: Same religion", "Plus 6: Open borders",
 		"Minus 3: Your military is weak", "Minus 3: Settled near them", "Grievances: they hold 40 against you" })
 	eq(items[1].detail, "Friends for 8 more turns")
 	eq(items[1].section, "Relationship")
@@ -36,7 +36,7 @@ end)
 test("relationship: the same reason twice is one line with the sum", function()
 	local items = DiplomacyIntel.BuildItems({ relationship = { state = "Neutral",
 		modifiers = { { score = 3, text = "Unknown Reason" }, { score = 2, text = "Open borders" }, { score = 3, text = "Unknown Reason" } } } })
-	listeq(Texts(items), { "Relationship: Neutral, total plus 8", "Plus 6: Unknown Reason", "Plus 2: Open borders" })
+	listeq(Texts(items), { "Relationship: Neutral. Listed reasons add up to plus 8", "Plus 6: Unknown Reason", "Plus 2: Open borders" })
 end)
 
 test("relationship: grievances the other way, none when zero, no total without a score list", function()
@@ -146,7 +146,7 @@ test("world relations: wars first, empty wars say so, groups", function()
 	listeq(Texts(items), { "Egypt at war with Rome", "You are at war with Greece", "Rome allied with Sumeria", "You and Egypt are declared friends",
 		"Denunciation between Greece and Kongo" })
 	eq(items[1].section, "Wars")
-	eq(items[3].section, "Alliances")
+	eq(items[3].section, "Friends and alliances")
 	eq(items[5].section, "Denunciations")
 	items = DiplomacyIntel.WorldBuild({ wars = {}, alliances = {}, denunciations = {} })
 	listeq(Texts(items), { "No wars between civilizations you have met" })
@@ -222,7 +222,7 @@ end)
 test("gather: relationship uses the non-zero modifiers of the game", function()
 	Fake()
 	local snap = DiplomacyIntel.Gather(1)
-	listeq(Texts(DiplomacyIntel.BuildItems({ relationship = snap.relationship })), { "Relationship: Friendly, total plus 2", "Plus 4: LOC_A", "Minus 2: LOC_B" })
+	listeq(Texts(DiplomacyIntel.BuildItems({ relationship = snap.relationship })), { "Relationship: Friendly. Listed reasons add up to plus 2", "Plus 4: LOC_A", "Minus 2: LOC_B" })
 end)
 
 test("gather: their relations name only civilizations you have met, neutral ones are not listed", function()

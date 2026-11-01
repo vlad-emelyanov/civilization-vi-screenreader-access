@@ -79,7 +79,7 @@ local function BuildNotificationItems()
 		local summary:string = CleanTextForSpeech( n.summary );
 		local detail:string = title;
 		if summary ~= "" and summary ~= title then detail = detail .. ". " .. summary; end
-		detail = string.gsub( detail, "[%.%s]+$", "" );
+		detail = string.gsub( detail, "[%. \t\r\n\v\f]+$", "" );
 		if n.blocking then detail = detail .. ". Blocks ending the turn"; end
 		if not n.dismissable then detail = detail .. ". Can't be dismissed"; end
 		table.insert( items, {
@@ -130,7 +130,7 @@ local function ActivateNotification( item:table )
 			local summary:string = CleanTextForSpeech( n.summary );
 			local text:string = title;
 			if summary ~= "" and summary ~= title then text = text .. ". " .. summary; end
-			text = string.gsub( text, "[%.%s]+$", "" );
+			text = string.gsub( text, "[%. \t\r\n\v\f]+$", "" );
 			local gone:boolean = true;
 			for _, other in ipairs( BuildNotificationItems() ) do
 				if other.note.id == n.id then gone = false; end

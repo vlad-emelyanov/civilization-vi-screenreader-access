@@ -1,0 +1,15 @@
+# Written blind (2026-11-01). Shift+M: Enter sends the unit and the list stays open, the target and the cursor stay, the result is spoken, the sent unit is gone from the list.
+# Fixture pt-nobarbs-t129 (several own units; the cursor is put on the capital).
+# covers: **/HubPlaces.lua
+# no-share-load: orders units to move
+load pt-nobarbs-t129
+clear-advisors
+lua InGameAccess local c = Players[0]:GetCities():GetCapitalCity(); HubCursor.SetCursor(c:GetX(), c:GetY(), false, true); return 1
+action KeyNavSendHere -Settle 1500
+expect ^Send a unit to .*\d+ options?
+key Enter -Settle 1500
+expect moving (to|next to)
+expect \d+ of \d+
+key Escape -Settle 800
+expect-not (?i)Rome.*selected
+no-lua-errors

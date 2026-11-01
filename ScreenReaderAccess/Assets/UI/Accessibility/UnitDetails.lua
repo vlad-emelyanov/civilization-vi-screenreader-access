@@ -117,7 +117,7 @@ function UnitDetails_Gather( unit:table )
 	local gp = unit:GetGreatPerson();
 	if gp ~= nil and gp.HasPassiveEffect ~= nil and gp:HasPassiveEffect() then
 		local okName:boolean, passive = pcall( function() return gp:GetPassiveEffectText(); end );
-		if okName and passive ~= nil then info.passive = ( string.gsub( CleanTextForSpeech( Locale.Lookup( passive ) ), "%.%s*$", "" ) ); end
+		if okName and passive ~= nil then info.passive = ( string.gsub( CleanTextForSpeech( Locale.Lookup( passive ) ), "%.[ \t\r\n\v\f]*$", "" ) ); end
 		local okCharges:boolean, charges = pcall( function() return gp:GetActionCharges(); end );
 		if okCharges and charges ~= nil and charges > 0 then info.actionCharges = charges; end
 	end

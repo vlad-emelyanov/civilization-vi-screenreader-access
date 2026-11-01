@@ -59,9 +59,9 @@ local function _StripIconMarkup(message: string)
 	end
 	table.insert(out, string.sub(message, pos));
 	message = table.concat(out);
-	message = string.gsub(message, "%s+", " ");
-	message = string.gsub(message, "^%s+", "");
-	message = string.gsub(message, "%s+$", "");
+	message = string.gsub(message, "[ \t\r\n\v\f]+", " ");
+	message = string.gsub(message, "^[ \t\r\n\v\f]+", "");
+	message = string.gsub(message, "[ \t\r\n\v\f]+$", "");
 	return message;
 end
 
@@ -70,7 +70,7 @@ end
 local function _CollapseStops(text: string)
 	text = string.gsub(text, "%.%.%.", "");
 	local collapsed:number = 1;
-	while collapsed > 0 do text, collapsed = string.gsub(text, "%.%s*[%.,]", "."); end
+	while collapsed > 0 do text, collapsed = string.gsub(text, "%.[ \t\r\n\v\f]*[%.,]", "."); end
 	text = string.gsub(text, "([!?])%.", "%1");		-- "INSPIRATION!." -> "INSPIRATION!" (an exclamation already ends the sentence)
 	return (string.gsub(text, "", "..."));
 end
@@ -120,16 +120,16 @@ function OutputMessageToScreenReader(message: string, nointerrupt: boolean)
 		message = string.gsub(message, "%[TAB%]", " ");
 		message = string.gsub(message, "%[ENDLINK%]", "");
 		message = string.gsub(message, "%[LINK[^%]]*%]", "");
-		message = string.gsub(message, ",%s*,", ",");
-		message = string.gsub(message, "%s+", " ");
+		message = string.gsub(message, ",[ \t\r\n\v\f]*,", ",");
+		message = string.gsub(message, "[ \t\r\n\v\f]+", " ");
 		message = _CollapseStops(message);
-		message = string.gsub(message, "^[%s,]+", "");
-		message = string.gsub(message, "[%s,]+$", "");
+		message = string.gsub(message, "^[ \t\r\n\v\f,]+", "");
+		message = string.gsub(message, "[ \t\r\n\v\f,]+$", "");
 	else
 		message = _StripIconMarkup(message);
 	end
 	-- The game's print() treats "%" as a printf escape: "50% of" came out as "50<number>f". Say it in words instead.
-	if type(message) == "string" then message = string.gsub(message, "%s*%%", " percent"); end
+	if type(message) == "string" then message = string.gsub(message, "[ \t\r\n\v\f]*%%", " percent"); end
 	if message == nil or message == "" then return; end
 	nointerrupt = SRTakeQueueBehind( nointerrupt );
 	if nointerrupt == true then
@@ -170,11 +170,11 @@ function SRCursorKeysText( texts:table )
 		local p, name = string.match( text, "^(.-)([%a]+)$" );
 		if p == nil then return "the cursor keys"; end
 		if string.lower( name ) == "arrow" then
-			p, name = string.match( p, "^(.-)([%a]+)%s*$" );
+			p, name = string.match( p, "^(.-)([%a]+)[ \t\r\n\v\f@@\f]*$" );
 			if p == nil then return "the cursor keys"; end
 		end
 		if string.lower( name ) ~= string.lower( names[i] ) then return "the cursor keys"; end
-		p = string.gsub( p, "%s+$", "" );
+		p = string.gsub( p, "[ \t\r\n\v\f@@\f]+$", "" );
 		if prefix ~= nil and prefix ~= p then return "the cursor keys"; end
 		prefix = p;
 	end
@@ -202,13 +202,20 @@ function CleanTextForSpeech(text: string)
 	text = _StripIconMarkup(text);
 	text = string.gsub(text, "%[[^%]]*%]", "");
 	text = _CollapseStops(text);
-	text = string.gsub(text, "%s+", " ");
-	text = string.gsub(text, "%s*[%s]*", "");
-	text = string.gsub(text, "^[%s]+", "");
-	text = string.gsub(text, "[%s]+$", "");
+	text = string.gsub(text, "[ \t\r\n\v\f]+", " ");
+	text = string.gsub(text, "[ \t\r\n\v\f]*[ \t\r\n\v\f]*", "");
+	text = string.gsub(text, "^[ \t\r\n\v\f]+", "");
+	text = string.gsub(text, "[ \t\r\n\v\f]+$", "");
 	text = string.gsub(text, "([%.!?:;,])", "%1 ");
 	text = string.gsub(text, "", ". ");
 	text = _CollapseStops(text);
+	-- brackets: "( Writing)" loses its inner space, an empty "()" (a stripped icon between the brackets) goes
+	text = string.gsub(text, "%([ \t\r\n\v\f]*%)", "");
+	text = string.gsub(text, "%([ \t\r\n\v\f]+", "(");
+	text = string.gsub(text, "[ \t\r\n\v\f]+%)", ")");
+	text = string.gsub(text, "[ \t\r\n\v\f][ \t\r\n\v\f]+", " ");
+	text = string.gsub(text, "^[ \t\r\n\v\f]+", "");
+	text = string.gsub(text, "[ \t\r\n\v\f]+$", "");
 	return text;
 end
 
@@ -256,16 +263,16 @@ function SRDescriptionFirst( name:string, description:string, tooltip:string )
 	if description ~= nil and description ~= "" then plainDescription = CleanTextForSpeech( Locale.Lookup( description ) ); end
 	-- the tooltip starts with the upper-cased name
 	if plainName ~= "" and string.lower( string.sub( rest, 1, #plainName ) ) == string.lower( plainName ) then
-		rest = string.gsub( string.sub( rest, #plainName + 1 ), "^[%s%.,:]+", "" );
+		rest = string.gsub( string.sub( rest, #plainName + 1 ), "^[ \t\r\n\v\f@@\f%.,:]+", "" );
 	end
 	if plainDescription ~= "" then
 		local from:number, to:number = string.find( rest, plainDescription, 1, true );
 		if from ~= nil then
 			rest = string.sub( rest, 1, from - 1 ) .. string.sub( rest, to + 1 );
-			rest = string.gsub( rest, "%.%s*%.", "." );
-			rest = string.gsub( rest, "%s%s+", " " );
-			rest = string.gsub( rest, "^[%s%.,]+", "" );
-			rest = string.gsub( rest, "[%s,]+$", "" );
+			rest = string.gsub( rest, "%.[ \t\r\n\v\f@@\f]*%.", "." );
+			rest = string.gsub( rest, "[ \t\r\n\v\f@@\f][ \t\r\n\v\f@@\f]+", " " );
+			rest = string.gsub( rest, "^[ \t\r\n\v\f@@\f%.,]+", "" );
+			rest = string.gsub( rest, "[ \t\r\n\v\f@@\f,]+$", "" );
 		end
 	end
 	local text:string = plainName;
