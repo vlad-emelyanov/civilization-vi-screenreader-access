@@ -11,6 +11,11 @@ test("amenities: city from the summary when the notification has no usable city"
 	eq(NotificationSubject_Line("NOTIFICATION_CITY_LOW_AMENITIES", "Need More Amenities", "Lugdunum needs more Amenities", nil, nil), "Lugdunum needs more Amenities")
 end)
 
+test("starving: the city from the summary's first sentence", function()
+	eq(NotificationSubject_Line("NOTIFICATION_CITY_STARVING", "City Starving!", "Knossos does not provide enough Food for its people to eat. If this continues, it will lose Citizens!", nil, nil), "Knossos does not provide enough Food for its people to eat")
+	eq(NotificationSubject_Line("NOTIFICATION_CITY_STARVING", "City Starving!", "x", "Knossos", nil), "City Starving!: Knossos")
+end)
+
 test("unit name", function()
 	eq(NotificationSubject_Line("NOTIFICATION_UNIT_PROMOTION_AVAILABLE", "Unit available for promotion", "A unit can be promoted", nil, "Musketman"), "Unit available for promotion: Musketman")
 	eq(NotificationSubject_Line("X", "Unit available for promotion", "", nil, "LOC_UNIT_FOO"), "Unit available for promotion")

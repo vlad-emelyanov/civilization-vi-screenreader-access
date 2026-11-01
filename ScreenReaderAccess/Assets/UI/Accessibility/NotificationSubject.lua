@@ -5,8 +5,8 @@
 -- ===========================================================================
 
 -- Types (substring of the type name) and title words whose summary names the distinguishing part
-NOTIFICATION_SUBJECT_SUMMARY_TYPES = { "WONDER_COMPLETED", "AMENITIES", "LOYAL", "FREE_CITY", "PEACE" };
-NOTIFICATION_SUBJECT_SUMMARY_TITLES = { "peace", "loyalty", "amenities", "free city", "wonder completed" };
+NOTIFICATION_SUBJECT_SUMMARY_TYPES = { "WONDER_COMPLETED", "AMENITIES", "LOYAL", "FREE_CITY", "PEACE", "STARVING" };
+NOTIFICATION_SUBJECT_SUMMARY_TITLES = { "peace", "loyalty", "amenities", "free city", "wonder completed", "starving" };
 NOTIFICATION_SUBJECT_MAX_WORDS = 12;
 
 local function NS_Contains( text:string, part:string )
