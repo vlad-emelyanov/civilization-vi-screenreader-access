@@ -357,6 +357,7 @@ function Initialize()
 	HubCore.AddEvent( "CombatVisBegin",				HubEvents.OnCombatVisBegin );
 	HubCore.AddEvent( "UnitDamageChanged",			HubEvents.OnUnitDamageChanged );
 	HubCore.AddEvent( "CityAddedToMap",				HubEvents.OnCityAddedToMap );
+	HubCore.AddEvent( "CityProductionCompleted",	HubEvents.OnCityProductionCompleted );
 	HubCore.AddEvent( "ImprovementAddedToMap",		HubEvents.OnImprovementAddedToMap );
 	HubCore.AddEvent( "UnitVisibilityChanged",		HubEvents.OnUnitVisibilityChanged );
 	HubCore.AddEvent( "ImprovementVisibilityChanged",	HubPlaces.OnImprovementVisibilityChanged );		-- villages and camps are remembered as they are seen

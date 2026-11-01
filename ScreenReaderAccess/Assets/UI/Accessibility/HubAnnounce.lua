@@ -639,6 +639,10 @@ function HubAnnounce.AnnounceTurn()
 		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end
 	end		-- what the enemies near us did
 	HubAnnounce.SpeakLoyaltyWarnings();		-- own cities that will flip within a few turns
+	if HubEvents ~= nil then
+		local ok:boolean, err = pcall( HubEvents.SpeakProductionSwaps );		-- a newer unit replaced the one in production
+		if not ok then print( "HubEvents error: " .. tostring( err ) ); end
+	end
 end
 
 -- The selection that happened while the game was loading, said again now that it is ready.
@@ -820,6 +824,7 @@ function HubAnnounce.OnLocalPlayerTurnEnd()
 		local ok:boolean, err = pcall( HubEnemies.TakeSnapshot );
 		if not ok then print( "HubEnemies error: " .. tostring( err ) ); end
 	end		-- the enemies we see now, compared at the next turn start
+	if HubEvents ~= nil then pcall( HubEvents.SnapshotProduction ); end		-- compared at the next turn start
 	HubCore.ReleaseSpeechAtTurnEnd();
 	HubAnnounce.ResetReadyWatch();
 	HubCore.CloseMode( false, true );
