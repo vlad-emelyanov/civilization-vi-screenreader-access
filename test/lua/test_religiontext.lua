@@ -50,3 +50,33 @@ test("Spread / Convert results", function()
 	eq(ReligionText_ActionDescription("UNITOPERATION_LAUNCH_INQUISITION") ~= nil, true)
 	eq(ReligionText_ActionDescription("UNITOPERATION_FORTIFY"), nil)
 end)
+
+test("InitiatesCombat: religious strength and not a missionary class", function()
+	eq(ReligionText_InitiatesCombat(110, false), true)		-- Apostle
+	eq(ReligionText_InitiatesCombat(75, false), true)		-- Inquisitor
+	eq(ReligionText_InitiatesCombat(100, true), false)		-- Missionary (ABILITY_RELIGIOUS_CANNOT_ATTACK)
+	eq(ReligionText_InitiatesCombat(90, true), false)		-- Guru
+	eq(ReligionText_InitiatesCombat(0, false), false)		-- Builder, Settler, soldiers
+	eq(ReligionText_InitiatesCombat(nil, false), false)
+end)
+
+test("CanInitiateCombat reads the unit type tags once", function()
+	GameInfo = {
+		Units = { [1] = { UnitType = "UNIT_APOSTLE" }, [2] = { UnitType = "UNIT_MISSIONARY" }, [3] = { UnitType = "UNIT_BUILDER" },
+			UNIT_APOSTLE = {}, UNIT_MISSIONARY = {}, UNIT_GURU = {} },
+		TypeTags = function()
+			local rows = { { Type = "ABILITY_RELIGIOUS_CANNOT_ATTACK", Tag = "CLASS_MISSIONARY" }, { Type = "UNIT_MISSIONARY", Tag = "CLASS_MISSIONARY" },
+				{ Type = "UNIT_GURU", Tag = "CLASS_MISSIONARY" }, { Type = "UNIT_APOSTLE", Tag = "CLASS_RELIGIOUS" } }
+			local i = 0
+			return function() i = i + 1; return rows[i] end
+		end }
+	local function unit(typeIndex, strength) return { GetReligiousStrength = function() return strength end, GetUnitType = function() return typeIndex end } end
+	eq(ReligionText_CanInitiateCombat(unit(1, 110)), true)
+	eq(ReligionText_CanInitiateCombat(unit(2, 100)), false)
+	eq(ReligionText_CanInitiateCombat(unit(3, 0)), false)
+	eq(ReligionText_CanInitiateCombat(nil), false)
+end)
+
+test("NoTargetLine names the unit", function()
+	eq(ReligionText_NoTargetLine("Apostle"), "Apostle: no religious units in reach")
+end)

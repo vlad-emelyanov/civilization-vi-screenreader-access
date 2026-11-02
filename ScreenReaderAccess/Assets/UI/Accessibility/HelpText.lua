@@ -80,7 +80,7 @@ local m_sections:table = {
 	{ title = "Units", entries = {
 		{ action = "KeyNavUnitActions",			default = "Tab",		text = "menu of everything the selected unit can do: Enter runs, Space reads the tooltip. Actions that destroy something (Remove Improvement, Harvest, Pillage) come after the normal ones, and a great general's Retire comes last; they ask first: Enter again on the same item within 5 seconds to confirm (their own hotkeys act at once)" },
 		{ action = "MoveTo",					default = "M",			text = "move to: choose a tile" },
-		{ action = "Attack",					default = "W",			text = "attack: jumps to the nearest enemy and previews it" },
+		{ action = "Attack",					default = "W",			text = "attack: jumps to the nearest enemy and previews it. An Apostle or Inquisitor attacks the nearest religious unit of another religion instead (theological combat, no war needed); the Tab menu has the same Attack entry" },
 		{ action = "RangedAttack",				default = "R",			text = "ranged attack, also for a city" },
 		{ action = "SkipTurn",					default = "Space",		text = "skip the unit's turn" },
 		{ action = "Fortify",					default = "D",			text = "fortify" },

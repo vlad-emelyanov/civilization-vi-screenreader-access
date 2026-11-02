@@ -121,6 +121,7 @@ local RESULT_SILENT = {
 	UNITOPERATION_FOUND_CITY = true, UNITOPERATION_BUILD_IMPROVEMENT = true, UNITCOMMAND_UPGRADE = true, PROMOTION = true,
 	UNITOPERATION_MOVE_TO = true, UNITCOMMAND_PROMOTE = true,
 	UNITOPERATION_SPREAD_RELIGION = true, UNITOPERATION_CONVERT_BARBARIANS = true,		-- HubEvents.ReligiousOrderResult tells the outcome
+	SRA_RELIGIOUS_ATTACK = true,		-- opens the Attack key's target mode (HubTargets.AttackKey), which speaks itself
 	UNITCOMMAND_DELETE = true,		-- the yes/no popup announces itself; Escape/No says "Delete cancelled" (UnitPanel.OnNoDelete)
 };
 

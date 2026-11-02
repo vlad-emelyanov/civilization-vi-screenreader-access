@@ -1,0 +1,52 @@
+# Theological combat: the Attack key (and the Tab menu's Attack entry) on an Apostle fights the nearest foreign religious unit, at peace; a Missionary cannot attack; a soldier ignores the religious units; no target gives a clear line.
+# Fixture medieval-t100 + scenario apostle-attack: Rome (Catholicism) has an Apostle in Rome and a Missionary 1 tile west; the Ottomans (Islam, at peace) have an Apostle 2 tiles south-west and a Missionary 2 tiles north-west of Rome.
+# covers: **/HubTargets.lua **/HubCursor.lua **/ReligionText.lua **/HubMenus.lua **/UnitPanel.lua **/HelpText.lua
+# no-share-load: the scenario founds two religions and spawns units, the fight wounds them and uses up moves
+load medieval-t100
+clear-advisors
+scenario apostle-attack
+clear-advisors
+# a Missionary only defends
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MISSIONARY" then UI.SelectUnit(u) break end end return 1
+action Attack -Settle 1500
+expect ^Missionary cannot attack$
+# a soldier never picks up the Ottoman religious units (at peace), only the barbarians
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_MAN_AT_ARMS" then UI.SelectUnit(u) break end end return 1
+action Attack -Settle 2500
+expect ^Attack: Barbarian .*attack
+action KeyNavScanUnits -Settle 1200
+expect-not Ottoman
+key Escape -Settle 800
+# the Apostle: Attack key lands on the nearest religious unit, with its civ and the combat preview
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_APOSTLE" then UI.SelectUnit(u) break end end return 1
+action Attack -Settle 2500
+expect ^Attack: Apostle, Ottomans, 2 tiles south-west, attack, 1 turn, Strength \d+ against \d+: deals about \d+ damage.* 1 of 2\. \S+ next target, \S+ attacks, \S+ cancels$
+action KeyNavScanUnits -Settle 1500
+expect ^Missionary, Ottomans, 2 tiles north-west, attack, 1 turn, Strength \d+ against \d+: .* 2 of 2, \S+ wraps to the first$
+key Escape -Settle 800
+expect Cancelled
+# the Tab menu has the same entry and opens the same list
+action KeyNavUnitActions -Settle 1500
+expect ^Apostle actions, \d+ options$
+key Down -Count 9 -Settle 300
+expect ^Attack, key \S+, 10 of 11$
+key Enter -Settle 2500
+expect ^Attack: Apostle, Ottomans, 2 tiles south-west, attack
+# confirm: the move-and-fight order, then the game's combat result
+key Enter -Settle 4000 -Quiet 2000
+expect ^Moving to attack Ottomans Apostle, 1 turn$
+expect ^Your Apostle attacks Ottomans Apostle: Apostle takes \d+ damage, \d+ of 100 left$
+expect ^Your Apostle takes \d+ damage, \d+ of 100 left$
+# the first religion of the game raises a historic moment popup
+key Enter -Settle 800
+# the fight used up the moves
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_APOSTLE" then UI.SelectUnit(u) break end end return 1
+action Attack -Settle 1500
+expect ^Apostle has no moves left$
+# no religious unit left in reach: a clear line, not "cannot attack"
+lua GameCore_Tuner for _,o in Players[4]:GetUnits():Members() do local t=GameInfo.Units[o:GetType()].UnitType if t=="UNIT_APOSTLE" or t=="UNIT_MISSIONARY" then Players[4]:GetUnits():Destroy(o) end end for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_APOSTLE" then UnitManager.RestoreMovement(u) end end return 1
+lua InGameAccess for _,u in Players[0]:GetUnits():Members() do if GameInfo.Units[u:GetType()].UnitType=="UNIT_APOSTLE" then UI.SelectUnit(u) break end end return 1
+action Attack -Settle 2500
+expect ^Attack\. Apostle: no religious units in reach\. \S+ to cancel$
+key Escape -Settle 800
+no-lua-errors

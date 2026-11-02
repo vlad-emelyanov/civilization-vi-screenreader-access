@@ -304,6 +304,14 @@ local function TargetName( plot:table )
 	local target:table = CombatText_PickDefender( Units.GetUnitsInPlot( plot ), function( other )
 		return other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ); end );
 	if target ~= nil then return PlotDescription_GetUnitName( target ); end
+	-- theological combat: the religious unit on the plot
+	if HubTargets.AllUnitsAt ~= nil and m_attackIntent and HubTargets.IsReligiousAttacker( UI.GetHeadSelectedUnit() ) then
+		for _, other in ipairs( HubTargets.AllUnitsAt( plot ) ) do
+			if other:GetOwner() ~= Game.GetLocalPlayer() and other:GetReligiousStrength() > 0 and HubCore.IsForeignUnitVisible( other ) then
+				return PlotDescription_GetUnitName( other );
+			end
+		end
+	end
 	if plot:IsCity() then
 		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
 		if city ~= nil then return Locale.Lookup( city:GetName() ); end
@@ -345,6 +353,58 @@ local function EnemyVisibleAt( plot:table )
 end
 
 HubTargets.EnemyVisibleAt = EnemyVisibleAt;
+
+-- Theological combat: an Apostle or Inquisitor (ReligionText_CanInitiateCombat) aims the Attack key at foreign religious units,
+-- at peace or at war, and never at military units, cities or districts; every other unit keeps the hostile-only rule above.
+local function IsReligiousAttacker( unit:table )
+	return unit ~= nil and ReligionText_CanInitiateCombat( unit );
+end
+HubTargets.IsReligiousAttacker = IsReligiousAttacker;
+
+-- Every unit on the plot. Units.GetUnitsInPlot leaves out religious units (and traders): they live on a map layer of their own.
+local function AllUnitsAt( plot:table )
+	local ok:boolean, list = pcall( Units.GetUnitsInPlotLayerID, plot:GetX(), plot:GetY(), MapLayers.ANY );
+	if ok and list ~= nil then return list; end
+	return Units.GetUnitsInPlot( plot );
+end
+
+-- A visible foreign unit with religious strength on the plot, and no foreign fighter or city with it.
+local function ReligiousFoeAt( plot:table )
+	if not HubCore.IsPlotVisibleToLocal( plot ) or plot:IsCity() then return false; end
+	local found:boolean = false;
+	for _, other in ipairs( AllUnitsAt( plot ) ) do
+		if other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ) then
+			if other:GetReligiousStrength() > 0 then
+				found = true;
+			elseif other:GetCombat() > 0 or other:GetRangedCombat() > 0 then
+				return false;
+			end
+		end
+	end
+	return found;
+end
+HubTargets.ReligiousFoeAt = ReligiousFoeAt;
+HubTargets.AllUnitsAt = AllUnitsAt;
+
+-- "Apostle, Ottomans": the lead of a theological target's line (the plot description leaves religious units out). nil: none there.
+function HubTargets.ReligiousLead( plot:table )
+	local infos:table = {};
+	for _, other in ipairs( AllUnitsAt( plot ) ) do
+		local owner:number = other:GetOwner();
+		if owner ~= Game.GetLocalPlayer() and other:GetReligiousStrength() > 0 and HubCore.IsForeignUnitVisible( other ) then
+			table.insert( infos, { name = PlotDescription_FormationName( other, Locale.Lookup( other:GetName() ) ),
+				civ = PlotDescription_GetCivName( owner ), hostile = HubCore.IsHostile( owner ) } );
+		end
+	end
+	return HubCursor.ScanLeadText( infos );
+end
+
+-- What the Attack-key move mode counts as an enemy on the plot for this unit.
+local function FoeAt( unit:table, plot:table )
+	if m_attackIntent and IsReligiousAttacker( unit ) then return ReligiousFoeAt( plot ); end
+	return EnemyVisibleAt( plot );
+end
+HubTargets.FoeAt = FoeAt;
 
 -- A hostile city, or a hostile unit that fights back, on the plot (a lone civilian is captured: no combat result).
 function HubTargets.HoldsEnemyFighter( plot:table )
@@ -396,16 +456,28 @@ function HubTargets.MeleeAttackCandidates( unit:table )
 		if plot == nil or set[ plot:GetIndex() ] ~= nil or not HubCore.IsPlotVisibleToLocal( plot ) then return; end
 		set[ plot:GetIndex() ] = HubTargets.IsAttackTarget( plot );
 	end
-	for playerID = 0, 63 do
-		local player:table = Players[ playerID ];
-		if playerID ~= localPlayer and player ~= nil and player:IsAlive() and HubCore.IsHostile( playerID ) then
-			for _, other in player:GetUnits():Members() do
-				if PlotDescription_IsUnitVisible( other ) then Consider( other:GetX(), other:GetY() ); end
+	if IsReligiousAttacker( unit ) then
+		-- theological combat: the religious units of every other player, whatever the relation (no cities, no districts)
+		for playerID = 0, 63 do
+			local player:table = Players[ playerID ];
+			if playerID ~= localPlayer and player ~= nil and player:IsAlive() then
+				for _, other in player:GetUnits():Members() do
+					if other:GetReligiousStrength() > 0 and PlotDescription_IsUnitVisible( other ) then Consider( other:GetX(), other:GetY() ); end
+				end
 			end
-			for _, city in player:GetCities():Members() do Consider( city:GetX(), city:GetY() ); end
-			pcall( function()
-				for _, district in player:GetDistricts():Members() do Consider( district:GetX(), district:GetY() ); end
-			end );
+		end
+	else
+		for playerID = 0, 63 do
+			local player:table = Players[ playerID ];
+			if playerID ~= localPlayer and player ~= nil and player:IsAlive() and HubCore.IsHostile( playerID ) then
+				for _, other in player:GetUnits():Members() do
+					if PlotDescription_IsUnitVisible( other ) then Consider( other:GetX(), other:GetY() ); end
+				end
+				for _, city in player:GetCities():Members() do Consider( city:GetX(), city:GetY() ); end
+				pcall( function()
+					for _, district in player:GetDistricts():Members() do Consider( district:GetX(), district:GetY() ); end
+				end );
+			end
 		end
 	end
 	local result:table = {};
@@ -578,9 +650,9 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 		local war:table = HubTargets.WarTargets( unit, plot );
 		local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
 		local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
-		local enemy:boolean = EnemyVisibleAt( plot );
+		local enemy:boolean = FoeAt( unit, plot );
 		if not reachable and war == nil then
-			if m_attackIntent and enemy then return "enemy, cannot reach"; end
+			if m_attackIntent and enemy then return IsReligiousAttacker( unit ) and "religious unit, cannot reach" or "enemy, cannot reach"; end
 			local why:string = HubTargets.UnreachableReason( unit, plot );
 			return "unreachable" .. ( why ~= "" and ( ", " .. why ) or "" );
 		end
@@ -603,7 +675,7 @@ function HubTargets.TargetInfo( mode:number, plot:table, unit:table )
 				if strength ~= nil then text = text .. ", " .. strength .. " when you reach it"; end
 			end
 		elseif m_attackIntent then
-			return "no enemy";
+			return IsReligiousAttacker( unit ) and "no religious unit" or "no enemy";
 		end
 		if war ~= nil then text = "would declare war on " .. WarTargetNames( war ) .. ", " .. text; end
 		return text;
@@ -1462,12 +1534,13 @@ function HubTargets.ConfirmTarget()
 			return;
 		end
 		local war:table = HubTargets.WarTargets( unit, plot );
-		local enemy:boolean = EnemyVisibleAt( plot );
+		local enemy:boolean = FoeAt( unit, plot );
+		local religious:boolean = m_attackIntent and IsReligiousAttacker( unit );
 		local path:table = UnitManager.GetMoveToPathEx( unit, plot:GetIndex() );
 		local reachable:boolean = path ~= nil and path.plots ~= nil and #path.plots >= 2;
 		if war == nil then
 			if m_attackIntent and not enemy then
-				HubCore.SayResult( "No enemy there, choose a target" );
+				HubCore.SayResult( religious and "No religious unit there, choose a target" or "No enemy there, choose a target" );
 				return;
 			end
 			if not reachable then
@@ -1488,7 +1561,7 @@ function HubTargets.ConfirmTarget()
 				HubCore.SayResult( "Moving to attack" .. ( attackName ~= nil and ( " " .. attackName ) or "" ) .. ", " .. HubCore.Plural( turns, "turn", "turns" ) );
 			else
 				-- only a fight has a result line to wait for (not a capture of a civilian)
-				if couldMove and HubTargets.HoldsEnemyFighter( plot ) then HubCore.MarkAttackPending( unit:GetID() ); end
+				if couldMove and ( religious and enemy or HubTargets.HoldsEnemyFighter( plot ) ) then HubCore.MarkAttackPending( unit:GetID() ); end
 				HubCore.SayResult( AttackingText( plot, "Attacking" ) );
 			end
 		end
@@ -1592,7 +1665,8 @@ function HubTargets.AttackKey()
 		return;
 	end
 	local name:string = Locale.Lookup( unit:GetName() );
-	if unit:GetCombat() <= 0 and unit:GetRangedCombat() <= 0 and unit:GetBombardCombat() <= 0 then
+	local religious:boolean = IsReligiousAttacker( unit );		-- Apostle / Inquisitor: theological combat through the same move mode
+	if not religious and unit:GetCombat() <= 0 and unit:GetRangedCombat() <= 0 and unit:GetBombardCombat() <= 0 then
 		OutputMessageToScreenReader( name .. " cannot attack" );
 		return;
 	end
@@ -1601,7 +1675,10 @@ function HubTargets.AttackKey()
 		return;
 	end
 	local row:table = GameInfo.Units[ unit:GetUnitType() ];
-	if row ~= nil and row.Domain == "DOMAIN_AIR" then
+	if religious then
+		m_attackIntent = true;
+		UI.SetInterfaceMode( InterfaceModeTypes.MOVE_TO );
+	elseif row ~= nil and row.Domain == "DOMAIN_AIR" then
 		UI.SetInterfaceMode( InterfaceModeTypes.AIR_ATTACK );
 	elseif unit:GetRangedCombat() > unit:GetCombat() or unit:GetBombardCombat() > unit:GetCombat() then
 		UI.SetInterfaceMode( InterfaceModeTypes.RANGE_ATTACK );

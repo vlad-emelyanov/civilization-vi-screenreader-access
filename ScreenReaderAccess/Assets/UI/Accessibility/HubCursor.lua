@@ -96,8 +96,13 @@ local function DescribeCursorPlot( plot:table, jump:boolean, lead:string )
 	if unit ~= nil and unit:GetOwner() == localPlayer then options.excludeUnitId = unit:GetID(); end
 	options.resourceTech = true;
 	options.pins = true;		-- "pin: <name>" when a map pin stands here (MapPins)
-	if lead ~= nil then options.noForeignUnits = true; end		-- the X scan names the units itself, first
 	local mode:number = HubTargets.GetTargetMode();
+	-- Attack key of an Apostle / Inquisitor: the religious unit on the plot leads the line (the plot description leaves it out)
+	if lead == nil and mode == InterfaceModeTypes.MOVE_TO and HubTargets.IsAttackMode( mode ) and HubTargets.FoeAt( unit, plot )
+			and HubTargets.IsReligiousAttacker( unit ) then
+		lead = HubTargets.ReligiousLead( plot );
+	end
+	if lead ~= nil then options.noForeignUnits = true; end		-- the X scan names the units itself, first
 	local placement:string = HubCore.PlacementPlotText( plot );
 	local info:string = nil;
 	if placement == nil and mode ~= nil then info = HubTargets.TargetInfo( mode, plot, unit ); end
@@ -454,7 +459,7 @@ function HubCursor.ScanUnits( interrupt:boolean )
 	end
 	if attackList ~= nil then
 		found = HubCursor.AttackScanEntries( attackList, originPlot:GetX(), originPlot:GetY() );
-		for _, entry in ipairs( found ) do entry.hostile = HubTargets.EnemyVisibleAt( Map.GetPlot( entry.x, entry.y ) ); end
+		for _, entry in ipairs( found ) do entry.hostile = HubTargets.FoeAt( UI.GetHeadSelectedUnit(), Map.GetPlot( entry.x, entry.y ) ); end
 		-- the melee candidates include multi-turn approaches: those reached this turn first, then by turns
 		local meleeUnit:table = UI.GetHeadSelectedUnit();
 		if targetMode == InterfaceModeTypes.MOVE_TO and meleeUnit ~= nil then
@@ -470,6 +475,8 @@ function HubCursor.ScanUnits( interrupt:boolean )
 			local unit:table = UI.GetHeadSelectedUnit();
 			if HubTargets.IsCityMode( targetMode ) or unit == nil then
 				Say( "No enemy in range. " .. SRKey( "Escape" ) .. " to cancel" );
+			elseif HubTargets.IsReligiousAttacker( unit ) then
+				Say( ReligionText_NoTargetLine( Locale.Lookup( unit:GetName() ) ) .. ". " .. SRKey( "Escape" ) .. " to cancel" );
 			else
 				local enemyName:string, relative:string = PlotDescription_NearestHostile( unit, 30 );
 				Say( HubCursor.NoEnemyText( Locale.Lookup( unit:GetName() ), enemyName, relative, CountHostilePlotsInView( originPlot ) ) );

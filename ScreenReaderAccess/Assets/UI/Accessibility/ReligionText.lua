@@ -112,3 +112,34 @@ function ReligionText_ActionDescription( typeName:string )
 	end
 	return ACTION_DESCRIPTIONS[ typeName ];
 end
+
+-- ===========================================================================
+--	THEOLOGICAL COMBAT: which religious units start it (Apostle, Inquisitor; Missionary and Guru only defend) and the words
+-- ===========================================================================
+-- Pure. The game's data: a unit with religious strength starts theological combat unless it carries ABILITY_RELIGIOUS_CANNOT_ATTACK
+-- (tag CLASS_MISSIONARY: Missionary, Guru).
+function ReligionText_InitiatesCombat( religiousStrength:number, cannotAttack:boolean )
+	return religiousStrength ~= nil and religiousStrength > 0 and not cannotAttack;
+end
+
+local m_cannotAttackTypes:table = nil;		-- unit type name -> true, read once from the TypeTags
+
+-- The selected/any unit: can it start theological combat? (Does not look at moves left.)
+function ReligionText_CanInitiateCombat( unit:table )
+	if unit == nil then return false; end
+	local okStrength:boolean, strength = pcall( unit.GetReligiousStrength, unit );
+	if not okStrength or strength == nil or strength <= 0 then return false; end
+	if m_cannotAttackTypes == nil then
+		m_cannotAttackTypes = {};
+		for row in GameInfo.TypeTags() do
+			if row.Tag == "CLASS_MISSIONARY" and GameInfo.Units[ row.Type ] ~= nil then m_cannotAttackTypes[ row.Type ] = true; end
+		end
+	end
+	local row = GameInfo.Units[ unit:GetUnitType() ];
+	return ReligionText_InitiatesCombat( strength, row ~= nil and m_cannotAttackTypes[ row.UnitType ] == true );
+end
+
+-- Pure. The line when the Attack key finds no religious unit to fight.
+function ReligionText_NoTargetLine( unitName:string )
+	return unitName .. ": no religious units in reach";
+end

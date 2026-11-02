@@ -4824,6 +4824,18 @@ local function SRBuildActions()
 				category = "INPLACE", tag = rowA.Hash, typeName = "UNITCOMMAND_ACTIVATE_GREAT_PERSON" } );
 		end
 	end
+	-- Apostle / Inquisitor with moves left: theological combat has no entry in the game's panel (the game starts it by moving onto the
+	-- enemy religious unit); list "Attack", which opens the very flow of the Attack key (HubTargets.AttackKey), under its condition
+	if unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:GetMovesRemaining() > 0 and ReligionText_CanInitiateCombat( unit ) then
+		local hotkey:string = "";
+		local attackId = Input.GetActionId( "Attack" );
+		if attackId ~= nil then hotkey = Input.GetGestureDisplayString( attackId, 0 ) or ""; end
+		table.insert( m_srActions, { callback = function() LuaEvents.SRA_AttackKey(); end } );
+		table.insert( plain, {
+			id = #m_srActions, name = "Attack", hotkey = hotkey, hotkeyButton = SRHotkeyButton( "Attack" ), disabled = false, reason = "",
+			detail = "Theological combat: attack a religious unit of another religion. Opens the list of targets.",
+			category = "INPLACE", tag = "SRA_RELIGIOUS_ATTACK", typeName = "SRA_RELIGIOUS_ATTACK" } );
+	end
 	-- Fortify / Sleep the engine accepts but the panel did not list (seen on a crossbowman that needed orders while
 	-- D and S worked): add them, so the menu matches the hotkeys.
 	if unit ~= nil and unit:GetOwner() == Game.GetLocalPlayer() and unit:IsReadyToMove() then
