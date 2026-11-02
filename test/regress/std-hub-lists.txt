@@ -1,0 +1,30 @@
+# Standard Rules: the hub lists answer (top panel, places, notifications, city report, empire overview, standing, unit actions, help list).
+# The top panel and the city report skip the era, favor, loyalty and power lines that only exist with Rise and Fall / Gathering Storm.
+# covers: **/TopPanelData.lua **/HubEmpire.lua **/CityReportGather.lua **/HubCityReport.lua **/HubAnnounce.lua **/HubHelp.lua **/HubPlaces.lua **/HubOverview.lua
+# suite: standard
+load standard-t60
+clear-advisors
+action KeyNavTopPanel -Settle 2000
+expect ^Top panel, \d+ options
+key Escape -Settle 1000
+action KeyNavPlaces -Settle 2000
+expect ^Places\.
+key Escape -Settle 1000
+action KeyNavNotifications -Settle 2000
+expect ^Notifications, \d+ options
+key Escape -Settle 1000
+action KeyNavCityReport -Settle 2500
+expect ^\S+ report, \d+ options
+key Escape -Settle 1000
+action KeyNavEmpire -Settle 2000
+expect ^Empire,
+key Escape -Settle 1000
+action KeyNavStanding -Settle 1500
+expect ^Among \d+ known civilizations
+action KeyNavUnitActions -Settle 2000
+expect actions, \d+ options
+key Escape -Settle 1000
+action KeyNavHelp -Settle 2000
+expect ^Accessibility help
+key Escape -Settle 1000
+no-lua-errors

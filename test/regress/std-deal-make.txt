@@ -1,0 +1,43 @@
+# Standard Rules: Make Deal lists real items on both sides (no Gathering Storm favor), an item can be added and removed, the Actions list is the
+# real one (Give Gift / What would you give me? / Never mind, no bogus Demand or RefuseDeal) and Give Gift is accepted.
+# Before: the deal view aborted while creating its panels, both lists said "nothing available" and Actions showed the raw XML buttons.
+# covers: **/SRA_DealView.lua **/DealSpeech.lua
+# suite: standard
+# no-share-load: opens a deal and gives a gift
+load standard-t60
+clear-advisors
+action KeyNavDiplomacy -Settle 2500
+expect ^Diplomacy, met civilizations
+key Enter -Settle 2500
+expect ^Diplomacy with
+key Down -Count 3 -Settle 500
+expect ^Make Deal
+key Enter -Settle 3500
+expect ^Deal with .*Deal is empty
+key Tab -Settle 800
+expect ^Your items, \d+ items
+expect ^Gold, \d+ available
+expect-not (?i)nothing
+key Tab -Settle 800
+expect ^Their items, \d+ items
+expect ^Gold, \d+ available
+expect-not (?i)favor
+key Enter -Settle 3000
+expect ^Added: They give: \d+ gold
+key Control+Tab -Settle 800
+expect ^Your items
+key Enter -Settle 3000
+expect ^Added: You give: \d+ gold
+key Control+Tab -Settle 800
+expect ^Deal, 2 items
+key Down -Settle 600
+key Delete -Settle 3000
+expect ^Removed: They give: \d+ gold
+expect (?i)gift
+key Tab -Count 3 -Settle 800
+expect ^Actions, \d+ items
+expect ^Give Gift
+expect-not (?i)demand|RefuseDeal
+key Enter -Settle 3000
+expect ^Deal accepted
+no-lua-errors

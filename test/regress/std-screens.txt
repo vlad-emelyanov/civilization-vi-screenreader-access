@@ -1,0 +1,47 @@
+# Standard Rules: the main screens open, speak and close (tech and civics tree, government, religion, great people, great works, trade routes,
+# world rankings, reports, city-states). A raw Lua error in a screen copy that assumes Gathering Storm would show in no-lua-errors.
+# covers: **/TechTree.lua **/CivicsTree.lua **/GovernmentScreen.lua **/ReligionScreen.lua **/GreatPeoplePopup.lua **/GreatWorksOverview.lua **/TradeOverview.lua **/WorldRankings.lua **/ReportScreen.lua **/CityStates.lua
+# suite: standard
+load standard-t60
+clear-advisors
+action ToggleTechTree -Settle 2500
+expect ^Tech tree\.
+key Escape -Settle 1500
+expect Tech tree closed
+action ToggleCivicsTree -Settle 2500
+expect ^Civics tree\.
+key Escape -Settle 1500
+expect Civics tree closed
+action ToggleGovernment -Settle 2500
+expect ^My government
+key Escape -Settle 1500
+expect Government closed
+action ToggleReligion -Settle 2000
+expect ^Religion\.
+key Escape -Settle 1500
+expect Religion closed
+action ToggleGreatPeople -Settle 2500
+expect ^Great People, \d+ available
+key Escape -Settle 1500
+expect Great People closed
+action KeyNavGreatWorks -Settle 2000
+expect ^Great Works:
+key Escape -Settle 1500
+expect Great Works closed
+action ToggleTradeRoutes -Settle 2500
+expect ^Trade routes:
+key Escape -Settle 1500
+expect Trade routes closed
+action ToggleRankings -Settle 2500
+expect ^World Rankings
+key Escape -Settle 1500
+expect World Rankings closed
+action KeyNavReports -Settle 2500
+expect ^Reports\.
+key Escape -Settle 1500
+expect Reports closed
+action ToggleCityStates -Settle 2500
+expect ^City-States, \d+ met
+key Escape -Settle 1500
+expect City-States closed
+no-lua-errors

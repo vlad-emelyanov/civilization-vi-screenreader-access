@@ -1,0 +1,7 @@
+turn: 60
+civ: CIVILIZATION_ROME / LEADER_TRAJAN
+profile: -
+purpose: standard-t60 with every unit skipped / trader sent to Kandy: only the civic and Antium production blockers are left (std-end-turn)
+mod commit: 3fa9283
+created: 2026-11-02
+size: 871 KB

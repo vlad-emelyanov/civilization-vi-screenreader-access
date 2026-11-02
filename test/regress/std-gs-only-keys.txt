@@ -1,0 +1,13 @@
+# Standard Rules: a key of a Gathering Storm-only screen answers in words instead of staying silent (Control+E era progress; Espionage is a civic gate, not a rule set one).
+# The game itself never delivers the F10 governors / F11 timeline / Page Down climate / 0 power lens hotkeys in such a game, see docs/engine-notes.md.
+# covers: **/HubScreens.lua **/InGameAccess.lua **/LaunchBar.lua **/PartialScreenHooks.lua
+# suite: standard
+load standard-t60
+clear-advisors
+action KeyNavEraProgress -Settle 1500
+expect ^Era progress is not part of this game
+action ToggleEspionage -Settle 1500
+expect ^Espionage is not available yet
+lua InGame return tostring(Game.GetEras)
+expect-lua ^nil$
+no-lua-errors

@@ -1,0 +1,13 @@
+# Standard Rules game (Gathering Storm OFF, fixture standard-t60): loading it raises no Lua error in any context and the rule set really is Standard.
+# Before: SRA_DealView.lua:333 raised at context load (AvailableDealItemGroupTypes.FAVOR is nil without the Expansion2 companion file).
+# covers: **/SRA_DealView.lua **/HubAnnounce.lua **/HubPlacement.lua **/HubScreens.lua
+# suite: standard
+# own-load: checks what the load itself raises
+load standard-t60
+clear-advisors
+expect ^Turn 60
+lua InGame return GameConfiguration.GetRuleSet()
+expect-lua ^RULESET_STANDARD$
+lua InGame return tostring(Game.GetWorldCongress)
+expect-lua ^nil$
+no-lua-errors

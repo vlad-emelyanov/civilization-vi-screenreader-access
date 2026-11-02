@@ -1,0 +1,20 @@
+# Standard Rules: a deal the AI proposes (set up the way docs/engine-notes.md describes: no diplomacy session) lists both sides, the Actions list is
+# Accept Deal / Refuse Deal, and Refuse Deal closes it.
+# Before: the deal view had no item groups and no button callbacks under Standard Rules.
+# covers: **/SRA_DealView.lua **/DealSpeech.lua
+# suite: standard
+# no-share-load: fills the working deal of the deal view
+load standard-t60
+clear-advisors
+lua DiplomacyDealView ms_OtherPlayerID = 2; ms_InitiatedByPlayerID = 2; local d = DealManager.GetWorkingDeal(DealDirection.INCOMING, 0, 2); local a = d:AddItemOfType(DealItemTypes.GOLD, 2); a:SetAmount(50); a:SetDuration(0); local b = d:AddItemOfType(DealItemTypes.GOLD, 0); b:SetAmount(10); b:SetDuration(0); ContextPtr:SetHide(false)
+wait offers a deal -Timeout 15
+expect offers a deal.*You give: 10 gold.*They give: 50 gold
+expect Accept Deal.*Refuse Deal
+# the screen opens with the focus on Actions
+key Down -Settle 600
+expect ^Refuse Deal
+key Enter -Settle 2500
+expect ^Enter again to choose Refuse Deal
+key Enter -Settle 2500
+expect (?i)deal closed|refused
+no-lua-errors

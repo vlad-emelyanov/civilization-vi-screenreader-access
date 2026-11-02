@@ -1,0 +1,22 @@
+# Standard Rules: a whole turn like a player ends it: Enter chooses the civic and the production, Enter ends the turn, the next turn's announcements run
+# without a Lua error (turn-start code that touches eras, favor, loyalty or the World Congress would raise here).
+# Fixture standard-t60-orders = standard-t60 with every unit skipped, so only the civic and the production of Antium block the turn.
+# covers: **/HubAnnounce.lua **/HubEvents.lua **/NotificationPanel.lua **/ProductionPanel.lua **/CivicsChooser.lua
+# suite: standard
+# no-share-load: ends the turn
+load standard-t60-orders
+clear-advisors
+key Enter -Settle 1500
+expect ^Choose Civic, \d+ options
+key Enter -Settle 1500
+expect ^Progressing
+key Enter -Settle 1500
+expect choose production
+key Home -Settle 600
+key Enter -Settle 2000
+expect ^Producing
+key Enter -Settle 3000
+expect Turn ended
+wait Turn 61 -Timeout 90
+expect ^Turn 61
+no-lua-errors

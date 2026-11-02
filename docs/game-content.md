@@ -22,6 +22,10 @@ Re-check: load a game, then grep `Modding.log` for the Target Mods block; for a 
 | Game mode Tech and Civic Shuffle | parameter `GameMode_Tree_Randomizer` |
 | Free scenarios | listed above |
 
+## Rule sets
+
+Gathering Storm is a rule set choice of the game setup (`Ruleset`: `RULESET_EXPANSION_2` or `RULESET_STANDARD`). A multiplayer game can use Standard Rules, where no World Congress, eras, favor, climate, governors, loyalty or power exist; the mod must work there too (`civctl newgame standard`, regress `# suite: standard`, see features.md Diplomacy and deals).
+
 ## Not available
 
 | Content | Folder |
