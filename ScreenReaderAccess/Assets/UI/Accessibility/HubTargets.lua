@@ -1674,6 +1674,10 @@ function HubTargets.AttackKey()
 		OutputMessageToScreenReader( name .. " has no moves left" );
 		return;
 	end
+	if religious and unit:GetAttacksRemaining() <= 0 then
+		OutputMessageToScreenReader( name .. " has no attacks left" );
+		return;
+	end
 	local row:table = GameInfo.Units[ unit:GetUnitType() ];
 	if religious then
 		m_attackIntent = true;
