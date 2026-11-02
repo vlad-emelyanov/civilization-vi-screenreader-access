@@ -1,5 +1,5 @@
-# Standard Rules: a key of a Gathering Storm-only screen answers in words instead of staying silent (Control+E era progress; Espionage is a civic gate, not a rule set one).
-# The game itself never delivers the F10 governors / F11 timeline / Page Down climate / 0 power lens hotkeys in such a game, see docs/engine-notes.md.
+# Standard Rules: a key of a Gathering Storm-only screen answers in words instead of staying silent. This script tests only Control+E (era progress) and the espionage gate (Espionage is a civic gate, not a rule set one).
+# NOT testable: F10 governors, F11 timeline, Page Down climate, LensPower and LensLoyalty. The engine never delivers their input action in such a game, so the keys are silent (docs/engine-notes.md, docs/backlog.md).
 # covers: **/HubScreens.lua **/InGameAccess.lua **/LaunchBar.lua **/PartialScreenHooks.lua
 # suite: standard
 load standard-t60
