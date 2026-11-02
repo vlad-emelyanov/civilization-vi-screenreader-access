@@ -330,7 +330,14 @@ function CreatePlayerAvailablePanel(playerType : number, rootControl : table)
 
 	--local playerPanel = ms_PlayerPanelIM:GetInstance(rootControl);
 
-	g_AvailableGroups[AvailableDealItemGroupTypes.GOLD][playerType]				= g_AvailableGroups[AvailableDealItemGroupTypes.FAVOR][playerType];
+	-- ScreenReaderAccess: AvailableDealItemGroupTypes.FAVOR only exists when the Expansion2 companion file (DiplomacyDealView_Expansion2.lua) was
+	-- loaded, i.e. with the Gathering Storm ruleset. Under Standard Rules the gold group is a plain horizontal group.
+	if AvailableDealItemGroupTypes.FAVOR ~= nil then
+		g_AvailableGroups[AvailableDealItemGroupTypes.GOLD][playerType]				= g_AvailableGroups[AvailableDealItemGroupTypes.FAVOR][playerType];
+	else
+		g_AvailableGroups[AvailableDealItemGroupTypes.GOLD][playerType]				= CreateHorizontalGroup(rootControl);
+	end
+
 	g_AvailableGroups[AvailableDealItemGroupTypes.LUXURY_RESOURCES][playerType]	= CreateHorizontalGroup(rootControl, "LOC_DIPLOMACY_DEAL_LUXURY_RESOURCES");
 	g_AvailableGroups[AvailableDealItemGroupTypes.STRATEGIC_RESOURCES][playerType] = CreateHorizontalGroup(rootControl, "LOC_DIPLOMACY_DEAL_STRATEGIC_RESOURCES");
 	g_AvailableGroups[AvailableDealItemGroupTypes.AGREEMENTS][playerType]			= CreateVerticalGroup(rootControl, "LOC_DIPLOMACY_DEAL_AGREEMENTS");
