@@ -44,7 +44,7 @@ globals = {
 	"KeyNavLeftClick", "KeyNavList_Create", "KeyNavList_ShortList", "KeyNavList_HoldStart", "KeyNavList_HoldCheck", "KeyNavList_UnhandledKeyText", "KeyNavList_SayUnhandledKey", "KeyNavMoveFocus", "KeyNavMoveMouse",
 	"KeyNavMoveMouseToScreen", "KeyNavPageText", "KeyNavScrollIntoView", "KeyNavSetup_BuildParameterItems",
 	"KeyNavSetup_ButtonItem", "KeyNavSetup_GetDriver", "KeyNavSetup_GetOptions", "KeyNavSetup_GetValueByOffset",
-	"KeyNavSetup_IsUsable", "KeyNavSetup_LeaderItem", "KeyNavSetup_MapItem", "KeyNavSetup_NewController",
+	"KeyNavSetup_IsUsable", "KeyNavSetup_LeaderItem", "KeyNavSetup_ListingHasPlayer", "KeyNavSetup_MapItem", "KeyNavSetup_NewController",
 	"KeyNavSetup_OpenPicker", "KeyNavSetup_ParameterItem", "KeyNavSetup_PulldownItem", "KeyNavSetup_SectionPrefix",
 	"KeyNavSetup_SortByPosition", "KeyNavSetup_LeaderOptionName", "KeyNavSetup_LeaderDetail", "GetPlayerInfo", "KeyNavToggleDontShow", "KeyNav_Tick", "ExposedMembers", "OutputMessageToScreenReader", "SRSpeechCount", "SRChooserNextKey", "SRRequestQueueBehind", "SRTakeQueueBehind", "SRKey", "SRAvailableFirst", "SRPadHint", "SRKbHint", "SRActionResultText", "SRPlotResourceHidden", "SRHiddenHarvestSentence", "SRStripHiddenHarvest", "SRMenuRank", "SRTribalVillageReason", "SRGreatPersonActivateName", "SRFoundReligionRefusal", "SRTryFoundReligionHotkey", "SRCursorKeysText",
 	"DistrictAdvice_Line", "DistrictAdvice_BestSpot", "DistrictAdvice_Entry", "DistrictAdvice_Spots",

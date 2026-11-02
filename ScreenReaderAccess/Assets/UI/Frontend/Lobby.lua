@@ -403,12 +403,75 @@ end
 ----------------------------------------------------------------        
 -- Input Handler
 ----------------------------------------------------------------        
--- Keyboard navigation: this screen is only a gateway to Host Game and Load Game (the server list is not covered), so the
--- focusable items are Host Game, Load Game and Back.
+-- Keyboard navigation, in list order: Host Game, Load Game, Refresh, online friends, listed games, Back. Up from the first
+-- item reaches Back at once, however long the game list is. The game has no "join friend" call: the only way in is
+-- Network.JoinGame on a listed game, so Enter on a friend joins the listed game they are in. Private games are not listed.
+local m_keyNavSayGameCount:boolean = false;	-- Refresh was pressed: say the count when the list is complete
+
+local function KeyNavJoinListing( listing:table )
+	if not CheckServerVersion(listing.ServerID) then
+		OutputMessageToScreenReader("Cannot join, this game runs a different game version", false);
+		return;
+	end
+	OutputMessageToScreenReader("Joining "..CleanTextForSpeech(listing.ServerName), false);
+	SelectAndJoinGame(listing.ServerID);
+end
+
+local function KeyNavFriendListing( name:string )
+	for _, listing in ipairs(g_Listings) do
+		if KeyNavSetup_ListingHasPlayer(name, listing.ServerName, listing.MembersLabelToolTip) then return listing; end
+	end
+	return nil;
+end
+
+local function KeyNavAddFriends( items:table )
+	local friends:table = GetFriendsList(FlippedFriendsSortFunction);
+	for i, friend in ipairs(friends) do
+		local name:string = friend.PlayerName;
+		local status:string = Locale.Lookup(friend.PlayingCiv and friend.RichPresence or "LOC_PRESENCE_ONLINE");
+		table.insert(items, { control = Controls.FriendsScrollPanel, kind = "button", key = "friend:"..tostring(friend.ID),
+			getText = function()
+				local text:string = CleanTextForSpeech(name)..", "..CleanTextForSpeech(status);
+				if KeyNavFriendListing(name) ~= nil then text = text..", "..SRKey("Enter").." to join"; end
+				return text..", friend "..tostring(i).." of "..tostring(#friends);
+			end,
+			activate = function()
+				local listing:table = KeyNavFriendListing(name);
+				if listing ~= nil then
+					KeyNavJoinListing(listing);
+				else
+					OutputMessageToScreenReader(CleanTextForSpeech(name).." has no game in this list. Refresh, or ask for an invite if the game is private", false);
+				end
+			end });
+	end
+end
+
+local function KeyNavAddGames( items:table )
+	for i, listing in ipairs(g_Listings) do
+		local id:number = listing.ServerID;
+		table.insert(items, { control = Controls.ListingScrollPanel, kind = "button", key = "game:"..tostring(id),
+			getText = function()
+				local text:string = CleanTextForSpeech(listing.ServerName)..", "..tostring(listing.MembersLabelCaption).." players";
+				if listing.SavedGame == 1 or listing.SavedGame == true then text = text..", saved game"; end
+				if listing.MapName ~= nil then text = text..", "..CleanTextForSpeech(listing.MapName); end
+				return text..", game "..tostring(i).." of "..tostring(#g_Listings);
+			end,
+			activate = function() KeyNavJoinListing(listing); end });
+	end
+end
+
 local function KeyNavBuildItems()
 	local items:table = {};
 	if KeyNavSetup_IsUsable(Controls.HostButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.HostButton, OnHostButtonClick)); end
 	if KeyNavSetup_IsUsable(Controls.LoadGameButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadGameButton, OnLoadButtonClick)); end
+	if KeyNavSetup_IsUsable(Controls.RefreshButton) then
+		table.insert(items, KeyNavSetup_ButtonItem(Controls.RefreshButton, function()
+			m_keyNavSayGameCount = true;
+			OnRefreshButtonClick();
+		end));
+	end
+	KeyNavAddFriends(items);
+	KeyNavAddGames(items);
 	table.insert(items, KeyNavSetup_ButtonItem(Controls.BackButton, OnBackButtonClick));
 	return items;
 end
@@ -480,6 +543,13 @@ function OnGameListComplete(eLobbyType, eSearchType)
 		if(IsGameListBatchUpdating()) then
 			-- Batch update of game list is complete.  We need to display it now.
 			SortAndDisplayListings(true);
+		end
+
+		-- Keyboard navigation: a pressed Refresh ends with the number of games.
+		if m_keyNavSayGameCount then
+			m_keyNavSayGameCount = false;
+			local count:number = #g_Listings;
+			OutputMessageToScreenReader(count == 0 and "No games found" or (count == 1 and "1 game" or count.." games"), false);
 		end
 	end
 end

@@ -111,6 +111,19 @@ function KeyNavSetup_ButtonItem( control:object, activate, message:string )
 	};
 end
 
+-- Is this player in a game of the lobby list? serverName is the default "Name's Game" of the host, players the listing's
+-- MembersLabelToolTip: names separated by [NEWLINE], the last one can still end in its "@id".
+function KeyNavSetup_ListingHasPlayer( name:string, serverName:string, players:string )
+	if name == nil or name == "" then return false; end
+	if serverName ~= nil and serverName:sub(1, #name) == name and not serverName:sub(#name + 1, #name + 1):match("[%w_]") then
+		return true;
+	end
+	for player in ((players or "").."[NEWLINE]"):gmatch("(.-)%[NEWLINE%]") do
+		if (player:gsub("@.*$", "")) == name then return true; end
+	end
+	return false;
+end
+
 function KeyNavSetup_PulldownItem( control:object, parameter:table, label:string )
 	return {
 		control = control, kind = "pulldown", label = label, focusSuffix = PulldownHint(),
