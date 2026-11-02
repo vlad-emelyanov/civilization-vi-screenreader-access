@@ -20,7 +20,7 @@ Lessons from implementing keynav on the main menu, Create Game, Advanced Setup a
 | Enter / Space | toggle checkbox |
 | Escape | back / close submenu / close popup |
 
-Announcement formats: `"<Label>: <value>"` for options, `"<Label>: checked|unchecked"` for checkboxes, the button's own text for buttons, `"<Section>, <Label>: <value>"` where a section name disambiguates (Advanced Setup). Read labels from the parameter/control text, not hardcoded strings (localization).
+Announcement formats: `"<value>, <Label>"` for options (value first, `KeyNavSetup_ValueText`), `"<Label>: checked|unchecked"` for checkboxes (`KeyNavSetup_CheckText`), the button's own text for buttons; a section name that disambiguates goes last (`"Science Victory: checked, Victory Conditions"`). Left/Right and Space say only the new value (item `valueText`). Read labels from the parameter/control text, not hardcoded strings (localization).
 
 ## Patterns that work
 

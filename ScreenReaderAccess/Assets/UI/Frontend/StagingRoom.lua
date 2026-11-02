@@ -3588,7 +3588,7 @@ local function RowControlItems( pid:number )
 		local slotStatus0:number = cfg:GetSlotStatus();
 		Add({
 			control = slotPulldown, kind = "pulldown", label = "Slot type", focusSuffix = ", dropdown, " .. SRKey( "Enter" ) .. " to change",
-			getText = function() return "Slot type: "..SlotTypeName(PlayerConfigurations[pid]:GetSlotStatus()); end,
+			getText = function() return KeyNavSetup_ValueText(SlotTypeName(PlayerConfigurations[pid]:GetSlotStatus()), "Slot type"); end,
 			-- The slot is still shown and has the status it had when the list was opened (a human may have taken it).
 			validate = function() return RowVisible(pid) and PlayerConfigurations[pid]:GetSlotStatus() == slotStatus0; end,
 			getOptions = function()
@@ -3640,7 +3640,8 @@ local function RowControlItems( pid:number )
 	if RowIsActive(pid) and not entry.TeamPullDown:IsHidden() and KeyNavSetup_IsUsable(entry.TeamPullDown) then
 		local item:table = {
 			control = entry.TeamPullDown, kind = "pulldown", label = "Team", focusSuffix = ", dropdown, " .. SRKey( "Left/Right" ) .. " or " .. SRKey( "Enter" ) .. " to change",
-			getText = function() return "Team: "..TeamLabel(PlayerConfigurations[pid]:GetTeam()); end,
+			getText = function() return KeyNavSetup_ValueText(TeamLabel(PlayerConfigurations[pid]:GetTeam()), "Team"); end,
+			valueText = function() return TeamLabel(PlayerConfigurations[pid]:GetTeam()); end,
 			validate = function() return RowVisible(pid) and RowIsActive(pid); end,
 			getOptions = function() return TeamOptions(pid); end,
 			apply = function( v ) OnTeamPull(pid, v.teamID); end,
@@ -3672,7 +3673,11 @@ local function RowControlItems( pid:number )
 		};
 		item.getText = function()
 			local options:table, current:number = item.getOptions();
-			return "Color: "..tostring(current).." of "..tostring(#options);
+			return KeyNavSetup_ValueText(tostring(current).." of "..tostring(#options), "Color");
+		end;
+		item.valueText = function()
+			local options:table, current:number = item.getOptions();
+			return tostring(current).." of "..tostring(#options);
 		end;
 		StepByOptions(item);
 		Add(item, "color");
