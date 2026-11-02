@@ -5,7 +5,7 @@
 -- and the global g_GameParameters of the setup logic (GameSetupLogic / PlayerSetupLogic).
 --
 -- 1. Item constructors. An item is { control, kind, key, getText(), step(delta), toggle(), activate(), getOptions(), apply(v),
---    focusSuffix, mouseTarget, panel, stack } where kind is "button", "pulldown", "popup", "slider", "checkbox" or "edit".
+--    valueText() (the value alone, spoken after Left/Right or Space), section, focusSuffix, mouseTarget, panel, stack } where kind is "button", "pulldown", "popup", "slider", "checkbox" or "edit".
 --      KeyNavSetup_ButtonItem(control, activate, message)
 --      KeyNavSetup_PulldownItem(control, parameter, label)               pulldown backed by a setup parameter
 --      KeyNavSetup_LeaderItem(control, playerParams, leaderParam, label) leader / civilization pulldown of a player
@@ -14,7 +14,7 @@
 --      KeyNavSetup_BuildParameterItems(params, panel, stack, opts)       all visible parameters, sorted by screen position
 --    opts: { openMap = fn (opens the Map Select popup, for a "Map" parameter that is a button), section = false (no section prefix),
 --            kinds = { slider = true, ... } (only items of these kinds) }
---    Helpers: KeyNavSetup_IsUsable, KeyNavSetup_SortByPosition, KeyNavSetup_SectionPrefix, KeyNavSetup_GetDriver,
+--    Helpers: KeyNavSetup_ValueText(value, field, section) / KeyNavSetup_CheckText(field, checked, section) (the spoken form), KeyNavSetup_IsUsable, KeyNavSetup_SortByPosition, KeyNavSetup_SectionPrefix, KeyNavSetup_GetDriver,
 --    KeyNavSetup_OpenPicker(pid, parameter), KeyNavSetup_GetOptions(parameter), KeyNavSetup_GetValueByOffset(parameter, offset).
 --
 -- 2. KeyNavSetup_NewController(cfg): focus tracking, announcements, scrolling, deferred mouse moves, the pulldown selection
@@ -31,6 +31,22 @@
 
 local function PulldownHint()
 	return ", dropdown, " .. SRKey( "Left/Right" ) .. " or " .. SRKey( "Enter" ) .. " to change";
+end
+
+-- Text of a field with a value, value first ("lead with what differs"): "Prince, Difficulty", with the section after the
+-- content ("Prince, Difficulty, Victory Conditions"). An empty value leaves just the field.
+function KeyNavSetup_ValueText( value:string, field:string, section:string )
+	local text:string = field or "";
+	if value ~= nil and value ~= "" then text = value..", "..text; end
+	if section ~= nil and section ~= "" then text = text..", "..section; end
+	return text;
+end
+
+-- Checkbox: the field is what differs, so it leads: "Science Victory: checked, Victory Conditions".
+function KeyNavSetup_CheckText( field:string, checked:boolean, section:string )
+	local text:string = field..": "..(checked and "checked" or "unchecked");
+	if section ~= nil and section ~= "" then text = text..", "..section; end
+	return text;
 end
 
 function KeyNavSetup_IsUsable( control:object )
@@ -125,10 +141,15 @@ function KeyNavSetup_ListingHasPlayer( name:string, serverName:string, players:s
 end
 
 function KeyNavSetup_PulldownItem( control:object, parameter:table, label:string )
-	return {
+	local item:table;
+	item = {
 		control = control, kind = "pulldown", label = label, focusSuffix = PulldownHint(),
+		valueText = function()
+			if item.optionText ~= nil and parameter.Value then return item.optionText(parameter.Value); end
+			return parameter.Value and tostring(parameter.Value.Name) or "";
+		end,
 		getText = function()
-			return label..": "..(parameter.Value and tostring(parameter.Value.Name) or "");
+			return KeyNavSetup_ValueText(item.valueText(), label, item.section);
 		end,
 		getOptions = function() return KeyNavSetup_GetOptions(parameter); end,
 		apply = function( v )
@@ -143,6 +164,7 @@ function KeyNavSetup_PulldownItem( control:object, parameter:table, label:string
 			end
 		end,
 	};
+	return item;
 end
 
 -- Leader entry of the selection list: "Pericles, Greece". The civilization is left out for the random entries (no info) and
@@ -217,12 +239,14 @@ end
 
 function KeyNavSetup_MapItem( control:object, params:table, label:string, activate )
 	local parameter:table = params["Map"];
-	return {
+	local item:table;
+	local function ValueName()
+		return tostring(parameter.Value and parameter.Value.Name or control:GetText());
+	end
+	item = {
 		control = control, kind = "popup", activate = activate,
-		getText = function()
-			local name:string = parameter.Value and parameter.Value.Name or control:GetText();
-			return label..": "..tostring(name);
-		end,
+		valueText = ValueName,
+		getText = function() return KeyNavSetup_ValueText(ValueName(), label, item.section); end,
 		step = function( delta )
 			local v = KeyNavSetup_GetValueByOffset(parameter, delta);
 			if v ~= nil then
@@ -231,9 +255,10 @@ function KeyNavSetup_MapItem( control:object, params:table, label:string, activa
 			end
 		end,
 	};
+	return item;
 end
 
--- Parameters of these groups are announced with their section name, e.g. "Victory Conditions, Science Victory: checked".
+-- Parameters of these groups are announced with their section name after the content, e.g. "Science Victory: checked, Victory Conditions".
 function KeyNavSetup_SectionPrefix( parameter:table )
 	if parameter.GroupId == "Victories" then
 		return Locale.Lookup("LOC_SETUP_VICTORY_CONDITIONS");
@@ -292,9 +317,11 @@ local function BuildParameterItem( pid:string, parameter:table, c:table, label:s
 	opts = opts or {};
 	if c.OptionSlider ~= nil then
 		if parameter.Value ~= nil and c.Root ~= nil and not c.Root:IsHidden() and not c.OptionSlider:IsHidden() and parameter.Values ~= nil then
-			return {
+			local item:table;
+			item = {
 				control = c.OptionSlider, mouseTarget = c.OptionTitle, kind = "slider", focusSuffix = ", slider, minimum "..tostring(parameter.Values.MinimumValue)..", maximum "..tostring(parameter.Values.MaximumValue),
-				getText = function() return label..": "..tostring(parameter.Value); end,
+				valueText = function() return tostring(parameter.Value); end,
+				getText = function() return KeyNavSetup_ValueText(tostring(parameter.Value), label, item.section); end,
 				step = function( delta )
 					local newValue:number = math.max(parameter.Values.MinimumValue, math.min(parameter.Values.MaximumValue, parameter.Value + delta));
 					if newValue ~= parameter.Value then
@@ -303,17 +330,21 @@ local function BuildParameterItem( pid:string, parameter:table, c:table, label:s
 					end
 				end,
 			};
+			return item;
 		end
 	elseif c.CheckBox ~= nil then
 		if parameter.Value ~= nil and KeyNavSetup_IsUsable(c.CheckBox) then
-			return {
+			local item:table;
+			item = {
 				control = c.CheckBox, kind = "checkbox",
-				getText = function() return label..": "..(parameter.Value and "checked" or "unchecked"); end,
+				valueText = function() return parameter.Value and "checked" or "unchecked"; end,
+				getText = function() return KeyNavSetup_CheckText(label, parameter.Value, item.section); end,
 				toggle = function()
 					g_GameParameters:SetParameterValue(parameter, not parameter.Value);
 					Network.BroadcastGameConfig();
 				end,
 			};
+			return item;
 		end
 	elseif c.StringEdit ~= nil then
 		local editRoot:object = c.StringRoot or c.Root or c.StringEdit;
@@ -338,11 +369,13 @@ local function BuildParameterItem( pid:string, parameter:table, c:table, label:s
 			if pid == "Map" and opts.openMap ~= nil then
 				return KeyNavSetup_MapItem(c.Button, g_GameParameters.Parameters, label, opts.openMap);
 			end
-			return {
+			local item:table;
+			item = {
 				control = c.Button, kind = "popup",
-				getText = function() return label..": "..tostring(c.Button:GetText()); end,
+				getText = function() return KeyNavSetup_ValueText(tostring(c.Button:GetText()), label, item.section); end,
 				activate = function() if not KeyNavSetup_OpenPicker(pid, parameter, opts.openMap) then KeyNavLeftClick(); end end,
 			};
+			return item;
 		end
 	end
 	return nil;
@@ -368,9 +401,9 @@ function KeyNavSetup_BuildParameterItems( params:table, panel:object, stack:obje
 			local c:table = driver and driver.Control or nil;
 			if type(c) == "table" and (parameter.Value ~= nil or c.Button ~= nil or c.StringEdit ~= nil) then
 				local section:string = (opts.section ~= false) and KeyNavSetup_SectionPrefix(parameter) or nil;
-				local label:string = section and (section..", "..tostring(parameter.Name)) or tostring(parameter.Name);
-				local item:table = KeyNavSetup_ParameterItem(pid, parameter, c, label, opts);
+				local item:table = KeyNavSetup_ParameterItem(pid, parameter, c, tostring(parameter.Name), opts);
 				if item ~= nil then
+					item.section = section;
 					item.key = "param:"..pid;
 					item.panel = panel;
 					item.stack = stack;
@@ -589,7 +622,9 @@ function KeyNavSetup_NewController( cfg:table )
 			local item:table = nav.FindFocused();
 			if item ~= nil and item.step ~= nil then
 				item.step(key == Keys.VK_LEFT and -1 or 1);
-				OutputMessageToScreenReader(item.getText(), false);
+				-- Only what changed: the new value (the field was said when the item got focus).
+				local value:string = item.valueText ~= nil and item.valueText() or "";
+				OutputMessageToScreenReader(value ~= "" and value or item.getText(), false);
 			end
 		elseif key == Keys.VK_RETURN or key == Keys.VK_SPACE then
 			local item:table = nav.FindFocused();
@@ -598,7 +633,8 @@ function KeyNavSetup_NewController( cfg:table )
 					OpenSelection(item);
 				elseif item.kind == "checkbox" then
 					item.toggle();
-					OutputMessageToScreenReader(item.getText(), false);
+					local value:string = item.valueText ~= nil and item.valueText() or "";
+					OutputMessageToScreenReader(value ~= "" and value or item.getText(), false);
 				elseif key == Keys.VK_RETURN and item.kind == "button" and item.control ~= nil and item.control:IsDisabled() then
 					OutputMessageToScreenReader(item.getText(), false);	-- disabled: only say why
 				elseif key == Keys.VK_RETURN and (item.kind == "button" or item.kind == "popup" or item.kind == "edit") then

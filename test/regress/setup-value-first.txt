@@ -1,0 +1,33 @@
+# UNVERIFIED: written blind, first run with --record. Create Game fields lead with the value ("Prince, Difficulty, dropdown, ..."), Left/Right say only the new value, the selection list names the field first, Escape/Enter read "<value>, <field>".
+# covers: **/KeyNavSetup.lua **/AdvancedSetup.lua
+# no-share-load: starts from the MAIN MENU (no fixture), leaves the game on the Create Game screen
+# Start: the game sits at the main menu with the first item (Single Player) focused. Field order of Create Game is not asserted, only the forms.
+key Enter -Settle 2000
+key Down -Settle 600
+expect (?i)create game
+key Enter -Settle 3000
+expect (?i)create game|game setup|^[^,]+, [^,]+
+key Down -Settle 800
+expect (?i)^[^:]+, [^,:]+, dropdown, Left/Right or Enter to change
+expect-not (?i)^[^,]+: [^,]+, dropdown
+key Down -Settle 800
+expect (?i)^[^:]+, [^,:]+, dropdown, Left/Right or Enter to change
+key Right -Settle 800
+expect (?i)^[^,:]+$
+expect-not (?i)dropdown
+key Left -Settle 800
+expect (?i)^[^,:]+$
+key Enter -Settle 1000
+expect (?i)^[^:]+, [^,]+, \d+ of \d+\. Up/Down to choose, Enter to select, Escape to cancel
+key Down -Settle 600
+expect (?i), \d+ of \d+$
+key Escape -Settle 1000
+expect (?i)^Cancelled, [^:]+, [^,:]+$
+key Enter -Settle 1000
+key Down -Settle 600
+key Enter -Settle 1000
+expect (?i)^[^:]+, [^,:]+$
+expect-not (?i)^Cancelled
+# Back to the main menu without starting a game.
+key Escape -Settle 2000
+no-lua-errors
