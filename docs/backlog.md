@@ -18,6 +18,8 @@ Every known open item, one bullet each: why it matters, where to look. Current b
 - **Keyboard path for the production Manager tab** (`Panels/ProductionPanel.lua`).
 - **Small speech gaps from play-tests:** WMD/ICBM target modes still use a click (the direct call would skip the game's confirm popup and the war check with the WMD type). A pillaged Library blocking Great Library is not said at pillage time (only the production list reason, code only).
 - **Silent or thin popups:** Suleiman "remove your spies" popup and Escape behaviour unchecked; advisor re-shown over a completed popup not reached.
+- **Standard Rules: silent keys:** the engine never delivers `InputActionTriggered` for F10 governors, F11 timeline, Page Down climate, LensPower and LensLoyalty, so these keys are silent. The only route is raw-key handling in `Hub.HandleInput` (`InGameAccess.lua`); see `docs/engine-notes.md`.
+- **Religious units are invisible to plot lookups:** `Units.GetUnitsInPlot` omits them, so the map cursor and the many plot lookups never name a religious unit outside the attack flow (`HubCursor.lua:265,399`, `PlotDescription.lua:106` and others). Also untested: Inquisitor attack, a killing blow, theological combat while at war.
 
 ## Unverified in game (code and unit tests only)
 
