@@ -1,4 +1,4 @@
-"""Offline tests: `regress changed` selection, expect-lua, timing breakdown, endturn blocker text, key aliases, advance check."""
+﻿"""Offline tests: `regress changed` selection, expect-lua, timing breakdown, endturn blocker text, key aliases, advance check."""
 import contextlib
 import io
 import os
@@ -220,3 +220,119 @@ class KeyAliasTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SuiteTests(unittest.TestCase):
+    FILES = {
+        "main-a": "# covers: **/A.lua\nload f\nkey A\n",
+        "std-b": "# suite: standard\n# covers: **/B.lua\nload g\nkey A\n",
+        "std-man": "# suite: standard\n# manual\nload g\nkey A\n",
+        "man-c": "# manual\nload f\nkey A\n",
+    }
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        for n, t in self.FILES.items():
+            with open(os.path.join(self.tmp.name, n + ".txt"), "w", encoding="utf-8") as f:
+                f.write(t)
+        self.old_dir = cr.REGRESS_DIR
+        cr.REGRESS_DIR = self.tmp.name
+
+    def tearDown(self):
+        cr.REGRESS_DIR = self.old_dir
+        self.tmp.cleanup()
+
+    def names(self, *a, **k):
+        return [n for n, _ in cr.discover(*a, **k)]
+
+    def test_header_parse(self):
+        self.assertEqual(script("key A").suite, "main")
+        self.assertEqual(script("# suite: standard\nkey A").suite, "standard")
+        with self.assertRaises(cr.ScriptError):
+            script("# suite: bogus\nkey A")
+
+    def test_all_excludes_standard(self):
+        self.assertEqual(self.names([]), ["main-a"])
+        self.assertEqual(self.names(["all"]), ["main-a"])
+
+    def test_standard_selection_respects_manual(self):
+        self.assertEqual(self.names([], "standard"), ["std-b"])
+
+    def test_named_script_runs_regardless_of_suite(self):
+        self.assertEqual(self.names(["std-man"]), ["std-man"])
+        self.assertEqual(self.names(["man-c"]), ["man-c"])
+
+    def test_changed_reports_standard_scripts(self):
+        main = cr.discover([])
+        std = cr.discover([], "standard")
+        log = []
+        old = (cr.git_changed_since, cr.git_out)
+        cr.git_changed_since = lambda base: [MOD + "UI/B.lua"]
+        cr.git_out = lambda args: []
+        try:
+            got = cr.select_for_changed(main, "abc", out=log.append, standard=std)
+        finally:
+            cr.git_changed_since, cr.git_out = old
+        self.assertNotIn("std-b", [n for n, _ in got])
+        self.assertIn("standard suite: 1 scripts cover these changes, run: civctl regress standard", log)
+
+    def run_main(self, args):
+        class R:
+            ok = True
+            passed = 1
+            failed = 0
+            aborted = skipped_all = flaky = second_attempt_failed = False
+        written = []
+        names = ("run_with_test_options", "write_last_green", "git_head", "acquire_run_lock", "release_run_lock",
+                 "Progress", "write_timing", "CivctlRunner", "timing_table", "breakdown_total", "load_cost_per_fixture")
+        saved = {k: getattr(cr, k) for k in names}
+
+        class P:
+            finished = 1
+
+            def __init__(self, scripts, share, label, retry=False):
+                written.append(("label", label))
+
+            def end(self, text):
+                pass
+
+        class Rn:
+            def __init__(self, **k):
+                pass
+
+            def close(self):
+                pass
+        cr.run_with_test_options = lambda scripts, *a, **k: [R() for _ in scripts]
+        cr.write_last_green = lambda rev, d=None: written.append(("green", rev)) or "p"
+        cr.git_head = lambda: "deadbeef00"
+        cr.acquire_run_lock = lambda d=None: (True, "lock")
+        cr.release_run_lock = lambda p: None
+        cr.Progress, cr.CivctlRunner = P, Rn
+        cr.write_timing = lambda *a, **k: []
+        cr.timing_table = lambda r: []
+        cr.breakdown_total = lambda r: ""
+        cr.load_cost_per_fixture = lambda r, s: ""
+        os.environ["CIVCTL_OWNER"] = "t"
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = cr.main(args)
+        finally:
+            for k, v in saved.items():
+                setattr(cr, k, v)
+        return rc, written
+
+    def test_green_standard_does_not_write_last_green(self):
+        rc, written = self.run_main(["standard"])
+        self.assertEqual(rc, 0)
+        self.assertIn(("label", "standard"), written)
+        self.assertNotIn(("green", "deadbeef00"), written)
+
+    def test_green_all_writes_last_green(self):
+        rc, written = self.run_main(["all"])
+        self.assertEqual(rc, 0)
+        self.assertIn(("green", "deadbeef00"), written)
+
+    def test_standard_without_scripts_fails(self):
+        os.remove(os.path.join(self.tmp.name, "std-b.txt"))
+        rc, _ = self.run_main(["standard"])
+        self.assertEqual(rc, 2)

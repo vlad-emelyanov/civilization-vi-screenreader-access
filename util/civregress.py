@@ -72,6 +72,13 @@ reset, a member that dirtied more than the group's change makes the next one loa
 that also has `# no-share-load:` (it changes more) runs last in its group.
 `# options:` scripts with identical options on one fixture share one load as well (the options are switched when they change).
 
+Suites: Gathering Storm is the primary test case (the main suite). A script with `# suite: standard` tests the game with Gathering
+Storm turned off (fixtures `standard-*`); an unknown suite name is a parse error. `all` and `changed` run the main suite only (`--list`
+marks the standard scripts as not in the run); `changed` prints "standard suite: N scripts cover these changes, run: civctl regress
+standard" when changed files match their `# covers:`. `regress standard` runs exactly the standard scripts with the same machinery as
+`all` (shared loads, retry, TIMING, progress, label "standard") but never writes the last-green rev (that belongs to `all`); no standard
+script = message and exit 2. A named script runs whatever its suite; `# manual` standard scripts run only when named.
+
 Selective runs: every script carries a header `# covers: <glob> [<glob> ...]` naming the mod files it exercises (globs on repo-relative
 paths with / ; `**/` = any directories, `*` = within one name; a glob without a leading `**/` matches as a path suffix).
   python util/civregress.py changed [--base <rev>]    run only the scripts the changes since <rev> can affect
@@ -126,6 +133,7 @@ LUA_LOG = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Firaxis Games", "Sid
 OWNER_REFUSED = ("REFUSED: no owner. In Git Bash prefix EVERY call: CIVCTL_OWNER=<your agent name> util/civctl <command> ... "
                  "(an export does not persist between tool calls). PowerShell: $env:CIVCTL_OWNER='<name>'; or pass -Owner <name>")
 
+SUITES = ("main", "standard")   # '# suite:' header values; a script without one is "main"
 ACTIONS = ("load", "scenario", "key", "action", "wait", "lua", "clear-advisors", "no-lua-errors")
 NO_ARG = ("clear-advisors", "no-lua-errors")
 CHECKS = ("expect", "expect-not", "expect-lua")
@@ -152,7 +160,8 @@ class Steps(list):
     fresh = False  # '# no-share-load' (or a scenario / options): the script dirties the game, the next one loads fresh
     own_load = False  # '# own-load': the script must do its own load (checks the load's speech) but leaves the game clean
     text = ""      # the script source (record mode rewrites it)
-    manual = False # '# manual' in the script: only run when named (all / changed skip it)
+    manual = False # '# manual' in the script: only run when named (all / changed / standard skip it)
+    suite = "main"  # '# suite: standard': belongs to the legacy-game suite (`regress standard`), not to all / changed
     options = frozenset()  # '# options: animations advisor' headers: option groups this script wants at the USER's values
     group_last = False  # '# dirty-group:' together with '# no-share-load:': ordered after the other members of its group
     dirty_group = None  # '# dirty-group: <tag>': scripts with the same tag on one fixture run consecutively on one load (same idempotent state change)
@@ -215,6 +224,11 @@ def parse_script(text, name="script"):
     steps.own_load = bool(re.search(r"^#\s*own-load", text, re.M))
     steps.text = text
     steps.manual = bool(re.search(r"^#\s*manual", text, re.M))
+    for m in re.finditer(r"^#\s*suite:(.*)$", text, re.M):
+        suite = m.group(1).strip()
+        if suite not in SUITES:
+            raise ScriptError("%s: unknown '# suite: %s' (known: %s)" % (name, suite, ", ".join(SUITES)))
+        steps.suite = suite
     steps.covers = tuple(g for m in re.finditer(r"^#\s*covers:(.*)$", text, re.M) for g in m.group(1).split())
     steps.options = parse_options(text, name)
     m = re.search(r"^#\s*before-enter:(.*)$", text, re.M)
@@ -1689,7 +1703,9 @@ def find_alias(name):
     return None
 
 
-def discover(names):
+def discover(names, suite="main"):
+    """names empty / ["all"]: the non-manual scripts of `suite` ("main" = all / changed, "standard" = `regress standard`);
+    otherwise the named scripts, whatever their suite or manual flag."""
     if not names or names == ["all"]:
         files = sorted(f for f in glob.glob(os.path.join(REGRESS_DIR, "*.txt")) if not f.endswith(".recorded.txt"))
     else:
@@ -1706,8 +1722,8 @@ def discover(names):
         name = os.path.splitext(os.path.basename(p))[0]
         with open(p, encoding="utf-8-sig") as f:
             steps = parse_script(f.read(), name)
-        if steps.manual and (not names or names == ["all"]):
-            continue   # manual scripts run only when named
+        if (not names or names == ["all"]) and (steps.manual or steps.suite != suite):
+            continue   # manual scripts run only when named; another suite's scripts only by their own command
         scripts.append((name, steps))
     return scripts
 
@@ -1752,7 +1768,7 @@ def release_run_lock(path):
         pass
 
 
-def select_for_changed(scripts, base=None, out=print):
+def select_for_changed(scripts, base=None, out=print, standard=()):
     """The `regress changed` selection with its report. base: --base or the last green rev (None = run everything)."""
     base_src = "--base"
     if not base:
@@ -1761,6 +1777,8 @@ def select_for_changed(scripts, base=None, out=print):
     if changed is None:
         out("changed: %s -> running ALL %d scripts" % (
             "no recorded green `regress all` (%s)" % last_green_path() if not base else "base %s is unknown to git" % base, len(scripts)))
+        if standard:
+            out("standard suite: %d scripts, run: civctl regress standard" % len(standard))
         return scripts
     notes = []
     selected, uncovered = select_changed(scripts, changed, lambda p: git_out(["diff", "-U0", base, "--", p]), notes)
@@ -1771,6 +1789,10 @@ def select_for_changed(scripts, base=None, out=print):
         out("  select %-40s %s" % (n, why))
     for p in uncovered:
         out("  NOT COVERED by any script (only `regress all` runs these): %s" % p)
+    if standard:
+        std_sel, _ = select_changed(list(standard), changed, lambda p: git_out(["diff", "-U0", base, "--", p]), [])
+        if std_sel:
+            out("standard suite: %d scripts cover these changes, run: civctl regress standard" % len(std_sel))
     return [(n, s) for n, s in scripts if n in selected]
 
 
@@ -1825,12 +1847,13 @@ def main(argv=None):
             return 6
         return 5 if status == "crashed" else 0
     changed_mode = a.names[:1] == ["changed"]
+    standard_mode = a.names == ["standard"]
     try:
-        scripts = discover([] if changed_mode else a.names)
+        scripts = discover([] if changed_mode else [] if standard_mode else a.names, "standard" if standard_mode else "main")
         if changed_mode:
             if len(a.names) > 1:
                 raise ScriptError("`changed` takes no script names (use --base <rev>)")
-            scripts = select_for_changed(scripts, a.base)
+            scripts = select_for_changed(scripts, a.base, standard=discover([], "standard"))
         scripts = order_scripts(scripts)
     except ScriptError as e:
         print("ERROR: %s" % e, file=sys.stderr)
@@ -1838,6 +1861,9 @@ def main(argv=None):
     if not scripts and changed_mode:
         print("changed: no script is affected by the changes; nothing to run (exit 0)")
         return 0
+    if not scripts and standard_mode:
+        print("no `# suite: standard` scripts in %s (add the header to test/regress/std-*.txt)" % REGRESS_DIR)
+        return 2
     if not scripts:
         print("no scripts in %s" % REGRESS_DIR)
         return 2
@@ -1845,7 +1871,10 @@ def main(argv=None):
         for n, steps in scripts:
             tag = getattr(steps, "dirty_group", None)
             print("%s: fixture %s, %d steps%s" % (n, first_fixture(steps) or "-", len(steps), ", dirty-group " + tag if tag else ""))
-        sharing = not a.no_share_load and (a.share_load or not a.names or a.names in (["all"], ["changed"]))
+        if not a.names or a.names == ["all"] or changed_mode:
+            for n, steps in discover([], "standard"):
+                print("%s: [suite standard] not in this run, run: civctl regress standard" % n)
+        sharing = not a.no_share_load and (a.share_load or not a.names or a.names in (["all"], ["changed"], ["standard"]))
         total, per, _ = simulate_loads(scripts, share_load=sharing)
         print("simulated game loads (all reset checks clean): %d for %d scripts; per fixture: %s" % (
             total, len(scripts), ", ".join("%s %d" % kv for kv in sorted(per.items(), key=lambda kv: -kv[1])[:12])))
@@ -1856,12 +1885,12 @@ def main(argv=None):
         return 7
     record = a.record or a.update
     run_everything = not a.names or a.names == ["all"]
-    share = (a.share_load or run_everything or changed_mode) and not a.no_share_load and not record
+    share = (a.share_load or run_everything or changed_mode or standard_mode) and not a.no_share_load and not record
     if share:
         print("(sharing one load per fixture when the reset check says the game is clean; '# own-load:' and '# options:' scripts load fresh, '# no-share-load' and scenario scripts end the sharing; --no-share-load disables)")
     t0 = time.time()
-    retrying = (run_everything or changed_mode) and not a.no_retry and not record
-    label = "all" if run_everything else "changed" if changed_mode else " ".join(a.names) if len(" ".join(a.names)) < 60 else "%d scripts" % len(scripts)
+    retrying = (run_everything or changed_mode or standard_mode) and not a.no_retry and not record
+    label = "all" if run_everything else "changed" if changed_mode else "standard" if standard_mode else " ".join(a.names) if len(" ".join(a.names)) < 60 else "%d scripts" % len(scripts)
     ok, lock = acquire_run_lock()
     if not ok:
         print(lock)
@@ -1891,7 +1920,7 @@ def main(argv=None):
     table = timing_table(results) + [breakdown_total(results)]
     print("\n" + header)
     print("\n".join(table))
-    if (run_everything or changed_mode) and not record:
+    if (run_everything or changed_mode or standard_mode) and not record:
         try:
             paths = write_timing(["run: %s, %d scripts" % (time.strftime("%Y-%m-%d %H:%M:%S"), len(results)), header] + table
                                  + ["LOADCOST (per first fixture): " + load_cost_per_fixture(results, dict(scripts))])

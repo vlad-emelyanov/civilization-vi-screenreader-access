@@ -42,6 +42,7 @@ util\civctl.cmd key Down             # send a plain key of our own screens, prin
 util\civctl.cmd action NextUnit      # send the CURRENT binding of a rebindable hotkey (the user rebinds keys: prefer this to `key`)
 util/civctl lua InGame 'Game.GetCurrentGameTurn()'   # run Lua in a game state via FireTuner (`states` lists them)
 util\civctl.cmd regress changed      # speech regression scripts the changes can affect; `regress <name>` one script; `regress all` ONCE per round, at the end
+util\civctl.cmd regress standard      # separate suite, Gathering Storm off (`# suite: standard`); occasionally, e.g. before a release; not part of `all`
 util\civctl.cmd status | menu | unlock   # where the game is / is a menu or popup open / release the lease
 # exit 5 + "GAME CRASHED/HUNG": stop guessing; stop, start, load the latest fixture
 ```

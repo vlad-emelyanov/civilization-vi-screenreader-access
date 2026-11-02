@@ -56,7 +56,7 @@ Do not run `civctl` yourself. The user wants that delegated.
 ## Tools the loop rests on
 
 - Fixtures (`civctl save/load/fixtures`), profiles (`civctl newgame <profile>`), autoplay (`civctl autoplay <n> -Save <name>`) and scenarios (`util/scenarios/*.lua`) give any agent the exact state where a bug happened. Prefer "load the fixture, replay the keys" over "verified by a direct call".
-- `civctl regress [name|changed|all]` replays `test/regress/*.txt` and checks the speech. `regress all` takes ~90 min (~184 scripts, growing ~10 per round; browse-only scripts share a load per fixture, the rest load their own); `regress changed` runs only the scripts whose `# covers:` globs match the files changed since the last green `all`.
+- `civctl regress [name|changed|all]` replays `test/regress/*.txt` and checks the speech. `regress all` takes ~90 min (~184 scripts, growing ~10 per round; browse-only scripts share a load per fixture, the rest load their own); `regress changed` runs only the scripts whose `# covers:` globs match the files changed since the last green `all`. `civctl regress standard` (the `# suite: standard` scripts, Gathering Storm off) is not part of the round's `regress all`; run it before a release. `civctl regress standard` (the `# suite: standard` scripts, Gathering Storm off) is not part of the round's `regress all`; run it before a release.
 - Offline, no game: `python util/lint.py`, `python util/luatest.py`, `python -m unittest discover test/py`. `civctl deploy` runs lint itself and refuses on errors.
 - Engine facts and forbidden calls: `docs/engine-notes.md`.
 
