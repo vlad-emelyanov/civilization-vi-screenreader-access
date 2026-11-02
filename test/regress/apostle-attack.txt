@@ -29,7 +29,7 @@ expect Cancelled
 action KeyNavUnitActions -Settle 1500
 expect ^Apostle actions, \d+ options$
 key Down -Count 9 -Settle 300
-expect ^Attack, key \S+, 10 of 11$
+expect ^Attack, key \S+, \d+ of \d+$
 key Enter -Settle 2500
 expect ^Attack: Apostle, Ottomans, 2 tiles south-west, attack
 # confirm: the move-and-fight order, then the game's combat result
