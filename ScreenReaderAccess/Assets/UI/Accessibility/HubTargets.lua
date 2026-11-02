@@ -301,17 +301,17 @@ local function TargetName( plot:table )
 		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
 		if city ~= nil and city:GetOwner() ~= Game.GetLocalPlayer() then return Locale.Lookup( city:GetName() ); end
 	end
-	local target:table = CombatText_PickDefender( Units.GetUnitsInPlot( plot ), function( other )
-		return other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ); end );
-	if target ~= nil then return PlotDescription_GetUnitName( target ); end
-	-- theological combat: the religious unit on the plot
-	if HubTargets.AllUnitsAt ~= nil and m_attackIntent and HubTargets.IsReligiousAttacker( UI.GetHeadSelectedUnit() ) then
+	-- theological combat: the religious unit on the plot comes first, so a foreign civilian stacked with it is not named instead
+	if m_attackIntent and HubTargets.IsReligiousAttacker( UI.GetHeadSelectedUnit() ) then
 		for _, other in ipairs( HubTargets.AllUnitsAt( plot ) ) do
 			if other:GetOwner() ~= Game.GetLocalPlayer() and other:GetReligiousStrength() > 0 and HubCore.IsForeignUnitVisible( other ) then
 				return PlotDescription_GetUnitName( other );
 			end
 		end
 	end
+	local target:table = CombatText_PickDefender( Units.GetUnitsInPlot( plot ), function( other )
+		return other:GetOwner() ~= Game.GetLocalPlayer() and HubCore.IsForeignUnitVisible( other ); end );
+	if target ~= nil then return PlotDescription_GetUnitName( target ); end
 	if plot:IsCity() then
 		local city:table = Cities.GetCityInPlot( plot:GetX(), plot:GetY() );
 		if city ~= nil then return Locale.Lookup( city:GetName() ); end
