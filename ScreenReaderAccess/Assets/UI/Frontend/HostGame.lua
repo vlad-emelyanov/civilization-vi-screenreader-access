@@ -410,7 +410,7 @@ end
 --	Input Handler
 -- ===========================================================================
 -- Keyboard navigation (shared machinery in Accessibility/KeyNavSetup.lua, same behaviour as Advanced Setup).
--- Items in reading order: header buttons, game parameters, footer buttons. The Mods and hot seat Load Game buttons are not covered.
+-- Items in reading order: header buttons, game parameters, footer buttons. The Mods button is not covered.
 local function KeyNavBuildItems()
 	local items:table = {};
 	if KeyNavSetup_IsUsable(Controls.DefaultButton) then
@@ -433,6 +433,7 @@ local function KeyNavBuildItems()
 		table.insert(items, item);
 	end
 
+	if KeyNavSetup_IsUsable(Controls.LoadButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadButton, LoadButtonClick)); end
 	if KeyNavSetup_IsUsable(Controls.LoadConfigButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadConfigButton, OnLoadConfig)); end
 	if KeyNavSetup_IsUsable(Controls.SaveConfigButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.SaveConfigButton, OnSaveConfig)); end
 	if not Controls.ConfirmButton:IsHidden() then table.insert(items, KeyNavSetup_ButtonItem(Controls.ConfirmButton, OnConfirmClick)); end

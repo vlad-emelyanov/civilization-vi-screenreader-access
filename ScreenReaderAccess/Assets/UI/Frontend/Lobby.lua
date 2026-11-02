@@ -403,11 +403,12 @@ end
 ----------------------------------------------------------------        
 -- Input Handler
 ----------------------------------------------------------------        
--- Keyboard navigation: this screen is only a gateway to Host Game (the server list is not covered), so the
--- focusable items are Host Game and Back.
+-- Keyboard navigation: this screen is only a gateway to Host Game and Load Game (the server list is not covered), so the
+-- focusable items are Host Game, Load Game and Back.
 local function KeyNavBuildItems()
 	local items:table = {};
 	if KeyNavSetup_IsUsable(Controls.HostButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.HostButton, OnHostButtonClick)); end
+	if KeyNavSetup_IsUsable(Controls.LoadGameButton) then table.insert(items, KeyNavSetup_ButtonItem(Controls.LoadGameButton, OnLoadButtonClick)); end
 	table.insert(items, KeyNavSetup_ButtonItem(Controls.BackButton, OnBackButtonClick));
 	return items;
 end
@@ -415,7 +416,7 @@ end
 local m_nav:table = KeyNavSetup_NewController({
 	buildItems = KeyNavBuildItems,
 	isActive = function() return not ContextPtr:IsHidden(); end,
-	popupOpen = function() return m_kPopupDialog ~= nil and m_kPopupDialog:IsOpen(); end,
+	popupOpen = function() return not Controls.LoadGameMenu:IsHidden() or (m_kPopupDialog ~= nil and m_kPopupDialog:IsOpen()); end,
 	onBack = function() Close(); end,
 	-- Escape closes the join code dialog.
 	onPopupKey = function( key:number )
