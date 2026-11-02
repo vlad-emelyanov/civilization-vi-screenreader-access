@@ -1,33 +1,61 @@
-# UNVERIFIED: written blind, first run with --record. Create Game fields lead with the value ("Prince, Difficulty, dropdown, ..."), Left/Right say only the new value, the selection list names the field first, Escape/Enter read "<value>, <field>".
+# Create Game and Advanced Setup fields lead with the value ("Standard, Game Speed, dropdown, ..."), Left/Right say only the new value, the selection list names the field first, Escape/Enter read "<value>, <field>".
 # covers: **/KeyNavSetup.lua **/AdvancedSetup.lua
-# no-share-load: starts from the MAIN MENU (no fixture), leaves the game on the Create Game screen
-# Start: the game sits at the main menu with the first item (Single Player) focused. Field order of Create Game is not asserted, only the forms.
+# own-load: the script needs a game it can leave to the main menu itself (a shared load would skip the load step)
+# no-share-load: ends in the front end (Create Game), the next script must load again
+# Start: load any fixture, leave to the main menu (the Resume Game entry exists then), open Create Game.
+load standard-start
+clear-advisors
+lua InGame Events.ExitToMainMenu()
+wait Single Player -Timeout 90
 key Enter -Settle 2000
 key Down -Settle 600
-expect (?i)create game
+key Down -Settle 600
+expect (?i)^Create Game$
 key Enter -Settle 3000
-expect (?i)create game|game setup|^[^,]+, [^,]+
-key Down -Settle 800
-expect (?i)^[^:]+, [^,:]+, dropdown, Left/Right or Enter to change
-expect-not (?i)^[^,]+: [^,]+, dropdown
-key Down -Settle 800
-expect (?i)^[^:]+, [^,:]+, dropdown, Left/Right or Enter to change
+expect (?i)^CREATE GAME$
+# Focus starts on RESTORE DEFAULTS; BACK, Ruleset, Civilization, Difficulty, Game Speed follow.
+key Down -Count 5 -Settle 800
+expect ^Standard, Game Speed, dropdown, Left/Right or Enter to change$
+expect-not (?i): Standard, dropdown
 key Right -Settle 800
-expect (?i)^[^,:]+$
-expect-not (?i)dropdown
+expect ^Epic$
+expect-not (?i)dropdown|Game Speed
 key Left -Settle 800
-expect (?i)^[^,:]+$
+expect ^Standard$
+expect-not (?i)dropdown|Game Speed
+# the selection list names the field first
 key Enter -Settle 1000
-expect (?i)^[^:]+, [^,]+, \d+ of \d+\. Up/Down to choose, Enter to select, Escape to cancel
+expect (?i)^Game Speed, Standard, \d+ of \d+\. Up/Down to choose, Enter to select, Escape to cancel$
 key Down -Settle 600
-expect (?i), \d+ of \d+$
+expect (?i)^\S.*, \d+ of \d+$
 key Escape -Settle 1000
-expect (?i)^Cancelled, [^:]+, [^,:]+$
+expect ^Cancelled, Standard, Game Speed$
+# choose another value, then restore Standard (the setting is kept for the next game)
 key Enter -Settle 1000
 key Down -Settle 600
 key Enter -Settle 1000
-expect (?i)^[^:]+, [^,:]+$
+expect ^Epic, Game Speed$
 expect-not (?i)^Cancelled
-# Back to the main menu without starting a game.
+key Enter -Settle 1000
+key Up -Settle 600
+key Enter -Settle 1000
+expect ^Standard, Game Speed$
+# Difficulty (one up) also leads with the value
+key Up -Settle 800
+expect ^Prince, Game Difficulty, dropdown, Left/Right or Enter to change$
+# Advanced Setup: ADVANCED SETUP is 6 Ups above (Civilization, Ruleset, BACK, Restore Defaults, Start Game), pulldowns lead with the value as well
+key Up -Count 6 -Settle 800
+expect ^ADVANCED SETUP$
+key Enter -Settle 3000
+expect (?i)^Advanced Setup$
+key Down -Count 2 -Settle 800
+expect ^Random Leader, Player 1, Leader, dropdown, Left/Right or Enter to change$
+key Right -Settle 800
+expect ^Random Leader \(Pool 1\)$
+key Left -Settle 800
+expect ^Random Leader$
+# Back to Create Game, then to the main menu without starting a game.
+key Escape -Settle 2000
+expect (?i)^CREATE GAME$
 key Escape -Settle 2000
 no-lua-errors
