@@ -222,7 +222,7 @@ local function PlacementCommit( c:table, prefix:string )
 	if not can then
 		prefix = prefix or "";
 		if purchase then
-			local ok:boolean, cost:number = pcall( function() return city:GetGold():GetPurchaseCost( scan.purchaseYield, scan.hash ); end );
+			local ok:boolean, cost = pcall( function() return city:GetGold():GetPurchaseCost( scan.purchaseYield, scan.hash ); end );
 			local isGold:boolean = ( scan.purchaseYield == YieldTypes.GOLD );
 			local balance:number = isGold and math.floor( player:GetTreasury():GetGoldBalance() ) or math.floor( player:GetReligion():GetFaithBalance() );
 			if ok and cost ~= nil and cost > balance then
@@ -257,7 +257,7 @@ end
 -- The price of the district itself when it is bought (not produced): gold or faith, nil otherwise.
 local function PlacementPurchaseCost( scan:table, city:table )
 	if scan.purchaseYield == nil or city == nil then return nil; end
-	local ok:boolean, cost:number = pcall( function() return city:GetGold():GetPurchaseCost( scan.purchaseYield, scan.hash ); end );
+	local ok:boolean, cost = pcall( function() return city:GetGold():GetPurchaseCost( scan.purchaseYield, scan.hash ); end );
 	if ok and cost ~= nil and cost > 0 then return math.floor( cost ); end
 	return nil;
 end
