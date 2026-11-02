@@ -375,6 +375,7 @@ function Initialize()
 	Hub.RegisterAction( "KeyNavChat",				HubMultiplayer.ToggleChat );
 	Hub.RegisterAction( "KeyNavMapPin",				HubPins.Key );
 	Hub.RegisterAction( "KeyNavEmpire",				HubEmpire.Toggle );
+	Hub.RegisterAction( "KeyNavEraProgress",		HubScreens.EraKey );
 	-- Lens hotkeys (MinimapPanel toggles the lens itself and is silent): LensText speaks once the game has switched
 	LensText_Setup( HubCore.After, function( text:string, nointerrupt:boolean ) OutputMessageToScreenReader( text, nointerrupt ); end );
 	for action, _ in pairs( LensText_Actions ) do

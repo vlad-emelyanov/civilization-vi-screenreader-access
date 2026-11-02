@@ -72,6 +72,15 @@ m_list = KeyNavList_Create{
 	onClose		= function() HubCore.CloseMode( true, false ); end,
 };
 
+-- Control+E (KeyNavEraProgress): EraProgressPanel_SRA answers it when the game has eras; without them (Standard Rules) the
+-- context does not exist and the key would be silent. The game never delivers its own era / governors / timeline / climate hotkeys
+-- in such a game (engine-notes, Standard Rules), so only this mod action can say why.
+function HubScreens.EraKey()
+	if Game.GetEras == nil then
+		OutputMessageToScreenReader( "Era progress is not part of this game" );
+	end
+end
+
 function HubScreens.Open()
 	if not HubTargets.CanOpenMode() then return; end
 	if not m_listening then
